@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b1vchmurv508f"]
+
+[ext_resource type="Script" path="res://scripts/tools/BodyEditorModelTest.gd" id="1_body_model"]
+
+[node name="BodyEditorModelTest" type="Node"]
+script = ExtResource("1_body_model")

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b1fk5p2xvjfag"]
+
+[ext_resource type="Script" path="res://scripts/tools/EditorParameterSyncTest.gd" id="1_sync"]
+
+[node name="EditorParameterSyncTest" type="Node"]
+script = ExtResource("1_sync")

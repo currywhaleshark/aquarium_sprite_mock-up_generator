@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://0r3ybdk0ljwx"]
+
+[ext_resource type="Script" path="res://scripts/tools/FinEditorModelTest.gd" id="1_model"]
+
+[node name="FinEditorModelTest" type="Node"]
+script = ExtResource("1_model")

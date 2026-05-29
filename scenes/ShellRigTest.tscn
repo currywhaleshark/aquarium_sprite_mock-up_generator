@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bshellrigtest"]
+
+[ext_resource type="Script" path="res://scripts/tools/ShellRigTest.gd" id="1_shell"]
+
+[node name="ShellRigTest" type="Node"]
+script = ExtResource("1_shell")

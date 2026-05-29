@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dpdb5riyhxju2"]
+
+[ext_resource type="Script" path="res://scripts/tools/HeadEditorModelTest.gd" id="1_head_model"]
+
+[node name="HeadEditorModelTest" type="Node"]
+script = ExtResource("1_head_model")

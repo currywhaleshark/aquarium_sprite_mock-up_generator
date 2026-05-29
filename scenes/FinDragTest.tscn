@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bfindragtest"]
+
+[ext_resource type="Script" path="res://scripts/tools/FinDragTest.gd" id="1_fin"]
+
+[node name="FinDragTest" type="Node"]
+script = ExtResource("1_fin")

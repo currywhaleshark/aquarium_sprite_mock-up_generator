@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bheadeditorpaneltest"]
+
+[ext_resource type="Script" path="res://scripts/tools/HeadEditorPanelTest.gd" id="1_head_panel"]
+
+[node name="HeadEditorPanelTest" type="Node"]
+script = ExtResource("1_head_panel")

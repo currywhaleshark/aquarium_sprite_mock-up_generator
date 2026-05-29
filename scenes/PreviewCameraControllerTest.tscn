@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://uyufmnhkb0el"]
+
+[ext_resource type="Script" path="res://scripts/tools/PreviewCameraControllerTest.gd" id="1_test"]
+
+[node name="PreviewCameraControllerTest" type="Node"]
+script = ExtResource("1_test")

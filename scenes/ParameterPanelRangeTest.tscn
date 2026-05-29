@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bokdf1xt0vpj0"]
+
+[ext_resource type="Script" path="res://scripts/tools/ParameterPanelRangeTest.gd" id="1_range"]
+
+[node name="ParameterPanelRangeTest" type="Node"]
+script = ExtResource("1_range")

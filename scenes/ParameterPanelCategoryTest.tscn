@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bw7rqpbcl1pln"]
+
+[ext_resource type="Script" path="res://scripts/tools/ParameterPanelCategoryTest.gd" id="1_category"]
+
+[node name="ParameterPanelCategoryTest" type="Node"]
+script = ExtResource("1_category")

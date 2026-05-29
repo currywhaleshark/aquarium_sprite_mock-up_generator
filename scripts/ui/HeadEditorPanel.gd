@@ -1,0 +1,132 @@
+class_name HeadEditorPanel
+extends VBoxContainer
+
+signal parameters_changed(parameters: Dictionary)
+
+const HEAD_SHAPES := ["rounded", "tapered", "pointed", "blunt", "broad", "flattened", "hump", "steep_forehead"]
+const MOUTH_TYPES := ["terminal", "superior", "inferior", "subterminal", "protrusible"]
+const NUMERIC_KEYS := {
+	"snout_length": {"min": 0.0, "max": 0.6, "step": 0.005},
+	"forehead_slope": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"jaw_offset": {"min": -0.3, "max": 0.3, "step": 0.005},
+	"mouth_size": {"min": 0.02, "max": 0.24, "step": 0.005},
+	"head_flattening": {"min": 0.0, "max": 0.65, "step": 0.005}
+}
+
+var parameters: Dictionary = {}
+var head_option: OptionButton
+var mouth_option: OptionButton
+var numeric_sliders := {}
+var _updating := false
+
+func _ready() -> void:
+	var title := Label.new()
+	title.text = "Head Editor"
+	title.add_theme_font_size_override("font_size", 15)
+	add_child(title)
+
+	head_option = _add_option_row("Shape", HEAD_SHAPES)
+	head_option.item_selected.connect(func(index: int) -> void:
+		if not _updating:
+			set_head_shape(head_option.get_item_text(index))
+	)
+
+	mouth_option = _add_option_row("Mouth", MOUTH_TYPES)
+	mouth_option.item_selected.connect(func(index: int) -> void:
+		if not _updating:
+			set_mouth_type(mouth_option.get_item_text(index))
+	)
+
+	for key in NUMERIC_KEYS.keys():
+		_add_numeric_row(key)
+	_refresh_controls()
+
+func set_parameters(new_parameters: Dictionary) -> void:
+	parameters = new_parameters.duplicate(true)
+	_refresh_controls()
+
+func set_head_shape(shape: String) -> void:
+	parameters["head_shape"] = shape
+	_emit_and_refresh()
+
+func set_mouth_type(mouth_type: String) -> void:
+	parameters["mouth_type"] = mouth_type
+	_emit_and_refresh()
+
+func set_numeric_parameter(key: String, value: float) -> void:
+	if not NUMERIC_KEYS.has(key):
+		return
+	var config: Dictionary = NUMERIC_KEYS[key]
+	parameters[key] = clampf(value, float(config.get("min", 0.0)), float(config.get("max", 1.0)))
+	_emit_and_refresh()
+
+func _add_option_row(label_text: String, values: Array) -> OptionButton:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(96, 0)
+	row.add_child(label)
+	var option := OptionButton.new()
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for value in values:
+		option.add_item(String(value))
+	row.add_child(option)
+	add_child(row)
+	return option
+
+func _add_numeric_row(key: String) -> void:
+	var config: Dictionary = NUMERIC_KEYS[key]
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = key
+	label.custom_minimum_size = Vector2(112, 0)
+	label.clip_text = true
+	row.add_child(label)
+	var slider := HSlider.new()
+	slider.min_value = float(config["min"])
+	slider.max_value = float(config["max"])
+	slider.step = float(config["step"])
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(slider)
+	var value_label := Label.new()
+	value_label.custom_minimum_size = Vector2(44, 0)
+	row.add_child(value_label)
+	numeric_sliders[key] = {"slider": slider, "label": value_label}
+	slider.value_changed.connect(func(value: float) -> void:
+		value_label.text = "%.2f" % value
+		if not _updating:
+			set_numeric_parameter(key, value)
+	)
+	add_child(row)
+
+func _refresh_controls() -> void:
+	if head_option == null:
+		return
+	_updating = true
+	_select_option(head_option, String(parameters.get("head_shape", "rounded")))
+	_select_option(mouth_option, String(parameters.get("mouth_type", "terminal")))
+	for key in numeric_sliders.keys():
+		var widgets: Dictionary = numeric_sliders[key]
+		var slider := widgets["slider"] as HSlider
+		var label := widgets["label"] as Label
+		var value := float(parameters.get(key, _default_numeric(key)))
+		slider.value = value
+		label.text = "%.2f" % value
+	_updating = false
+
+func _select_option(option: OptionButton, value: String) -> void:
+	for i in option.item_count:
+		if option.get_item_text(i) == value:
+			option.select(i)
+			return
+	option.select(0)
+
+func _default_numeric(key: String) -> float:
+	match key:
+		"mouth_size":
+			return 0.08
+	return 0.0
+
+func _emit_and_refresh() -> void:
+	parameters_changed.emit(parameters.duplicate(true))
+	_refresh_controls()

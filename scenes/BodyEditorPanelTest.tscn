@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cloeb60iqb727"]
+
+[ext_resource type="Script" path="res://scripts/tools/BodyEditorPanelTest.gd" id="1_body_panel"]
+
+[node name="BodyEditorPanelTest" type="Node"]
+script = ExtResource("1_body_panel")

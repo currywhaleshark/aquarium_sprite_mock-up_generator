@@ -1,0 +1,38 @@
+extends Node
+
+const ParameterPanelScript := preload("res://scripts/ui/ParameterPanel.gd")
+
+func _ready() -> void:
+	var panel := ParameterPanelScript.new()
+	add_child(panel)
+	await get_tree().process_frame
+	panel.set_parameters({
+		"head_offset": -0.5,
+		"body_length": 1.2
+	})
+	var head_slider := _find_slider_for_label(panel, "head_offset")
+	var body_slider := _find_slider_for_label(panel, "body_length")
+	assert(head_slider != null)
+	assert(body_slider != null)
+	assert(head_slider.min_value < -0.5)
+	assert(head_slider.max_value > 0.5)
+	assert(body_slider.min_value == 0.0)
+
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
+	var file := FileAccess.open("res://exports/test_results/parameter_panel_range.ok", FileAccess.WRITE)
+	file.store_string("offset sliders allow negative restore")
+	file.close()
+	print("PARAMETER_PANEL_RANGE_TEST_OK")
+	get_tree().quit(0)
+
+func _find_slider_for_label(panel: Control, label_text: String) -> HSlider:
+	var rows := panel.get_node("ParameterRows")
+	for section in rows.get_children():
+		var body := section.get_node_or_null("Body")
+		if body == null:
+			continue
+		for row in body.get_children():
+			var label := row.get_child(0) as Label
+			if label and label.text == label_text:
+				return row.get_child(1) as HSlider
+	return null
