@@ -4,9 +4,9 @@ const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const FinDragControllerScript := preload("res://scripts/ui/FishFinDragController.gd")
 
 func _ready() -> void:
-	var fish := FishRigScript.new()
+	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
-	fish.call("set_parameters", {
+	fish.set_parameters({
 		"shell_enabled": 1.0,
 		"shell_expand": 0.1,
 		"base_color": "#46c6cf",
@@ -18,9 +18,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	fish.call("set_fin_attach", "dorsal", 0.62)
-	fish.call("set_fin_attach", "anal", 0.52)
-	fish.call("set_fin_attach", "pectoral", 0.44)
+	fish.set_fin_attach("dorsal", 0.62)
+	fish.set_fin_attach("anal", 0.52)
+	fish.set_fin_attach("pectoral", 0.44)
 
 	var dorsal := fish.get_node("BodyPivot/DorsalFin1") as MeshInstance3D
 	var anal := fish.get_node("BodyPivot/AnalFin") as MeshInstance3D
@@ -32,7 +32,7 @@ func _ready() -> void:
 	assert(abs(pectoral_r.position.x - pectoral_l.position.x) < 0.001)
 	assert(abs(pectoral_l.position.z + pectoral_r.position.z) < 0.001)
 
-	var controller := FinDragControllerScript.new()
+	var controller: FishFinDragController = FinDragControllerScript.new()
 	add_child(controller)
 	controller.bind_fish(fish)
 	controller.drag_fin_by_pixels("pectoral", Vector2(50.0, 0.0))

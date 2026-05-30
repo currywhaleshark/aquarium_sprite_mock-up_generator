@@ -11,7 +11,8 @@ func set_parameters(new_parameters: Dictionary) -> void:
 
 func rebuild() -> void:
 	for child in get_children():
-		child.queue_free()
+		remove_child(child)
+		child.free()
 
 func apply_pose(_loop_phase: float) -> void:
 	pass

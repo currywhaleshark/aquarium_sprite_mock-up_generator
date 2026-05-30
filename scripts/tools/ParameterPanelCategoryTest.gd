@@ -1,6 +1,7 @@
 extends Node
 
 const ParameterPanelScript := preload("res://scripts/ui/ParameterPanel.gd")
+const UiText := preload("res://scripts/ui/UiText.gd")
 
 func _ready() -> void:
 	var panel := ParameterPanelScript.new()
@@ -8,23 +9,37 @@ func _ready() -> void:
 	await get_tree().process_frame
 	panel.set_parameters({
 		"head_offset": -0.5,
+		"eye_size": 0.05,
 		"head_shape": "rounded",
 		"dorsal_1_attach_t": 0.45,
+		"dorsal_1_height": 0.28,
 		"caudal_shape": "forked_shallow",
+		"tail_length": 0.7,
 		"swim_speed": 1.0,
+		"body_sway_amount": 2.0,
+		"tail_2_sway_amount": 15.0,
 		"base_color": "#46c6cf",
-		"body_length": 1.2
+		"body_length": 1.2,
+		"midbody_depth_scale": 1.4
 	})
-	assert(panel.get_section_body("Head") != null)
-	assert(panel.get_section_body("Fins") != null)
-	assert(panel.get_section_body("Motion") != null)
-	assert(panel.get_section_body("Render") != null)
-	assert(panel.get_section_body("Body") != null)
-	assert(_find_slider_for_label(panel, "head_offset") != null)
-	panel.set_section_collapsed("Head", true)
-	assert(not panel.get_section_body("Head").visible)
-	panel.set_section_collapsed("Head", false)
-	assert(panel.get_section_body("Head").visible)
+	assert(panel.get_section_body("Head") == null)
+	assert(panel.get_section_body("Fins") == null)
+	assert(panel.get_section_body("Motion Settings") != null)
+	assert(panel.get_section_body("Visual Settings") != null)
+	assert(panel.get_section_body("Global Settings") != null)
+	assert(_find_slider_for_label(panel, UiText.parameter("head_offset")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("eye_size")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("dorsal_1_height")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("dorsal_1_attach_t")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("tail_length")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("body_sway_amount")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("tail_2_sway_amount")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("body_length")) != null)
+	assert(_find_slider_for_label(panel, UiText.parameter("midbody_depth_scale")) == null)
+	panel.set_section_collapsed("Motion Settings", true)
+	assert(not panel.get_section_body("Motion Settings").visible)
+	panel.set_section_collapsed("Motion Settings", false)
+	assert(panel.get_section_body("Motion Settings").visible)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/parameter_panel_category.ok", FileAccess.WRITE)

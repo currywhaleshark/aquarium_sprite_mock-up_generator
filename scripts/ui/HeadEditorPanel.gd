@@ -3,14 +3,21 @@ extends VBoxContainer
 
 signal parameters_changed(parameters: Dictionary)
 
+const UiText := preload("res://scripts/ui/UiText.gd")
+
 const HEAD_SHAPES := ["rounded", "tapered", "pointed", "blunt", "broad", "flattened", "hump", "steep_forehead"]
 const MOUTH_TYPES := ["terminal", "superior", "inferior", "subterminal", "protrusible"]
 const NUMERIC_KEYS := {
+	"head_size": {"min": 0.12, "max": 1.2, "step": 0.005},
+	"head_offset": {"min": -1.5, "max": 0.4, "step": 0.005},
 	"snout_length": {"min": 0.0, "max": 0.6, "step": 0.005},
 	"forehead_slope": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"jaw_offset": {"min": -0.3, "max": 0.3, "step": 0.005},
 	"mouth_size": {"min": 0.02, "max": 0.24, "step": 0.005},
-	"head_flattening": {"min": 0.0, "max": 0.65, "step": 0.005}
+	"head_flattening": {"min": 0.0, "max": 0.65, "step": 0.005},
+	"eye_size": {"min": 0.01, "max": 0.16, "step": 0.005},
+	"eye_position_x": {"min": -1.5, "max": 0.2, "step": 0.005},
+	"eye_position_y": {"min": -0.5, "max": 0.6, "step": 0.005}
 }
 
 var parameters: Dictionary = {}
@@ -21,20 +28,20 @@ var _updating := false
 
 func _ready() -> void:
 	var title := Label.new()
-	title.text = "Head Editor"
+	title.text = "머리 편집"
 	title.add_theme_font_size_override("font_size", 15)
 	add_child(title)
 
-	head_option = _add_option_row("Shape", HEAD_SHAPES)
+	head_option = _add_option_row("형태", HEAD_SHAPES)
 	head_option.item_selected.connect(func(index: int) -> void:
 		if not _updating:
-			set_head_shape(head_option.get_item_text(index))
+			set_head_shape(String(head_option.get_item_metadata(index)))
 	)
 
-	mouth_option = _add_option_row("Mouth", MOUTH_TYPES)
+	mouth_option = _add_option_row("입", MOUTH_TYPES)
 	mouth_option.item_selected.connect(func(index: int) -> void:
 		if not _updating:
-			set_mouth_type(mouth_option.get_item_text(index))
+			set_mouth_type(String(mouth_option.get_item_metadata(index)))
 	)
 
 	for key in NUMERIC_KEYS.keys():
@@ -69,7 +76,8 @@ func _add_option_row(label_text: String, values: Array) -> OptionButton:
 	var option := OptionButton.new()
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for value in values:
-		option.add_item(String(value))
+		option.add_item(UiText.option(String(value)))
+		option.set_item_metadata(option.item_count - 1, String(value))
 	row.add_child(option)
 	add_child(row)
 	return option
@@ -78,7 +86,7 @@ func _add_numeric_row(key: String) -> void:
 	var config: Dictionary = NUMERIC_KEYS[key]
 	var row := HBoxContainer.new()
 	var label := Label.new()
-	label.text = key
+	label.text = UiText.parameter(key)
 	label.custom_minimum_size = Vector2(112, 0)
 	label.clip_text = true
 	row.add_child(label)
@@ -116,15 +124,25 @@ func _refresh_controls() -> void:
 
 func _select_option(option: OptionButton, value: String) -> void:
 	for i in option.item_count:
-		if option.get_item_text(i) == value:
+		if String(option.get_item_metadata(i)) == value:
 			option.select(i)
 			return
 	option.select(0)
 
 func _default_numeric(key: String) -> float:
 	match key:
+		"head_size":
+			return 0.44
+		"head_offset":
+			return -0.58
 		"mouth_size":
 			return 0.08
+		"eye_size":
+			return 0.055
+		"eye_position_x":
+			return -0.78
+		"eye_position_y":
+			return 0.12
 	return 0.0
 
 func _emit_and_refresh() -> void:

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dpq4g7v0l0nhv"]
+
+[ext_resource type="Script" path="res://scripts/tools/ReferenceImagePanelTest.gd" id="1_reference_panel"]
+
+[node name="ReferenceImagePanelTest" type="Node"]
+script = ExtResource("1_reference_panel")

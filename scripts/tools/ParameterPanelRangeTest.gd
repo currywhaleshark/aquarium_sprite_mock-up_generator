@@ -1,21 +1,22 @@
 extends Node
 
 const ParameterPanelScript := preload("res://scripts/ui/ParameterPanel.gd")
+const UiText := preload("res://scripts/ui/UiText.gd")
 
 func _ready() -> void:
 	var panel := ParameterPanelScript.new()
 	add_child(panel)
 	await get_tree().process_frame
 	panel.set_parameters({
-		"head_offset": -0.5,
+		"custom_offset_x": -0.5,
 		"body_length": 1.2
 	})
-	var head_slider := _find_slider_for_label(panel, "head_offset")
-	var body_slider := _find_slider_for_label(panel, "body_length")
-	assert(head_slider != null)
+	var offset_slider := _find_slider_for_label(panel, UiText.parameter("custom_offset_x"))
+	var body_slider := _find_slider_for_label(panel, UiText.parameter("body_length"))
+	assert(offset_slider != null)
 	assert(body_slider != null)
-	assert(head_slider.min_value < -0.5)
-	assert(head_slider.max_value > 0.5)
+	assert(offset_slider.min_value < -0.5)
+	assert(offset_slider.max_value > 0.5)
 	assert(body_slider.min_value == 0.0)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))

@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/PresetNormalizationTest.gd" id="1_preset_norm"]
+
+[node name="PresetNormalizationTest" type="Node"]
+script = ExtResource("1_preset_norm")

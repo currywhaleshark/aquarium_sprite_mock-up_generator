@@ -8,7 +8,7 @@ const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 
 func _ready() -> void:
 	var presets: Array[Dictionary] = PresetStoreScript.load_all()
-	var preset := _find_preset(presets, "basic_fish")
+	var preset := _find_preset(presets, "default_fish")
 	if preset.is_empty():
 		push_error("Smoke test preset not found.")
 		get_tree().quit(1)
@@ -33,13 +33,13 @@ func _ready() -> void:
 	viewport.add_child(camera)
 	CameraPresetScript.apply_to_camera(camera, String(preset.get("camera_preset", "aquarium_side_quarter")))
 
-	var rig: Node3D
+	var rig: CreatureRig
 	if String(preset.get("creature_type", "fish")) == "ray":
 		rig = RayRigScript.new()
 	else:
 		rig = FishRigScript.new()
 	world_root.add_child(rig)
-	rig.call("set_parameters", preset.get("parameters", {}))
+	rig.set_parameters(preset.get("parameters", {}))
 
 	var exporter := SpriteExporterScript.new()
 	add_child(exporter)

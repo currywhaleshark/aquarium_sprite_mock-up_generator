@@ -3,10 +3,78 @@ extends ScrollContainer
 
 signal parameters_changed(parameters: Dictionary)
 
+const UiText := preload("res://scripts/ui/UiText.gd")
+
 var parameters: Dictionary = {}
 var container: VBoxContainer
 var section_bodies: Dictionary = {}
 var collapsed_sections: Dictionary = {}
+
+const HIDDEN_BODY_PROFILE_KEYS := {
+	"body_profile": true,
+	"selected_body_ring_id": true,
+	"body_profile_shape": true,
+	"head_depth_scale": true,
+	"shoulder_depth_scale": true,
+	"midbody_depth_scale": true,
+	"tail_base_depth_scale": true,
+	"caudal_peduncle_depth_scale": true,
+	"body_width_scale": true,
+	"lateral_compression": true,
+	"body_depth_bias": true,
+	"head_vertical_offset": true,
+	"tail_vertical_offset": true
+}
+
+const SPECIALIZED_EDITOR_KEYS := {
+	"head_shape": true,
+	"mouth_type": true,
+	"head_size": true,
+	"head_offset": true,
+	"snout_length": true,
+	"forehead_slope": true,
+	"jaw_offset": true,
+	"mouth_size": true,
+	"head_flattening": true,
+	"eye_size": true,
+	"eye_position_x": true,
+	"eye_position_y": true,
+	"dorsal_fin_size": true,
+	"anal_fin_size": true,
+	"pectoral_fin_size": true,
+	"dorsal_fin_offset_x": true,
+	"anal_fin_offset_x": true,
+	"pectoral_fin_offset_x": true,
+	"dorsal_1_attach_t": true,
+	"dorsal_1_shape": true,
+	"dorsal_1_length": true,
+	"dorsal_1_height": true,
+	"dorsal_2_enabled": true,
+	"dorsal_2_attach_t": true,
+	"dorsal_2_shape": true,
+	"dorsal_2_length": true,
+	"dorsal_2_height": true,
+	"pectoral_attach_t": true,
+	"pectoral_shape": true,
+	"pelvic_enabled": true,
+	"pelvic_attach_t": true,
+	"pelvic_shape": true,
+	"pelvic_length": true,
+	"pelvic_height": true,
+	"anal_attach_t": true,
+	"anal_shape": true,
+	"anal_length": true,
+	"anal_height": true,
+	"caudal_shape": true,
+	"tail_length": true,
+	"tail_height": true,
+	"tail_fin_size": true,
+	"caudal_height_scale": true,
+	"body_sway_amount": true,
+	"tail_1_sway_amount": true,
+	"tail_2_sway_amount": true,
+	"tail_fin_sway_amount": true
+}
 
 func _ready() -> void:
 	container = VBoxContainer.new()
@@ -22,6 +90,8 @@ func set_parameters(new_parameters: Dictionary) -> void:
 		child.queue_free()
 	section_bodies.clear()
 	for key in parameters.keys():
+		if _should_hide_key(String(key)):
+			continue
 		var value: Variant = parameters[key]
 		var section_body := _ensure_section(_category_for_key(String(key)))
 		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
@@ -71,13 +141,13 @@ func _ensure_section(section_name: String) -> VBoxContainer:
 	return body
 
 func _header_text(section_name: String, opened: bool) -> String:
-	return ("%s %s" % ["v" if opened else ">", section_name])
+	return ("%s %s" % ["v" if opened else ">", UiText.section(section_name)])
 
 func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
 	var row := HBoxContainer.new()
 	row.custom_minimum_size = Vector2(0, 28)
 	var label := Label.new()
-	label.text = key
+	label.text = UiText.parameter(key)
 	label.custom_minimum_size = Vector2(150, 0)
 	label.clip_text = true
 	row.add_child(label)
@@ -103,7 +173,7 @@ func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 	var row := HBoxContainer.new()
 	row.custom_minimum_size = Vector2(0, 30)
 	var label := Label.new()
-	label.text = key
+	label.text = UiText.parameter(key)
 	label.custom_minimum_size = Vector2(150, 0)
 	label.clip_text = true
 	row.add_child(label)
@@ -144,11 +214,14 @@ func _category_for_key(key: String) -> String:
 	if key.contains("fin") or key.contains("dorsal") or key.contains("pectoral") or key.contains("pelvic") or key.contains("anal") or key.contains("caudal"):
 		return "Fins"
 	if key.contains("speed") or key.contains("sway") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide"):
-		return "Motion"
+		return "Motion Settings"
 	if key.contains("color") or key.contains("outline") or key.contains("highlight") or key.contains("shadow") or key.contains("toon") or key.contains("rim") or key.contains("opacity"):
-		return "Render"
+		return "Visual Settings"
 	if key.contains("camera") or key.contains("orthographic") or key.contains("resolution") or key.contains("frame") or key.contains("padding") or key.contains("target_display"):
 		return "Export"
 	if key.contains("disc") or key.contains("wing") or key.contains("tail") or key.contains("eye") or key.contains("body") or key.contains("shell") or key.contains("visual") or key.contains("length") or key.contains("height") or key.contains("width") or key.contains("size") or key.contains("thickness"):
-		return "Body"
+		return "Global Settings"
 	return "Other"
+
+func _should_hide_key(key: String) -> bool:
+	return HIDDEN_BODY_PROFILE_KEYS.has(key) or SPECIALIZED_EDITOR_KEYS.has(key)

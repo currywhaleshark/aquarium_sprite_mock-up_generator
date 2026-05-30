@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b4b8fxlwkxrbo"]
+
+[ext_resource type="Script" path="res://scripts/tools/ReferenceOverlayCameraSyncTest.gd" id="1_reference_camera"]
+
+[node name="ReferenceOverlayCameraSyncTest" type="Node"]
+script = ExtResource("1_reference_camera")

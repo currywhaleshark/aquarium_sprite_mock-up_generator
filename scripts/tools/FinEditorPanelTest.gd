@@ -18,10 +18,16 @@ func _ready() -> void:
 	panel.set_slot_enabled("dorsal_2", true)
 	panel.set_slot_attach("dorsal_2", 0.78)
 	panel.set_slot_shape("caudal", "thresher")
+	panel.set("selected_slot", "caudal")
+	panel.set_numeric_parameter("tail_fin_size", 0.62)
+	panel.set("selected_slot", "dorsal_1")
+	panel.set_numeric_parameter("dorsal_1_height", 0.33)
 
 	assert(float(seen_parameters[0].get("dorsal_2_enabled", 0.0)) == 1.0)
 	assert(abs(float(seen_parameters[0].get("dorsal_2_attach_t", 0.0)) - 0.78) < 0.001)
 	assert(String(seen_parameters[0].get("caudal_shape", "")) == "thresher")
+	assert(abs(float(seen_parameters[0].get("tail_fin_size", 0.0)) - 0.62) < 0.001)
+	assert(abs(float(seen_parameters[0].get("dorsal_1_height", 0.0)) - 0.33) < 0.001)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/fin_editor_panel.ok", FileAccess.WRITE)

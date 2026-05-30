@@ -6,13 +6,13 @@ signal parameters_changed(parameters: Dictionary)
 const DRAG_WORLD_PER_PIXEL := 0.004
 const PICK_RADIUS_PX := 28.0
 
-var fish: Node3D
+var fish: FishRig
 var camera: Camera3D
 var input_control: Control
 var enabled := false
 var selected_fin := ""
 
-func bind_fish(new_fish: Node3D) -> void:
+func bind_fish(new_fish: FishRig) -> void:
 	fish = new_fish
 	selected_fin = ""
 
@@ -34,8 +34,8 @@ func set_enabled(value: bool) -> void:
 func drag_fin_by_pixels(fin_id: String, delta: Vector2) -> void:
 	if fish == null:
 		return
-	fish.call("move_fin_attach", fin_id, delta.x * DRAG_WORLD_PER_PIXEL)
-	parameters_changed.emit(fish.get("parameters").duplicate(true))
+	fish.move_fin_attach(fin_id, delta.x * DRAG_WORLD_PER_PIXEL)
+	parameters_changed.emit(fish.parameters.duplicate(true))
 
 func _on_gui_input(event: InputEvent) -> void:
 	if not enabled or fish == null:
@@ -63,9 +63,9 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 	input_control.accept_event()
 
 func _pick_fin(mouse_position: Vector2) -> String:
-	if camera == null or not fish.has_method("get_fin_drag_points"):
+	if camera == null or fish == null:
 		return ""
-	var points: Dictionary = fish.call("get_fin_drag_points")
+	var points: Dictionary = fish.get_fin_drag_points()
 	var best_fin := ""
 	var best_distance := PICK_RADIUS_PX
 	for fin_id in points.keys():

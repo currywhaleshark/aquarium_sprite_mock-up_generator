@@ -1,0 +1,21 @@
+{
+	"schema_version": 2,
+	"type": "fish",
+	"name": "bottom_dweller_fish",
+	"camera_preset": "aquarium_side_quarter",
+	"display_target_size": {"w": 30, "h": 14},
+	"global": {"overall_scale": 1.0, "body_length": 1.55, "body_height": 0.44, "body_width": 0.44, "body_height_scale": 1.0, "facing_direction": 1.0, "render_angle": 0.0, "show_ring_guides": 0.0, "show_pivot_guides": 0.0, "head_size": 0.48, "head_offset": -0.62, "eye_size": 0.052, "eye_position_x": -0.78, "eye_position_y": 0.06, "shell_enabled": 1.0, "shell_expand": 0.075, "shell_color_mix": 0.26, "shell_opacity": 0.7},
+	"body_profile": {"rings": [
+		{"id": "snout", "label": "Snout", "x": 0.0, "y_offset": -0.05, "upper_height": 0.14, "lower_height": 0.2, "width": 0.24, "roundness": 0.62, "sway_weight": 0.0},
+		{"id": "head", "label": "Head", "x": 0.17, "y_offset": -0.06, "upper_height": 0.26, "lower_height": 0.38, "width": 0.48, "roundness": 0.78, "sway_weight": 0.05},
+		{"id": "front_body", "label": "Front Body", "x": 0.36, "y_offset": -0.08, "upper_height": 0.34, "lower_height": 0.46, "width": 0.58, "roundness": 0.82, "sway_weight": 0.15},
+		{"id": "mid_body", "label": "Mid Body", "x": 0.58, "y_offset": -0.08, "upper_height": 0.36, "lower_height": 0.44, "width": 0.54, "roundness": 0.8, "sway_weight": 0.35},
+		{"id": "rear_body", "label": "Rear Body", "x": 0.79, "y_offset": -0.05, "upper_height": 0.24, "lower_height": 0.26, "width": 0.32, "roundness": 0.74, "sway_weight": 0.65},
+		{"id": "tail_stem", "label": "Tail Stem", "x": 1.0, "y_offset": -0.03, "upper_height": 0.1, "lower_height": 0.1, "width": 0.1, "roundness": 0.68, "sway_weight": 1.0}
+	]},
+	"tail_profile": {"tail_length": 0.78, "tail_height": 0.16, "tail_fin_size": 0.3, "caudal_shape": "truncate"},
+	"fin_profile": {"dorsal_fin_size": 0.12, "anal_fin_size": 0.1, "pectoral_fin_size": 0.2, "dorsal_1_attach_t": 0.5, "dorsal_1_shape": "rounded", "dorsal_1_length": 0.3, "dorsal_1_height": 0.11, "dorsal_2_enabled": 0.0, "dorsal_2_attach_t": 0.68, "dorsal_2_shape": "single", "pectoral_attach_t": 0.3, "pelvic_enabled": 1.0, "pelvic_attach_t": 0.44, "pelvic_shape": "rounded", "anal_attach_t": 0.68, "anal_shape": "long", "head_shape": "flattened", "mouth_type": "inferior", "snout_length": 0.04, "forehead_slope": 0.0, "jaw_offset": -0.04, "mouth_size": 0.07, "head_flattening": 0.28},
+	"motion_profile": {"swim_speed": 0.62, "global_sway_amount": 7.0, "phase_delay": 0.7, "tail_sway_multiplier": 1.45, "fin_flap_amount": 6.0, "idle_bob_amount": 0.015},
+	"visual_profile": {"base_color": "#6b8f7a", "belly_color": "#dbe8c8", "secondary_color": "#dbe8c8", "fin_color": "#8fb591", "outline_color": "#263f32", "outline_width": 0.012, "highlight_strength": 0.36, "shadow_strength": 0.42, "toon_steps": 3.0, "rim_light_strength": 0.28},
+	"export_settings": {"frame_count": 8, "frame_rate": 12, "frame_ticks": 18, "render_resolution": {"w": 256, "h": 256}, "padding_px": 8, "sprite_facing_left": true}
+}

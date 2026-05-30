@@ -6,32 +6,47 @@ func _ready() -> void:
 	var panel := BodyEditorPanelScript.new()
 	add_child(panel)
 	var seen := [{}]
+	var selected := [""]
 	panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		seen[0] = parameters
 	)
+	panel.ring_selected.connect(func(ring_id: String) -> void:
+		selected[0] = ring_id
+	)
 	panel.set_parameters({
-		"body_profile_shape": "fusiform",
-		"head_depth_scale": 0.9,
-		"midbody_depth_scale": 1.0
+		"body_profile": {
+			"rings": [
+				{"id": "snout", "label": "Snout", "x": 0.0, "y_offset": 0.0, "upper_height": 0.24, "lower_height": 0.20, "width": 0.18, "roundness": 0.65, "sway_weight": 0.0},
+				{"id": "head", "label": "Head", "x": 0.16, "y_offset": 0.0, "upper_height": 0.42, "lower_height": 0.36, "width": 0.34, "roundness": 0.82, "sway_weight": 0.05},
+				{"id": "front_body", "label": "Front Body", "x": 0.36, "y_offset": 0.0, "upper_height": 0.52, "lower_height": 0.48, "width": 0.46, "roundness": 0.9, "sway_weight": 0.15},
+				{"id": "mid_body", "label": "Mid Body", "x": 0.58, "y_offset": 0.0, "upper_height": 0.46, "lower_height": 0.42, "width": 0.38, "roundness": 0.86, "sway_weight": 0.35},
+				{"id": "rear_body", "label": "Rear Body", "x": 0.78, "y_offset": 0.0, "upper_height": 0.28, "lower_height": 0.26, "width": 0.24, "roundness": 0.78, "sway_weight": 0.65},
+				{"id": "tail_stem", "label": "Tail Stem", "x": 1.0, "y_offset": 0.0, "upper_height": 0.12, "lower_height": 0.12, "width": 0.08, "roundness": 0.7, "sway_weight": 1.0}
+			]
+		}
 	})
-	panel.set_body_profile_shape("deep_compressed")
-	assert(String(seen[0].get("body_profile_shape", "")) == "deep_compressed")
-	panel.set_numeric_parameter("midbody_depth_scale", 1.42)
-	panel.set_numeric_parameter("lateral_compression", 0.55)
-	panel.set_numeric_parameter("body_depth_bias", -0.75)
-	panel.set_numeric_parameter("head_vertical_offset", 0.21)
-	panel.set_numeric_parameter("tail_vertical_offset", -0.19)
+	panel.select_ring_by_id("mid_body")
+	assert(selected[0] == "mid_body")
+	panel.set_ring_parameter("upper_height", 0.72)
+	panel.set_ring_parameter("lower_height", 0.61)
+	panel.set_ring_parameter("sway_weight", 0.5)
 
-	assert(String(seen[0].get("body_profile_shape", "")) == "custom")
-	assert(abs(float(seen[0].get("midbody_depth_scale", 0.0)) - 1.42) < 0.001)
-	assert(abs(float(seen[0].get("lateral_compression", 0.0)) - 0.55) < 0.001)
-	assert(abs(float(seen[0].get("body_depth_bias", 0.0)) + 0.75) < 0.001)
-	assert(abs(float(seen[0].get("head_vertical_offset", 0.0)) - 0.21) < 0.001)
-	assert(abs(float(seen[0].get("tail_vertical_offset", 0.0)) + 0.19) < 0.001)
+	var body_profile: Dictionary = seen[0].get("body_profile", {})
+	var rings: Array = body_profile.get("rings", [])
+	assert(rings.size() == 6)
+	assert(String(rings[3].get("id", "")) == "mid_body")
+	assert(abs(float(rings[3].get("upper_height", 0.0)) - 0.72) < 0.001)
+	assert(abs(float(rings[3].get("lower_height", 0.0)) - 0.61) < 0.001)
+	assert(abs(float(rings[3].get("sway_weight", 0.0)) - 0.5) < 0.001)
+
+	panel.select_next_ring()
+	assert(selected[0] == "rear_body")
+	panel.select_previous_ring()
+	assert(selected[0] == "mid_body")
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/body_editor_panel.ok", FileAccess.WRITE)
-	file.store_string("body editor panel parameters emitted")
+	file.store_string("body ring editor parameters emitted")
 	file.close()
 	print("BODY_EDITOR_PANEL_TEST_OK")
 	get_tree().quit(0)

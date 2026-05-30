@@ -3,6 +3,7 @@ extends "res://scripts/creature/CreatureRig.gd"
 
 const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
 const TMF := preload("res://scripts/materials/ToonMaterialFactory.gd")
+const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 var body_pivot: Node3D
 var tail_pivot_1: Node3D
@@ -11,6 +12,8 @@ var tail_fin_pivot: Node3D
 var outer_shell: MeshInstance3D
 var shell_profile: Array[Vector3] = []
 var shell_center_y_offsets: Array[float] = []
+var shell_ring_ids: Array[String] = []
+var body_ring_world_points: Dictionary = {}
 var shell_segments := 28
 var shell_tail_pivot_1_x := 0.0
 var shell_tail_pivot_2_x := 0.0
@@ -28,11 +31,14 @@ var pelvic_l_base_position := Vector3.ZERO
 var pelvic_r_base_position := Vector3.ZERO
 var pectoral_l_base_position := Vector3.ZERO
 var pectoral_r_base_position := Vector3.ZERO
+var pectoral_l_base_rotation := Vector3.ZERO
+var pectoral_r_base_rotation := Vector3.ZERO
 var head_node: MeshInstance3D
+var ring_editor_enabled := false
+var selected_body_ring_id := ""
 
 func rebuild() -> void:
 	super.rebuild()
-	await get_tree().process_frame
 	outer_shell = null
 	shell_profile = []
 	shell_center_y_offsets = []
@@ -54,70 +60,33 @@ func rebuild() -> void:
 	var body_length := param_float("body_length", 1.45)
 	var body_height := param_float("body_height", 0.58)
 	var body_width := param_float("body_width", 0.34)
-	var body_profile := _body_profile_values(String(parameters.get("body_profile_shape", "fusiform")))
-	var head_depth_scale := param_float("head_depth_scale", float(body_profile["head_depth_scale"]))
-	var shoulder_depth_scale := param_float("shoulder_depth_scale", float(body_profile["shoulder_depth_scale"]))
-	var midbody_depth_scale := param_float("midbody_depth_scale", float(body_profile["midbody_depth_scale"]))
-	var tail_base_depth_scale := param_float("tail_base_depth_scale", float(body_profile["tail_base_depth_scale"]))
-	var caudal_peduncle_depth_scale := param_float("caudal_peduncle_depth_scale", float(body_profile["caudal_peduncle_depth_scale"]))
-	var body_width_scale := param_float("body_width_scale", float(body_profile["body_width_scale"]))
-	var lateral_compression := clampf(param_float("lateral_compression", float(body_profile["lateral_compression"])), 0.0, 0.8)
-	var body_depth_bias := clampf(param_float("body_depth_bias", float(body_profile["body_depth_bias"])), -1.0, 1.0)
-	var head_vertical_offset := param_float("head_vertical_offset", 0.0)
-	var tail_vertical_offset := param_float("tail_vertical_offset", 0.0)
-	var body_z_scale := body_width_scale * (1.0 - lateral_compression * 0.62)
+	var body_profile := BodyProfileScript.ensure_body_profile(parameters)
+	parameters["body_profile"] = body_profile
+	selected_body_ring_id = String(parameters.get("selected_body_ring_id", selected_body_ring_id))
+	var rings: Array = body_profile.get("rings", [])
+	var mid_ring := _ring_by_id(rings, "mid_body", 3)
+	var head_ring := _ring_by_id(rings, "head", 1)
+	var midbody_depth_scale := maxf((float(mid_ring.get("upper_height", 0.46)) + float(mid_ring.get("lower_height", 0.42))) * 0.5 / 0.46, 0.1)
+	var head_depth_scale := maxf((float(head_ring.get("upper_height", 0.42)) + float(head_ring.get("lower_height", 0.36))) * 0.5 / 0.42, 0.1)
+	var body_z_scale := maxf(float(mid_ring.get("width", 0.38)) / 0.38, 0.1)
+	var head_width_boost := maxf(float(head_ring.get("width", 0.34)) / 0.34, 0.35)
 	var head_size := param_float("head_size", 0.44)
 	var head_offset := param_float("head_offset", -0.58)
 	var tail_length := param_float("tail_length", 0.78)
-	var tail_height := param_float("tail_height", 0.24)
 	var tail_fin_size := param_float("tail_fin_size", 0.46)
 	var eye_size := param_float("eye_size", 0.055)
 	var shell_expand := param_float("shell_expand", 0.08)
-	shell_tail_pivot_1_x = body_length * 0.48
-	shell_tail_pivot_2_x = shell_tail_pivot_1_x + tail_length * 0.5
 
 	body_pivot = Node3D.new()
 	body_pivot.name = "BodyPivot"
 	add_child(body_pivot)
+	_build_shell_profile_from_rings(rings, body_length, body_height, body_width, body_z_scale, head_offset, head_size, tail_length, shell_expand)
 
 	if param_float("shell_enabled", 1.0) > 0.5:
-		var base_depths := [
-			body_height * 0.24,
-			body_height * 0.42,
-			body_height * 0.52,
-			body_height * 0.46,
-			tail_height * 0.56,
-			tail_height * 0.32,
-			tail_height * 0.16
-		]
-		var depth_scales := [
-			head_depth_scale,
-			head_depth_scale,
-			shoulder_depth_scale,
-			midbody_depth_scale,
-			tail_base_depth_scale,
-			caudal_peduncle_depth_scale,
-			caudal_peduncle_depth_scale
-		]
-		shell_center_y_offsets = _shell_center_offsets(base_depths, depth_scales, body_depth_bias)
-		shell_center_y_offsets = _apply_part_vertical_offsets(shell_center_y_offsets, head_vertical_offset, tail_vertical_offset)
-		shell_profile = [
-			Vector3(head_offset - head_size * 0.33, body_height * 0.24 * head_depth_scale + shell_expand, body_width * 0.18 * body_z_scale * _head_width_boost(body_profile) + shell_expand),
-			Vector3(head_offset - head_size * 0.08, body_height * 0.42 * head_depth_scale + shell_expand, body_width * 0.34 * body_z_scale * _head_width_boost(body_profile) + shell_expand),
-			Vector3(-body_length * 0.16, body_height * 0.52 * shoulder_depth_scale + shell_expand, body_width * 0.46 * body_z_scale + shell_expand),
-			Vector3(body_length * 0.26, body_height * 0.46 * midbody_depth_scale + shell_expand, body_width * 0.38 * body_z_scale + shell_expand),
-			Vector3(body_length * 0.48 + tail_length * 0.26, tail_height * 0.56 * tail_base_depth_scale + shell_expand * 0.45, body_width * 0.24 * body_z_scale + shell_expand * 0.45),
-			Vector3(body_length * 0.48 + tail_length * 0.58, tail_height * 0.32 * caudal_peduncle_depth_scale + shell_expand * 0.28, body_width * 0.16 * body_z_scale + shell_expand * 0.28),
-			Vector3(body_length * 0.48 + tail_length * 0.92, tail_height * 0.16 * caudal_peduncle_depth_scale + shell_expand * 0.16, body_width * 0.07 * body_z_scale + shell_expand * 0.16)
-		]
 		outer_shell = PF.fish_outer_shell("OuterShell", shell_profile, shell_mat, shell_segments, PackedFloat32Array(shell_center_y_offsets))
 		body_pivot.add_child(outer_shell)
 
-	var body := PF.ellipsoid("Body", Vector3(body_length, body_height * midbody_depth_scale, body_width * body_z_scale), base_mat)
-	body.position.y = _sample_shell_center_y_at_x(0.0)
-	body_pivot.add_child(body)
-
-	var head_scale := _head_scale_for_shape(String(parameters.get("head_shape", "rounded")), head_size, body_height * head_depth_scale, body_width * body_z_scale * _head_width_boost(body_profile))
+	var head_scale := _head_scale_for_shape(String(parameters.get("head_shape", "rounded")), head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
 	head_node = PF.ellipsoid("Head", head_scale, secondary_mat)
 	head_node.position = Vector3(head_offset, 0.02 + _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
@@ -132,6 +101,7 @@ func rebuild() -> void:
 	)
 	dorsal_base_position = _surface_position("dorsal", param_float("dorsal_1_attach_t", 0.45), 0.035)
 	dorsal_fin.position = dorsal_base_position
+	dorsal_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", param_float("dorsal_1_attach_t", 0.45))
 	body_pivot.add_child(dorsal_fin)
 
 	if param_float("dorsal_2_enabled", 0.0) > 0.5:
@@ -144,6 +114,7 @@ func rebuild() -> void:
 		)
 		dorsal_2_base_position = _surface_position("dorsal", param_float("dorsal_2_attach_t", 0.68), 0.028)
 		dorsal_2_fin.position = dorsal_2_base_position
+		dorsal_2_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", param_float("dorsal_2_attach_t", 0.68))
 		body_pivot.add_child(dorsal_2_fin)
 
 	anal_fin = PF.fin_shape(
@@ -156,19 +127,22 @@ func rebuild() -> void:
 	)
 	anal_base_position = _surface_position("ventral", param_float("anal_attach_t", 0.64), 0.03)
 	anal_fin.position = anal_base_position
+	anal_fin.rotation_degrees.z = _surface_tangent_angle_degrees("ventral", param_float("anal_attach_t", 0.64))
 	body_pivot.add_child(anal_fin)
 
 	if param_float("pelvic_enabled", 0.0) > 0.5:
 		pelvic_l = PF.fin_shape("PelvicFinL", String(parameters.get("pelvic_shape", "triangle")), param_float("pelvic_length", 0.22), param_float("pelvic_height", 0.14), fin_mat, true)
 		pelvic_r = PF.fin_shape("PelvicFinR", String(parameters.get("pelvic_shape", "triangle")), param_float("pelvic_length", 0.22), param_float("pelvic_height", 0.14), fin_mat, true)
-		var pelvic_center := _surface_position("ventral", param_float("pelvic_attach_t", 0.36), 0.02)
-		var pelvic_z := _surface_radius_z(param_float("pelvic_attach_t", 0.36)) * 0.32
+		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
+		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
+		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
 		pelvic_l_base_position = pelvic_center + Vector3(0.0, 0.0, -pelvic_z)
 		pelvic_r_base_position = pelvic_center + Vector3(0.0, 0.0, pelvic_z)
 		pelvic_l.position = pelvic_l_base_position
 		pelvic_r.position = pelvic_r_base_position
-		pelvic_l.rotation_degrees = Vector3(0.0, 12.0, 0.0)
-		pelvic_r.rotation_degrees = Vector3(0.0, -12.0, 0.0)
+		var pelvic_surface_angle := _surface_tangent_angle_degrees("ventral", pelvic_attach_t)
+		pelvic_l.rotation_degrees = Vector3(0.0, 12.0, pelvic_surface_angle)
+		pelvic_r.rotation_degrees = Vector3(0.0, -12.0, pelvic_surface_angle)
 		body_pivot.add_child(pelvic_l)
 		body_pivot.add_child(pelvic_r)
 
@@ -177,13 +151,16 @@ func rebuild() -> void:
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
 	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -_surface_radius_z(pectoral_attach_t) - shell_expand * 0.55)
 	pectoral_l.position = pectoral_l_base_position
-	pectoral_l.rotation_degrees = Vector3(0.0, 25.0, -28.0)
+	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
+	pectoral_l_base_rotation = Vector3(0.0, 25.0, -28.0 + pectoral_surface_angle)
+	pectoral_l.rotation_degrees = pectoral_l_base_rotation
 	body_pivot.add_child(pectoral_l)
 
 	pectoral_r = PF.oval_fin("PectoralFinR", param_float("pectoral_fin_size", 0.16), param_float("pectoral_fin_size", 0.16) * 0.5, fin_mat)
 	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, _surface_radius_z(pectoral_attach_t) + shell_expand * 0.55)
 	pectoral_r.position = pectoral_r_base_position
-	pectoral_r.rotation_degrees = Vector3(0.0, -25.0, -28.0)
+	pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
+	pectoral_r.rotation_degrees = pectoral_r_base_rotation
 	body_pivot.add_child(pectoral_r)
 	_apply_fin_offsets()
 
@@ -197,57 +174,194 @@ func rebuild() -> void:
 	tail_pivot_1 = Node3D.new()
 	tail_pivot_1.name = "TailPivot1"
 	var tail_pivot_1_y := _sample_shell_center_y_at_x(shell_tail_pivot_1_x)
-	tail_pivot_1.position = Vector3(body_length * 0.48, tail_pivot_1_y, 0.0)
+	tail_pivot_1.position = Vector3(shell_tail_pivot_1_x, tail_pivot_1_y, 0.0)
 	body_pivot.add_child(tail_pivot_1)
-
-	var tail_1 := PF.tapered_segment("Tail1", tail_length * 0.5, tail_height * tail_base_depth_scale, body_width * 0.52 * body_z_scale, base_mat)
-	tail_1.position = Vector3(tail_length * 0.25, 0.0, 0.0)
-	tail_pivot_1.add_child(tail_1)
 
 	tail_pivot_2 = Node3D.new()
 	tail_pivot_2.name = "TailPivot2"
 	var tail_pivot_2_y := _sample_shell_center_y_at_x(shell_tail_pivot_2_x)
-	tail_pivot_2.position = Vector3(tail_length * 0.5, tail_pivot_2_y - tail_pivot_1_y, 0.0)
+	tail_pivot_2.position = Vector3(shell_tail_pivot_2_x - shell_tail_pivot_1_x, tail_pivot_2_y - tail_pivot_1_y, 0.0)
 	tail_pivot_1.add_child(tail_pivot_2)
-
-	var tail_2 := PF.tapered_segment("Tail2", tail_length * 0.42, tail_height * 0.72 * caudal_peduncle_depth_scale, body_width * 0.34 * body_z_scale, base_mat)
-	tail_2.position = Vector3(tail_length * 0.2, 0.0, 0.0)
-	tail_pivot_2.add_child(tail_2)
 
 	tail_fin_pivot = Node3D.new()
 	tail_fin_pivot.name = "TailFinPivot"
-	var tail_fin_y := _sample_shell_center_y_at_x(shell_tail_pivot_2_x + tail_length * 0.42)
-	tail_fin_pivot.position = Vector3(tail_length * 0.42, tail_fin_y - tail_pivot_2_y, 0.0)
+	tail_fin_pivot.position = Vector3.ZERO
 	tail_pivot_2.add_child(tail_fin_pivot)
 
 	var tail_fin := PF.caudal_fin_shape("TailFin", String(parameters.get("caudal_shape", "forked_shallow")), tail_fin_size, tail_fin_size * param_float("caudal_height_scale", 0.72), fin_mat)
 	tail_fin_pivot.add_child(tail_fin)
+	_update_body_ring_world_points()
+	if ring_editor_enabled or param_float("show_ring_guides", 0.0) > 0.5:
+		_add_ring_guides()
+
+func set_ring_editor_enabled(enabled: bool) -> void:
+	ring_editor_enabled = enabled
+	rebuild()
+
+func set_selected_body_ring(ring_id: String) -> void:
+	selected_body_ring_id = ring_id
+	parameters["selected_body_ring_id"] = ring_id
+	rebuild()
+
+func get_body_ring_global_points() -> Dictionary:
+	_update_body_ring_world_points()
+	return body_ring_world_points.duplicate(true)
+
+func _build_shell_profile_from_rings(rings: Array, body_length: float, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, tail_length: float, shell_expand: float) -> void:
+	shell_profile = []
+	shell_center_y_offsets = []
+	shell_ring_ids = []
+	if rings.is_empty():
+		rings = BodyProfileScript.default_fish_rings()
+	var head_shell := _head_shell_metrics(rings, body_height, body_width, body_z_scale, head_offset, head_size, shell_expand)
+	var start_x := float(head_shell["start_x"])
+	var end_x := body_length * 0.48
+	for i in rings.size():
+		var ring: Dictionary = BodyProfileScript.normalize_ring(rings[i], i)
+		var radius_y := body_height * (float(ring["upper_height"]) + float(ring["lower_height"])) * 0.5 + shell_expand * lerpf(1.0, 0.22, float(ring["x"]))
+		var center_y := body_height * (float(ring["y_offset"]) + (float(ring["upper_height"]) - float(ring["lower_height"])) * 0.5)
+		var radius_z := body_width * body_z_scale * float(ring["width"]) * lerpf(0.62, 1.0, float(ring["roundness"])) + shell_expand * lerpf(1.0, 0.18, float(ring["x"]))
+		var adjusted := _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell)
+		radius_y = float(adjusted["radius_y"])
+		radius_z = float(adjusted["radius_z"])
+		shell_profile.append(Vector3(lerpf(start_x, end_x, float(ring["x"])), radius_y, radius_z))
+		shell_center_y_offsets.append(center_y)
+		shell_ring_ids.append(String(ring.get("id", "ring_%d" % i)))
+	shell_tail_pivot_1_x = _ring_x_by_id("rear_body", body_length * 0.48)
+	shell_tail_pivot_2_x = _ring_x_by_id("tail_stem", shell_tail_pivot_1_x + tail_length * 0.5)
+
+func _head_shell_metrics(rings: Array, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, shell_expand: float) -> Dictionary:
+	var head_ring := _ring_by_id(rings, "head", mini(1, rings.size() - 1))
+	var head_depth_scale := maxf((float(head_ring.get("upper_height", 0.42)) + float(head_ring.get("lower_height", 0.36))) * 0.5 / 0.42, 0.1)
+	var head_width_boost := maxf(float(head_ring.get("width", 0.34)) / 0.34, 0.35)
+	var shape := String(parameters.get("head_shape", "rounded"))
+	var head_scale := _head_scale_for_shape(shape, head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
+	var start_x := head_offset - head_scale.x * 0.22
+	return {
+		"shape": shape,
+		"radius_y": maxf(head_scale.y * 0.5 + shell_expand * 0.72, 0.04),
+		"radius_z": maxf(head_scale.z * 0.5 + shell_expand * 0.72, 0.035),
+		"start_x": start_x
+	}
+
+func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: float, metrics: Dictionary) -> Dictionary:
+	var ring_id := String(ring.get("id", ""))
+	if ring_id != "snout" and ring_id != "head":
+		return {"radius_y": radius_y, "radius_z": radius_z}
+	var shape := String(metrics.get("shape", "rounded"))
+	var target_y := float(metrics["radius_y"])
+	var target_z := float(metrics["radius_z"])
+	if ring_id == "snout":
+		var snout_y_scale := 0.7
+		var snout_z_scale := 0.72
+		if shape == "pointed" or shape == "tapered":
+			snout_y_scale = 0.52
+			snout_z_scale = 0.58
+		elif shape == "blunt":
+			snout_y_scale = 0.82
+			snout_z_scale = 0.86
+		target_y *= snout_y_scale
+		target_z *= snout_z_scale
+	return {
+		"radius_y": maxf(target_y, 0.035),
+		"radius_z": maxf(target_z, 0.03)
+	}
+
+func _add_ring_guides() -> void:
+	var guide_root := Node3D.new()
+	guide_root.name = "BodyRingGuides"
+	body_pivot.add_child(guide_root)
+	var guide_mat := TMF.make_surface(Color.html("#f6d365"), 0.2, 0.65)
+	var selected_mat := TMF.make_surface(Color.html("#ff4d6d"), 0.18, 0.75)
+	var endpoint_mat := TMF.make_surface(Color.html("#f8f9fa"), 0.12, 0.55)
+	for i in shell_profile.size():
+		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else ""
+		var selected := ring_id == selected_body_ring_id
+		var center_y := shell_center_y_offsets[i] if i < shell_center_y_offsets.size() else 0.0
+		var point := shell_profile[i]
+		var center := PF.ellipsoid("RingCenter_%s" % ring_id, Vector3(0.035, 0.035, 0.035), selected_mat if selected else guide_mat)
+		center.position = Vector3(point.x, center_y, -point.z - 0.03)
+		guide_root.add_child(center)
+		var top := PF.ellipsoid("RingTop_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
+		top.position = Vector3(point.x, center_y + point.y, -point.z - 0.03)
+		guide_root.add_child(top)
+		var bottom := PF.ellipsoid("RingBottom_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
+		bottom.position = Vector3(point.x, center_y - point.y, -point.z - 0.03)
+		guide_root.add_child(bottom)
+		var label := Label3D.new()
+		label.name = "RingLabel_%s" % ring_id
+		label.text = _ring_label_by_id(ring_id, "Ring")
+		label.font_size = 18
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.position = Vector3(point.x, center_y + point.y + 0.08, -point.z - 0.04)
+		guide_root.add_child(label)
+
+func _update_body_ring_world_points() -> void:
+	body_ring_world_points.clear()
+	if body_pivot == null:
+		return
+	for i in shell_profile.size():
+		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else "ring_%d" % i
+		var center_y := shell_center_y_offsets[i] if i < shell_center_y_offsets.size() else 0.0
+		body_ring_world_points[ring_id] = body_pivot.to_global(Vector3(shell_profile[i].x, center_y, 0.0))
+
+func _ring_by_id(rings: Array, ring_id: String, fallback_index: int) -> Dictionary:
+	for ring in rings:
+		if String(ring.get("id", "")) == ring_id:
+			return ring
+	if rings.is_empty():
+		return BodyProfileScript.default_fish_rings()[0]
+	return rings[clampi(fallback_index, 0, rings.size() - 1)]
+
+func _ring_label_by_id(ring_id: String, fallback: String) -> String:
+	for ring in BodyProfileScript.ensure_body_profile(parameters).get("rings", []):
+		if String(ring.get("id", "")) == ring_id:
+			return String(ring.get("label", fallback))
+	return fallback
+
+func _ring_x_by_id(ring_id: String, fallback: float) -> float:
+	for i in shell_ring_ids.size():
+		if shell_ring_ids[i] == ring_id:
+			return shell_profile[i].x
+	return fallback
+
+func _ring_sway_weight(ring_id: String, fallback: float) -> float:
+	for ring in BodyProfileScript.ensure_body_profile(parameters).get("rings", []):
+		if String(ring.get("id", "")) == ring_id:
+			return float(ring.get("sway_weight", fallback))
+	return fallback
 
 func apply_pose(loop_phase: float) -> void:
 	var wave := sin(loop_phase * TAU)
 	var delayed := sin(loop_phase * TAU - param_float("phase_delay", 0.65))
 	position.y = wave * param_float("idle_bob_amount", 0.035)
+	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
+	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
+	var tail_stem_weight := _ring_sway_weight("tail_stem", 1.0)
 	if body_pivot:
-		body_pivot.rotation_degrees.y = wave * param_float("body_sway_amount", 3.0)
+		body_pivot.rotation_degrees.y = wave * global_sway * _ring_sway_weight("mid_body", 0.35) * 0.28
 	if tail_pivot_1:
-		tail_pivot_1.rotation_degrees.y = delayed * param_float("tail_1_sway_amount", 10.0)
+		tail_pivot_1.rotation_degrees.y = delayed * global_sway * tail_multiplier * _ring_sway_weight("rear_body", 0.65)
 	if tail_pivot_2:
-		tail_pivot_2.rotation_degrees.y = sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 1.8) * param_float("tail_2_sway_amount", 18.0)
+		tail_pivot_2.rotation_degrees.y = sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 1.8) * global_sway * tail_multiplier * tail_stem_weight
 	if tail_fin_pivot:
-		tail_fin_pivot.rotation_degrees.y = sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4) * param_float("tail_fin_sway_amount", 24.0)
+		tail_fin_pivot.rotation_degrees.y = sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4) * global_sway * tail_multiplier * tail_stem_weight * 1.25
 	if pectoral_l:
-		pectoral_l.rotation_degrees.x = sin(loop_phase * TAU * 2.0) * param_float("pectoral_flap_amount", 10.0)
+		pectoral_l.rotation_degrees = pectoral_l_base_rotation
+		pectoral_l.rotation_degrees.x += sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
 	if pectoral_r:
-		pectoral_r.rotation_degrees.x = sin(loop_phase * TAU * 2.0) * param_float("pectoral_flap_amount", 10.0)
+		pectoral_r.rotation_degrees = pectoral_r_base_rotation
+		pectoral_r.rotation_degrees.x += sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
 	_deform_shell(loop_phase)
 
 func _deform_shell(loop_phase: float) -> void:
 	if outer_shell == null or shell_profile.is_empty():
 		return
 	var phase_delay := param_float("phase_delay", 0.65)
-	var tail_1_yaw := sin(loop_phase * TAU - phase_delay) * param_float("tail_1_sway_amount", 10.0)
-	var tail_2_yaw := sin(loop_phase * TAU - phase_delay * 1.8) * param_float("tail_2_sway_amount", 18.0)
-	var body_yaw := sin(loop_phase * TAU) * param_float("body_sway_amount", 3.0) * 0.22
+	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
+	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
+	var tail_1_yaw := sin(loop_phase * TAU - phase_delay) * global_sway * tail_multiplier * _ring_sway_weight("rear_body", 0.65)
+	var tail_2_yaw := sin(loop_phase * TAU - phase_delay * 1.8) * global_sway * tail_multiplier * _ring_sway_weight("tail_stem", 1.0)
 	var centers := PackedVector3Array()
 	var yaws := PackedFloat32Array()
 	for ring_index in shell_profile.size():
@@ -255,11 +369,15 @@ func _deform_shell(loop_phase: float) -> void:
 		var point := shell_profile[ring_index]
 		var bend := _tail_bent_center_and_yaw(point.x, tail_1_yaw, tail_2_yaw)
 		var center: Vector3 = bend["center"]
-		var yaw: float = bend["yaw"]
+		var ring_id := shell_ring_ids[ring_index] if ring_index < shell_ring_ids.size() else ""
+		var ring_weight := _ring_sway_weight(ring_id, t)
+		var ring_yaw := sin(loop_phase * TAU - float(ring_index) * phase_delay) * global_sway * ring_weight
+		var yaw: float = bend["yaw"] + ring_yaw
 		center.z += sin(loop_phase * TAU) * 0.01 * (1.0 - t)
 		centers.append(center)
-		yaws.append(yaw + body_yaw * (1.0 - t * 0.55))
+		yaws.append(yaw)
 	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets))
+	_update_body_ring_world_points()
 
 func _tail_bent_center_and_yaw(x: float, tail_1_yaw: float, tail_2_yaw: float) -> Dictionary:
 	var pivot_1 := Vector3(shell_tail_pivot_1_x, 0.0, 0.0)
@@ -335,14 +453,20 @@ func get_fin_drag_points() -> Dictionary:
 
 func _apply_fin_offsets() -> void:
 	if dorsal_fin:
-		dorsal_base_position = _surface_position("dorsal", param_float("dorsal_1_attach_t", 0.45), 0.035)
+		var dorsal_attach_t := param_float("dorsal_1_attach_t", 0.45)
+		dorsal_base_position = _surface_position("dorsal", dorsal_attach_t, 0.035)
 		dorsal_fin.position = dorsal_base_position + Vector3(float(parameters.get("dorsal_fin_offset_x", 0.0)), 0.0, 0.0)
+		dorsal_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", dorsal_attach_t)
 	if dorsal_2_fin:
-		dorsal_2_base_position = _surface_position("dorsal", param_float("dorsal_2_attach_t", 0.68), 0.028)
+		var dorsal_2_attach_t := param_float("dorsal_2_attach_t", 0.68)
+		dorsal_2_base_position = _surface_position("dorsal", dorsal_2_attach_t, 0.028)
 		dorsal_2_fin.position = dorsal_2_base_position
+		dorsal_2_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t)
 	if anal_fin:
-		anal_base_position = _surface_position("ventral", param_float("anal_attach_t", 0.64), 0.03)
+		var anal_attach_t := param_float("anal_attach_t", 0.64)
+		anal_base_position = _surface_position("ventral", anal_attach_t, 0.03)
 		anal_fin.position = anal_base_position + Vector3(float(parameters.get("anal_fin_offset_x", 0.0)), 0.0, 0.0)
+		anal_fin.rotation_degrees.z = _surface_tangent_angle_degrees("ventral", anal_attach_t)
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
@@ -351,17 +475,24 @@ func _apply_fin_offsets() -> void:
 		pelvic_r_base_position = pelvic_center + Vector3(0.0, 0.0, pelvic_z)
 		pelvic_l.position = pelvic_l_base_position
 		pelvic_r.position = pelvic_r_base_position
+		var pelvic_surface_angle := _surface_tangent_angle_degrees("ventral", pelvic_attach_t)
+		pelvic_l.rotation_degrees = Vector3(0.0, 12.0, pelvic_surface_angle)
+		pelvic_r.rotation_degrees = Vector3(0.0, -12.0, pelvic_surface_angle)
 	var pectoral_offset := float(parameters.get("pectoral_fin_offset_x", 0.0))
+	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
+	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.55
+	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	if pectoral_l:
-		var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
-		var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-		pectoral_l_base_position.x = pectoral_center.x
+		pectoral_l_base_position = Vector3(pectoral_center.x, -0.02 + pectoral_center.y, -pectoral_z)
 		pectoral_l.position = pectoral_l_base_position + Vector3(pectoral_offset, 0.0, 0.0)
+		pectoral_l_base_rotation = Vector3(0.0, 25.0, -28.0 + pectoral_surface_angle)
+		pectoral_l.rotation_degrees = pectoral_l_base_rotation
 	if pectoral_r:
-		var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
-		var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-		pectoral_r_base_position.x = pectoral_center.x
+		pectoral_r_base_position = Vector3(pectoral_center.x, -0.02 + pectoral_center.y, pectoral_z)
 		pectoral_r.position = pectoral_r_base_position + Vector3(pectoral_offset, 0.0, 0.0)
+		pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
+		pectoral_r.rotation_degrees = pectoral_r_base_rotation
 
 func _fin_offset_key(fin_id: String) -> String:
 	match fin_id:
@@ -416,6 +547,31 @@ func _surface_position(side: String, attach_t: float, margin: float) -> Vector3:
 func _surface_radius_z(attach_t: float) -> float:
 	return _sample_shell_profile(attach_t).z
 
+func _surface_tangent_angle_degrees(side: String, attach_t: float) -> float:
+	if shell_profile.size() < 2:
+		return 0.0
+	var delta := 1.0 / maxf(float(shell_profile.size() - 1), 1.0)
+	var from_t := clampf(attach_t - delta, 0.0, 1.0)
+	var to_t := clampf(attach_t + delta, 0.0, 1.0)
+	if is_equal_approx(from_t, to_t):
+		return 0.0
+	var from_point := _surface_contour_point(side, from_t)
+	var to_point := _surface_contour_point(side, to_t)
+	var dx := to_point.x - from_point.x
+	if absf(dx) < 0.0001:
+		return 0.0
+	return clampf(rad_to_deg(atan2(to_point.y - from_point.y, dx)), -40.0, 40.0)
+
+func _surface_contour_point(side: String, attach_t: float) -> Vector2:
+	var sample := _sample_shell_profile(attach_t)
+	var center_y := _sample_shell_center_y(attach_t)
+	match side:
+		"dorsal":
+			return Vector2(sample.x, center_y + sample.y)
+		"ventral":
+			return Vector2(sample.x, center_y - sample.y)
+	return Vector2(sample.x, center_y)
+
 func _sample_shell_profile(attach_t: float) -> Vector3:
 	if shell_profile.is_empty():
 		return Vector3(0.0, 0.4, 0.24)
@@ -457,117 +613,8 @@ func set_mouth_type(mouth_type: String) -> void:
 
 func set_body_profile_shape(shape: String) -> void:
 	parameters["body_profile_shape"] = shape
-	var profile := _body_profile_values(shape)
-	for key in profile.keys():
-		parameters[key] = profile[key]
+	parameters["body_profile"] = {"rings": BodyProfileScript.default_fish_rings(shape)}
 	rebuild()
-
-func _body_profile_values(shape: String) -> Dictionary:
-	match shape:
-		"deep_compressed":
-			return {
-				"head_depth_scale": 0.78,
-				"shoulder_depth_scale": 1.36,
-				"midbody_depth_scale": 1.55,
-				"tail_base_depth_scale": 0.82,
-				"caudal_peduncle_depth_scale": 0.42,
-				"body_width_scale": 0.82,
-				"lateral_compression": 0.48,
-				"body_depth_bias": -0.35,
-				"head_width_boost": 1.0
-			}
-		"elongated":
-			return {
-				"head_depth_scale": 0.74,
-				"shoulder_depth_scale": 0.82,
-				"midbody_depth_scale": 0.82,
-				"tail_base_depth_scale": 0.64,
-				"caudal_peduncle_depth_scale": 0.5,
-				"body_width_scale": 0.9,
-				"lateral_compression": 0.16,
-				"body_depth_bias": 0.0,
-				"head_width_boost": 1.0
-			}
-		"eel_like":
-			return {
-				"head_depth_scale": 0.56,
-				"shoulder_depth_scale": 0.58,
-				"midbody_depth_scale": 0.6,
-				"tail_base_depth_scale": 0.5,
-				"caudal_peduncle_depth_scale": 0.42,
-				"body_width_scale": 0.75,
-				"lateral_compression": 0.08,
-				"body_depth_bias": 0.0,
-				"head_width_boost": 1.0
-			}
-		"depressed":
-			return {
-				"head_depth_scale": 0.5,
-				"shoulder_depth_scale": 0.56,
-				"midbody_depth_scale": 0.58,
-				"tail_base_depth_scale": 0.48,
-				"caudal_peduncle_depth_scale": 0.36,
-				"body_width_scale": 1.35,
-				"lateral_compression": 0.0,
-				"body_depth_bias": -0.2,
-				"head_width_boost": 1.1
-			}
-		"broad_head":
-			return {
-				"head_depth_scale": 1.35,
-				"shoulder_depth_scale": 1.18,
-				"midbody_depth_scale": 0.88,
-				"tail_base_depth_scale": 0.72,
-				"caudal_peduncle_depth_scale": 0.5,
-				"body_width_scale": 1.28,
-				"lateral_compression": 0.08,
-				"body_depth_bias": -0.15,
-				"head_width_boost": 1.25
-			}
-		"narrow_peduncle":
-			return {
-				"head_depth_scale": 0.9,
-				"shoulder_depth_scale": 1.0,
-				"midbody_depth_scale": 1.0,
-				"tail_base_depth_scale": 0.58,
-				"caudal_peduncle_depth_scale": 0.28,
-				"body_width_scale": 0.95,
-				"lateral_compression": 0.18,
-				"body_depth_bias": 0.0,
-				"head_width_boost": 1.0
-			}
-	return {
-		"head_depth_scale": 0.9,
-		"shoulder_depth_scale": 1.0,
-		"midbody_depth_scale": 1.0,
-		"tail_base_depth_scale": 0.8,
-		"caudal_peduncle_depth_scale": 0.65,
-		"body_width_scale": 1.0,
-		"lateral_compression": 0.1,
-		"body_depth_bias": 0.0,
-		"head_width_boost": 1.0
-	}
-
-func _head_width_boost(profile: Dictionary) -> float:
-	return float(profile.get("head_width_boost", 1.0))
-
-func _shell_center_offsets(base_depths: Array, depth_scales: Array, depth_bias: float) -> Array[float]:
-	var offsets: Array[float] = []
-	for i in base_depths.size():
-		var base_depth := float(base_depths[i])
-		var depth_scale := float(depth_scales[i])
-		offsets.append((base_depth * depth_scale - base_depth) * depth_bias)
-	return offsets
-
-func _apply_part_vertical_offsets(offsets: Array[float], head_offset: float, tail_offset: float) -> Array[float]:
-	var head_weights := [1.0, 0.75, 0.25, 0.0, 0.0, 0.0, 0.0]
-	var tail_weights := [0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0]
-	var adjusted: Array[float] = []
-	for i in offsets.size():
-		var head_weight := float(head_weights[i]) if i < head_weights.size() else 0.0
-		var tail_weight := float(tail_weights[i]) if i < tail_weights.size() else 0.0
-		adjusted.append(offsets[i] + head_offset * head_weight + tail_offset * tail_weight)
-	return adjusted
 
 func _head_scale_for_shape(shape: String, head_size: float, body_height: float, body_width: float) -> Vector3:
 	var flatten := clampf(param_float("head_flattening", 0.0), 0.0, 0.65)

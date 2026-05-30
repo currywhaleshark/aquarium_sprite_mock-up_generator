@@ -1,6 +1,7 @@
 class_name PresetStore
 extends RefCounted
 
+const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const PRESET_DIR := "res://presets"
 
 static func load_all() -> Array[Dictionary]:
@@ -29,7 +30,7 @@ static func load_preset(path: String) -> Dictionary:
 	var parsed: Variant = JSON.parse_string(text)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
-	return parsed
+	return normalize_preset(parsed)
 
 static func save_preset(path: String, preset: Dictionary) -> Error:
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -38,3 +39,22 @@ static func save_preset(path: String, preset: Dictionary) -> Error:
 	file.store_string(JSON.stringify(preset, "\t"))
 	file.close()
 	return OK
+
+static func normalize_preset(preset: Dictionary) -> Dictionary:
+	var normalized := preset.duplicate(true)
+	if normalized.has("type") and not normalized.has("creature_type"):
+		normalized["creature_type"] = String(normalized.get("type", "fish"))
+	if not normalized.has("type"):
+		normalized["type"] = String(normalized.get("creature_type", "fish"))
+	if normalized.has("parameters"):
+		var parameters: Dictionary = normalized["parameters"]
+		if String(normalized.get("creature_type", "fish")) == "fish":
+			parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
+			BodyProfileScript.normalize_motion_parameters(parameters)
+		normalized["parameters"] = parameters
+		return normalized
+	var parameters := BodyProfileScript.make_parameters_from_structured_preset(normalized)
+	if String(normalized.get("creature_type", normalized.get("type", "fish"))) == "fish":
+		parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
+	normalized["parameters"] = parameters
+	return normalized

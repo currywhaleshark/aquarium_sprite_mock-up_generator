@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/RigImmediateRebuildTest.gd" id="1_rebuild"]
+
+[node name="RigImmediateRebuildTest" type="Node"]
+script = ExtResource("1_rebuild")

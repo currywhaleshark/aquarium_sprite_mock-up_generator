@@ -3,14 +3,24 @@ extends Node
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 
 func _ready() -> void:
-	var fish := FishRigScript.new()
+	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
-	fish.call("set_parameters", {
+	fish.set_parameters({
 		"shell_enabled": 1.0,
 		"shell_expand": 0.1,
 		"base_color": "#46c6cf",
 		"secondary_color": "#d6fbff",
 		"fin_color": "#7edfe5",
+		"body_profile": {
+			"rings": [
+				{"id": "snout", "label": "Snout", "x": 0.0, "y_offset": 0.02, "upper_height": 0.22, "lower_height": 0.18, "width": 0.18, "roundness": 0.65, "sway_weight": 0.0},
+				{"id": "head", "label": "Head", "x": 0.16, "y_offset": 0.02, "upper_height": 0.30, "lower_height": 0.28, "width": 0.34, "roundness": 0.82, "sway_weight": 0.05},
+				{"id": "front_body", "label": "Front Body", "x": 0.36, "y_offset": 0.0, "upper_height": 0.70, "lower_height": 0.46, "width": 0.42, "roundness": 0.9, "sway_weight": 0.15},
+				{"id": "mid_body", "label": "Mid Body", "x": 0.58, "y_offset": 0.0, "upper_height": 0.34, "lower_height": 0.36, "width": 0.36, "roundness": 0.86, "sway_weight": 0.35},
+				{"id": "rear_body", "label": "Rear Body", "x": 0.78, "y_offset": 0.0, "upper_height": 0.22, "lower_height": 0.24, "width": 0.22, "roundness": 0.78, "sway_weight": 0.65},
+				{"id": "tail_stem", "label": "Tail Stem", "x": 1.0, "y_offset": 0.0, "upper_height": 0.12, "lower_height": 0.12, "width": 0.07, "roundness": 0.7, "sway_weight": 1.0}
+			]
+		},
 		"dorsal_1_attach_t": 0.32,
 		"dorsal_1_shape": "spiny",
 		"dorsal_2_enabled": 1.0,
@@ -41,11 +51,16 @@ func _ready() -> void:
 	assert(dorsal_1.position.y > 0.0)
 	assert(anal.position.y < 0.0)
 	assert(abs(pelvic_l.position.z + pelvic_r.position.z) < 0.001)
+	assert(abs(dorsal_1.rotation_degrees.z) > 1.0)
+	assert(abs(anal.rotation_degrees.z) > 1.0)
+	assert(abs(pelvic_l.rotation_degrees.z) > 1.0)
 
 	var dorsal_1_y_before := dorsal_1.position.y
-	fish.call("set_fin_attach", "dorsal_1", 0.76)
+	var dorsal_1_z_before := dorsal_1.rotation_degrees.z
+	fish.set_fin_attach("dorsal_1", 0.76)
 	assert(dorsal_1.position.x > dorsal_2.position.x - 0.2)
 	assert(abs(dorsal_1.position.y - dorsal_1_y_before) > 0.001)
+	assert(abs(dorsal_1.rotation_degrees.z - dorsal_1_z_before) > 1.0)
 
 	var caudal_bounds := _mesh_bounds(caudal)
 	assert(caudal_bounds["max_y"] > abs(float(caudal_bounds["min_y"])) * 1.25)

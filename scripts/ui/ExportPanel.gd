@@ -7,11 +7,11 @@ var status_label: Label
 
 func _ready() -> void:
 	var button := Button.new()
-	button.text = "Export PNG + Sheet"
+	button.text = "PNG + 스프라이트시트 출력"
 	button.pressed.connect(func() -> void: export_requested.emit())
 	add_child(button)
 	status_label = Label.new()
-	status_label.text = "Ready"
+	status_label.text = "준비됨"
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(status_label)
 

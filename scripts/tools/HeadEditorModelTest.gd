@@ -3,9 +3,9 @@ extends Node
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 
 func _ready() -> void:
-	var fish := FishRigScript.new()
+	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
-	fish.call("set_parameters", {
+	fish.set_parameters({
 		"shell_enabled": 1.0,
 		"base_color": "#46c6cf",
 		"secondary_color": "#d6fbff",
@@ -30,15 +30,26 @@ func _ready() -> void:
 	assert(hump.position.y > 0.0)
 	assert(mouth.position.y < -0.05)
 	var initial_head_scale_x := head.scale.x
+	var initial_shell_profile: Array = fish.shell_profile
+	var initial_front_radius_y := float(initial_shell_profile[1].y)
+	var initial_shell_start_x := float(initial_shell_profile[0].x)
 
-	fish.call("set_head_shape", "pointed")
-	fish.call("set_mouth_type", "superior")
+	fish.set_head_shape("pointed")
+	fish.set_mouth_type("superior")
+	var adjusted_parameters: Dictionary = fish.parameters.duplicate(true)
+	adjusted_parameters["snout_length"] = 0.28
+	adjusted_parameters["head_flattening"] = 0.55
+	fish.set_parameters(adjusted_parameters)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var head_after := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
 	var mouth_after := fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D
+	var pointed_shell_profile: Array = fish.shell_profile
 	assert(head_after.scale.x > initial_head_scale_x)
 	assert(mouth_after.position.y > 0.0)
+	assert(float(pointed_shell_profile[1].y) < initial_front_radius_y * 0.8)
+	assert(float(pointed_shell_profile[0].x) > head_after.position.x - head_after.scale.x * 0.35)
+	assert(float(pointed_shell_profile[0].x) < head_after.position.x - head_after.scale.x * 0.05)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)

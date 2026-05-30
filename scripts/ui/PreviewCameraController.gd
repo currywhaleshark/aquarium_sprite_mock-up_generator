@@ -1,6 +1,8 @@
 class_name PreviewCameraController
 extends Node
 
+signal camera_changed(state: Dictionary)
+
 const ROTATE_SENSITIVITY := 0.35
 const PAN_SENSITIVITY := 0.0016
 const ZOOM_STEP := 1.12
@@ -111,6 +113,7 @@ func _apply_camera() -> void:
 	camera.position = target + direction * distance
 	camera.look_at(target, Vector3.UP)
 	camera.rotation_degrees.z += roll_degrees
+	camera_changed.emit(get_camera_state())
 
 func _variant_to_vector3(value: Variant) -> Vector3:
 	if value is Vector3:
