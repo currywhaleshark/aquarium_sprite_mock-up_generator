@@ -65,6 +65,40 @@ func _ready() -> void:
 	var caudal_bounds := _mesh_bounds(caudal)
 	assert(caudal_bounds["max_y"] > abs(float(caudal_bounds["min_y"])) * 1.25)
 
+	var tail_fin_pivot := fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
+	assert(tail_fin_pivot != null)
+	var low_wave_parameters: Dictionary = fish.parameters.duplicate(true)
+	low_wave_parameters["global_sway_amount"] = 18.0
+	low_wave_parameters["body_wave_amount"] = 0.05
+	fish.set_parameters(low_wave_parameters)
+	await get_tree().process_frame
+	var low_wave_dorsal := fish.get_node_or_null("BodyPivot/DorsalFin1") as MeshInstance3D
+	fish.apply_pose(0.25)
+	var low_dorsal_yaw := absf(low_wave_dorsal.rotation_degrees.y)
+
+	var high_wave_parameters: Dictionary = fish.parameters.duplicate(true)
+	high_wave_parameters["body_wave_amount"] = 0.95
+	fish.set_parameters(high_wave_parameters)
+	await get_tree().process_frame
+	var high_wave_dorsal := fish.get_node_or_null("BodyPivot/DorsalFin1") as MeshInstance3D
+	var high_wave_tail := fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
+	fish.apply_pose(0.25)
+	var high_dorsal_yaw := absf(high_wave_dorsal.rotation_degrees.y)
+	assert(high_dorsal_yaw > low_dorsal_yaw + 1.0)
+
+	var high_wave_anal := fish.get_node_or_null("BodyPivot/AnalFin") as MeshInstance3D
+	var high_wave_pelvic_l := fish.get_node_or_null("BodyPivot/PelvicFinL") as MeshInstance3D
+	assert(high_wave_anal != null)
+	assert(high_wave_pelvic_l != null)
+	var shell_yaw := fish._sample_animated_shell_yaw(float(fish.parameters.get("dorsal_1_attach_t", 0.45)), fish.animated_shell_yaws)
+	var pelvic_shell_yaw := fish._sample_animated_shell_yaw(float(fish.parameters.get("pelvic_attach_t", 0.36)), fish.animated_shell_yaws)
+	assert(absf(shell_yaw) > 1.0)
+	assert(signf(high_wave_anal.rotation_degrees.y) == signf(high_wave_dorsal.rotation_degrees.y))
+	assert(high_dorsal_yaw < absf(shell_yaw) * 0.35)
+	assert(absf(high_wave_pelvic_l.rotation_degrees.y - 12.0) < absf(pelvic_shell_yaw) * 0.35)
+	fish.apply_pose(0.5)
+	assert(absf(high_wave_tail.rotation_degrees.y) < 12.0)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/fin_editor_model.ok", FileAccess.WRITE)
 	file.store_string("fin editor model slots applied")

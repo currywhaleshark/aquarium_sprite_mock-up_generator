@@ -12,6 +12,19 @@ func _ready() -> void:
 	assert(not parameters.has("tail_1_sway_amount"))
 	assert(not parameters.has("tail_2_sway_amount"))
 	assert(not parameters.has("tail_fin_sway_amount"))
+	assert(parameters.has("body_wave_amount"))
+
+	var long_fish := _find_preset(presets, "long_fish")
+	assert(not long_fish.is_empty())
+	var long_parameters: Dictionary = long_fish.get("parameters", {})
+	assert(float(long_parameters.get("body_wave_amount", 0.0)) > 0.75)
+	assert(float(long_parameters.get("body_wave_start", 1.0)) < 0.08)
+
+	var goldfish := _find_preset(presets, "goldfish")
+	assert(not goldfish.is_empty())
+	var goldfish_parameters: Dictionary = goldfish.get("parameters", {})
+	assert(float(goldfish_parameters.get("body_wave_amount", 1.0)) < 0.3)
+	assert(float(goldfish_parameters.get("body_wave_start", 0.0)) > 0.35)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/preset_normalization.ok", FileAccess.WRITE)

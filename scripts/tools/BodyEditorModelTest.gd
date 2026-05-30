@@ -82,6 +82,29 @@ func _ready() -> void:
 	var high_tail_yaw := absf(tail_pivot_2.rotation_degrees.y)
 	assert(high_tail_yaw > low_tail_yaw * 3.0)
 
+	var low_body_wave_parameters: Dictionary = fish.parameters.duplicate(true)
+	low_body_wave_parameters["global_sway_amount"] = 12.0
+	low_body_wave_parameters["body_wave_amount"] = 0.1
+	fish.set_parameters(low_body_wave_parameters)
+	await get_tree().process_frame
+	var low_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
+	var low_shell_before := _ring_vertex(low_shell, 3, 0, 28)
+	fish.apply_pose(0.25)
+	var low_shell_after := _ring_vertex(low_shell, 3, 0, 28)
+	var low_shell_delta := low_shell_before.distance_to(low_shell_after)
+	assert(absf((fish.get_node("BodyPivot") as Node3D).rotation_degrees.y) < 0.001)
+	var high_body_wave_parameters: Dictionary = fish.parameters.duplicate(true)
+	high_body_wave_parameters["body_wave_amount"] = 0.9
+	fish.set_parameters(high_body_wave_parameters)
+	await get_tree().process_frame
+	var high_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
+	var high_shell_before := _ring_vertex(high_shell, 3, 0, 28)
+	fish.apply_pose(0.25)
+	var high_shell_after := _ring_vertex(high_shell, 3, 0, 28)
+	var high_shell_delta := high_shell_before.distance_to(high_shell_after)
+	assert(absf((fish.get_node("BodyPivot") as Node3D).rotation_degrees.y) < 0.001)
+	assert(high_shell_delta > low_shell_delta * 5.0)
+
 	fish.set_selected_body_ring("front_body")
 	var ring_points: Dictionary = fish.get_body_ring_global_points()
 	assert(ring_points.has("front_body"))
@@ -92,3 +115,8 @@ func _ready() -> void:
 	file.close()
 	print("BODY_EDITOR_MODEL_TEST_OK")
 	get_tree().quit(0)
+
+func _ring_vertex(mesh_instance: MeshInstance3D, ring_index: int, segment_index: int, segments: int) -> Vector3:
+	var arrays := mesh_instance.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	return vertices[ring_index * segments + segment_index]

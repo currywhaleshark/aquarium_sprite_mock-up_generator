@@ -15,7 +15,7 @@
 	]},
 	"tail_profile": {"tail_length": 0.86, "tail_height": 0.26, "tail_fin_size": 0.62, "caudal_shape": "rounded"},
 	"fin_profile": {"dorsal_fin_size": 0.3, "anal_fin_size": 0.22, "pectoral_fin_size": 0.18, "dorsal_1_attach_t": 0.48, "dorsal_1_shape": "rounded", "dorsal_1_length": 0.42, "dorsal_1_height": 0.26, "dorsal_2_enabled": 0.0, "dorsal_2_attach_t": 0.68, "dorsal_2_shape": "single", "pectoral_attach_t": 0.34, "pelvic_enabled": 1.0, "pelvic_attach_t": 0.42, "pelvic_shape": "rounded", "anal_attach_t": 0.62, "anal_shape": "rounded", "head_shape": "blunt", "mouth_type": "terminal", "snout_length": 0.0, "forehead_slope": 0.15, "jaw_offset": 0.0, "mouth_size": 0.09, "head_flattening": 0.0},
-	"motion_profile": {"swim_speed": 0.85, "global_sway_amount": 9.0, "phase_delay": 0.58, "tail_sway_multiplier": 1.85, "fin_flap_amount": 9.0, "idle_bob_amount": 0.03},
+	"motion_profile": {"swim_speed": 0.85, "global_sway_amount": 9.0, "phase_delay": 0.58, "tail_sway_multiplier": 1.9, "body_wave_amount": 0.14, "body_wave_start": 0.52, "body_wave_falloff": 1.5, "fin_flap_amount": 9.0, "idle_bob_amount": 0.03},
 	"visual_profile": {"base_color": "#f39b28", "belly_color": "#ffd66b", "secondary_color": "#ffd66b", "fin_color": "#ffb23b", "outline_color": "#5e2f12", "outline_width": 0.014, "highlight_strength": 0.58, "shadow_strength": 0.34, "toon_steps": 3.0, "rim_light_strength": 0.38},
 	"export_settings": {"frame_count": 8, "frame_rate": 12, "frame_ticks": 18, "render_resolution": {"w": 256, "h": 256}, "padding_px": 8, "sprite_facing_left": true}
 }

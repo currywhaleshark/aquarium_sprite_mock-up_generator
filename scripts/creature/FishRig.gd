@@ -4,6 +4,8 @@ extends "res://scripts/creature/CreatureRig.gd"
 const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
 const TMF := preload("res://scripts/materials/ToonMaterialFactory.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const FIN_YAW_FOLLOW_STRENGTH := 0.25
+const TAIL_FIN_EXTRA_SWING_STRENGTH := 0.55
 
 var body_pivot: Node3D
 var tail_pivot_1: Node3D
@@ -13,6 +15,8 @@ var outer_shell: MeshInstance3D
 var shell_profile: Array[Vector3] = []
 var shell_center_y_offsets: Array[float] = []
 var shell_ring_ids: Array[String] = []
+var animated_shell_centers := PackedVector3Array()
+var animated_shell_yaws := PackedFloat32Array()
 var body_ring_world_points: Dictionary = {}
 var shell_segments := 28
 var shell_tail_pivot_1_x := 0.0
@@ -42,6 +46,8 @@ func rebuild() -> void:
 	outer_shell = null
 	shell_profile = []
 	shell_center_y_offsets = []
+	animated_shell_centers = PackedVector3Array()
+	animated_shell_yaws = PackedFloat32Array()
 	dorsal_fin = null
 	dorsal_2_fin = null
 	anal_fin = null
@@ -339,7 +345,7 @@ func apply_pose(loop_phase: float) -> void:
 	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
 	var tail_stem_weight := _ring_sway_weight("tail_stem", 1.0)
 	if body_pivot:
-		body_pivot.rotation_degrees.y = wave * global_sway * _ring_sway_weight("mid_body", 0.35) * 0.28
+		body_pivot.rotation_degrees.y = 0.0
 	if tail_pivot_1:
 		tail_pivot_1.rotation_degrees.y = delayed * global_sway * tail_multiplier * _ring_sway_weight("rear_body", 0.65)
 	if tail_pivot_2:
@@ -359,6 +365,9 @@ func _deform_shell(loop_phase: float) -> void:
 		return
 	var phase_delay := param_float("phase_delay", 0.65)
 	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
+	var body_wave_amount := param_float("body_wave_amount", 0.35)
+	var body_wave_start := clampf(param_float("body_wave_start", 0.16), 0.0, 1.0)
+	var body_wave_falloff := maxf(param_float("body_wave_falloff", 0.75), 0.05)
 	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
 	var tail_1_yaw := sin(loop_phase * TAU - phase_delay) * global_sway * tail_multiplier * _ring_sway_weight("rear_body", 0.65)
 	var tail_2_yaw := sin(loop_phase * TAU - phase_delay * 1.8) * global_sway * tail_multiplier * _ring_sway_weight("tail_stem", 1.0)
@@ -371,13 +380,23 @@ func _deform_shell(loop_phase: float) -> void:
 		var center: Vector3 = bend["center"]
 		var ring_id := shell_ring_ids[ring_index] if ring_index < shell_ring_ids.size() else ""
 		var ring_weight := _ring_sway_weight(ring_id, t)
-		var ring_yaw := sin(loop_phase * TAU - float(ring_index) * phase_delay) * global_sway * ring_weight
+		var body_distribution := _body_wave_distribution(t, body_wave_start, body_wave_falloff)
+		var ring_yaw := sin(loop_phase * TAU - float(ring_index) * phase_delay) * global_sway * ring_weight * body_wave_amount * body_distribution
 		var yaw: float = bend["yaw"] + ring_yaw
-		center.z += sin(loop_phase * TAU) * 0.01 * (1.0 - t)
+		center.z += sin(loop_phase * TAU - float(ring_index) * phase_delay) * 0.012 * body_wave_amount * body_distribution
 		centers.append(center)
 		yaws.append(yaw)
 	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets))
+	animated_shell_centers = centers
+	animated_shell_yaws = yaws
+	_apply_animated_attachments(loop_phase, centers, yaws)
 	_update_body_ring_world_points()
+
+func _body_wave_distribution(t: float, start: float, falloff: float) -> float:
+	if t <= start:
+		return 0.0
+	var normalized := clampf((t - start) / maxf(1.0 - start, 0.001), 0.0, 1.0)
+	return pow(normalized, falloff)
 
 func _tail_bent_center_and_yaw(x: float, tail_1_yaw: float, tail_2_yaw: float) -> Dictionary:
 	var pivot_1 := Vector3(shell_tail_pivot_1_x, 0.0, 0.0)
@@ -395,6 +414,124 @@ func _tail_bent_center_and_yaw(x: float, tail_1_yaw: float, tail_2_yaw: float) -
 		"center": pivot_2 + basis_2 * Vector3(x - shell_tail_pivot_2_x, 0.0, 0.0),
 		"yaw": tail_1_yaw + tail_2_yaw
 	}
+
+func _apply_animated_attachments(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
+	_apply_animated_fins(loop_phase, centers, yaws)
+	_apply_animated_tail(loop_phase, centers, yaws)
+
+func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
+	if dorsal_fin:
+		var dorsal_attach_t := param_float("dorsal_1_attach_t", 0.45)
+		dorsal_fin.position = _animated_surface_position("dorsal", dorsal_attach_t, 0.035, 0.0, float(parameters.get("dorsal_fin_offset_x", 0.0)), centers, yaws)
+		dorsal_fin.rotation_degrees = Vector3(0.0, _fin_follow_yaw(dorsal_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_attach_t))
+	if dorsal_2_fin:
+		var dorsal_2_attach_t := param_float("dorsal_2_attach_t", 0.68)
+		dorsal_2_fin.position = _animated_surface_position("dorsal", dorsal_2_attach_t, 0.028, 0.0, 0.0, centers, yaws)
+		dorsal_2_fin.rotation_degrees = Vector3(0.0, _fin_follow_yaw(dorsal_2_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
+	if anal_fin:
+		var anal_attach_t := param_float("anal_attach_t", 0.64)
+		var anal_yaw := _fin_follow_yaw(anal_attach_t, yaws)
+		anal_fin.position = _animated_surface_position("ventral", anal_attach_t, 0.03, 0.0, float(parameters.get("anal_fin_offset_x", 0.0)), centers, yaws)
+		anal_fin.rotation_degrees = Vector3(0.0, anal_yaw, _surface_tangent_angle_degrees("ventral", anal_attach_t))
+	if pelvic_l and pelvic_r:
+		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
+		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
+		var pelvic_yaw := _fin_follow_yaw(pelvic_attach_t, yaws)
+		var pelvic_surface_angle := _surface_tangent_angle_degrees("ventral", pelvic_attach_t)
+		pelvic_l.position = _animated_surface_position("ventral", pelvic_attach_t, 0.02, -pelvic_z, 0.0, centers, yaws)
+		pelvic_r.position = _animated_surface_position("ventral", pelvic_attach_t, 0.02, pelvic_z, 0.0, centers, yaws)
+		pelvic_l.rotation_degrees = Vector3(0.0, pelvic_yaw + 12.0, pelvic_surface_angle)
+		pelvic_r.rotation_degrees = Vector3(0.0, pelvic_yaw - 12.0, pelvic_surface_angle)
+	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.55
+	var pectoral_yaw := _fin_follow_yaw(pectoral_attach_t, yaws)
+	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
+	var pectoral_flap := sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
+	var pectoral_offset := float(parameters.get("pectoral_fin_offset_x", 0.0))
+	if pectoral_l:
+		pectoral_l.position = _animated_side_position(pectoral_attach_t, -0.02, -pectoral_z, pectoral_offset, centers, yaws)
+		pectoral_l_base_rotation = Vector3(0.0, pectoral_yaw + 25.0, -28.0 + pectoral_surface_angle)
+		pectoral_l.rotation_degrees = pectoral_l_base_rotation + Vector3(pectoral_flap, 0.0, 0.0)
+	if pectoral_r:
+		pectoral_r.position = _animated_side_position(pectoral_attach_t, -0.02, pectoral_z, pectoral_offset, centers, yaws)
+		pectoral_r_base_rotation = Vector3(0.0, pectoral_yaw - 25.0, -28.0 + pectoral_surface_angle)
+		pectoral_r.rotation_degrees = pectoral_r_base_rotation + Vector3(pectoral_flap, 0.0, 0.0)
+
+func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
+	if tail_pivot_1 == null or tail_pivot_2 == null or tail_fin_pivot == null:
+		return
+	var rear_index := _ring_index_by_id("rear_body", maxi(shell_profile.size() - 2, 0))
+	var stem_index := _ring_index_by_id("tail_stem", maxi(shell_profile.size() - 1, 0))
+	var rear_center := _animated_ring_center(rear_index, centers)
+	var stem_center := _animated_ring_center(stem_index, centers)
+	var rear_yaw := _animated_ring_yaw(rear_index, yaws)
+	var stem_yaw := _animated_ring_yaw(stem_index, yaws)
+	tail_pivot_1.position = rear_center
+	tail_pivot_1.rotation_degrees = Vector3(0.0, rear_yaw, 0.0)
+	tail_pivot_2.position = Basis(Vector3.UP, deg_to_rad(-rear_yaw)) * (stem_center - rear_center)
+	tail_pivot_2.rotation_degrees = Vector3(0.0, stem_yaw - rear_yaw, 0.0)
+	var phase_delay := param_float("phase_delay", 0.65)
+	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
+	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
+	var tail_stem_weight := _ring_sway_weight("tail_stem", 1.0)
+	var tail_fin_yaw := sin(loop_phase * TAU - phase_delay * 2.4) * global_sway * tail_multiplier * tail_stem_weight * TAIL_FIN_EXTRA_SWING_STRENGTH
+	tail_fin_pivot.position = Vector3.ZERO
+	tail_fin_pivot.rotation_degrees = Vector3(0.0, tail_fin_yaw, 0.0)
+
+func _fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
+	return _sample_animated_shell_yaw(attach_t, yaws) * FIN_YAW_FOLLOW_STRENGTH
+
+func _animated_surface_position(side: String, attach_t: float, margin: float, local_z: float, offset_x: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> Vector3:
+	var sample := _sample_shell_profile(attach_t)
+	var local_y := 0.0
+	match side:
+		"dorsal":
+			local_y = sample.y + margin
+		"ventral":
+			local_y = -sample.y - margin
+	var center := _sample_animated_shell_center(attach_t, centers)
+	var yaw := _sample_animated_shell_yaw(attach_t, yaws)
+	return center + Basis(Vector3.UP, deg_to_rad(yaw)) * Vector3(offset_x, local_y, local_z)
+
+func _animated_side_position(attach_t: float, local_y: float, local_z: float, offset_x: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> Vector3:
+	var center := _sample_animated_shell_center(attach_t, centers)
+	var yaw := _sample_animated_shell_yaw(attach_t, yaws)
+	return center + Basis(Vector3.UP, deg_to_rad(yaw)) * Vector3(offset_x, local_y, local_z)
+
+func _sample_animated_shell_center(attach_t: float, centers: PackedVector3Array) -> Vector3:
+	if centers.is_empty():
+		var sample := _sample_shell_profile(attach_t)
+		return Vector3(sample.x, _sample_shell_center_y(attach_t), 0.0)
+	var scaled := clampf(attach_t, 0.0, 1.0) * float(centers.size() - 1)
+	var index := int(floor(scaled))
+	var next_index := mini(index + 1, centers.size() - 1)
+	var local_t := scaled - float(index)
+	return _animated_ring_center(index, centers).lerp(_animated_ring_center(next_index, centers), local_t)
+
+func _sample_animated_shell_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
+	if yaws.is_empty():
+		return 0.0
+	var scaled := clampf(attach_t, 0.0, 1.0) * float(yaws.size() - 1)
+	var index := int(floor(scaled))
+	var next_index := mini(index + 1, yaws.size() - 1)
+	var local_t := scaled - float(index)
+	return lerpf(float(yaws[index]), float(yaws[next_index]), local_t)
+
+func _animated_ring_center(ring_index: int, centers: PackedVector3Array) -> Vector3:
+	var index := clampi(ring_index, 0, maxi(centers.size() - 1, 0))
+	var center := centers[index] if index < centers.size() else Vector3.ZERO
+	center.y += shell_center_y_offsets[index] if index < shell_center_y_offsets.size() else 0.0
+	return center
+
+func _animated_ring_yaw(ring_index: int, yaws: PackedFloat32Array) -> float:
+	var index := clampi(ring_index, 0, maxi(yaws.size() - 1, 0))
+	return float(yaws[index]) if index < yaws.size() else 0.0
+
+func _ring_index_by_id(ring_id: String, fallback_index: int) -> int:
+	for i in shell_ring_ids.size():
+		if shell_ring_ids[i] == ring_id:
+			return i
+	return clampi(fallback_index, 0, maxi(shell_ring_ids.size() - 1, 0))
 
 func set_fin_offset(fin_id: String, offset_x: float) -> void:
 	var clamped := clampf(offset_x, -0.55, 0.55)

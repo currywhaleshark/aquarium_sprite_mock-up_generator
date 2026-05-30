@@ -17,9 +17,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var fish_shell := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
 	assert(fish_shell != null)
-	var fish_shell_before := _first_vertex(fish_shell)
+	var fish_shell_before := _ring_center(fish_shell, 3, 28)
 	fish.apply_pose(0.25)
-	var fish_shell_after := _first_vertex(fish_shell)
+	var fish_shell_after := _ring_center(fish_shell, 3, 28)
 	assert(fish_shell_before.distance_to(fish_shell_after) > 0.001)
 	var fish_body := fish.get_node("BodyPivot") as Node3D
 	var fish_tail_tip := fish.get_node("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
@@ -57,11 +57,6 @@ func _ready() -> void:
 	file.close()
 	print("SHELL_RIG_TEST_OK")
 	get_tree().quit(0)
-
-func _first_vertex(mesh_instance: MeshInstance3D) -> Vector3:
-	var arrays := mesh_instance.mesh.surface_get_arrays(0)
-	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	return vertices[0]
 
 func _last_vertex(mesh_instance: MeshInstance3D) -> Vector3:
 	var arrays := mesh_instance.mesh.surface_get_arrays(0)

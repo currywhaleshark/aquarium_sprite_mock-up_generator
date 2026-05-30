@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fish Swimming Modes Reference for Sprite Motion</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172126;
+      --muted: #5c6b73;
+      --line: #d7e0e4;
+      --panel: #f6f9fa;
+      --blue: #287c9d;
+      --teal: #1c9a8a;
+      --green: #5f8d3e;
+      --gold: #c5851e;
+      --red: #bf4d4d;
+      --violet: #7659aa;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #ffffff;
+      color: var(--ink);
+      font: 15px/1.65 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(28px, 4vw, 42px);
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-top: 42px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      font-size: 24px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+    }
+
+    .lead {
+      max-width: 920px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: #fff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 16px;
+    }
+
+    .card strong {
+      color: var(--ink);
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eef7fa;
+      padding: 14px 16px;
+      margin-top: 18px;
+      border-radius: 0 8px 8px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #edf3f5;
+      font-weight: 700;
+    }
+
+    code {
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: #eef1f2;
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.93em;
+    }
+
+    pre {
+      overflow-x: auto;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #10191e;
+      color: #e8f3f5;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdfe;
+    }
+
+    .source-list {
+      padding-left: 20px;
+      color: var(--muted);
+    }
+
+    .source-list li {
+      margin-top: 8px;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>물고기 영법 조사와 모션 에디터 적용 노트</h1>
+  <p class="lead">
+    이 문서는 물고기/가오리 스프라이트 생성기의 모션 프로파일을 설계하기 위한 참고 자료다.
+    학술 분류를 그대로 재현하기보다는, 현재 Godot 프로토타입의 링 기반 몸통과 지느러미 파라미터에
+    바로 옮길 수 있는 조절 포인트를 정리한다.
+  </p>
+  <div class="meta">
+    <span class="pill">작성일: 2026-05-31</span>
+    <span class="pill">대상: FishRig / BodyProfile / Motion Settings</span>
+    <span class="pill">핵심: swim mode preset + 미세 조정 슬라이더</span>
+  </div>
+
+  <h2>요약</h2>
+  <div class="grid">
+    <section class="card">
+      <h3>1. 큰 축은 BCF와 MPF</h3>
+      <p>
+        BCF는 body and caudal fin, 즉 몸통과 꼬리지느러미로 추진한다.
+        MPF는 median and paired fins, 즉 등/뒷/가슴/배지느러미 중심 추진이다.
+        BCF는 추력과 가속, MPF는 저속 기동과 정밀 제어에 유리한 경향이 있다.
+      </p>
+    </section>
+    <section class="card">
+      <h3>2. 영법은 카테고리보다 연속체</h3>
+      <p>
+        전통 분류는 유용하지만 절대적인 규칙은 아니다. 최근 비교 연구는 다양한 종의 정상 유영이
+        생각보다 비슷한 2D midline kinematics를 공유한다고 보고한다. 따라서 UI에는 딱딱한 분류보다
+        조절 가능한 템플릿으로 넣는 편이 좋다.
+      </p>
+    </section>
+    <section class="card">
+      <h3>3. 지금 필요한 것은 모션 모드 프리셋</h3>
+      <p>
+        <code>body_wave_amount</code>, <code>body_wave_start</code>, <code>body_wave_falloff</code>,
+        <code>tail_sway_multiplier</code>, <code>fin_flap_amount</code> 등을 한 묶음으로 바꾸는
+        <code>swim_mode</code>가 필요하다.
+      </p>
+    </section>
+  </div>
+
+  <h2>시각 자료 1: BCF 영법의 몸통 파동 분포</h2>
+  <p>
+    아래 도식은 머리에서 꼬리로 갈수록 lateral amplitude가 어디서 시작하고 얼마나 커지는지를 단순화한 것이다.
+    실제 생물은 더 복잡하지만, 에디터 파라미터로는 이 정도 모델이 충분히 실용적이다.
+  </p>
+  <svg viewBox="0 0 980 420" role="img" aria-label="BCF swimming modes continuum diagram">
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#52636b"></path>
+      </marker>
+      <style>
+        .axis { stroke: #52636b; stroke-width: 2; marker-end: url(#arrow); }
+        .guide { stroke: #d7e0e4; stroke-width: 1; }
+        .label { fill: #172126; font: 13px system-ui, sans-serif; }
+        .muted { fill: #5c6b73; font: 12px system-ui, sans-serif; }
+        .eel { stroke: #287c9d; }
+        .sub { stroke: #1c9a8a; }
+        .car { stroke: #5f8d3e; }
+        .tun { stroke: #c5851e; }
+        .ost { stroke: #bf4d4d; }
+        .curve { fill: none; stroke-width: 4; stroke-linecap: round; }
+      </style>
+    </defs>
+    <line x1="88" y1="330" x2="900" y2="330" class="axis"></line>
+    <line x1="88" y1="330" x2="88" y2="70" class="axis"></line>
+    <text x="78" y="360" class="muted">머리</text>
+    <text x="875" y="360" class="muted">꼬리</text>
+    <text x="24" y="74" class="muted">진폭</text>
+    <text x="410" y="388" class="muted">몸 길이 방향 위치 t</text>
+    <line x1="250" y1="72" x2="250" y2="330" class="guide"></line>
+    <line x1="574" y1="72" x2="574" y2="330" class="guide"></line>
+    <line x1="780" y1="72" x2="780" y2="330" class="guide"></line>
+    <path d="M88 285 C210 265 340 242 470 214 C620 181 760 147 900 106" class="curve eel"></path>
+    <path d="M88 320 C250 313 400 286 560 230 C700 181 810 135 900 100" class="curve sub"></path>
+    <path d="M88 328 C380 326 570 300 710 228 C805 176 858 126 900 90" class="curve car"></path>
+    <path d="M88 330 C520 330 700 326 800 230 C850 177 880 122 900 84" class="curve tun"></path>
+    <path d="M88 330 C600 330 780 330 850 264 C878 230 895 190 900 145" class="curve ost"></path>
+    <text x="110" y="118" class="label" fill="#287c9d">anguilliform: 전신 파동</text>
+    <text x="310" y="203" class="label" fill="#1c9a8a">subcarangiform: 중후반 증가</text>
+    <text x="615" y="250" class="label" fill="#5f8d3e">carangiform: 후방 1/3</text>
+    <text x="675" y="126" class="label" fill="#c5851e">thunniform: 꼬리자루 중심</text>
+    <text x="706" y="306" class="label" fill="#bf4d4d">ostraciiform: 몸통 고정</text>
+  </svg>
+
+  <h2>시각 자료 2: BCF와 MPF의 추진 부위</h2>
+  <p>
+    일반 물고기형은 BCF를 기본으로 잡고, 복어/개복치/박스피시 계열은 MPF 성분을 강하게 섞는 것이 좋다.
+    가오리형은 별도 disc/wing section 구조로 MPF 계열을 다루는 편이 자연스럽다.
+  </p>
+  <svg viewBox="0 0 980 360" role="img" aria-label="BCF and MPF propulsion zones">
+    <defs>
+      <style>
+        .fish-body { fill: #dff3f5; stroke: #287c9d; stroke-width: 3; }
+        .tail { fill: #e6f4df; stroke: #5f8d3e; stroke-width: 3; }
+        .fin { fill: #fff0d4; stroke: #c5851e; stroke-width: 3; }
+        .zone { fill: none; stroke-width: 6; stroke-linecap: round; opacity: .9; }
+        .txt { fill: #172126; font: 14px system-ui, sans-serif; }
+        .tiny { fill: #5c6b73; font: 12px system-ui, sans-serif; }
+      </style>
+    </defs>
+    <text x="48" y="42" class="txt">BCF 중심: 몸통 파동 + 꼬리지느러미</text>
+    <path d="M76 170 C145 88 342 88 520 168 C340 246 145 246 76 170 Z" class="fish-body"></path>
+    <path d="M520 168 L616 105 L594 168 L616 232 Z" class="tail"></path>
+    <path d="M262 104 C304 42 368 58 398 116 Z" class="fin"></path>
+    <path d="M310 222 C365 274 438 246 462 194 Z" class="fin"></path>
+    <path d="M88 168 C220 130 390 128 594 168" class="zone" stroke="#287c9d"></path>
+    <text x="96" y="292" class="tiny">body_wave_amount / start / falloff / phase_delay / tail_sway_multiplier</text>
+
+    <text x="662" y="42" class="txt">MPF 중심: 지느러미 플랩/파동</text>
+    <path d="M682 170 C735 108 850 112 918 170 C850 226 735 232 682 170 Z" class="fish-body"></path>
+    <path d="M918 170 L958 136 L952 170 L958 204 Z" class="tail"></path>
+    <path d="M760 124 C795 58 850 74 872 136 Z" class="fin"></path>
+    <path d="M760 216 C800 292 860 266 880 202 Z" class="fin"></path>
+    <path d="M706 170 C746 138 786 138 830 170" class="zone" stroke="#c5851e"></path>
+    <path d="M778 124 C810 88 850 96 872 136" class="zone" stroke="#c5851e"></path>
+    <path d="M778 216 C814 250 852 242 878 204" class="zone" stroke="#c5851e"></path>
+    <text x="666" y="292" class="tiny">fin_flap_amount / fin_yaw_follow_strength / dorsal-anal paired motion</text>
+  </svg>
+
+  <h2>영법별 적용 표</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>모드</th>
+        <th>대표 이미지</th>
+        <th>움직임 특징</th>
+        <th>에디터 파라미터 방향</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>anguilliform</code></td>
+        <td>장어, 칠성장어형</td>
+        <td>머리 가까운 앞쪽부터 전신에 파동이 들어간다. 유연하고 기동성 강함.</td>
+        <td><code>body_wave_start</code> 0.00-0.08, <code>body_wave_amount</code> 높게, <code>falloff</code> 낮게.</td>
+      </tr>
+      <tr>
+        <td><code>subcarangiform</code></td>
+        <td>송어, 일반 어류</td>
+        <td>앞몸통은 비교적 안정적이고 중후반부터 진폭이 커진다.</td>
+        <td>기본값. <code>body_wave_start</code> 0.12-0.25, <code>falloff</code> 0.6-0.9.</td>
+      </tr>
+      <tr>
+        <td><code>carangiform</code></td>
+        <td>고등어류, 빠른 유선형 어류</td>
+        <td>몸통 후방 1/3과 꼬리자루 중심. 꼬리가 주 추진원.</td>
+        <td><code>body_wave_start</code> 0.35-0.50, <code>tail_sway_multiplier</code> 중간 이상, 머리 안정.</td>
+      </tr>
+      <tr>
+        <td><code>thunniform</code></td>
+        <td>참치, 일부 상어형</td>
+        <td>몸통 대부분은 단단하고 꼬리자루와 높은 aspect ratio 꼬리가 중심.</td>
+        <td><code>body_wave_amount</code> 낮음, <code>body_wave_start</code> 높음, 꼬리 각도는 과장보다 빠르고 절제.</td>
+      </tr>
+      <tr>
+        <td><code>ostraciiform</code></td>
+        <td>박스피시, 트렁크피시</td>
+        <td>몸통이 거의 뻣뻣하고 꼬리지느러미가 진자처럼 움직인다.</td>
+        <td>몸통 파동 거의 0, 꼬리만 작은 각도로 반복. 속도보다 정밀함.</td>
+      </tr>
+      <tr>
+        <td><code>tetraodontiform</code></td>
+        <td>복어, 개복치 계열</td>
+        <td>몸통 굴곡보다 등/뒷/가슴지느러미 의존도가 크다.</td>
+        <td><code>fin_flap_amount</code> 높게, <code>body_wave_amount</code> 낮게, 꼬리 추가 스윙 낮게.</td>
+      </tr>
+      <tr>
+        <td><code>rajiform</code>/<code>mobuliform</code></td>
+        <td>가오리, 쥐가오리</td>
+        <td>커진 가슴지느러미 또는 disc/wing이 파동 또는 플랩한다.</td>
+        <td>FishRig보다 RayRig 전용 section/wing 파라미터로 분리.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>추천 모션 프리셋 초안</h2>
+  <p>
+    수치는 현재 프로젝트의 기존 범위에 맞춘 초안이다. 실제 화면에서 과장되어 보이면
+    <code>global_sway_amount</code>보다 <code>tail_fin_extra_swing</code>과
+    <code>fin_yaw_follow_strength</code>를 먼저 낮추는 편이 좋다.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>swim_mode</th>
+        <th>body_wave_amount</th>
+        <th>body_wave_start</th>
+        <th>body_wave_falloff</th>
+        <th>tail_sway_multiplier</th>
+        <th>tail_fin_extra_swing</th>
+        <th>fin_flap_amount</th>
+        <th>fin_yaw_follow_strength</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><code>eel</code></td><td>0.90</td><td>0.02</td><td>0.35</td><td>1.05</td><td>0.35</td><td>3.0</td><td>0.15</td></tr>
+      <tr><td><code>general</code></td><td>0.35</td><td>0.16</td><td>0.75</td><td>1.20</td><td>0.45</td><td>6.0</td><td>0.25</td></tr>
+      <tr><td><code>mackerel</code></td><td>0.26</td><td>0.36</td><td>1.05</td><td>1.35</td><td>0.50</td><td>4.5</td><td>0.20</td></tr>
+      <tr><td><code>tuna</code></td><td>0.12</td><td>0.56</td><td>1.45</td><td>1.55</td><td>0.42</td><td>2.5</td><td>0.12</td></tr>
+      <tr><td><code>puffer</code></td><td>0.08</td><td>0.68</td><td>1.60</td><td>0.85</td><td>0.20</td><td>12.0</td><td>0.10</td></tr>
+      <tr><td><code>boxfish</code></td><td>0.03</td><td>0.82</td><td>1.80</td><td>0.75</td><td>0.32</td><td>8.0</td><td>0.08</td></tr>
+    </tbody>
+  </table>
+
+  <h2>구현 제안</h2>
+  <div class="note">
+    <strong>권장:</strong> Motion Settings에 모든 세부 슬라이더를 늘리는 대신, 먼저
+    <code>swim_mode</code> 드롭다운을 추가한다. 드롭다운은 여러 motion 값을 한 번에 적용하고,
+    현재 노출된 세부 슬라이더는 그 뒤의 미세 조정용으로 남긴다.
+  </div>
+  <pre><code>{
+  "motion_profile": {
+    "swim_mode": "general",
+    "swim_speed": 1.0,
+    "global_sway_amount": 10.0,
+    "phase_delay": 0.62,
+    "body_wave_amount": 0.35,
+    "body_wave_start": 0.16,
+    "body_wave_falloff": 0.75,
+    "tail_sway_multiplier": 1.2,
+    "tail_fin_extra_swing": 0.45,
+    "fin_flap_amount": 6.0,
+    "fin_yaw_follow_strength": 0.25,
+    "idle_bob_amount": 0.025
+  }
+}</code></pre>
+
+  <h3>현재 코드에 바로 연결할 항목</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>문서 항목</th>
+        <th>현재 또는 권장 코드 항목</th>
+        <th>비고</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>몸통 파동 시작 위치</td>
+        <td><code>body_wave_start</code></td>
+        <td>머리를 안정시키고 싶은 어종일수록 높인다.</td>
+      </tr>
+      <tr>
+        <td>몸통 파동 분포</td>
+        <td><code>body_wave_falloff</code></td>
+        <td>값이 클수록 후방에 몰린다.</td>
+      </tr>
+      <tr>
+        <td>꼬리자루 증폭</td>
+        <td><code>tail_sway_multiplier</code></td>
+        <td>꼬리 뿌리와 꼬리자루 움직임. 너무 높이면 파츠가 과장된다.</td>
+      </tr>
+      <tr>
+        <td>꼬리지느러미 추가 회전</td>
+        <td><code>tail_fin_extra_swing</code> 권장</td>
+        <td>현재 상수로 들어간 값을 프로파일 값으로 빼는 것이 좋다.</td>
+      </tr>
+      <tr>
+        <td>비꼬리 지느러미 yaw 추적</td>
+        <td><code>fin_yaw_follow_strength</code> 권장</td>
+        <td>현재 상수로 들어간 값을 모션/핀 프로파일 값으로 옮기면 어종별 제어가 쉽다.</td>
+      </tr>
+      <tr>
+        <td>복어/개복치식 지느러미 추진</td>
+        <td><code>fin_flap_amount</code>, dorsal/anal paired motion</td>
+        <td>추후 등/뒷지느러미 별도 flap phase를 넣으면 표현력이 커진다.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>디자인 판단</h2>
+  <ul>
+    <li>영법 모드는 생물학적 정답이 아니라 아트 디렉션용 시작점으로 다룬다.</li>
+    <li>꼬리지느러미 각도는 크면 곧바로 장난감처럼 보인다. 꼬리자루는 움직여도 끝 지느러미의 추가 회전은 절제한다.</li>
+    <li>복어류는 꼬리만 크게 흔드는 것보다 몸통 고정 + 등/뒷/가슴지느러미 플랩으로 가야 설득력이 있다.</li>
+    <li>가오리형은 fish body ring을 억지로 쓰기보다 disc/wing section 파동으로 따로 가는 편이 좋다.</li>
+  </ul>
+
+  <h2>출처</h2>
+  <ol class="source-list">
+    <li>
+      Sfakiotakis, Lane, Davies, <a href="https://researchportal.hw.ac.uk/en/publications/review-of-fish-swimming-modes-for-aquatic-locomotion/">Review of fish swimming modes for aquatic locomotion</a>,
+      IEEE Journal of Oceanic Engineering, 1999. BCF/MPF 구분과 영법 분류의 기본 자료.
+    </li>
+    <li>
+      Lamas and Rodriguez, <a href="https://www.mdpi.com/2077-1312/8/7/479">Hydrodynamics of Biomimetic Marine Propulsion and Trends in Computational Simulations</a>,
+      Journal of Marine Science and Engineering, 2020. BCF/MPF 모드별 효율, 기동성, anguilliform/caranguiform/thunniform/ostraciiform 설명.
+    </li>
+    <li>
+      di Santo et al., <a href="https://www.usgs.gov/publications/convergence-undulatory-swimming-kinematics-across-a-diversity-fishes">Convergence of undulatory swimming kinematics across a diversity of fishes</a>,
+      PNAS/USGS, 2021. 전통 영법 분류가 실제 kinematics를 완전히 설명하지 않으며 연속체로 보아야 한다는 근거.
+    </li>
+    <li>
+      FishBase, <a href="https://www.fishbase.se/manual/fishbasethe_swimming_and_speed_tables.htm">The SWIMMING and SPEED Tables</a>.
+      Lindsey식 swimming mode 분류와 종별 dominant mode를 데이터베이스에서 다루는 방식.
+    </li>
+    <li>
+      <a href="https://en.wikipedia.org/wiki/Tetraodontiformes">Tetraodontiformes</a>.
+      복어/박스피시/개복치 계열의 단단한 몸통, 지느러미 의존 추진, 느리지만 정밀한 움직임에 대한 빠른 확인용 참고.
+    </li>
+  </ol>
+
+  <p class="small">
+    주의: 위 수치는 물리 시뮬레이션용 계측값이 아니라 현재 스프라이트 생성기의 시각 튜닝용 출발점이다.
+    실제 적용 시 프리셋마다 화면에서 과장 정도를 확인하고 감쇠값을 조정해야 한다.
+  </p>
+</main>
+</body>
+</html>

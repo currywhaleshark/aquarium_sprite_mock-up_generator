@@ -43,7 +43,7 @@
 		"anal_attach_t": 0.64, "anal_shape": "long",
 		"head_shape": "rounded", "mouth_type": "terminal", "snout_length": 0.0, "forehead_slope": 0.0, "jaw_offset": 0.0, "mouth_size": 0.08, "head_flattening": 0.0
 	},
-	"motion_profile": {"swim_speed": 1.0, "global_sway_amount": 10.0, "phase_delay": 0.62, "tail_sway_multiplier": 1.6, "fin_flap_amount": 7.5, "idle_bob_amount": 0.025},
+	"motion_profile": {"swim_speed": 1.0, "global_sway_amount": 10.0, "phase_delay": 0.62, "tail_sway_multiplier": 1.6, "body_wave_amount": 0.35, "body_wave_start": 0.16, "body_wave_falloff": 0.75, "fin_flap_amount": 7.5, "idle_bob_amount": 0.025},
 	"visual_profile": {"base_color": "#46c6cf", "belly_color": "#d6fbff", "secondary_color": "#d6fbff", "fin_color": "#7edfe5", "outline_color": "#16373d", "outline_width": 0.012, "highlight_strength": 0.45, "shadow_strength": 0.32, "toon_steps": 3.0, "rim_light_strength": 0.35},
 	"export_settings": {"frame_count": 8, "frame_rate": 12, "frame_ticks": 18, "render_resolution": {"w": 256, "h": 256}, "padding_px": 8, "sprite_facing_left": true}
 }

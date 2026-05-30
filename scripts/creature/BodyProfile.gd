@@ -129,6 +129,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 	])
 	updated["motion_profile"] = _pick(normalized_parameters, [
 		"swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",
+		"body_wave_amount", "body_wave_start", "body_wave_falloff",
 		"fin_flap_amount", "pectoral_flap_amount", "idle_bob_amount"
 	])
 	updated["visual_profile"] = _pick(parameters, [
@@ -150,10 +151,31 @@ static func normalize_motion_parameters(parameters: Dictionary) -> void:
 			parameters["global_sway_amount"] = float(parameters["body_sway_amount"])
 	if not parameters.has("tail_sway_multiplier"):
 		parameters["tail_sway_multiplier"] = 1.0
+	if not parameters.has("body_wave_amount") or not parameters.has("body_wave_start") or not parameters.has("body_wave_falloff"):
+		var defaults := _default_motion_distribution(parameters)
+		if not parameters.has("body_wave_amount"):
+			parameters["body_wave_amount"] = defaults["body_wave_amount"]
+		if not parameters.has("body_wave_start"):
+			parameters["body_wave_start"] = defaults["body_wave_start"]
+		if not parameters.has("body_wave_falloff"):
+			parameters["body_wave_falloff"] = defaults["body_wave_falloff"]
 	parameters.erase("body_sway_amount")
 	parameters.erase("tail_1_sway_amount")
 	parameters.erase("tail_2_sway_amount")
 	parameters.erase("tail_fin_sway_amount")
+
+static func _default_motion_distribution(parameters: Dictionary) -> Dictionary:
+	var shape := String(parameters.get("body_profile_shape", ""))
+	var body_length := float(parameters.get("body_length", 1.28))
+	var body_height := maxf(float(parameters.get("body_height", 0.5)), 0.001)
+	var slenderness := body_length / body_height
+	if shape == "elongated" or shape == "eel_like" or shape == "narrow_peduncle" or slenderness > 3.2:
+		return {"body_wave_amount": 0.9, "body_wave_start": 0.02, "body_wave_falloff": 0.35}
+	if shape == "deep_compressed" or slenderness < 1.6:
+		return {"body_wave_amount": 0.22, "body_wave_start": 0.42, "body_wave_falloff": 1.25}
+	if shape == "depressed" or shape == "broad_head":
+		return {"body_wave_amount": 0.28, "body_wave_start": 0.34, "body_wave_falloff": 1.0}
+	return {"body_wave_amount": 0.35, "body_wave_start": 0.16, "body_wave_falloff": 0.75}
 
 static func _rings(rows: Array) -> Array[Dictionary]:
 	var rings: Array[Dictionary] = []
