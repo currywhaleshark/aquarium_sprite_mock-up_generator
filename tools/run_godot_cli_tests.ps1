@@ -9,6 +9,21 @@ $logDir = Join-Path $repoRoot "tmp\godot-logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 function Find-Godot {
+    if (-not [string]::IsNullOrWhiteSpace($env:GODOT_BIN) -and (Test-Path -LiteralPath $env:GODOT_BIN)) {
+        return (Resolve-Path -LiteralPath $env:GODOT_BIN).Path
+    }
+
+    $localCandidates = @(
+        (Join-Path $env:USERPROFILE "Downloads\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"),
+        (Join-Path $env:USERPROFILE "Downloads\Godot_v4.6.2-stable_win64_console.exe"),
+        (Join-Path $env:USERPROFILE "Downloads\Godot_v4.6.2-stable_win64.exe")
+    )
+    foreach ($path in $localCandidates) {
+        if (Test-Path -LiteralPath $path) {
+            return (Resolve-Path -LiteralPath $path).Path
+        }
+    }
+
     $candidates = @("godot", "godot4", "godot4.6")
     foreach ($candidate in $candidates) {
         $command = Get-Command $candidate -ErrorAction SilentlyContinue
