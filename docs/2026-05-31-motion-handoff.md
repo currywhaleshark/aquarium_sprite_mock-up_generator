@@ -148,3 +148,16 @@ Additional related tests that passed earlier in this motion pass:
   - `ExportSmokeTest.tscn` now skips explicitly under headless dummy rendering because SubViewport texture capture is unavailable there.
 - Ran `git diff --check` with no whitespace errors.
 - Opened the Godot editor for manual preview. No motion tuning values were changed in this pass.
+
+## User Preset Save/Load Update
+
+- Added user preset persistence under `user://presets`.
+- Built-in presets from `res://presets` and user presets from `user://presets` now load into the same preset dropdown.
+- User presets are labeled with `(사용자)` in the dropdown.
+- Added a preset name field and `현재 설정 저장` button below the preset dropdown.
+- Saving copies the current edited preset, keeps the current `parameters`, splits them back into structured body/motion/fin/head/visual sections, and writes JSON through `PresetStore.save_user_preset()`.
+- Saved Korean preset names keep Hangul characters in the generated filename; spaces become underscores and emoji/punctuation are dropped.
+- Added focused tests:
+  - `UserPresetStoreTest.tscn`
+  - `UserPresetMainTest.tscn`
+- These two tests write to Godot `user://`; in this sandbox they need the approved Godot CLI runner outside the workspace sandbox.

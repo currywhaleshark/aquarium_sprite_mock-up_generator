@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://br72u187pajd1"]
+
+[ext_resource type="Script" path="res://scripts/tools/UserPresetMainTest.gd" id="1_main"]
+
+[node name="UserPresetMainTest" type="Node"]
+script = ExtResource("1_main")

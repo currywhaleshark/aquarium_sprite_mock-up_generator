@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bdv6ic6j6pkj8"]
+
+[ext_resource type="Script" path="res://scripts/tools/UserPresetStoreTest.gd" id="1_store"]
+
+[node name="UserPresetStoreTest" type="Node"]
+script = ExtResource("1_store")

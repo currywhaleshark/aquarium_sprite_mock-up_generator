@@ -3,22 +3,17 @@ extends RefCounted
 
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const PRESET_DIR := "res://presets"
+const USER_PRESET_DIR := "user://presets"
 
 static func load_all() -> Array[Dictionary]:
 	var presets: Array[Dictionary] = []
-	var dir := DirAccess.open(PRESET_DIR)
-	if dir == null:
-		return presets
-	dir.list_dir_begin()
-	var file_name := dir.get_next()
-	while file_name != "":
-		if not dir.current_is_dir() and file_name.ends_with(".json"):
-			var preset := load_preset("%s/%s" % [PRESET_DIR, file_name])
-			if not preset.is_empty():
-				presets.append(preset)
-		file_name = dir.get_next()
-	dir.list_dir_end()
-	presets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("name", "")) < String(b.get("name", "")))
+	presets.append_array(_load_from_dir(PRESET_DIR, "built_in"))
+	presets.append_array(_load_from_dir(USER_PRESET_DIR, "user"))
+	presets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var left := "%s:%s" % [String(a.get("_preset_source", "")), String(a.get("name", ""))]
+		var right := "%s:%s" % [String(b.get("_preset_source", "")), String(b.get("name", ""))]
+		return left < right
+	)
 	return presets
 
 static func load_preset(path: String) -> Dictionary:
@@ -39,6 +34,69 @@ static func save_preset(path: String, preset: Dictionary) -> Error:
 	file.store_string(JSON.stringify(preset, "\t"))
 	file.close()
 	return OK
+
+static func sanitize_preset_filename(preset_name: String) -> String:
+	var source := preset_name.strip_edges()
+	var slug := ""
+	var previous_was_separator := false
+	for i in source.length():
+		var code := source.unicode_at(i)
+		var character := source.substr(i, 1)
+		var is_ascii_letter := (code >= 65 and code <= 90) or (code >= 97 and code <= 122)
+		var is_digit := code >= 48 and code <= 57
+		var is_hangul := (code >= 0xac00 and code <= 0xd7af) or (code >= 0x1100 and code <= 0x11ff) or (code >= 0x3130 and code <= 0x318f)
+		var is_separator := code <= 32 or character == "_"
+		if is_ascii_letter or is_digit or is_hangul or character == "-":
+			slug += character
+			previous_was_separator = false
+		elif is_separator:
+			if slug != "" and not previous_was_separator:
+				slug += "_"
+				previous_was_separator = true
+	if slug.ends_with("_"):
+		slug = slug.substr(0, slug.length() - 1)
+	if slug == "":
+		return "user_preset"
+	return slug
+
+static func save_user_preset(preset_name: String, preset: Dictionary) -> Dictionary:
+	var display_name := preset_name.strip_edges()
+	if display_name == "":
+		display_name = "user_preset"
+	var saved_preset := preset.duplicate(true)
+	saved_preset["name"] = display_name
+	saved_preset.erase("_preset_source")
+	saved_preset.erase("_preset_path")
+	var parameters: Dictionary = saved_preset.get("parameters", {})
+	if not parameters.is_empty():
+		saved_preset = BodyProfileScript.split_parameters_into_profiles(parameters, saved_preset)
+		saved_preset["name"] = display_name
+	var absolute_dir := ProjectSettings.globalize_path(USER_PRESET_DIR)
+	var dir_error := DirAccess.make_dir_recursive_absolute(absolute_dir)
+	if dir_error != OK:
+		return {"error": dir_error, "path": ""}
+	var path := "%s/%s.json" % [USER_PRESET_DIR, sanitize_preset_filename(display_name)]
+	var error := save_preset(path, saved_preset)
+	return {"error": error, "path": path}
+
+static func _load_from_dir(dir_path: String, source: String) -> Array[Dictionary]:
+	var presets: Array[Dictionary] = []
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return presets
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	while file_name != "":
+		if not dir.current_is_dir() and file_name.ends_with(".json"):
+			var path := "%s/%s" % [dir_path, file_name]
+			var preset := load_preset(path)
+			if not preset.is_empty():
+				preset["_preset_source"] = source
+				preset["_preset_path"] = path
+				presets.append(preset)
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	return presets
 
 static func normalize_preset(preset: Dictionary) -> Dictionary:
 	var normalized := preset.duplicate(true)

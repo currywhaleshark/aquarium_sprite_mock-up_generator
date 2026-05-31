@@ -31,6 +31,8 @@ var current_rig: CreatureRig
 var presets: Array[Dictionary] = []
 var current_preset: Dictionary = {}
 var preset_option: OptionButton
+var preset_name_edit: LineEdit
+var save_preset_button: Button
 var creature_type_label: Label
 var playback_toggle: CheckButton
 var parameter_panel: ScrollContainer
@@ -53,11 +55,7 @@ func _ready() -> void:
 	add_child(exporter)
 	exporter.export_finished.connect(func(path: String) -> void: export_panel.set_status("출력 완료: %s" % path))
 	exporter.export_failed.connect(func(message: String) -> void: export_panel.set_status(message))
-	presets = PresetStoreScript.load_all()
-	for preset in presets:
-		preset_option.add_item(UiText.preset_name(String(preset.get("name", "unnamed"))))
-	if not presets.is_empty():
-		_load_preset(0)
+	_reload_presets()
 
 func _build_ui() -> void:
 	var root := HBoxContainer.new()
@@ -137,6 +135,20 @@ func _build_ui() -> void:
 	preset_option = OptionButton.new()
 	preset_option.item_selected.connect(_load_preset)
 	side.add_child(preset_option)
+
+	var preset_save_row := HBoxContainer.new()
+	preset_save_row.add_theme_constant_override("separation", 6)
+	side.add_child(preset_save_row)
+
+	preset_name_edit = LineEdit.new()
+	preset_name_edit.placeholder_text = "프리셋 이름"
+	preset_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preset_save_row.add_child(preset_name_edit)
+
+	save_preset_button = Button.new()
+	save_preset_button.text = "현재 설정 저장"
+	save_preset_button.pressed.connect(_save_current_preset)
+	preset_save_row.add_child(save_preset_button)
 
 	creature_type_label = Label.new()
 	creature_type_label.text = "타입: 물고기"
@@ -280,6 +292,8 @@ func _load_preset(index: int) -> void:
 		head_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
 	if body_editor_panel:
 		body_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
+	if preset_name_edit:
+		preset_name_edit.text = String(current_preset.get("name", "unnamed"))
 	if reference_image_panel:
 		reference_image_panel.call("set_reference_settings", current_preset.get("reference_image", _default_reference_image_settings()))
 	else:
@@ -288,6 +302,49 @@ func _load_preset(index: int) -> void:
 	_update_display_preview_label()
 	_update_creature_type_label()
 	export_panel.set_status("%s 불러옴" % UiText.preset_name(String(current_preset.get("name", "unnamed"))))
+
+func _reload_presets(select_path: String = "") -> void:
+	presets = PresetStoreScript.load_all()
+	preset_option.clear()
+	for preset in presets:
+		preset_option.add_item(_preset_option_label(preset))
+	if presets.is_empty():
+		return
+	var selected_index := 0
+	if select_path != "":
+		for i in presets.size():
+			if String(presets[i].get("_preset_path", "")) == select_path:
+				selected_index = i
+				break
+	preset_option.select(selected_index)
+	_load_preset(selected_index)
+
+func _preset_option_label(preset: Dictionary) -> String:
+	var preset_name := String(preset.get("name", "unnamed"))
+	if String(preset.get("_preset_source", "")) == "user":
+		return "%s (사용자)" % preset_name
+	return UiText.preset_name(preset_name)
+
+func _save_current_preset() -> void:
+	if current_preset.is_empty():
+		return
+	var preset_name := preset_name_edit.text.strip_edges() if preset_name_edit else ""
+	if preset_name == "":
+		preset_name = String(current_preset.get("name", "user_preset"))
+	var preset_to_save := current_preset.duplicate(true)
+	preset_to_save["name"] = preset_name
+	var parameters: Dictionary = preset_to_save.get("parameters", {})
+	if not parameters.is_empty():
+		preset_to_save = BodyProfileScript.split_parameters_into_profiles(parameters, preset_to_save)
+		preset_to_save["name"] = preset_name
+	var result: Dictionary = PresetStoreScript.save_user_preset(preset_name, preset_to_save)
+	var error := int(result.get("error", FAILED))
+	if error != OK:
+		export_panel.set_status("프리셋 저장 실패: %s" % error_string(error))
+		return
+	var saved_path := String(result.get("path", ""))
+	_reload_presets(saved_path)
+	export_panel.set_status("프리셋 저장 완료: %s" % preset_name)
 
 func _apply_parameters_from_editor(parameters: Dictionary) -> void:
 	var synced_parameters := parameters.duplicate(true)
