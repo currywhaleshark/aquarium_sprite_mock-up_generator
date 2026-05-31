@@ -119,11 +119,11 @@ func _build_ui() -> void:
 	preview_column.add_child(lower_preview)
 	turn_left_button = Button.new()
 	turn_left_button.text = "↶ 좌로 선회"
-	turn_left_button.pressed.connect(func() -> void: _start_preview_turn(-1))
+	turn_left_button.pressed.connect(func() -> void: _start_preview_turn(1))
 	lower_preview.add_child(turn_left_button)
 	turn_right_button = Button.new()
 	turn_right_button.text = "↷ 우로 선회"
-	turn_right_button.pressed.connect(func() -> void: _start_preview_turn(1))
+	turn_right_button.pressed.connect(func() -> void: _start_preview_turn(-1))
 	lower_preview.add_child(turn_right_button)
 	display_label = Label.new()
 	display_label.text = "표시 미리보기"
@@ -589,7 +589,7 @@ func _set_turn_preview_parameters(turn_amount: float, direction: int) -> void:
 	if not parameters.has("turn_tail_lag"):
 		parameters["turn_tail_lag"] = 0.75
 	if not parameters.has("inside_pectoral_fold"):
-		parameters["inside_pectoral_fold"] = 0.8
+		parameters["inside_pectoral_fold"] = 1.0
 	current_rig.set("parameters", parameters)
 
 func _export_current() -> void:

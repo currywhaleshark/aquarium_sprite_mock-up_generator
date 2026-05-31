@@ -33,10 +33,10 @@ func _ready() -> void:
 	var turn_left: Node3D = fish.get_node("BodyPivot/PectoralFinL")
 	var turn_right: Node3D = fish.get_node("BodyPivot/PectoralFinR")
 
-	assert(absf(turn_tail_yaw - straight_tail_yaw) > 4.0)
-	assert(absf(turn_left.rotation_degrees.x - straight_left_x) > 2.0)
-	assert(absf(turn_right.rotation_degrees.x - straight_right_x) > 2.0)
-	assert(absf(turn_left.rotation_degrees.x - turn_right.rotation_degrees.x) > 4.0)
+	assert(absf(turn_tail_yaw - straight_tail_yaw) > 24.0)
+	assert(absf(turn_left.rotation_degrees.x - straight_left_x) > 8.0)
+	assert(absf(turn_right.rotation_degrees.x - straight_right_x) > 8.0)
+	assert(absf(turn_left.rotation_degrees.x - turn_right.rotation_degrees.x) > 14.0)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/turn_pose.ok", FileAccess.WRITE)

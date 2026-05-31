@@ -410,14 +410,14 @@ func _turn_ring_yaw(t: float, turn_amount: float, turn_direction: float, tail_la
 		return 0.0
 	var front_lead := lerpf(0.45, 1.0, clampf(t, 0.0, 1.0))
 	var tail_delay := pow(clampf(t, 0.0, 1.0), 1.25) * tail_lag
-	return turn_direction * turn_amount * lerpf(5.0, 24.0, front_lead) * tail_delay
+	return turn_direction * turn_amount * lerpf(8.0, 38.0, front_lead) * tail_delay
 
 func _turn_ring_offset(x: float, turn_yaw: float) -> Vector3:
 	if absf(turn_yaw) <= 0.001:
 		return Vector3.ZERO
 	var pivot_x := shell_profile[0].x if not shell_profile.is_empty() else 0.0
 	var distance := maxf(x - pivot_x, 0.0)
-	return Vector3(0.0, 0.0, sin(deg_to_rad(turn_yaw)) * distance * 0.24)
+	return Vector3(0.0, 0.0, sin(deg_to_rad(turn_yaw)) * distance * 0.42)
 
 func _tail_bent_center_and_yaw(x: float, tail_1_yaw: float, tail_2_yaw: float) -> Dictionary:
 	var pivot_1 := Vector3(shell_tail_pivot_1_x, 0.0, 0.0)
@@ -477,11 +477,11 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	if pectoral_l:
 		pectoral_l.position = _animated_side_position(pectoral_attach_t, -0.02, -pectoral_z, pectoral_offset, centers, yaws)
 		pectoral_l_base_rotation = Vector3(0.0, pectoral_yaw + 25.0, -28.0 + pectoral_surface_angle)
-		pectoral_l.rotation_degrees = pectoral_l_base_rotation + Vector3(pectoral_flap + left_turn_bias * 18.0, left_turn_bias * 12.0, left_turn_bias * 16.0)
+		pectoral_l.rotation_degrees = pectoral_l_base_rotation + Vector3(pectoral_flap + left_turn_bias * 24.0, left_turn_bias * 16.0, left_turn_bias * 20.0)
 	if pectoral_r:
 		pectoral_r.position = _animated_side_position(pectoral_attach_t, -0.02, pectoral_z, pectoral_offset, centers, yaws)
 		pectoral_r_base_rotation = Vector3(0.0, pectoral_yaw - 25.0, -28.0 + pectoral_surface_angle)
-		pectoral_r.rotation_degrees = pectoral_r_base_rotation + Vector3(pectoral_flap + right_turn_bias * 18.0, right_turn_bias * 12.0, right_turn_bias * 16.0)
+		pectoral_r.rotation_degrees = pectoral_r_base_rotation + Vector3(pectoral_flap + right_turn_bias * 24.0, right_turn_bias * 16.0, right_turn_bias * 20.0)
 
 func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	if tail_pivot_1 == null or tail_pivot_2 == null or tail_fin_pivot == null:

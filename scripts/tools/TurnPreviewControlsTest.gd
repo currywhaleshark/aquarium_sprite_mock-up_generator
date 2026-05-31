@@ -15,18 +15,24 @@ func _ready() -> void:
 	assert(right_button != null)
 	assert(int(main.get("preview_direction_index")) == 0)
 
-	right_button.pressed.emit()
+	left_button.pressed.emit()
 	await get_tree().process_frame
-	main.call("_update_preview_turn", 999.0)
-	assert(int(main.get("preview_direction_index")) == 1)
+	main.call("_update_preview_turn", 0.225)
 	var rig: Node3D = main.get("current_rig")
 	assert(rig != null)
+	var active_parameters: Dictionary = rig.get("parameters")
+	assert(float(active_parameters.get("turn_direction", 0.0)) > 0.0)
+	main.call("_update_preview_turn", 999.0)
+	assert(int(main.get("preview_direction_index")) == 1)
 	assert(absf(rig.rotation_degrees.y - 45.0) < 0.001)
 	var parameters: Dictionary = rig.get("parameters")
 	assert(absf(float(parameters.get("turn_amount", -1.0))) < 0.001)
 
-	left_button.pressed.emit()
+	right_button.pressed.emit()
 	await get_tree().process_frame
+	main.call("_update_preview_turn", 0.225)
+	active_parameters = rig.get("parameters")
+	assert(float(active_parameters.get("turn_direction", 0.0)) < 0.0)
 	main.call("_update_preview_turn", 999.0)
 	assert(int(main.get("preview_direction_index")) == 0)
 	assert(absf(rig.rotation_degrees.y) < 0.001)
