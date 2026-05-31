@@ -1,5 +1,6 @@
 param(
-    [string]$Filter = ""
+    [string]$Filter = "",
+    [int]$TimeoutSeconds = 60
 )
 
 $ErrorActionPreference = "Stop"
@@ -62,6 +63,16 @@ function Get-TestScenes {
     return $matches
 }
 
+function Quote-ProcessArgument {
+    param([string]$Value)
+
+    if ($Value -notmatch '[\s"]') {
+        return $Value
+    }
+
+    return '"' + ($Value -replace '"', '\"') + '"'
+}
+
 $godot = Find-Godot
 $tests = @(Get-TestScenes -NameFilter $Filter)
 if ($tests.Count -eq 0) {
@@ -71,15 +82,51 @@ if ($tests.Count -eq 0) {
 $failed = @()
 foreach ($test in $tests) {
     $scenePath = "scenes/$($test.Name)"
-    $logPath = Join-Path $logDir "$($test.BaseName).log"
+    $runId = "{0}-{1}-{2}" -f $test.BaseName, (Get-Date -Format "yyyyMMdd-HHmmss"), $PID
+    $logPath = Join-Path $logDir "$runId.log"
     Write-Host "RUN $scenePath"
 
-    & $godot --headless --disable-crash-handler --path $repoRoot --log-file $logPath $scenePath
-    $exitCode = $LASTEXITCODE
+    $launchTime = Get-Date
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $godot
+    $arguments = @(
+        "--headless",
+        "--disable-crash-handler",
+        "--path",
+        $repoRoot,
+        "--log-file",
+        $logPath,
+        $scenePath
+    ) | ForEach-Object { Quote-ProcessArgument $_ }
+    $startInfo.Arguments = [string]::Join(" ", $arguments)
+    $startInfo.UseShellExecute = $false
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+
+    $finished = $process.WaitForExit($TimeoutSeconds * 1000)
+    if (-not $finished) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        Get-Process -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.ProcessName -like "Godot*" -and
+                $_.StartTime -ge $launchTime
+            } |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+        $failed += "$scenePath timed out after ${TimeoutSeconds}s; log: $logPath"
+        Write-Host "FAIL $scenePath"
+        if (Test-Path -LiteralPath $logPath) {
+            Get-Content -LiteralPath $logPath -Encoding UTF8
+        }
+        continue
+    }
+
+    $exitCode = $process.ExitCode
 
     if ($exitCode -ne 0) {
         $failed += "$scenePath exited with $exitCode; log: $logPath"
         Write-Host "FAIL $scenePath"
+        if (Test-Path -LiteralPath $logPath) {
+            Get-Content -LiteralPath $logPath -Encoding UTF8
+        }
     } else {
         Write-Host "PASS $scenePath"
     }
