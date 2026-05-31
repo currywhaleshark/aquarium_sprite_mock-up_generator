@@ -19,6 +19,11 @@ func _ready() -> void:
 	assert(parameters.has("fin_yaw_follow_strength"))
 	assert(parameters.has("median_fin_flap_amount"))
 	assert(parameters.has("median_fin_flap_phase"))
+	assert(not parameters.has("pectoral_flap_amount"))
+	assert(not parameters.has("visual_thickness"))
+	assert(not parameters.has("outline_width"))
+	assert(not parameters.has("toon_steps"))
+	assert(not parameters.has("rim_light_strength"))
 
 	var general_mode := BodyProfileScript.swim_mode_values("general")
 	assert(abs(float(general_mode.get("body_wave_amount", 0.0)) - 0.35) < 0.001)
@@ -40,6 +45,41 @@ func _ready() -> void:
 	assert(abs(float(explicit.get("body_wave_amount", 0.0)) - 0.66) < 0.001)
 	assert(explicit.has("tail_fin_extra_swing"))
 	assert(explicit.has("fin_yaw_follow_strength"))
+
+	var legacy := {"pectoral_flap_amount": 9.25}
+	BodyProfileScript.normalize_motion_parameters(legacy)
+	assert(abs(float(legacy.get("fin_flap_amount", 0.0)) - 9.25) < 0.001)
+	assert(not legacy.has("pectoral_flap_amount"))
+
+	var split_preset := BodyProfileScript.split_parameters_into_profiles({
+		"body_length": 1.2,
+		"visual_thickness": 0.32,
+		"overall_scale": 1.0,
+		"body_height_scale": 1.0,
+		"facing_direction": 1.0,
+		"render_angle": 0.0,
+		"show_pivot_guides": 1.0,
+		"tail_height": 0.2,
+		"outline_width": 0.012,
+		"toon_steps": 3.0,
+		"rim_light_strength": 0.35,
+		"pectoral_flap_amount": 8.0
+	}, {"name": "split_check"})
+	var split_global: Dictionary = split_preset.get("global", {})
+	var split_tail: Dictionary = split_preset.get("tail_profile", {})
+	var split_visual: Dictionary = split_preset.get("visual_profile", {})
+	var split_motion: Dictionary = split_preset.get("motion_profile", {})
+	assert(not split_global.has("visual_thickness"))
+	assert(not split_global.has("overall_scale"))
+	assert(not split_global.has("body_height_scale"))
+	assert(not split_global.has("facing_direction"))
+	assert(not split_global.has("render_angle"))
+	assert(not split_global.has("show_pivot_guides"))
+	assert(not split_tail.has("tail_height"))
+	assert(not split_visual.has("outline_width"))
+	assert(not split_visual.has("toon_steps"))
+	assert(not split_visual.has("rim_light_strength"))
+	assert(not split_motion.has("pectoral_flap_amount"))
 
 	var long_fish := _find_preset(presets, "long_fish")
 	assert(not long_fish.is_empty())

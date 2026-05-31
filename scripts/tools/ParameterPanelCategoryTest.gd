@@ -34,6 +34,16 @@ func _ready() -> void:
 		"belly_color": "#c8f4ec",
 		"fin_color": "#2b8ca3",
 		"outline_color": "#123844",
+		"outline_width": 0.012,
+		"toon_steps": 3.0,
+		"rim_light_strength": 0.35,
+		"overall_scale": 1.0,
+		"body_height_scale": 1.0,
+		"facing_direction": 1.0,
+		"render_angle": 0.0,
+		"show_pivot_guides": 1.0,
+		"visual_thickness": 0.32,
+		"pectoral_flap_amount": 7.5,
 		"body_length": 1.2,
 		"midbody_depth_scale": 1.4
 	})
@@ -57,6 +67,16 @@ func _ready() -> void:
 	assert(_find_slider_for_label(panel, UiText.parameter("tail_length")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("body_sway_amount")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("tail_2_sway_amount")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("outline_width")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("toon_steps")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("rim_light_strength")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("overall_scale")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("body_height_scale")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("facing_direction")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("render_angle")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("show_pivot_guides")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("visual_thickness")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("pectoral_flap_amount")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("body_length")) != null)
 	assert(_find_slider_for_label(panel, UiText.parameter("midbody_depth_scale")) == null)
 	var base_color_picker := _find_color_picker_for_label_in_section(panel, "Color Settings", UiText.parameter("base_color"))

@@ -82,6 +82,18 @@ const MOTION_MODE_KEYS := [
 	"median_fin_flap_amount",
 	"median_fin_flap_phase"
 ]
+const UNUSED_PARAMETER_KEYS := [
+	"overall_scale",
+	"body_height_scale",
+	"facing_direction",
+	"render_angle",
+	"show_pivot_guides",
+	"visual_thickness",
+	"tail_height",
+	"outline_width",
+	"toon_steps",
+	"rim_light_strength"
+]
 
 static func swim_mode_names() -> Array[String]:
 	return ["eel", "general", "mackerel", "tuna", "puffer", "boxfish"]
@@ -207,14 +219,13 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 	var normalized_parameters := parameters.duplicate(true)
 	normalize_motion_parameters(normalized_parameters)
 	updated["global"] = _pick(parameters, [
-		"overall_scale", "body_length", "body_height", "body_width", "body_height_scale",
-		"visual_thickness", "facing_direction", "render_angle", "projection_hint",
-		"show_ring_guides", "show_pivot_guides", "shell_enabled", "shell_expand",
+		"body_length", "body_height", "body_width", "projection_hint",
+		"show_ring_guides", "shell_enabled", "shell_expand",
 		"shell_color_mix", "shell_opacity", "head_size", "head_offset",
 		"eye_size", "eye_position_x", "eye_position_y", "mouth_position"
 	])
 	updated["body_profile"] = parameters.get("body_profile", {})
-	updated["tail_profile"] = _pick(parameters, ["tail_length", "tail_height", "tail_fin_size", "caudal_shape", "caudal_height_scale"])
+	updated["tail_profile"] = _pick(parameters, ["tail_length", "tail_fin_size", "caudal_shape", "caudal_height_scale"])
 	updated["fin_profile"] = _pick(parameters, [
 		"dorsal_fin_size", "anal_fin_size", "pectoral_fin_size",
 		"dorsal_fin_offset_x", "anal_fin_offset_x", "pectoral_fin_offset_x",
@@ -227,18 +238,20 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 	updated["motion_profile"] = _pick(normalized_parameters, [
 		"swim_mode", "swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",
 		"body_wave_amount", "body_wave_start", "body_wave_falloff",
-		"tail_fin_extra_swing", "fin_flap_amount", "pectoral_flap_amount",
+		"tail_fin_extra_swing", "fin_flap_amount",
 		"fin_yaw_follow_strength", "median_fin_flap_amount", "median_fin_flap_phase",
 		"idle_bob_amount"
 	])
 	updated["visual_profile"] = _pick(parameters, [
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
-		"outline_width", "highlight_strength", "shadow_strength", "toon_steps", "rim_light_strength"
+		"highlight_strength", "shadow_strength"
 	])
 	updated["parameters"] = normalized_parameters
 	return updated
 
 static func normalize_motion_parameters(parameters: Dictionary) -> void:
+	if not parameters.has("fin_flap_amount") and parameters.has("pectoral_flap_amount"):
+		parameters["fin_flap_amount"] = float(parameters["pectoral_flap_amount"])
 	if not parameters.has("global_sway_amount"):
 		if parameters.has("tail_2_sway_amount"):
 			parameters["global_sway_amount"] = float(parameters["tail_2_sway_amount"])
@@ -260,6 +273,9 @@ static func normalize_motion_parameters(parameters: Dictionary) -> void:
 	parameters.erase("tail_1_sway_amount")
 	parameters.erase("tail_2_sway_amount")
 	parameters.erase("tail_fin_sway_amount")
+	parameters.erase("pectoral_flap_amount")
+	for key in UNUSED_PARAMETER_KEYS:
+		parameters.erase(key)
 
 static func _default_motion_distribution(parameters: Dictionary) -> Dictionary:
 	var shape := String(parameters.get("body_profile_shape", ""))

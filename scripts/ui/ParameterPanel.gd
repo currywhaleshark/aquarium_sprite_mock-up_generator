@@ -15,6 +15,12 @@ const HIDDEN_BODY_PROFILE_KEYS := {
 	"body_profile": true,
 	"selected_body_ring_id": true,
 	"body_profile_shape": true,
+	"overall_scale": true,
+	"body_height_scale": true,
+	"facing_direction": true,
+	"render_angle": true,
+	"show_pivot_guides": true,
+	"visual_thickness": true,
 	"head_depth_scale": true,
 	"shoulder_depth_scale": true,
 	"midbody_depth_scale": true,
@@ -74,7 +80,11 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"body_sway_amount": true,
 	"tail_1_sway_amount": true,
 	"tail_2_sway_amount": true,
-	"tail_fin_sway_amount": true
+	"tail_fin_sway_amount": true,
+	"pectoral_flap_amount": true,
+	"outline_width": true,
+	"toon_steps": true,
+	"rim_light_strength": true
 }
 
 func _ready() -> void:
