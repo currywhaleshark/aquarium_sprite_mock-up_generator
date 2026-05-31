@@ -17,6 +17,8 @@ const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const UiText := preload("res://scripts/ui/UiText.gd")
 
+const TURN_PREVIEW_DURATION := 0.45
+
 var viewport: SubViewport
 var preview_stack: Control
 var viewport_container: SubViewportContainer
@@ -47,6 +49,14 @@ var body_edit_toggle: CheckButton
 var body_editor_panel: VBoxContainer
 var reference_image_panel: VBoxContainer
 var exporter: Node
+var turn_left_button: Button
+var turn_right_button: Button
+var preview_direction_index := 0
+var turn_preview_active := false
+var turn_preview_elapsed := 0.0
+var turn_preview_from_index := 0
+var turn_preview_target_index := 0
+var turn_preview_step := 0
 
 func _ready() -> void:
 	_build_ui()
@@ -56,6 +66,9 @@ func _ready() -> void:
 	exporter.export_finished.connect(func(path: String) -> void: export_panel.set_status("출력 완료: %s" % path))
 	exporter.export_failed.connect(func(message: String) -> void: export_panel.set_status(message))
 	_reload_presets()
+
+func _process(delta: float) -> void:
+	_update_preview_turn(delta)
 
 func _build_ui() -> void:
 	var root := HBoxContainer.new()
@@ -104,6 +117,14 @@ func _build_ui() -> void:
 
 	var lower_preview := HBoxContainer.new()
 	preview_column.add_child(lower_preview)
+	turn_left_button = Button.new()
+	turn_left_button.text = "↶ 좌로 선회"
+	turn_left_button.pressed.connect(func() -> void: _start_preview_turn(-1))
+	lower_preview.add_child(turn_left_button)
+	turn_right_button = Button.new()
+	turn_right_button.text = "↷ 우로 선회"
+	turn_right_button.pressed.connect(func() -> void: _start_preview_turn(1))
+	lower_preview.add_child(turn_right_button)
 	display_label = Label.new()
 	display_label.text = "표시 미리보기"
 	lower_preview.add_child(display_label)
@@ -282,6 +303,7 @@ func _load_preset(index: int) -> void:
 	current_rig.name = "ActiveRig"
 	world_root.add_child(current_rig)
 	current_rig.set_parameters(current_preset.get("parameters", {}))
+	_reset_preview_direction()
 	if playback_toggle:
 		current_rig.auto_animate = playback_toggle.button_pressed
 	_bind_fin_editor_for_current_rig()
@@ -513,6 +535,62 @@ func _world_to_preview_position(world_point: Vector3) -> Vector2:
 	if viewport_size.x > 0.0 and viewport_size.y > 0.0:
 		screen_point *= Vector2(viewport_container.size.x / viewport_size.x, viewport_container.size.y / viewport_size.y)
 	return screen_point
+
+func _reset_preview_direction() -> void:
+	preview_direction_index = 0
+	turn_preview_active = false
+	turn_preview_elapsed = 0.0
+	turn_preview_from_index = 0
+	turn_preview_target_index = 0
+	turn_preview_step = 0
+	if current_rig:
+		current_rig.rotation_degrees.y = 0.0
+		_set_turn_preview_parameters(0.0, 1)
+
+func _start_preview_turn(step: int) -> void:
+	if current_rig == null:
+		return
+	var normalized_step := -1 if step < 0 else 1
+	turn_preview_step = normalized_step
+	turn_preview_from_index = preview_direction_index
+	turn_preview_target_index = posmod(preview_direction_index + normalized_step, 8)
+	turn_preview_elapsed = 0.0
+	turn_preview_active = true
+	if playback_toggle:
+		current_rig.auto_animate = playback_toggle.button_pressed
+	_update_preview_turn(0.0)
+
+func _update_preview_turn(delta: float) -> void:
+	if current_rig == null:
+		return
+	if not turn_preview_active:
+		current_rig.rotation_degrees.y = float(preview_direction_index) * 45.0
+		_set_turn_preview_parameters(0.0, 1)
+		return
+	turn_preview_elapsed += maxf(delta, 0.0)
+	var t := clampf(turn_preview_elapsed / TURN_PREVIEW_DURATION, 0.0, 1.0)
+	var eased := t * t * (3.0 - 2.0 * t)
+	var from_yaw := float(turn_preview_from_index) * 45.0
+	var target_yaw := from_yaw + float(turn_preview_step) * 45.0
+	current_rig.rotation_degrees.y = lerpf(from_yaw, target_yaw, eased)
+	_set_turn_preview_parameters(sin(t * PI), turn_preview_step)
+	if t >= 1.0:
+		preview_direction_index = turn_preview_target_index
+		turn_preview_active = false
+		current_rig.rotation_degrees.y = float(preview_direction_index) * 45.0
+		_set_turn_preview_parameters(0.0, turn_preview_step)
+
+func _set_turn_preview_parameters(turn_amount: float, direction: int) -> void:
+	if current_rig == null:
+		return
+	var parameters: Dictionary = current_rig.get("parameters")
+	parameters["turn_amount"] = clampf(turn_amount, 0.0, 1.0)
+	parameters["turn_direction"] = -1.0 if direction < 0 else 1.0
+	if not parameters.has("turn_tail_lag"):
+		parameters["turn_tail_lag"] = 0.75
+	if not parameters.has("inside_pectoral_fold"):
+		parameters["inside_pectoral_fold"] = 0.8
+	current_rig.set("parameters", parameters)
 
 func _export_current() -> void:
 	if current_rig == null or current_preset.is_empty():

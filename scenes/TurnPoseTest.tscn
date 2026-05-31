@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://djxw2lwws25rf"]
+
+[ext_resource type="Script" path="res://scripts/tools/TurnPoseTest.gd" id="1_turn_pose"]
+
+[node name="TurnPoseTest" type="Node"]
+script = ExtResource("1_turn_pose")

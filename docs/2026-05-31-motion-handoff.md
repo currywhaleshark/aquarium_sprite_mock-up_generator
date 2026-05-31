@@ -197,3 +197,17 @@ Additional related tests that passed earlier in this motion pass:
 
 - Added `docs/fish_turning_maneuvers_reference.html`.
 - The document summarizes routine yaw turns, C-start escape turns, median-fin torque, and suggested turn pose parameters for future 8-direction transition work.
+
+## Turn Preview Motion Update
+
+- Added first-pass 45-degree left/right turn preview controls near the lower preview area.
+- `Main.gd` now tracks an 8-step preview direction index and animates one-step turns with heading interpolation.
+- `FishRig.gd` now reads transient turn parameters:
+  - `turn_amount`
+  - `turn_direction`
+  - `turn_tail_lag`
+  - `inside_pectoral_fold`
+- Turn preview adds a direction-biased shell yaw/offset and asymmetric pectoral fin motion, then resets back to normal swim after the preview transition.
+- Added focused tests:
+  - `TurnPoseTest.tscn`
+  - `TurnPreviewControlsTest.tscn`
