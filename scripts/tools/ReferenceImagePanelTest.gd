@@ -15,8 +15,9 @@ func _ready() -> void:
 	assert(preview_texture != null)
 	assert(preview_label != null)
 
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
-	var preview_path := "res://exports/test_results/reference_dialog_preview.png"
+	var output_dir := ProjectSettings.globalize_path("res://exports/test_results")
+	DirAccess.make_dir_recursive_absolute(output_dir)
+	var preview_path := output_dir.path_join("reference_dialog_preview.png")
 	var preview_image := Image.create(32, 16, false, Image.FORMAT_RGBA8)
 	preview_image.fill(Color(0.9, 0.2, 0.1, 1.0))
 	assert(preview_image.save_png(preview_path) == OK)

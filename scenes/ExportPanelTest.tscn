@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cvpsfl2q883wd"]
+
+[ext_resource type="Script" path="res://scripts/tools/ExportPanelTest.gd" id="1_export_panel"]
+
+[node name="ExportPanelTest" type="Node"]
+script = ExtResource("1_export_panel")

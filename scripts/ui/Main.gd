@@ -298,6 +298,9 @@ func _load_preset(index: int) -> void:
 		reference_image_panel.call("set_reference_settings", current_preset.get("reference_image", _default_reference_image_settings()))
 	else:
 		_apply_reference_image_settings(current_preset.get("reference_image", _default_reference_image_settings()))
+	if export_panel:
+		var export_settings: Dictionary = current_preset.get("export_settings", {})
+		export_panel.call("set_direction_count", int(export_settings.get("direction_count", 1)))
 	_apply_camera()
 	_update_display_preview_label()
 	_update_creature_type_label()
@@ -514,6 +517,10 @@ func _world_to_preview_position(world_point: Vector3) -> Vector2:
 func _export_current() -> void:
 	if current_rig == null or current_preset.is_empty():
 		return
+	var export_settings: Dictionary = current_preset.get("export_settings", {}).duplicate(true)
+	if export_panel and export_panel.has_method("get_direction_count"):
+		export_settings["direction_count"] = int(export_panel.call("get_direction_count"))
+	current_preset["export_settings"] = export_settings
 	export_panel.set_status("출력 중...")
 	await exporter.export_preset(current_preset, current_rig, viewport)
 

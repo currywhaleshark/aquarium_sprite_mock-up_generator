@@ -161,3 +161,26 @@ Additional related tests that passed earlier in this motion pass:
   - `UserPresetStoreTest.tscn`
   - `UserPresetMainTest.tscn`
 - These two tests write to Godot `user://`; in this sandbox they need the approved Godot CLI runner outside the workspace sandbox.
+
+## Eight Direction Export Update
+
+- Added optional 8-direction sprite export from the Export panel with the `8방향 추출` toggle.
+- One-direction export remains the default and keeps the existing `frames/frame_000.png` layout.
+- 8-direction export writes direction folders:
+  - `east`
+  - `north_east`
+  - `north`
+  - `north_west`
+  - `west`
+  - `south_west`
+  - `south`
+  - `south_east`
+- The sprite sheet becomes a grid where rows are directions and columns are animation frames.
+- Metadata now includes:
+  - `direction_count`
+  - `directions`
+  - `sheet_columns`
+  - `sheet_rows`
+- Added focused tests:
+  - `ExportGridTest.tscn`
+  - `ExportPanelTest.tscn`

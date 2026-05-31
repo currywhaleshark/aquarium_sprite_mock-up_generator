@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dihp02f0np4av"]
+
+[ext_resource type="Script" path="res://scripts/tools/ExportGridTest.gd" id="1_grid"]
+
+[node name="ExportGridTest" type="Node"]
+script = ExtResource("1_grid")
