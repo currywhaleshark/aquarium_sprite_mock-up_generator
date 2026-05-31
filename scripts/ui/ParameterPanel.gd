@@ -4,6 +4,7 @@ extends ScrollContainer
 signal parameters_changed(parameters: Dictionary)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
+const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 var parameters: Dictionary = {}
 var container: VBoxContainer
@@ -98,6 +99,8 @@ func set_parameters(new_parameters: Dictionary) -> void:
 			_add_number_row(section_body, String(key), float(value))
 		elif typeof(value) == TYPE_STRING and String(value).begins_with("#"):
 			_add_color_row(section_body, String(key), Color.html(String(value)))
+		elif typeof(value) == TYPE_STRING and _is_option_parameter(String(key)):
+			_add_option_row(section_body, String(key), String(value))
 
 func get_section_body(section_name: String) -> VBoxContainer:
 	return section_bodies.get(section_name, null)
@@ -187,6 +190,32 @@ func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 	)
 	parent.add_child(row)
 
+func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
+	var row := HBoxContainer.new()
+	row.custom_minimum_size = Vector2(0, 30)
+	var label := Label.new()
+	label.text = UiText.parameter(key)
+	label.custom_minimum_size = Vector2(150, 0)
+	label.clip_text = true
+	row.add_child(label)
+	var option := OptionButton.new()
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var options := _options_for_key(key)
+	for option_value in options:
+		option.add_item(UiText.option(option_value))
+		option.set_item_metadata(option.item_count - 1, option_value)
+	var selected_index := options.find(value)
+	option.select(maxi(selected_index, 0))
+	row.add_child(option)
+	option.item_selected.connect(func(index: int) -> void:
+		var selected := String(option.get_item_metadata(index))
+		parameters[key] = selected
+		if key == "swim_mode":
+			BodyProfileScript.apply_swim_mode(parameters, selected)
+		parameters_changed.emit(parameters.duplicate(true))
+	)
+	parent.add_child(row)
+
 func _min_for_key(key: String, value: float) -> float:
 	if _is_signed_parameter(key):
 		return minf(-2.0, value * 2.0)
@@ -211,10 +240,10 @@ func _is_signed_parameter(key: String) -> bool:
 func _category_for_key(key: String) -> String:
 	if key.begins_with("head") or key.begins_with("mouth") or key.contains("snout") or key.contains("forehead") or key.contains("jaw"):
 		return "Head"
+	if key == "swim_mode" or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide"):
+		return "Motion Settings"
 	if key.contains("fin") or key.contains("dorsal") or key.contains("pectoral") or key.contains("pelvic") or key.contains("anal") or key.contains("caudal"):
 		return "Fins"
-	if key.contains("speed") or key.contains("sway") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide"):
-		return "Motion Settings"
 	if key.contains("color") or key.contains("outline") or key.contains("highlight") or key.contains("shadow") or key.contains("toon") or key.contains("rim") or key.contains("opacity"):
 		return "Visual Settings"
 	if key.contains("camera") or key.contains("orthographic") or key.contains("resolution") or key.contains("frame") or key.contains("padding") or key.contains("target_display"):
@@ -225,3 +254,11 @@ func _category_for_key(key: String) -> String:
 
 func _should_hide_key(key: String) -> bool:
 	return HIDDEN_BODY_PROFILE_KEYS.has(key) or SPECIALIZED_EDITOR_KEYS.has(key)
+
+func _is_option_parameter(key: String) -> bool:
+	return key == "swim_mode"
+
+func _options_for_key(key: String) -> Array[String]:
+	if key == "swim_mode":
+		return BodyProfileScript.swim_mode_names()
+	return []

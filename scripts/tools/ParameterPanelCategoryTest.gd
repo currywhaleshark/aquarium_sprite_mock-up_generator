@@ -18,6 +18,11 @@ func _ready() -> void:
 		"swim_speed": 1.0,
 		"body_sway_amount": 2.0,
 		"tail_2_sway_amount": 15.0,
+		"swim_mode": "general",
+		"tail_fin_extra_swing": 0.45,
+		"fin_yaw_follow_strength": 0.25,
+		"median_fin_flap_amount": 1.5,
+		"median_fin_flap_phase": 0.5,
 		"base_color": "#46c6cf",
 		"body_length": 1.2,
 		"midbody_depth_scale": 1.4
@@ -27,6 +32,11 @@ func _ready() -> void:
 	assert(panel.get_section_body("Motion Settings") != null)
 	assert(panel.get_section_body("Visual Settings") != null)
 	assert(panel.get_section_body("Global Settings") != null)
+	assert(_find_option_for_label(panel, UiText.parameter("swim_mode")) != null)
+	assert(_find_slider_for_label(panel, UiText.parameter("tail_fin_extra_swing")) != null)
+	assert(_find_slider_for_label(panel, UiText.parameter("fin_yaw_follow_strength")) != null)
+	assert(_find_slider_for_label(panel, UiText.parameter("median_fin_flap_amount")) != null)
+	assert(_find_slider_for_label(panel, UiText.parameter("median_fin_flap_phase")) != null)
 	assert(_find_slider_for_label(panel, UiText.parameter("head_offset")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("eye_size")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("dorsal_1_height")) == null)
@@ -58,4 +68,16 @@ func _find_slider_for_label(panel: Control, label_text: String) -> HSlider:
 			var label := row.get_child(0) as Label
 			if label and label.text == label_text:
 				return row.get_child(1) as HSlider
+	return null
+
+func _find_option_for_label(panel: Control, label_text: String) -> OptionButton:
+	var rows := panel.get_node("ParameterRows")
+	for section in rows.get_children():
+		var body := section.get_node_or_null("Body")
+		if body == null:
+			continue
+		for row in body.get_children():
+			var label := row.get_child(0) as Label
+			if label and label.text == label_text:
+				return row.get_child(1) as OptionButton
 	return null

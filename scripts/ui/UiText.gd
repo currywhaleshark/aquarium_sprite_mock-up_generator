@@ -71,7 +71,13 @@ const OPTION_LABELS := {
 	"truncate": "절단형",
 	"lunate": "초승달형",
 	"shark_heterocercal": "상어형 비대칭",
-	"thresher": "환도상어형"
+	"thresher": "환도상어형",
+	"eel": "장어형",
+	"general": "일반형",
+	"mackerel": "고등어형",
+	"tuna": "참치형",
+	"puffer": "복어형",
+	"boxfish": "박스피시형"
 }
 
 const PARAMETER_LABELS := {
@@ -114,13 +120,18 @@ const PARAMETER_LABELS := {
 	"dorsal_2_enabled": "등지느러미 2 사용",
 	"pelvic_enabled": "배지느러미 사용",
 	"swim_speed": "헤엄 속도",
+	"swim_mode": "헤엄 방식",
 	"global_sway_amount": "전체 흔들림",
 	"phase_delay": "위상 지연",
 	"tail_sway_multiplier": "꼬리 흔들림 배율",
+	"tail_fin_extra_swing": "꼬리지느러미 추가 회전",
 	"body_wave_amount": "몸통 파동 강도",
 	"body_wave_start": "몸통 파동 시작점",
 	"body_wave_falloff": "몸통 파동 분포",
 	"fin_flap_amount": "지느러미 퍼덕임",
+	"fin_yaw_follow_strength": "지느러미 몸통 추적",
+	"median_fin_flap_amount": "등/뒷지느러미 추진",
+	"median_fin_flap_phase": "등/뒷지느러미 위상",
 	"idle_bob_amount": "유휴 상하 움직임",
 	"base_color": "기본 색",
 	"secondary_color": "보조 색",
