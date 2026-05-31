@@ -24,6 +24,9 @@ var path_label: Label
 var visible_check: CheckButton
 var numeric_sliders := {}
 var file_dialog: FileDialog
+var dialog_preview_texture: TextureRect
+var dialog_preview_label: Label
+var _dialog_preview_path := ""
 var _updating := false
 
 func _ready() -> void:
@@ -76,8 +79,10 @@ func _ready() -> void:
 	file_dialog = FileDialog.new()
 	file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	file_dialog.use_native_dialog = false
 	file_dialog.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; 이미지 파일"])
 	file_dialog.file_selected.connect(_on_file_selected)
+	_add_dialog_preview(file_dialog)
 	add_child(file_dialog)
 	_refresh_controls()
 
@@ -107,12 +112,26 @@ func clear_reference() -> void:
 func _open_file_dialog() -> void:
 	if file_dialog == null:
 		return
+	_update_dialog_preview("")
 	file_dialog.popup_centered_ratio(0.7)
 
 func _on_file_selected(path: String) -> void:
 	settings["path"] = path
 	settings["visible"] = true
+	_update_dialog_preview(path)
 	_emit_and_refresh()
+
+func _process(_delta: float) -> void:
+	if file_dialog == null or not file_dialog.visible:
+		return
+	var candidate_path := String(file_dialog.get("current_path"))
+	if candidate_path == "":
+		var current_dir := String(file_dialog.get("current_dir"))
+		var current_file := String(file_dialog.get("current_file"))
+		if current_dir != "" and current_file != "":
+			candidate_path = current_dir.path_join(current_file)
+	if candidate_path != _dialog_preview_path:
+		_update_dialog_preview(candidate_path)
 
 func _add_numeric_row(parent: VBoxContainer, key: String) -> void:
 	var config: Dictionary = NUMERIC_SETTINGS[key]
@@ -138,6 +157,47 @@ func _add_numeric_row(parent: VBoxContainer, key: String) -> void:
 			set_numeric_setting(key, value)
 	)
 	parent.add_child(row)
+
+func _add_dialog_preview(dialog: FileDialog) -> void:
+	var preview_box := VBoxContainer.new()
+	preview_box.name = "ReferenceDialogPreview"
+	preview_box.custom_minimum_size = Vector2(240, 190)
+	preview_box.add_theme_constant_override("separation", 4)
+	dialog.get_vbox().add_child(preview_box)
+
+	var title := Label.new()
+	title.text = "선택 이미지 미리보기"
+	preview_box.add_child(title)
+
+	dialog_preview_texture = TextureRect.new()
+	dialog_preview_texture.custom_minimum_size = Vector2(240, 150)
+	dialog_preview_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dialog_preview_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	preview_box.add_child(dialog_preview_texture)
+
+	dialog_preview_label = Label.new()
+	dialog_preview_label.text = "이미지를 선택하면 미리보기가 표시됩니다"
+	dialog_preview_label.clip_text = true
+	dialog_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview_box.add_child(dialog_preview_label)
+
+func _update_dialog_preview(path: String) -> void:
+	_dialog_preview_path = path
+	if dialog_preview_texture == null or dialog_preview_label == null:
+		return
+	var extension := path.get_extension().to_lower()
+	if path == "" or not ["png", "jpg", "jpeg", "webp"].has(extension) or not FileAccess.file_exists(path):
+		dialog_preview_texture.texture = null
+		dialog_preview_label.text = "미리보기 없음"
+		return
+	var image := Image.new()
+	var error := image.load(path)
+	if error != OK:
+		dialog_preview_texture.texture = null
+		dialog_preview_label.text = "미리보기 불러오기 실패"
+		return
+	dialog_preview_texture.texture = ImageTexture.create_from_image(image)
+	dialog_preview_label.text = "%s (%dx%d)" % [path.get_file(), image.get_width(), image.get_height()]
 
 func _emit_and_refresh() -> void:
 	reference_changed.emit(settings.duplicate(true))
