@@ -7,6 +7,11 @@ const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 
 func _ready() -> void:
+	if DisplayServer.get_name() == "headless":
+		print("EXPORT_SMOKE_TEST_SKIPPED_HEADLESS")
+		get_tree().quit(0)
+		return
+
 	var presets: Array[Dictionary] = PresetStoreScript.load_all()
 	var preset := _find_preset(presets, "default_fish")
 	if preset.is_empty():
@@ -52,7 +57,7 @@ func _ready() -> void:
 		get_tree().quit(1)
 	)
 	await get_tree().process_frame
-	exporter.export_preset(preset, rig, viewport)
+	await exporter.export_preset(preset, rig, viewport)
 
 func _find_preset(presets: Array[Dictionary], preset_name: String) -> Dictionary:
 	for preset in presets:

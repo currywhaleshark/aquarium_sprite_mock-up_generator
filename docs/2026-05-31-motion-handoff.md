@@ -143,5 +143,8 @@ Additional related tests that passed earlier in this motion pass:
   - `FinEditorModelTest.tscn`
   - `BodyEditorModelTest.tscn`
   - `FinDragTest.tscn`
+- Ran the full Godot CLI suite through `tools/run_godot_cli_tests.ps1`:
+  - 17 scene tests passed.
+  - `ExportSmokeTest.tscn` now skips explicitly under headless dummy rendering because SubViewport texture capture is unavailable there.
 - Ran `git diff --check` with no whitespace errors.
 - Opened the Godot editor for manual preview. No motion tuning values were changed in this pass.
