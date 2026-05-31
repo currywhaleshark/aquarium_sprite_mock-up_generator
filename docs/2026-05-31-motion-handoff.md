@@ -116,3 +116,32 @@ Additional related tests that passed earlier in this motion pass:
 
 - Headless Godot test processes were cleaned up after verification.
 - Normal Godot editor windows were intentionally left running.
+
+## Swim Mode Implementation Update
+
+- Added `swim_mode` motion presets for:
+  - `eel`
+  - `general`
+  - `mackerel`
+  - `tuna`
+  - `puffer`
+  - `boxfish`
+- Moved tail-fin extra swing and fin yaw-follow strength into normalized motion parameters:
+  - `tail_fin_extra_swing`
+  - `fin_yaw_follow_strength`
+- Added conservative dorsal/anal fin flap parameters for MPF-heavy modes:
+  - `median_fin_flap_amount`
+  - `median_fin_flap_phase`
+- Added Motion Settings dropdown behavior that applies grouped swim-mode values while preserving manual slider tuning afterward.
+- Added `tools/run_godot_cli_tests.ps1` timeout/log handling so parse-error tests do not leave stuck headless Godot processes.
+- Stabilized `FinEditorModelTest.tscn` by disabling auto animation during static fin layout assertions.
+- Verified focused Godot tests:
+  - `PresetNormalizationTest.tscn`
+  - `ParameterPanelCategoryTest.tscn`
+  - `EditorParameterSyncTest.tscn`
+  - `ShellRigTest.tscn`
+  - `FinEditorModelTest.tscn`
+  - `BodyEditorModelTest.tscn`
+  - `FinDragTest.tscn`
+- Ran `git diff --check` with no whitespace errors.
+- Opened the Godot editor for manual preview. No motion tuning values were changed in this pass.
