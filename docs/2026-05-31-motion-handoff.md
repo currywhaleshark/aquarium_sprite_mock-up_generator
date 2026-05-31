@@ -192,3 +192,8 @@ Additional related tests that passed earlier in this motion pass:
 - Color parameters now stay grouped under `색상 설정`.
 - `body_wave_amount`, `body_wave_start`, and `body_wave_falloff` now appear under `움직임 설정`.
 - `ParameterPanelCategoryTest.tscn` covers the color-row persistence and section placement behavior.
+
+## Turning Maneuver Research Update
+
+- Added `docs/fish_turning_maneuvers_reference.html`.
+- The document summarizes routine yaw turns, C-start escape turns, median-fin torque, and suggested turn pose parameters for future 8-direction transition work.
