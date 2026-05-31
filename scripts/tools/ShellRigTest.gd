@@ -2,6 +2,7 @@ extends Node
 
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const RayRigScript := preload("res://scripts/creature/RayRig.gd")
+const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
@@ -32,6 +33,33 @@ func _ready() -> void:
 	assert(pectoral_l != null)
 	assert(dorsal.position.y > 0.34)
 	assert(abs(pectoral_l.position.z) > 0.25)
+
+	for mode in BodyProfileScript.swim_mode_names():
+		var mode_fish: FishRig = FishRigScript.new()
+		add_child(mode_fish)
+		var mode_parameters := {
+			"shell_enabled": 1.0,
+			"shell_expand": 0.12,
+			"base_color": "#46c6cf",
+			"secondary_color": "#d6fbff"
+		}
+		BodyProfileScript.apply_swim_mode(mode_parameters, mode)
+		mode_fish.set_parameters(mode_parameters)
+		await get_tree().process_frame
+		mode_fish.apply_pose(0.25)
+		var mode_tail := mode_fish.get_node("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
+		var mode_dorsal := mode_fish.get_node_or_null("BodyPivot/DorsalFin1") as MeshInstance3D
+		var mode_anal := mode_fish.get_node_or_null("BodyPivot/AnalFin") as MeshInstance3D
+		assert(mode_tail != null)
+		assert(mode_dorsal != null)
+		assert(mode_anal != null)
+		assert(is_finite(mode_tail.rotation_degrees.y))
+		assert(is_finite(mode_dorsal.rotation_degrees.x))
+		assert(is_finite(mode_anal.rotation_degrees.x))
+		if mode == "puffer":
+			assert(abs(mode_dorsal.rotation_degrees.x) > 0.1)
+			assert(abs(mode_anal.rotation_degrees.x) > 0.1)
+		mode_fish.queue_free()
 
 	var ray: RayRig = RayRigScript.new()
 	add_child(ray)

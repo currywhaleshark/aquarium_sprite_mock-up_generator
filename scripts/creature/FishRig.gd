@@ -4,8 +4,6 @@ extends "res://scripts/creature/CreatureRig.gd"
 const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
 const TMF := preload("res://scripts/materials/ToonMaterialFactory.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
-const FIN_YAW_FOLLOW_STRENGTH := 0.25
-const TAIL_FIN_EXTRA_SWING_STRENGTH := 0.55
 
 var body_pivot: Node3D
 var tail_pivot_1: Node3D
@@ -423,16 +421,16 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	if dorsal_fin:
 		var dorsal_attach_t := param_float("dorsal_1_attach_t", 0.45)
 		dorsal_fin.position = _animated_surface_position("dorsal", dorsal_attach_t, 0.035, 0.0, float(parameters.get("dorsal_fin_offset_x", 0.0)), centers, yaws)
-		dorsal_fin.rotation_degrees = Vector3(0.0, _fin_follow_yaw(dorsal_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_attach_t))
+		dorsal_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase), _fin_follow_yaw(dorsal_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_attach_t))
 	if dorsal_2_fin:
 		var dorsal_2_attach_t := param_float("dorsal_2_attach_t", 0.68)
 		dorsal_2_fin.position = _animated_surface_position("dorsal", dorsal_2_attach_t, 0.028, 0.0, 0.0, centers, yaws)
-		dorsal_2_fin.rotation_degrees = Vector3(0.0, _fin_follow_yaw(dorsal_2_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
+		dorsal_2_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.12), _fin_follow_yaw(dorsal_2_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
 	if anal_fin:
 		var anal_attach_t := param_float("anal_attach_t", 0.64)
 		var anal_yaw := _fin_follow_yaw(anal_attach_t, yaws)
 		anal_fin.position = _animated_surface_position("ventral", anal_attach_t, 0.03, 0.0, float(parameters.get("anal_fin_offset_x", 0.0)), centers, yaws)
-		anal_fin.rotation_degrees = Vector3(0.0, anal_yaw, _surface_tangent_angle_degrees("ventral", anal_attach_t))
+		anal_fin.rotation_degrees = Vector3(-_median_fin_flap(loop_phase, 0.5), anal_yaw, _surface_tangent_angle_degrees("ventral", anal_attach_t))
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -474,12 +472,18 @@ func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
 	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
 	var tail_stem_weight := _ring_sway_weight("tail_stem", 1.0)
-	var tail_fin_yaw := sin(loop_phase * TAU - phase_delay * 2.4) * global_sway * tail_multiplier * tail_stem_weight * TAIL_FIN_EXTRA_SWING_STRENGTH
+	var tail_extra_swing := param_float("tail_fin_extra_swing", 0.45)
+	var tail_fin_yaw := sin(loop_phase * TAU - phase_delay * 2.4) * global_sway * tail_multiplier * tail_stem_weight * tail_extra_swing
 	tail_fin_pivot.position = Vector3.ZERO
 	tail_fin_pivot.rotation_degrees = Vector3(0.0, tail_fin_yaw, 0.0)
 
 func _fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
-	return _sample_animated_shell_yaw(attach_t, yaws) * FIN_YAW_FOLLOW_STRENGTH
+	return _sample_animated_shell_yaw(attach_t, yaws) * param_float("fin_yaw_follow_strength", 0.25)
+
+func _median_fin_flap(loop_phase: float, phase_offset: float = 0.0) -> float:
+	var flap_amount := param_float("median_fin_flap_amount", 1.5)
+	var flap_phase := param_float("median_fin_flap_phase", 0.5)
+	return sin(loop_phase * TAU * 2.0 - (flap_phase + phase_offset) * TAU) * flap_amount
 
 func _animated_surface_position(side: String, attach_t: float, margin: float, local_z: float, offset_x: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> Vector3:
 	var sample := _sample_shell_profile(attach_t)
