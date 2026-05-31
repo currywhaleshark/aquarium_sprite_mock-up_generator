@@ -160,6 +160,7 @@ const SECTION_LABELS := {
 	"Head": "머리",
 	"Fins": "지느러미",
 	"Motion Settings": "움직임 설정",
+	"Color Settings": "색상 설정",
 	"Visual Settings": "시각 설정",
 	"Global Settings": "전체 설정",
 	"Export": "출력",

@@ -184,3 +184,11 @@ Additional related tests that passed earlier in this motion pass:
 - Added focused tests:
   - `ExportGridTest.tscn`
   - `ExportPanelTest.tscn`
+
+## Parameter Panel Cleanup Update
+
+- Fixed color picker rows disappearing after a color change.
+  - Root cause: changed colors were emitted as plain hex text without `#`, while panel rebuild only recognized `#`-prefixed color strings.
+- Color parameters now stay grouped under `색상 설정`.
+- `body_wave_amount`, `body_wave_start`, and `body_wave_falloff` now appear under `움직임 설정`.
+- `ParameterPanelCategoryTest.tscn` covers the color-row persistence and section placement behavior.

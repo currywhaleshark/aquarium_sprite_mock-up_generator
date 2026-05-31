@@ -97,8 +97,8 @@ func set_parameters(new_parameters: Dictionary) -> void:
 		var section_body := _ensure_section(_category_for_key(String(key)))
 		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
 			_add_number_row(section_body, String(key), float(value))
-		elif typeof(value) == TYPE_STRING and String(value).begins_with("#"):
-			_add_color_row(section_body, String(key), Color.html(String(value)))
+		elif _is_color_value(value):
+			_add_color_row(section_body, String(key), _color_from_value(value))
 		elif typeof(value) == TYPE_STRING and _is_option_parameter(String(key)):
 			_add_option_row(section_body, String(key), String(value))
 
@@ -185,7 +185,7 @@ func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(picker)
 	picker.color_changed.connect(func(new_color: Color) -> void:
-		parameters[key] = new_color.to_html(false)
+		parameters[key] = "#%s" % new_color.to_html(false)
 		parameters_changed.emit(parameters.duplicate(true))
 	)
 	parent.add_child(row)
@@ -238,13 +238,15 @@ func _is_signed_parameter(key: String) -> bool:
 	return key.contains("offset") or key.contains("position") or key.ends_with("_x") or key.ends_with("_y") or key.ends_with("_z")
 
 func _category_for_key(key: String) -> String:
+	if key.contains("color"):
+		return "Color Settings"
 	if key.begins_with("head") or key.begins_with("mouth") or key.contains("snout") or key.contains("forehead") or key.contains("jaw"):
 		return "Head"
-	if key == "swim_mode" or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide"):
+	if key == "swim_mode" or key.begins_with("body_wave_") or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide"):
 		return "Motion Settings"
 	if key.contains("fin") or key.contains("dorsal") or key.contains("pectoral") or key.contains("pelvic") or key.contains("anal") or key.contains("caudal"):
 		return "Fins"
-	if key.contains("color") or key.contains("outline") or key.contains("highlight") or key.contains("shadow") or key.contains("toon") or key.contains("rim") or key.contains("opacity"):
+	if key.contains("outline") or key.contains("highlight") or key.contains("shadow") or key.contains("toon") or key.contains("rim") or key.contains("opacity"):
 		return "Visual Settings"
 	if key.contains("camera") or key.contains("orthographic") or key.contains("resolution") or key.contains("frame") or key.contains("padding") or key.contains("target_display"):
 		return "Export"
@@ -254,6 +256,31 @@ func _category_for_key(key: String) -> String:
 
 func _should_hide_key(key: String) -> bool:
 	return HIDDEN_BODY_PROFILE_KEYS.has(key) or SPECIALIZED_EDITOR_KEYS.has(key)
+
+func _is_color_value(value: Variant) -> bool:
+	if value is Color:
+		return true
+	return typeof(value) == TYPE_STRING and (String(value).begins_with("#") or _looks_like_hex_color(String(value)))
+
+func _color_from_value(value: Variant) -> Color:
+	if value is Color:
+		return value
+	var text := String(value)
+	if not text.begins_with("#"):
+		text = "#%s" % text
+	return Color.html(text)
+
+func _looks_like_hex_color(text: String) -> bool:
+	if text.length() != 6 and text.length() != 8:
+		return false
+	for i in text.length():
+		var code := text.unicode_at(i)
+		var is_digit := code >= 48 and code <= 57
+		var is_upper_hex := code >= 65 and code <= 70
+		var is_lower_hex := code >= 97 and code <= 102
+		if not (is_digit or is_upper_hex or is_lower_hex):
+			return false
+	return true
 
 func _is_option_parameter(key: String) -> bool:
 	return key == "swim_mode"
