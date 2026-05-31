@@ -3,6 +3,103 @@ extends RefCounted
 
 const MIN_RING_COUNT := 3
 const RING_KEYS := ["x", "y_offset", "upper_height", "lower_height", "width", "roundness", "sway_weight"]
+const SWIM_MODE_PRESETS := {
+	"eel": {
+		"body_wave_amount": 0.90,
+		"body_wave_start": 0.02,
+		"body_wave_falloff": 0.35,
+		"tail_sway_multiplier": 1.05,
+		"tail_fin_extra_swing": 0.35,
+		"fin_flap_amount": 3.0,
+		"fin_yaw_follow_strength": 0.15,
+		"median_fin_flap_amount": 1.0,
+		"median_fin_flap_phase": 0.50
+	},
+	"general": {
+		"body_wave_amount": 0.35,
+		"body_wave_start": 0.16,
+		"body_wave_falloff": 0.75,
+		"tail_sway_multiplier": 1.20,
+		"tail_fin_extra_swing": 0.45,
+		"fin_flap_amount": 6.0,
+		"fin_yaw_follow_strength": 0.25,
+		"median_fin_flap_amount": 1.5,
+		"median_fin_flap_phase": 0.50
+	},
+	"mackerel": {
+		"body_wave_amount": 0.26,
+		"body_wave_start": 0.36,
+		"body_wave_falloff": 1.05,
+		"tail_sway_multiplier": 1.35,
+		"tail_fin_extra_swing": 0.50,
+		"fin_flap_amount": 4.5,
+		"fin_yaw_follow_strength": 0.20,
+		"median_fin_flap_amount": 1.0,
+		"median_fin_flap_phase": 0.50
+	},
+	"tuna": {
+		"body_wave_amount": 0.12,
+		"body_wave_start": 0.56,
+		"body_wave_falloff": 1.45,
+		"tail_sway_multiplier": 1.55,
+		"tail_fin_extra_swing": 0.42,
+		"fin_flap_amount": 2.5,
+		"fin_yaw_follow_strength": 0.12,
+		"median_fin_flap_amount": 0.6,
+		"median_fin_flap_phase": 0.50
+	},
+	"puffer": {
+		"body_wave_amount": 0.08,
+		"body_wave_start": 0.68,
+		"body_wave_falloff": 1.60,
+		"tail_sway_multiplier": 0.85,
+		"tail_fin_extra_swing": 0.20,
+		"fin_flap_amount": 12.0,
+		"fin_yaw_follow_strength": 0.10,
+		"median_fin_flap_amount": 8.0,
+		"median_fin_flap_phase": 0.25
+	},
+	"boxfish": {
+		"body_wave_amount": 0.03,
+		"body_wave_start": 0.82,
+		"body_wave_falloff": 1.80,
+		"tail_sway_multiplier": 0.75,
+		"tail_fin_extra_swing": 0.32,
+		"fin_flap_amount": 8.0,
+		"fin_yaw_follow_strength": 0.08,
+		"median_fin_flap_amount": 5.0,
+		"median_fin_flap_phase": 0.25
+	}
+}
+const MOTION_MODE_KEYS := [
+	"body_wave_amount",
+	"body_wave_start",
+	"body_wave_falloff",
+	"tail_sway_multiplier",
+	"tail_fin_extra_swing",
+	"fin_flap_amount",
+	"fin_yaw_follow_strength",
+	"median_fin_flap_amount",
+	"median_fin_flap_phase"
+]
+
+static func swim_mode_names() -> Array[String]:
+	return ["eel", "general", "mackerel", "tuna", "puffer", "boxfish"]
+
+static func valid_swim_mode(swim_mode: String) -> String:
+	if SWIM_MODE_PRESETS.has(swim_mode):
+		return swim_mode
+	return "general"
+
+static func swim_mode_values(swim_mode: String) -> Dictionary:
+	return SWIM_MODE_PRESETS[valid_swim_mode(swim_mode)].duplicate(true)
+
+static func apply_swim_mode(parameters: Dictionary, swim_mode: String) -> void:
+	var valid_mode := valid_swim_mode(swim_mode)
+	parameters["swim_mode"] = valid_mode
+	var values := swim_mode_values(valid_mode)
+	for key in values.keys():
+		parameters[key] = values[key]
 
 static func default_fish_rings(shape: String = "default_fish") -> Array[Dictionary]:
 	match shape:
@@ -128,9 +225,11 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"forehead_slope", "jaw_offset", "mouth_size", "head_flattening"
 	])
 	updated["motion_profile"] = _pick(normalized_parameters, [
-		"swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",
+		"swim_mode", "swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",
 		"body_wave_amount", "body_wave_start", "body_wave_falloff",
-		"fin_flap_amount", "pectoral_flap_amount", "idle_bob_amount"
+		"tail_fin_extra_swing", "fin_flap_amount", "pectoral_flap_amount",
+		"fin_yaw_follow_strength", "median_fin_flap_amount", "median_fin_flap_phase",
+		"idle_bob_amount"
 	])
 	updated["visual_profile"] = _pick(parameters, [
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
@@ -151,14 +250,12 @@ static func normalize_motion_parameters(parameters: Dictionary) -> void:
 			parameters["global_sway_amount"] = float(parameters["body_sway_amount"])
 	if not parameters.has("tail_sway_multiplier"):
 		parameters["tail_sway_multiplier"] = 1.0
-	if not parameters.has("body_wave_amount") or not parameters.has("body_wave_start") or not parameters.has("body_wave_falloff"):
-		var defaults := _default_motion_distribution(parameters)
-		if not parameters.has("body_wave_amount"):
-			parameters["body_wave_amount"] = defaults["body_wave_amount"]
-		if not parameters.has("body_wave_start"):
-			parameters["body_wave_start"] = defaults["body_wave_start"]
-		if not parameters.has("body_wave_falloff"):
-			parameters["body_wave_falloff"] = defaults["body_wave_falloff"]
+	var default_mode := _default_swim_mode(parameters)
+	parameters["swim_mode"] = valid_swim_mode(String(parameters.get("swim_mode", default_mode)))
+	var mode_values := swim_mode_values(String(parameters["swim_mode"]))
+	for key in MOTION_MODE_KEYS:
+		if not parameters.has(key):
+			parameters[key] = mode_values[key]
 	parameters.erase("body_sway_amount")
 	parameters.erase("tail_1_sway_amount")
 	parameters.erase("tail_2_sway_amount")
@@ -176,6 +273,17 @@ static func _default_motion_distribution(parameters: Dictionary) -> Dictionary:
 	if shape == "depressed" or shape == "broad_head":
 		return {"body_wave_amount": 0.28, "body_wave_start": 0.34, "body_wave_falloff": 1.0}
 	return {"body_wave_amount": 0.35, "body_wave_start": 0.16, "body_wave_falloff": 0.75}
+
+static func _default_swim_mode(parameters: Dictionary) -> String:
+	var shape := String(parameters.get("body_profile_shape", ""))
+	var body_length := float(parameters.get("body_length", 1.28))
+	var body_height := maxf(float(parameters.get("body_height", 0.5)), 0.001)
+	var slenderness := body_length / body_height
+	if shape == "elongated" or shape == "eel_like" or shape == "narrow_peduncle" or slenderness > 3.2:
+		return "eel"
+	if shape == "deep_compressed" or slenderness < 1.6:
+		return "puffer"
+	return "general"
 
 static func _rings(rows: Array) -> Array[Dictionary]:
 	var rings: Array[Dictionary] = []
