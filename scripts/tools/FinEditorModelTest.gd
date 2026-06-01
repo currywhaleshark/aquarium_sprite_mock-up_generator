@@ -95,7 +95,8 @@ func _ready() -> void:
 	var pelvic_shell_yaw := fish._sample_animated_shell_yaw(float(fish.parameters.get("pelvic_attach_t", 0.36)), fish.animated_shell_yaws)
 	assert(absf(shell_yaw) > 1.0)
 	assert(signf(high_wave_anal.rotation_degrees.y) == signf(high_wave_dorsal.rotation_degrees.y))
-	assert(high_dorsal_yaw < absf(shell_yaw) * 0.35)
+	# Median fins now ride the body: dorsal yaw tracks the shell yaw fully.
+	assert(absf(high_dorsal_yaw - absf(shell_yaw)) < 0.5)
 	assert(absf(high_wave_pelvic_l.rotation_degrees.y - 12.0) < absf(pelvic_shell_yaw) * 0.35)
 	fish.apply_pose(0.5)
 	assert(absf(high_wave_tail.rotation_degrees.y) < 12.0)

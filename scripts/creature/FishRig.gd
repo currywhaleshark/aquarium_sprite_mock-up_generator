@@ -462,14 +462,14 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	if dorsal_fin:
 		var dorsal_attach_t := param_float("dorsal_1_attach_t", 0.45)
 		dorsal_fin.position = _animated_surface_position("dorsal", dorsal_attach_t, 0.035, 0.0, float(parameters.get("dorsal_fin_offset_x", 0.0)), centers, yaws)
-		dorsal_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase), _fin_follow_yaw(dorsal_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_attach_t))
+		dorsal_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase), _median_fin_follow_yaw(dorsal_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_attach_t))
 	if dorsal_2_fin:
 		var dorsal_2_attach_t := param_float("dorsal_2_attach_t", 0.68)
 		dorsal_2_fin.position = _animated_surface_position("dorsal", dorsal_2_attach_t, 0.028, 0.0, 0.0, centers, yaws)
-		dorsal_2_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.12), _fin_follow_yaw(dorsal_2_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
+		dorsal_2_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.12), _median_fin_follow_yaw(dorsal_2_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
 	if anal_fin:
 		var anal_attach_t := param_float("anal_attach_t", 0.64)
-		var anal_yaw := _fin_follow_yaw(anal_attach_t, yaws)
+		var anal_yaw := _median_fin_follow_yaw(anal_attach_t, yaws)
 		anal_fin.position = _animated_surface_position("ventral", anal_attach_t, 0.03, 0.0, float(parameters.get("anal_fin_offset_x", 0.0)), centers, yaws)
 		anal_fin.rotation_degrees = Vector3(-_median_fin_flap(loop_phase, 0.5), anal_yaw, _surface_tangent_angle_degrees("ventral", anal_attach_t))
 	if pelvic_l and pelvic_r:
@@ -526,6 +526,12 @@ func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: 
 
 func _fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
 	return _sample_animated_shell_yaw(attach_t, yaws) * param_float("fin_yaw_follow_strength", 0.25)
+
+# Median fins (dorsal/anal) ride the body: they take the shell's local yaw at
+# their attachment at full strength so they sway together with the body instead
+# of adding a separately damped wobble.
+func _median_fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
+	return _sample_animated_shell_yaw(attach_t, yaws) * param_float("median_fin_body_follow", 1.0)
 
 func _median_fin_flap(loop_phase: float, phase_offset: float = 0.0) -> float:
 	var flap_amount := param_float("median_fin_flap_amount", 1.5)
