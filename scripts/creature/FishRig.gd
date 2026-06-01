@@ -296,15 +296,23 @@ func _head_shell_metrics(rings: Array, body_height: float, body_width: float, bo
 		"head_scale": head_scale,
 		"head_offset": head_offset,
 		"forehead_slope": param_float("forehead_slope", 0.35),
+		"snout_length": param_float("snout_length", 0.0),
 		"shell_expand": shell_expand,
 		"start_x": start_x,
 		"radius_y": maxf(head_scale.y * 0.5 + shell_expand * 0.72, 0.04),
 		"radius_z": maxf(head_scale.z * 0.5 + shell_expand * 0.72, 0.035),
 	}
 
-func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float) -> Vector2:
-	var x := clampf(x_local_unscaled, -0.499, 0.499)
-	var sin_phi := sqrt(1.0 - 4.0 * x * x)
+func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float) -> Vector2:
+	var x := clampf(x_local_unscaled, -0.499 - snout_length, 0.499)
+	var x_base := x
+	if shape != "cephalofoil" and x < 0.0 and snout_length > 0.001:
+		var disc := 1.0 - 16.0 * snout_length * x
+		if disc >= 0.0:
+			x_base = (1.0 - sqrt(disc)) / (8.0 * snout_length)
+			
+	x_base = clampf(x_base, -0.499, 0.499)
+	var sin_phi := sqrt(1.0 - 4.0 * x_base * x_base)
 	var y_deformed := 0.5 * sin_phi
 	var z_deformed := 0.5 * sin_phi
 	
@@ -312,8 +320,8 @@ func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_s
 		z_deformed *= (1.0 + sin_phi * 2.2)
 		y_deformed *= 0.42
 	else:
-		var u := x + 0.5
-		if x < 0.0:
+		var u := x_base + 0.5
+		if x_base < 0.0:
 			if shape == "pointed" or shape == "tapered":
 				var taper_factor := lerpf(0.12, 1.0, u / 0.5)
 				y_deformed *= taper_factor
@@ -323,7 +331,7 @@ func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_s
 				y_deformed *= taper_factor
 				z_deformed *= taper_factor
 		
-		if x < 0.1:
+		if x_base < 0.1:
 			var hump_weight := sin_phi * (1.0 - u)
 			var hump_height := 0.16 + forehead_slope * 0.15
 			if shape == "hump":
@@ -337,14 +345,11 @@ func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_s
 	return Vector2(y_deformed, z_deformed)
 
 func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: float, metrics: Dictionary) -> Dictionary:
-	var ring_id := String(ring.get("id", ""))
-	if ring_id != "snout" and ring_id != "head":
-		return {"radius_y": radius_y, "radius_z": radius_z}
-	
 	var shape := String(metrics.get("shape", "rounded"))
 	var head_scale: Vector3 = metrics.get("head_scale", Vector3.ONE)
 	var head_offset: float = float(metrics.get("head_offset", 0.0))
 	var forehead_slope: float = float(metrics.get("forehead_slope", 0.35))
+	var snout_length: float = float(metrics.get("snout_length", 0.0))
 	var shell_expand: float = float(metrics.get("shell_expand", 0.08))
 	var start_x: float = float(metrics.get("start_x", 0.0))
 	var end_x: float = float(metrics.get("end_x", 0.0))
@@ -353,18 +358,22 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 	var ring_x_world := lerpf(start_x, end_x, ring_x)
 	var x_local_unscaled := (ring_x_world - head_offset) / head_scale.x
 	
-	var contour := _get_head_contour_radius(x_local_unscaled, shape, forehead_slope)
-	
-	var target_y := head_scale.y * contour.x
-	var target_z := head_scale.z * contour.y
-	
-	if ring_id == "snout":
-		target_y += shell_expand * 0.15
-		target_z += shell_expand * 0.15
-	elif ring_id == "head":
-		target_y += shell_expand * 0.65
-		target_z += shell_expand * 0.65
+	if x_local_unscaled >= 0.5:
+		return {"radius_y": radius_y, "radius_z": radius_z}
 		
+	var contour := _get_head_contour_radius(x_local_unscaled, shape, forehead_slope, snout_length)
+	
+	var r_head_y := head_scale.y * contour.x
+	var r_head_z := head_scale.z * contour.y
+	
+	var blend_factor := clampf((x_local_unscaled - (-0.22)) / (0.5 - (-0.22)), 0.0, 1.0)
+	
+	var exp_offset_y := lerpf(shell_expand * 0.15, shell_expand * lerpf(1.0, 0.22, ring_x), blend_factor)
+	var exp_offset_z := lerpf(shell_expand * 0.15, shell_expand * lerpf(1.0, 0.18, ring_x), blend_factor)
+	
+	var target_y := lerpf(r_head_y, radius_y - shell_expand * lerpf(1.0, 0.22, ring_x), blend_factor) + exp_offset_y
+	var target_z := lerpf(r_head_z, radius_z - shell_expand * lerpf(1.0, 0.18, ring_x), blend_factor) + exp_offset_z
+	
 	return {
 		"radius_y": maxf(target_y, 0.035),
 		"radius_z": maxf(target_z, 0.03)
