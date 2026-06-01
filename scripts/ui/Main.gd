@@ -573,31 +573,42 @@ func _update_preview_turn(delta: float) -> void:
 		return
 	if not turn_preview_active:
 		current_rig.rotation_degrees.y = float(preview_direction_index) * 45.0
-		_set_turn_preview_parameters(0.0, 1)
+		_set_turn_preview_parameters(0.0, 1, 0.0)
 		return
 	turn_preview_elapsed += maxf(delta, 0.0)
 	var t := clampf(turn_preview_elapsed / TURN_PREVIEW_DURATION, 0.0, 1.0)
-	var eased := t * t * (3.0 - 2.0 * t)
+	# Delay global rotation so that head bend is already entered before global yaw rotation begins
+	var rot_t := clampf((t - 0.15) / 0.85, 0.0, 1.0)
+	var eased := rot_t * rot_t * (3.0 - 2.0 * rot_t)
 	var from_yaw := float(turn_preview_from_index) * 45.0
 	var target_yaw := from_yaw + float(turn_preview_step) * 45.0
 	current_rig.rotation_degrees.y = lerpf(from_yaw, target_yaw, eased)
-	_set_turn_preview_parameters(sin(t * PI), turn_preview_step)
+	_set_turn_preview_parameters(sin(t * PI), turn_preview_step, t)
 	if t >= 1.0:
 		preview_direction_index = turn_preview_target_index
 		turn_preview_active = false
 		current_rig.rotation_degrees.y = float(preview_direction_index) * 45.0
-		_set_turn_preview_parameters(0.0, turn_preview_step)
+		_set_turn_preview_parameters(0.0, turn_preview_step, 0.0)
 
-func _set_turn_preview_parameters(turn_amount: float, direction: int) -> void:
+func _set_turn_preview_parameters(turn_amount: float, direction: int, turn_phase: float = 0.0) -> void:
 	if current_rig == null:
 		return
 	var parameters: Dictionary = current_rig.get("parameters")
 	parameters["turn_amount"] = clampf(turn_amount, 0.0, 1.0)
 	parameters["turn_direction"] = -1.0 if direction < 0 else 1.0
+	parameters["turn_phase"] = clampf(turn_phase, 0.0, 1.0)
 	if not parameters.has("turn_tail_lag"):
 		parameters["turn_tail_lag"] = 0.75
 	if not parameters.has("inside_pectoral_fold"):
-		parameters["inside_pectoral_fold"] = 1.0
+		parameters["inside_pectoral_fold"] = 0.8
+	if not parameters.has("outside_pectoral_brace"):
+		parameters["outside_pectoral_brace"] = 0.5
+	if not parameters.has("turn_curve_bias"):
+		parameters["turn_curve_bias"] = 0.5
+	if not parameters.has("turn_median_fin_bias"):
+		parameters["turn_median_fin_bias"] = 0.5
+	if not parameters.has("turn_bank_roll"):
+		parameters["turn_bank_roll"] = 10.0
 	current_rig.set("parameters", parameters)
 
 func _export_current() -> void:

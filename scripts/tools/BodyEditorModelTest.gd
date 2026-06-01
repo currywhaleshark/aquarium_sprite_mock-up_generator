@@ -5,6 +5,7 @@ const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
+	fish.auto_animate = false
 	fish.set_parameters({
 		"shell_enabled": 1.0,
 		"body_length": 1.45,

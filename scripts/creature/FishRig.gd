@@ -360,8 +360,18 @@ func apply_pose(loop_phase: float) -> void:
 	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
 	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
 	var tail_stem_weight := _ring_sway_weight("tail_stem", 1.0)
+	
+	var turn_amount := clampf(param_float("turn_amount", 0.0), 0.0, 1.0)
+	var turn_phase := clampf(param_float("turn_phase", 0.0), 0.0, 1.0)
+	var roll_turn := turn_amount
+	if turn_amount > 0.001 and turn_phase > 0.001:
+		roll_turn = sin(PI * pow(turn_phase, 0.33))
+		
+	var turn_direction := _turn_direction()
+	var roll_angle := turn_direction * roll_turn * param_float("turn_bank_roll", 10.0)
+	
 	if body_pivot:
-		body_pivot.rotation_degrees.y = 0.0
+		body_pivot.rotation_degrees = Vector3(roll_angle, 0.0, 0.0)
 	if tail_pivot_1:
 		tail_pivot_1.rotation_degrees.y = delayed * global_sway * tail_multiplier * _ring_sway_weight("rear_body", 0.65)
 	if tail_pivot_2:
@@ -370,10 +380,8 @@ func apply_pose(loop_phase: float) -> void:
 		tail_fin_pivot.rotation_degrees.y = sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4) * global_sway * tail_multiplier * tail_stem_weight * 1.25
 	if pectoral_l:
 		pectoral_l.rotation_degrees = pectoral_l_base_rotation
-		pectoral_l.rotation_degrees.x += sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
 	if pectoral_r:
 		pectoral_r.rotation_degrees = pectoral_r_base_rotation
-		pectoral_r.rotation_degrees.x += sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
 	_deform_shell(loop_phase)
 
 func _deform_shell(loop_phase: float) -> void:
@@ -392,6 +400,22 @@ func _deform_shell(loop_phase: float) -> void:
 	var turn_amount := clampf(param_float("turn_amount", 0.0), 0.0, 1.0)
 	var turn_direction := _turn_direction()
 	var turn_tail_lag := clampf(param_float("turn_tail_lag", 0.65), 0.0, 1.5)
+	
+	var yaws_only_turn := PackedFloat32Array()
+	for ring_index in shell_profile.size():
+		var t := float(ring_index) / maxf(float(shell_profile.size() - 1), 1.0)
+		yaws_only_turn.append(_turn_ring_yaw(t, turn_amount, turn_direction, turn_tail_lag))
+		
+	var turn_offsets := PackedFloat32Array()
+	turn_offsets.resize(shell_profile.size())
+	turn_offsets[0] = 0.0
+	for i in range(1, shell_profile.size()):
+		var prev_x := shell_profile[i-1].x
+		var curr_x := shell_profile[i].x
+		var segment_len := curr_x - prev_x
+		var avg_yaw := (yaws_only_turn[i-1] + yaws_only_turn[i]) * 0.5
+		turn_offsets[i] = turn_offsets[i-1] - sin(deg_to_rad(avg_yaw)) * segment_len
+		
 	var centers := PackedVector3Array()
 	var yaws := PackedFloat32Array()
 	for ring_index in shell_profile.size():
@@ -404,10 +428,10 @@ func _deform_shell(loop_phase: float) -> void:
 		var body_distribution := _body_wave_distribution(t, body_wave_start, body_wave_falloff)
 		var raw_ring_yaw := sin(loop_phase * TAU - float(ring_index) * phase_delay) * global_sway * ring_weight * effective_body_wave_amount * body_distribution
 		var ring_yaw := _soft_limit_yaw(raw_ring_yaw, body_wave_yaw_limit)
-		var turn_yaw := _turn_ring_yaw(t, turn_amount, turn_direction, turn_tail_lag)
+		var turn_yaw := yaws_only_turn[ring_index]
 		var yaw: float = bend["yaw"] + ring_yaw + turn_yaw
 		center.z += sin(loop_phase * TAU - float(ring_index) * phase_delay) * 0.012 * effective_body_wave_amount * body_distribution
-		center += _turn_ring_offset(point.x, turn_yaw)
+		center.z += turn_offsets[ring_index]
 		centers.append(center)
 		yaws.append(yaw)
 	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets))
@@ -429,16 +453,22 @@ func _turn_direction() -> float:
 func _turn_ring_yaw(t: float, turn_amount: float, turn_direction: float, tail_lag: float) -> float:
 	if turn_amount <= 0.0:
 		return 0.0
-	var front_lead := lerpf(0.45, 1.0, clampf(t, 0.0, 1.0))
-	var tail_delay := pow(clampf(t, 0.0, 1.0), 1.25) * tail_lag
-	return turn_direction * turn_amount * lerpf(8.0, 38.0, front_lead) * tail_delay
+	var turn_phase := clampf(param_float("turn_phase", 0.0), 0.0, 1.0)
+	var head_amount := turn_amount
+	var tail_amount := turn_amount
+	if turn_amount > 0.001 and turn_phase > 0.001:
+		head_amount = sin(PI * pow(turn_phase, 0.33))
+		tail_amount = sin(PI * turn_phase * turn_phase)
+	var curve_bias := clampf(param_float("turn_curve_bias", 0.5), 0.0, 1.0)
+	var head_yaw_limit := 24.0
+	var tail_yaw_limit := -38.0
+	var t_clamped := clampf(t, 0.0, 1.0)
+	var head_factor := (1.0 - t_clamped) * (1.0 - t_clamped) * (1.0 + curve_bias)
+	var tail_factor := t_clamped * t_clamped * tail_lag
+	return turn_direction * (head_yaw_limit * head_factor * head_amount + tail_yaw_limit * tail_factor * tail_amount)
 
-func _turn_ring_offset(x: float, turn_yaw: float) -> Vector3:
-	if absf(turn_yaw) <= 0.001:
-		return Vector3.ZERO
-	var pivot_x := shell_profile[0].x if not shell_profile.is_empty() else 0.0
-	var distance := maxf(x - pivot_x, 0.0)
-	return Vector3(0.0, 0.0, sin(deg_to_rad(turn_yaw)) * distance * 0.42)
+func _turn_ring_offset(_x: float, _turn_yaw: float) -> Vector3:
+	return Vector3.ZERO
 
 func _tail_bent_center_and_yaw(x: float, tail_1_yaw: float, tail_2_yaw: float) -> Dictionary:
 	var pivot_1 := Vector3(shell_tail_pivot_1_x, 0.0, 0.0)
@@ -492,20 +522,34 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	var pectoral_flap := sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
 	var turn_amount := clampf(param_float("turn_amount", 0.0), 0.0, 1.0)
+	var turn_phase := clampf(param_float("turn_phase", 0.0), 0.0, 1.0)
+	var pectoral_turn := turn_amount
+	if turn_amount > 0.001 and turn_phase > 0.001:
+		pectoral_turn = sin(PI * pow(turn_phase, 0.33))
+		
 	var turn_direction := _turn_direction()
-	var pectoral_fold := clampf(param_float("inside_pectoral_fold", 0.65), 0.0, 1.5) * turn_amount
-	var left_turn_bias := -turn_direction * pectoral_fold
-	var right_turn_bias := turn_direction * pectoral_fold
+	var inside_fold := clampf(param_float("inside_pectoral_fold", 0.75), 0.0, 1.5) * pectoral_turn
+	var outside_brace := clampf(param_float("outside_pectoral_brace", 0.5), 0.0, 1.5) * pectoral_turn
+	
+	var left_turn_bias := -inside_fold if turn_direction > 0.0 else outside_brace
+	var right_turn_bias := outside_brace if turn_direction > 0.0 else -inside_fold
+	
+	var left_flap_scale := clampf(1.0 - (inside_fold if turn_direction > 0.0 else outside_brace), 0.0, 1.0)
+	var right_flap_scale := clampf(1.0 - (outside_brace if turn_direction > 0.0 else inside_fold), 0.0, 1.0)
+	
+	var left_pectoral_flap := pectoral_flap * left_flap_scale
+	var right_pectoral_flap := pectoral_flap * right_flap_scale
+	
 	var pectoral_offset := float(parameters.get("pectoral_fin_offset_x", 0.0))
 	var pectoral_offset_y := param_float("pectoral_offset_y", 0.0)
 	if pectoral_l:
 		pectoral_l.position = _animated_side_position(pectoral_attach_t, -0.02 + pectoral_offset_y, -pectoral_z, pectoral_offset, centers, yaws)
 		pectoral_l_base_rotation = Vector3(0.0, pectoral_yaw + 25.0, -28.0 + pectoral_surface_angle)
-		pectoral_l.rotation_degrees = pectoral_l_base_rotation + Vector3(pectoral_flap + left_turn_bias * 24.0, left_turn_bias * 16.0, left_turn_bias * 20.0)
+		pectoral_l.rotation_degrees = pectoral_l_base_rotation + Vector3(left_pectoral_flap + left_turn_bias * 24.0, left_turn_bias * 16.0, left_turn_bias * 20.0)
 	if pectoral_r:
 		pectoral_r.position = _animated_side_position(pectoral_attach_t, -0.02 + pectoral_offset_y, pectoral_z, pectoral_offset, centers, yaws)
 		pectoral_r_base_rotation = Vector3(0.0, pectoral_yaw - 25.0, -28.0 + pectoral_surface_angle)
-		pectoral_r.rotation_degrees = pectoral_r_base_rotation + Vector3(pectoral_flap + right_turn_bias * 24.0, right_turn_bias * 16.0, right_turn_bias * 20.0)
+		pectoral_r.rotation_degrees = pectoral_r_base_rotation + Vector3(right_pectoral_flap + right_turn_bias * 24.0, right_turn_bias * 16.0, right_turn_bias * 20.0)
 
 func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	if tail_pivot_1 == null or tail_pivot_2 == null or tail_fin_pivot == null:
@@ -886,11 +930,20 @@ func _animated_curved_fin_points(fin_node: MeshInstance3D, side: String, attach_
 	var min_z_follow := clampf(param_float("median_fin_body_z_follow", 0.45), 0.0, 1.0)
 	var z_follow_t := clampf((absf(param_float("body_wave_amount", 0.35)) - 100.0) / 1000.0, 0.0, 1.0)
 	var z_follow := lerpf(1.0, min_z_follow, z_follow_t)
+	var turn_amount := clampf(param_float("turn_amount", 0.0), 0.0, 1.0)
+	var turn_phase := clampf(param_float("turn_phase", 0.0), 0.0, 1.0)
+	var median_turn := turn_amount
+	if turn_amount > 0.001 and turn_phase > 0.001:
+		median_turn = sin(PI * pow(turn_phase, 0.33))
+		
+	var turn_direction := _turn_direction()
+	var turn_median_bias_angle := param_float("turn_median_fin_bias", 0.5) * median_turn * turn_direction * 12.0
 	for point in points:
 		var t_prime := clampf(attach_t + point.x / x_span, 0.0, 1.0)
 		var tilt := clampf(sin(loop_phase * TAU - t_prime * ring_span * phase_delay) * tilt_amp, -1.2, 1.2)
 		var fin_height := maxf(point.y, 0.0)
-		var local_z := fin_height * sin(tilt)
+		var turn_bias_z := fin_height * sin(deg_to_rad(turn_median_bias_angle))
+		var local_z := fin_height * sin(tilt) + turn_bias_z
 		var surface_margin := margin + fin_height * cos(tilt)
 		var animated_point := _animated_surface_position(side, t_prime, surface_margin, local_z, 0.0, centers, yaws)
 		animated_point.z = lerpf(pivot_surface.z, animated_point.z, z_follow)

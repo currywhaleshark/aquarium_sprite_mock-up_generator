@@ -247,7 +247,7 @@ func _category_for_key(key: String) -> String:
 		return "Color Settings"
 	if key.begins_with("head") or key.begins_with("mouth") or key.contains("snout") or key.contains("forehead") or key.contains("jaw"):
 		return "Head"
-	if key == "swim_mode" or key.begins_with("body_wave_") or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide"):
+	if key == "swim_mode" or key.begins_with("body_wave_") or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide") or key.contains("turn") or key.contains("fold") or key.contains("brace"):
 		return "Motion Settings"
 	if key.contains("fin") or key.contains("dorsal") or key.contains("pectoral") or key.contains("pelvic") or key.contains("anal") or key.contains("caudal"):
 		return "Fins"
