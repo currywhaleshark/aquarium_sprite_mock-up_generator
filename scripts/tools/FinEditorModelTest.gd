@@ -79,6 +79,7 @@ func _ready() -> void:
 
 	var high_wave_parameters: Dictionary = fish.parameters.duplicate(true)
 	high_wave_parameters["body_wave_amount"] = 0.95
+	high_wave_parameters["dorsal_1_length"] = 0.82
 	fish.set_parameters(high_wave_parameters)
 	await get_tree().process_frame
 	var high_wave_dorsal := fish.get_node_or_null("BodyPivot/DorsalFin1") as MeshInstance3D
@@ -89,7 +90,9 @@ func _ready() -> void:
 	var high_ripple := _mesh_max_abs_z(high_wave_dorsal)
 	assert(absf(high_wave_dorsal.rotation_degrees.y) < 0.001)
 	assert(high_ripple > 0.01)
+	assert(high_ripple < 0.09)
 	assert(high_ripple > low_ripple + 0.005)
+	assert(_dorsal_base_surface_error(fish, high_wave_dorsal, 0.035) < 0.02)
 
 	var high_wave_anal := fish.get_node_or_null("BodyPivot/AnalFin") as MeshInstance3D
 	var high_wave_pelvic_l := fish.get_node_or_null("BodyPivot/PelvicFinL") as MeshInstance3D
@@ -102,6 +105,21 @@ func _ready() -> void:
 	assert(absf(high_wave_pelvic_l.rotation_degrees.y - 12.0) < absf(pelvic_shell_yaw) * 0.35)
 	fish.apply_pose(0.5)
 	assert(absf(high_wave_tail.rotation_degrees.y) < 12.0)
+
+	var eel_fin_parameters: Dictionary = fish.parameters.duplicate(true)
+	eel_fin_parameters["body_wave_amount"] = 50000.0
+	fish.set_parameters(eel_fin_parameters)
+	await get_tree().process_frame
+	var eel_dorsal := fish.get_node_or_null("BodyPivot/DorsalFin1") as MeshInstance3D
+	fish.apply_pose(0.0)
+	var previous_ripple_z := _mesh_average_z(eel_dorsal)
+	var max_ripple_step := 0.0
+	for sample in range(1, 49):
+		fish.apply_pose(float(sample) / 48.0)
+		var current_ripple_z := _mesh_average_z(eel_dorsal)
+		max_ripple_step = maxf(max_ripple_step, absf(current_ripple_z - previous_ripple_z))
+		previous_ripple_z = current_ripple_z
+	assert(max_ripple_step < 0.08)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/fin_editor_model.ok", FileAccess.WRITE)
@@ -127,3 +145,27 @@ func _mesh_max_abs_z(mesh_instance: MeshInstance3D) -> float:
 	for vertex in vertices:
 		max_abs_z = maxf(max_abs_z, absf(vertex.z))
 	return max_abs_z
+
+func _mesh_average_z(mesh_instance: MeshInstance3D) -> float:
+	var arrays := mesh_instance.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var total_z := 0.0
+	for vertex in vertices:
+		total_z += vertex.z
+	return total_z / maxf(float(vertices.size()), 1.0)
+
+func _dorsal_base_surface_error(fish: FishRig, mesh_instance: MeshInstance3D, margin: float) -> float:
+	var arrays := mesh_instance.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var attach_t := float(fish.parameters.get("dorsal_1_attach_t", 0.45))
+	var length := float(fish.parameters.get("dorsal_1_length", 0.42))
+	var x_span := maxf(fish.shell_profile[fish.shell_profile.size() - 1].x - fish.shell_profile[0].x, 0.001)
+	var local_xs := PackedFloat32Array([-length * 0.5, length * 0.5])
+	var vertex_indices := PackedInt32Array([1, vertices.size() - 1])
+	var max_error := 0.0
+	for i in local_xs.size():
+		var t_prime := clampf(attach_t + local_xs[i] / x_span, 0.0, 1.0)
+		var actual := mesh_instance.transform * vertices[vertex_indices[i]]
+		var expected := fish._animated_surface_position("dorsal", t_prime, margin, 0.0, 0.0, fish.animated_shell_centers, fish.animated_shell_yaws)
+		max_error = maxf(max_error, actual.distance_to(expected))
+	return max_error

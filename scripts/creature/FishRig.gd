@@ -382,6 +382,8 @@ func _deform_shell(loop_phase: float) -> void:
 	var phase_delay := param_float("phase_delay", 0.65)
 	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
 	var body_wave_amount := param_float("body_wave_amount", 0.35)
+	var effective_body_wave_amount := _response_limited_amount(body_wave_amount, param_float("body_wave_response_scale", 100.0))
+	var body_wave_yaw_limit := param_float("body_wave_yaw_limit", 55.0)
 	var body_wave_start := clampf(param_float("body_wave_start", 0.16), 0.0, 1.0)
 	var body_wave_falloff := maxf(param_float("body_wave_falloff", 0.75), 0.05)
 	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
@@ -400,10 +402,11 @@ func _deform_shell(loop_phase: float) -> void:
 		var ring_id := shell_ring_ids[ring_index] if ring_index < shell_ring_ids.size() else ""
 		var ring_weight := _ring_sway_weight(ring_id, t)
 		var body_distribution := _body_wave_distribution(t, body_wave_start, body_wave_falloff)
-		var ring_yaw := sin(loop_phase * TAU - float(ring_index) * phase_delay) * global_sway * ring_weight * body_wave_amount * body_distribution
+		var raw_ring_yaw := sin(loop_phase * TAU - float(ring_index) * phase_delay) * global_sway * ring_weight * effective_body_wave_amount * body_distribution
+		var ring_yaw := _soft_limit_yaw(raw_ring_yaw, body_wave_yaw_limit)
 		var turn_yaw := _turn_ring_yaw(t, turn_amount, turn_direction, turn_tail_lag)
 		var yaw: float = bend["yaw"] + ring_yaw + turn_yaw
-		center.z += sin(loop_phase * TAU - float(ring_index) * phase_delay) * 0.012 * body_wave_amount * body_distribution
+		center.z += sin(loop_phase * TAU - float(ring_index) * phase_delay) * 0.012 * effective_body_wave_amount * body_distribution
 		center += _turn_ring_offset(point.x, turn_yaw)
 		centers.append(center)
 		yaws.append(yaw)
@@ -463,17 +466,17 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		var dorsal_attach_t := param_float("dorsal_1_attach_t", 0.45)
 		dorsal_fin.position = _animated_surface_position("dorsal", dorsal_attach_t, 0.035, 0.0, float(parameters.get("dorsal_fin_offset_x", 0.0)), centers, yaws)
 		dorsal_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase), 0.0, _surface_tangent_angle_degrees("dorsal", dorsal_attach_t))
-		_animate_median_fin(dorsal_fin, "dorsal", String(parameters.get("dorsal_1_shape", "single")), param_float("dorsal_1_length", 0.42), param_float("dorsal_1_height", param_float("dorsal_fin_size", 0.28)), dorsal_attach_t, 0.035, loop_phase)
+		_animate_median_fin(dorsal_fin, "dorsal", String(parameters.get("dorsal_1_shape", "single")), param_float("dorsal_1_length", 0.42), param_float("dorsal_1_height", param_float("dorsal_fin_size", 0.28)), dorsal_attach_t, 0.035, loop_phase, centers, yaws)
 	if dorsal_2_fin:
 		var dorsal_2_attach_t := param_float("dorsal_2_attach_t", 0.68)
 		dorsal_2_fin.position = _animated_surface_position("dorsal", dorsal_2_attach_t, 0.028, 0.0, 0.0, centers, yaws)
 		dorsal_2_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.12), 0.0, _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
-		_animate_median_fin(dorsal_2_fin, "dorsal", String(parameters.get("dorsal_2_shape", "single")), param_float("dorsal_2_length", 0.34), param_float("dorsal_2_height", 0.18), dorsal_2_attach_t, 0.028, loop_phase)
+		_animate_median_fin(dorsal_2_fin, "dorsal", String(parameters.get("dorsal_2_shape", "single")), param_float("dorsal_2_length", 0.34), param_float("dorsal_2_height", 0.18), dorsal_2_attach_t, 0.028, loop_phase, centers, yaws)
 	if anal_fin:
 		var anal_attach_t := param_float("anal_attach_t", 0.64)
 		anal_fin.position = _animated_surface_position("ventral", anal_attach_t, 0.03, 0.0, float(parameters.get("anal_fin_offset_x", 0.0)), centers, yaws)
 		anal_fin.rotation_degrees = Vector3(-_median_fin_flap(loop_phase, 0.5), 0.0, _surface_tangent_angle_degrees("ventral", anal_attach_t))
-		_animate_median_fin(anal_fin, "ventral", String(parameters.get("anal_shape", "long")), param_float("anal_length", 0.36), param_float("anal_height", param_float("anal_fin_size", 0.2)), anal_attach_t, 0.03, loop_phase)
+		_animate_median_fin(anal_fin, "ventral", String(parameters.get("anal_shape", "long")), param_float("anal_length", 0.36), param_float("anal_height", param_float("anal_fin_size", 0.2)), anal_attach_t, 0.03, loop_phase, centers, yaws)
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -513,10 +516,15 @@ func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var stem_center := _animated_ring_center(stem_index, centers)
 	var rear_yaw := _animated_ring_yaw(rear_index, yaws)
 	var stem_yaw := _animated_ring_yaw(stem_index, yaws)
+	var tail_body_wave_follow := clampf(param_float("tail_body_wave_follow", 0.45), 0.0, 1.0)
+	var tail_root_yaw_limit := param_float("tail_root_yaw_limit", 70.0)
+	var tail_joint_yaw_limit := param_float("tail_joint_yaw_limit", 55.0)
+	var tail_fin_yaw_limit := param_float("tail_fin_yaw_limit", 42.0)
 	tail_pivot_1.position = rear_center
-	tail_pivot_1.rotation_degrees = Vector3(0.0, rear_yaw, 0.0)
-	tail_pivot_2.position = Basis(Vector3.UP, deg_to_rad(-rear_yaw)) * (stem_center - rear_center)
-	tail_pivot_2.rotation_degrees = Vector3(0.0, stem_yaw - rear_yaw, 0.0)
+	var limited_rear_yaw := _soft_limit_yaw(rear_yaw * tail_body_wave_follow, tail_root_yaw_limit)
+	tail_pivot_1.rotation_degrees = Vector3(0.0, limited_rear_yaw, 0.0)
+	tail_pivot_2.position = Basis(Vector3.UP, deg_to_rad(-limited_rear_yaw)) * (stem_center - rear_center)
+	tail_pivot_2.rotation_degrees = Vector3(0.0, _soft_limit_yaw((stem_yaw - rear_yaw) * tail_body_wave_follow, tail_joint_yaw_limit), 0.0)
 	var phase_delay := param_float("phase_delay", 0.65)
 	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
 	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
@@ -524,18 +532,32 @@ func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var tail_extra_swing := param_float("tail_fin_extra_swing", 0.45)
 	var tail_fin_yaw := sin(loop_phase * TAU - phase_delay * 2.4) * global_sway * tail_multiplier * tail_stem_weight * tail_extra_swing
 	tail_fin_pivot.position = Vector3.ZERO
-	tail_fin_pivot.rotation_degrees = Vector3(0.0, tail_fin_yaw, 0.0)
+	tail_fin_pivot.rotation_degrees = Vector3(0.0, _soft_limit_yaw(tail_fin_yaw, tail_fin_yaw_limit), 0.0)
 
 func _fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
 	return _sample_animated_shell_yaw(attach_t, yaws) * param_float("fin_yaw_follow_strength", 0.25)
 
+func _soft_limit_yaw(value: float, limit: float) -> float:
+	var safe_limit := maxf(absf(limit), 0.001)
+	return tanh(value / safe_limit) * safe_limit
+
+func _response_limited_amount(value: float, response_scale: float) -> float:
+	var safe_scale := maxf(absf(response_scale), 0.001)
+	var direction := -1.0 if value < 0.0 else 1.0
+	return direction * safe_scale * log(1.0 + absf(value) / safe_scale)
+
+func _median_fin_wave_tilt_amount() -> float:
+	var body_wave := _response_limited_amount(param_float("body_wave_amount", 0.35), param_float("median_fin_wave_response_scale", 4.0))
+	var raw_tilt := param_float("median_fin_wave_amount", 0.3) * body_wave
+	return _soft_limit_yaw(raw_tilt, param_float("median_fin_wave_tilt_limit", 0.24))
+
 # Median fins (dorsal/anal) move with the body by re-deforming their mesh each
 # frame: the base stays embedded on the contour and the free edge ripples with
 # the body wave, instead of the whole blade rigidly rotating about its root.
-func _animate_median_fin(fin_node: MeshInstance3D, side: String, shape: String, length: float, height: float, attach_t: float, margin: float, loop_phase: float) -> void:
+func _animate_median_fin(fin_node: MeshInstance3D, side: String, shape: String, length: float, height: float, attach_t: float, margin: float, loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	var points := PF._fin_shape_points(shape, length, height)
 	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
-	fin_node.mesh = PF.build_polygon_fin_mesh(_curved_fin_points(side, attach_t, margin, points, follow, loop_phase))
+	fin_node.mesh = PF.build_polygon_fin_mesh(_animated_curved_fin_points(fin_node, side, attach_t, margin, points, follow, loop_phase, centers, yaws))
 
 func _median_fin_flap(loop_phase: float, phase_offset: float = 0.0) -> float:
 	var flap_amount := param_float("median_fin_flap_amount", 1.5)
@@ -832,7 +854,7 @@ func _curved_fin_points(side: String, attach_t: float, margin: float, points: Pa
 	var ripple := loop_phase >= 0.0
 	var ring_span := float(maxi(shell_profile.size() - 1, 1))
 	var phase_delay := param_float("phase_delay", 0.65)
-	var tilt_amp := param_float("median_fin_wave_amount", 0.6) * param_float("body_wave_amount", 0.35)
+	var tilt_amp := _median_fin_wave_tilt_amount()
 	for point in points:
 		var flat := Vector2(point.x, point.y * ventral_flip)
 		var t_prime := clampf(attach_t + point.x / x_span, 0.0, 1.0)
@@ -849,6 +871,31 @@ func _curved_fin_points(side: String, attach_t: float, margin: float, points: Pa
 			z = out_y * sin(tilt)
 			out_y = out_y * cos(tilt)
 		result.append(Vector3(blended.x, out_y, z))
+	return result
+
+func _animated_curved_fin_points(fin_node: MeshInstance3D, side: String, attach_t: float, margin: float, points: PackedVector3Array, follow: float, loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> PackedVector3Array:
+	if centers.is_empty() or shell_profile.size() < 2:
+		return _curved_fin_points(side, attach_t, margin, points, follow, loop_phase)
+	var result := PackedVector3Array()
+	var x_span := maxf(shell_profile[shell_profile.size() - 1].x - shell_profile[0].x, 0.001)
+	var ring_span := float(maxi(shell_profile.size() - 1, 1))
+	var phase_delay := param_float("phase_delay", 0.65)
+	var tilt_amp := _median_fin_wave_tilt_amount()
+	var inverse_transform := fin_node.transform.affine_inverse()
+	var pivot_surface := _animated_surface_position(side, attach_t, margin, 0.0, 0.0, centers, yaws)
+	var min_z_follow := clampf(param_float("median_fin_body_z_follow", 0.45), 0.0, 1.0)
+	var z_follow_t := clampf((absf(param_float("body_wave_amount", 0.35)) - 100.0) / 1000.0, 0.0, 1.0)
+	var z_follow := lerpf(1.0, min_z_follow, z_follow_t)
+	for point in points:
+		var t_prime := clampf(attach_t + point.x / x_span, 0.0, 1.0)
+		var tilt := clampf(sin(loop_phase * TAU - t_prime * ring_span * phase_delay) * tilt_amp, -1.2, 1.2)
+		var fin_height := maxf(point.y, 0.0)
+		var local_z := fin_height * sin(tilt)
+		var surface_margin := margin + fin_height * cos(tilt)
+		var animated_point := _animated_surface_position(side, t_prime, surface_margin, local_z, 0.0, centers, yaws)
+		animated_point.z = lerpf(pivot_surface.z, animated_point.z, z_follow)
+		var static_point := _curved_fin_points(side, attach_t, margin, PackedVector3Array([point]), follow, loop_phase)[0]
+		result.append(static_point.lerp(inverse_transform * animated_point, follow))
 	return result
 
 func _sample_shell_profile(attach_t: float) -> Vector3:
