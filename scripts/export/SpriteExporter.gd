@@ -7,6 +7,7 @@ const RenderSettingsScript := preload("res://scripts/render/RenderSettings.gd")
 const SpriteSheetBuilderScript := preload("res://scripts/export/SpriteSheetBuilder.gd")
 const ExportMetadataScript := preload("res://scripts/export/ExportMetadata.gd")
 const ExportDirectionsScript := preload("res://scripts/export/ExportDirections.gd")
+const GifEncoderScript := preload("res://scripts/export/GifEncoder.gd")
 
 static func normalized_direction_count(value: int) -> int:
 	return ExportDirectionsScript.normalized_direction_count(value)
@@ -33,6 +34,7 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	rig.auto_animate = false
 
 	var frame_rows := []
+	var gif_images := []
 	for direction_index in directions.size():
 		var direction_name := String(directions[direction_index])
 		var direction_dir := frames_dir if directions.size() == 1 else "%s/%s" % [frames_dir, direction_name]
@@ -57,6 +59,9 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 				export_failed.emit("Failed to save %s: %s" % [frame_path, error_string(err)])
 				return
 			frame_paths.append(frame_path)
+			# Keep the primary direction's frames in memory to build a preview GIF.
+			if direction_index == 0:
+				gif_images.append(image)
 		frame_rows.append(frame_paths)
 
 	var sheet_path := "%s/%s_sheet.png" % [output_dir, preset_name]
@@ -74,6 +79,15 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 		return
 	metadata_file.store_string(JSON.stringify(metadata, "\t"))
 	metadata_file.close()
+
+	# Animated preview GIF of the primary direction, alongside the PNG frames.
+	var frame_rate := maxf(float(export_settings.get("frame_rate", 12)), 1.0)
+	var delay_centiseconds := int(round(100.0 / frame_rate))
+	var gif_path := "%s/%s.gif" % [output_dir, preset_name]
+	var gif_err := GifEncoderScript.encode_to_file(gif_images, delay_centiseconds, gif_path)
+	if gif_err != OK:
+		push_warning("Sprite GIF export failed (%s): %s" % [gif_path, error_string(gif_err)])
+
 	_restore_rig_state(rig, original_auto_animate, original_rotation)
 	export_finished.emit(ProjectSettings.globalize_path(output_dir))
 

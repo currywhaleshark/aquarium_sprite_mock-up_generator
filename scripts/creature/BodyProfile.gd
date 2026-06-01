@@ -137,8 +137,34 @@ const UNUSED_PARAMETER_KEYS := [
 	"rim_light_strength"
 ]
 
+const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled"]
+const VISUAL_PATTERN_DEFAULTS := {
+	"pattern_type": "none",
+	"pattern_color": "#1f5560",
+	"pattern_scale_x": 6.0,
+	"pattern_scale_y": 4.0,
+	"pattern_intensity": 0.7,
+	"belly_height": 0.5
+}
+
 static func swim_mode_names() -> Array[String]:
 	return ["eel", "general", "mackerel", "tuna", "puffer", "boxfish"]
+
+static func pattern_type_names() -> Array[String]:
+	var names: Array[String] = []
+	for name in PATTERN_TYPE_NAMES:
+		names.append(String(name))
+	return names
+
+static func pattern_type_index(pattern_type: String) -> int:
+	return maxi(PATTERN_TYPE_NAMES.find(pattern_type), 0)
+
+# Injects defaults for the back/belly gradient and procedural pattern controls so
+# every preset (including ones saved before this feature) exposes them in the UI.
+static func ensure_visual_parameters(parameters: Dictionary) -> void:
+	for key in VISUAL_PATTERN_DEFAULTS.keys():
+		if not parameters.has(key):
+			parameters[key] = VISUAL_PATTERN_DEFAULTS[key]
 
 static func valid_swim_mode(swim_mode: String) -> String:
 	if SWIM_MODE_PRESETS.has(swim_mode):
@@ -254,6 +280,7 @@ static func make_parameters_from_structured_preset(preset: Dictionary) -> Dictio
 		parameters["body_profile"] = preset["body_profile"]
 	parameters["creature_type"] = String(preset.get("type", preset.get("creature_type", "fish")))
 	normalize_motion_parameters(parameters)
+	ensure_visual_parameters(parameters)
 	return parameters
 
 static func split_parameters_into_profiles(parameters: Dictionary, preset: Dictionary) -> Dictionary:
@@ -287,7 +314,9 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 	])
 	updated["visual_profile"] = _pick(parameters, [
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
-		"highlight_strength", "shadow_strength"
+		"highlight_strength", "shadow_strength",
+		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
+		"pattern_intensity", "belly_height"
 	])
 	updated["parameters"] = normalized_parameters
 	return updated

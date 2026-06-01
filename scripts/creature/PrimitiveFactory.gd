@@ -69,24 +69,37 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			ring_vertices.append(Vector3(x, y, z))
 		grid.append(ring_vertices)
 		
-	# Add triangles
+	# Add triangles. U runs 0.0 (snout) to HEAD_U_SPAN (neck) so pattern density on
+	# the head matches the body shell, where the head occupies roughly the front
+	# quarter of the fish length. V wraps the circumference for seamless patterns.
+	var head_u_span := 0.25
 	for i in rings:
 		for j in segments:
 			var p00: Vector3 = grid[i][j]
 			var p01: Vector3 = grid[i][j+1]
 			var p10: Vector3 = grid[i+1][j]
 			var p11: Vector3 = grid[i+1][j+1]
-			
+			var u0 := float(i) / float(rings) * head_u_span
+			var u1 := float(i + 1) / float(rings) * head_u_span
+			var v0 := float(j) / float(segments)
+			var v1 := float(j + 1) / float(segments)
+
 			# Triangle 1
+			st.set_uv(Vector2(u0, v0))
 			st.add_vertex(p00)
+			st.set_uv(Vector2(u1, v0))
 			st.add_vertex(p10)
+			st.set_uv(Vector2(u0, v1))
 			st.add_vertex(p01)
-			
+
 			# Triangle 2
+			st.set_uv(Vector2(u0, v1))
 			st.add_vertex(p01)
+			st.set_uv(Vector2(u1, v0))
 			st.add_vertex(p10)
+			st.set_uv(Vector2(u1, v1))
 			st.add_vertex(p11)
-			
+
 	st.generate_normals()
 	return st.commit()
 
@@ -473,7 +486,12 @@ static func build_fish_outer_shell_mesh(
 ) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
+	# A duplicate seam column (segment == segments) carries V == 1.0 so cylindrical
+	# patterns wrap continuously instead of snapping back to V == 0.0 on the last face.
+	var verts_per_ring := segments + 1
+	var last_ring := maxi(profile.size() - 1, 1)
 	for ring_index in profile.size():
 		var point := profile[ring_index]
 		var z_offset := z_offsets[ring_index] if ring_index < z_offsets.size() else 0.0
@@ -481,7 +499,8 @@ static func build_fish_outer_shell_mesh(
 		center.y += center_y_offsets[ring_index] if ring_index < center_y_offsets.size() else 0.0
 		var ring_yaw := deg_to_rad(yaw_degrees[ring_index] if ring_index < yaw_degrees.size() else 0.0)
 		var ring_basis := Basis(Vector3.UP, ring_yaw)
-		for segment in segments:
+		var u := float(ring_index) / float(last_ring)
+		for segment in range(verts_per_ring):
 			var angle := TAU * float(segment) / float(segments)
 			var y := sin(angle) * point.y
 			var z := cos(angle) * point.z
@@ -489,18 +508,20 @@ static func build_fish_outer_shell_mesh(
 			vertices.append(center + ring_basis * local_vertex)
 			var local_normal := Vector3(0.0, y / maxf(point.y, 0.001), z / maxf(point.z, 0.001)).normalized()
 			normals.append((ring_basis * local_normal).normalized())
+			uvs.append(Vector2(u, float(segment) / float(segments)))
 	for ring_index in profile.size() - 1:
 		for segment in segments:
-			var a := ring_index * segments + segment
-			var b := ring_index * segments + (segment + 1) % segments
-			var c := (ring_index + 1) * segments + segment
-			var d := (ring_index + 1) * segments + (segment + 1) % segments
+			var a := ring_index * verts_per_ring + segment
+			var b := ring_index * verts_per_ring + segment + 1
+			var c := (ring_index + 1) * verts_per_ring + segment
+			var d := (ring_index + 1) * verts_per_ring + segment + 1
 			indices.append_array(PackedInt32Array([a, c, b, b, c, d]))
 	var mesh := ArrayMesh.new()
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh

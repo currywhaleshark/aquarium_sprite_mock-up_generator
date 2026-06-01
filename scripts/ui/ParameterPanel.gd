@@ -281,11 +281,17 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	parent.add_child(row)
 
 func _min_for_key(key: String, value: float) -> float:
+	if key.begins_with("pattern_") or key == "belly_height":
+		return 0.0
 	if _is_signed_parameter(key):
 		return minf(-2.0, value * 2.0)
 	return 0.0
 
 func _max_for_key(key: String, value: float) -> float:
+	if key == "pattern_intensity" or key == "belly_height":
+		return 1.0
+	if key == "pattern_scale_x" or key == "pattern_scale_y":
+		return maxf(20.0, value * 2.0)
 	if _is_signed_parameter(key):
 		return maxf(2.0, absf(value) * 2.0)
 	if key.contains("color") or key.contains("strength"):
@@ -302,6 +308,10 @@ func _is_signed_parameter(key: String) -> bool:
 	return key.contains("offset") or key.contains("position") or key.ends_with("_x") or key.ends_with("_y") or key.ends_with("_z")
 
 func _category_for_key(key: String) -> String:
+	if key.begins_with("pattern"):
+		return "Pattern Settings"
+	if key == "belly_height":
+		return "Color Settings"
 	if key.contains("color"):
 		return "Color Settings"
 	if key.begins_with("head") or key.begins_with("mouth") or key.contains("snout") or key.contains("forehead") or key.contains("jaw"):
@@ -347,9 +357,11 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "swim_mode"
+	return key == "swim_mode" or key == "pattern_type"
 
 func _options_for_key(key: String) -> Array[String]:
 	if key == "swim_mode":
 		return BodyProfileScript.swim_mode_names()
+	if key == "pattern_type":
+		return BodyProfileScript.pattern_type_names()
 	return []

@@ -109,6 +109,7 @@ static func normalize_preset(preset: Dictionary) -> Dictionary:
 		if String(normalized.get("creature_type", "fish")) == "fish":
 			parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 			BodyProfileScript.normalize_motion_parameters(parameters)
+		BodyProfileScript.ensure_visual_parameters(parameters)
 		normalized["parameters"] = parameters
 		return normalized
 	var parameters := BodyProfileScript.make_parameters_from_structured_preset(normalized)

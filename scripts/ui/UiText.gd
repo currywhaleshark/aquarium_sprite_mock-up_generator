@@ -83,7 +83,12 @@ const OPTION_LABELS := {
 	"tuna": "참치형",
 	"puffer": "복어형",
 	"boxfish": "박스피시형",
-	"bezier": "베지에 제어형"
+	"bezier": "베지에 제어형",
+	"stripes": "세로 줄무늬",
+	"horizontal_stripes": "가로 줄무늬",
+	"spots": "점무늬",
+	"zebra": "얼룩말무늬",
+	"marbled": "대리석무늬"
 }
 
 const PARAMETER_LABELS := {
@@ -146,6 +151,12 @@ const PARAMETER_LABELS := {
 	"base_color": "기본 색",
 	"secondary_color": "보조 색",
 	"belly_color": "배 색",
+	"belly_height": "배 색 영역 높이",
+	"pattern_type": "무늬 종류",
+	"pattern_color": "무늬 색",
+	"pattern_scale_x": "무늬 가로 크기",
+	"pattern_scale_y": "무늬 세로 크기",
+	"pattern_intensity": "무늬 진하기",
 	"fin_color": "지느러미 색",
 	"outline_color": "외곽선 색",
 	"outline_width": "외곽선 두께",
@@ -171,6 +182,7 @@ const SECTION_LABELS := {
 	"Fins": "지느러미",
 	"Motion Settings": "움직임 설정",
 	"Color Settings": "색상 설정",
+	"Pattern Settings": "무늬 설정",
 	"Visual Settings": "시각 설정",
 	"Global Settings": "전체 설정",
 	"Export": "출력",

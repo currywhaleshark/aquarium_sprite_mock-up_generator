@@ -69,12 +69,13 @@ func rebuild() -> void:
 	eye_r = null
 	eye_stalk_l = null
 	eye_stalk_r = null
-	var base_mat := TMF.make_surface(param_color("base_color", "#49c7d1"), param_float("shadow_strength", 0.35), param_float("highlight_strength", 0.42))
+	# Opaque toon material shared by the body shell and head so countershading and
+	# patterns flow continuously across the neck. secondary_color now serves only as
+	# the head-appendage / eye-stalk accent.
+	var body_mat := TMF.make_body_material(parameters)
 	var secondary_mat := TMF.make_surface(param_color("secondary_color", "#d8fbff"), 0.2, 0.5)
 	var fin_mat := TMF.make_surface(param_color("fin_color", "#7ee1e8"), 0.28, 0.35)
 	var eye_mat := TMF.make_dark("#10161a")
-	var shell_color := param_color("base_color", "#49c7d1").lerp(param_color("secondary_color", "#d8fbff"), param_float("shell_color_mix", 0.22))
-	var shell_mat := TMF.make_shell(shell_color, param_float("shell_opacity", 0.72))
 
 	var body_length := param_float("body_length", 1.45)
 	var body_height := param_float("body_height", 0.58)
@@ -102,14 +103,14 @@ func rebuild() -> void:
 	_build_shell_profile_from_rings(rings, body_length, body_height, body_width, body_z_scale, head_offset, head_size, tail_length, shell_expand)
 
 	if param_float("shell_enabled", 1.0) > 0.5:
-		outer_shell = PF.fish_outer_shell("OuterShell", shell_profile, shell_mat, shell_segments, PackedFloat32Array(shell_center_y_offsets))
+		outer_shell = PF.fish_outer_shell("OuterShell", shell_profile, body_mat, shell_segments, PackedFloat32Array(shell_center_y_offsets))
 		body_pivot.add_child(outer_shell)
 
 	var head_scale := _head_scale_for_shape(String(parameters.get("head_shape", "rounded")), head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
 	var head_shape := String(parameters.get("head_shape", "rounded"))
 	var snout_len := param_float("snout_length", 0.0)
 	var forehead_slope := param_float("forehead_slope", 0.35)
-	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, secondary_mat)
+	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, body_mat)
 	head_node.position = Vector3(head_offset, _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
