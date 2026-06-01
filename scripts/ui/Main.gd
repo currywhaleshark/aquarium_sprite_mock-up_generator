@@ -197,6 +197,11 @@ func _build_ui() -> void:
 	)
 	side.add_child(reference_image_panel)
 
+	var edit_section_label := Label.new()
+	edit_section_label.text = "부위 편집"
+	edit_section_label.add_theme_font_size_override("font_size", 15)
+	side.add_child(edit_section_label)
+
 	fin_edit_toggle = CheckButton.new()
 	fin_edit_toggle.text = "지느러미 편집"
 	fin_edit_toggle.toggled.connect(_set_fin_edit_enabled)
@@ -397,7 +402,7 @@ func _sync_parameter_editors(parameters: Dictionary) -> void:
 func _bind_fin_editor_for_current_rig() -> void:
 	if fin_drag_controller == null:
 		return
-	if String(current_preset.get("creature_type", "fish")) == "fish":
+	if _is_fish():
 		fin_drag_controller.call("bind_fish", current_rig)
 		if fin_edit_toggle:
 			fin_edit_toggle.disabled = false
@@ -606,39 +611,41 @@ func _set_fin_edit_enabled(enabled: bool) -> void:
 	if fin_drag_controller:
 		fin_drag_controller.call("set_enabled", enabled)
 	if fin_editor_panel:
-		fin_editor_panel.visible = enabled and String(current_preset.get("creature_type", "fish")) == "fish"
+		fin_editor_panel.visible = enabled and _is_fish()
 	var fish_rig := current_rig as FishRig
 	if enabled and fish_rig:
 		fish_rig.set_ring_editor_enabled(false)
-	if enabled and head_edit_toggle:
-		head_edit_toggle.button_pressed = false
-	if enabled and body_edit_toggle:
-		body_edit_toggle.button_pressed = false
+	if enabled:
+		_select_exclusive_edit_toggle(fin_edit_toggle)
 	_sync_edit_input_state()
 
 func _set_head_edit_enabled(enabled: bool) -> void:
 	if head_editor_panel:
-		head_editor_panel.visible = enabled and String(current_preset.get("creature_type", "fish")) == "fish"
+		head_editor_panel.visible = enabled and _is_fish()
 	var fish_rig := current_rig as FishRig
 	if enabled and fish_rig:
 		fish_rig.set_ring_editor_enabled(false)
-	if enabled and fin_edit_toggle:
-		fin_edit_toggle.button_pressed = false
-	if enabled and body_edit_toggle:
-		body_edit_toggle.button_pressed = false
+	if enabled:
+		_select_exclusive_edit_toggle(head_edit_toggle)
 	_sync_edit_input_state()
 
 func _set_body_edit_enabled(enabled: bool) -> void:
 	if body_editor_panel:
-		body_editor_panel.visible = enabled and String(current_preset.get("creature_type", "fish")) == "fish"
+		body_editor_panel.visible = enabled and _is_fish()
 	var fish_rig := current_rig as FishRig
 	if fish_rig:
-		fish_rig.set_ring_editor_enabled(enabled and String(current_preset.get("creature_type", "fish")) == "fish")
-	if enabled and fin_edit_toggle:
-		fin_edit_toggle.button_pressed = false
-	if enabled and head_edit_toggle:
-		head_edit_toggle.button_pressed = false
+		fish_rig.set_ring_editor_enabled(enabled and _is_fish())
+	if enabled:
+		_select_exclusive_edit_toggle(body_edit_toggle)
 	_sync_edit_input_state()
+
+func _select_exclusive_edit_toggle(active_toggle: CheckButton) -> void:
+	for toggle in [fin_edit_toggle, head_edit_toggle, body_edit_toggle]:
+		if toggle != null and toggle != active_toggle:
+			toggle.button_pressed = false
+
+func _is_fish() -> bool:
+	return String(current_preset.get("creature_type", "fish")) == "fish"
 
 func _on_preview_gui_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton):

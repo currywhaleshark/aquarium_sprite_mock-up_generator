@@ -20,11 +20,3 @@ func _ready() -> void:
 		camera_preset_changed.emit(String(option.get_item_metadata(index)))
 	)
 	add_child(option)
-
-func select_preset(preset_name: String) -> void:
-	if option == null:
-		return
-	for i in option.item_count:
-		if String(option.get_item_metadata(i)) == preset_name:
-			option.select(i)
-			return

@@ -4,6 +4,7 @@ extends VBoxContainer
 signal reference_changed(settings: Dictionary)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
+const UiRows := preload("res://scripts/ui/UiRows.gd")
 
 const NUMERIC_SETTINGS := {
 	"scale": {"min": 0.05, "max": 4.0, "step": 0.01},
@@ -135,28 +136,21 @@ func _process(_delta: float) -> void:
 
 func _add_numeric_row(parent: VBoxContainer, key: String) -> void:
 	var config: Dictionary = NUMERIC_SETTINGS[key]
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 28)
-	var label := Label.new()
-	label.text = UiText.reference_label(key)
-	label.custom_minimum_size = Vector2(82, 0)
-	row.add_child(label)
-	var slider := HSlider.new()
-	slider.min_value = float(config["min"])
-	slider.max_value = float(config["max"])
-	slider.step = float(config["step"])
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(slider)
-	var value_label := Label.new()
-	value_label.custom_minimum_size = Vector2(48, 0)
-	row.add_child(value_label)
+	var widgets := UiRows.add_labeled_slider(parent, UiText.reference_label(key), {
+		"label_width": 82,
+		"value_width": 48,
+		"min": float(config["min"]),
+		"max": float(config["max"]),
+		"step": float(config["step"]),
+	})
+	var slider := widgets["slider"] as HSlider
+	var value_label := widgets["value_label"] as Label
 	numeric_sliders[key] = {"slider": slider, "label": value_label}
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
 		if not _updating:
 			set_numeric_setting(key, value)
 	)
-	parent.add_child(row)
 
 func _add_dialog_preview(dialog: FileDialog) -> void:
 	var preview_box := VBoxContainer.new()

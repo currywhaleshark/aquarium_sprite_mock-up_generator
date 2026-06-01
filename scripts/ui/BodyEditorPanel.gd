@@ -5,6 +5,7 @@ signal parameters_changed(parameters: Dictionary)
 signal ring_selected(ring_id: String)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
+const UiRows := preload("res://scripts/ui/UiRows.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 const RING_NUMERIC_KEYS := {
@@ -192,29 +193,20 @@ func delete_selected_ring() -> void:
 
 func _add_numeric_row(key: String) -> void:
 	var config: Dictionary = RING_NUMERIC_KEYS[key]
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 28)
-	var label := Label.new()
-	label.text = UiText.ring_parameter(key)
-	label.custom_minimum_size = Vector2(120, 0)
-	label.clip_text = true
-	row.add_child(label)
-	var slider := HSlider.new()
-	slider.min_value = float(config["min"])
-	slider.max_value = float(config["max"])
-	slider.step = float(config["step"])
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(slider)
-	var value_label := Label.new()
-	value_label.custom_minimum_size = Vector2(44, 0)
-	row.add_child(value_label)
+	var widgets := UiRows.add_labeled_slider(self, UiText.ring_parameter(key), {
+		"label_width": 120,
+		"min": float(config["min"]),
+		"max": float(config["max"]),
+		"step": float(config["step"]),
+	})
+	var slider := widgets["slider"] as HSlider
+	var value_label := widgets["value_label"] as Label
 	numeric_sliders[key] = {"slider": slider, "label": value_label}
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
 		if not _updating:
 			set_ring_parameter(key, value)
 	)
-	add_child(row)
 
 func _refresh_controls() -> void:
 	if ring_list == null:

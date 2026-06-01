@@ -4,6 +4,7 @@ extends VBoxContainer
 signal parameters_changed(parameters: Dictionary)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
+const UiRows := preload("res://scripts/ui/UiRows.gd")
 
 const SLOT_LABELS := {
 	"dorsal_1": "Dorsal 1",
@@ -179,31 +180,21 @@ func _rebuild_numeric_controls() -> void:
 		_add_numeric_row(String(key), slot_keys[key])
 
 func _add_numeric_row(key: String, config: Dictionary) -> void:
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 28)
-	var label := Label.new()
-	label.text = UiText.parameter(key)
-	label.custom_minimum_size = Vector2(112, 0)
-	label.clip_text = true
-	row.add_child(label)
-	var slider := HSlider.new()
-	slider.min_value = float(config.get("min", 0.0))
-	slider.max_value = float(config.get("max", 1.0))
-	slider.step = float(config.get("step", 0.005))
-	slider.value = _numeric_value(key, config)
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(slider)
-	var value_label := Label.new()
-	value_label.text = "%.2f" % slider.value
-	value_label.custom_minimum_size = Vector2(44, 0)
-	row.add_child(value_label)
+	var widgets := UiRows.add_labeled_slider(numeric_container, UiText.parameter(key), {
+		"label_width": 112,
+		"min": float(config.get("min", 0.0)),
+		"max": float(config.get("max", 1.0)),
+		"step": float(config.get("step", 0.005)),
+		"value": _numeric_value(key, config),
+	})
+	var slider := widgets["slider"] as HSlider
+	var value_label := widgets["value_label"] as Label
 	numeric_sliders[key] = {"slider": slider, "label": value_label}
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
 		if not _updating:
 			set_numeric_parameter(key, value)
 	)
-	numeric_container.add_child(row)
 
 func _numeric_value(key: String, config: Dictionary) -> float:
 	if parameters.has(key):

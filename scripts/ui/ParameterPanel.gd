@@ -4,6 +4,7 @@ extends ScrollContainer
 signal parameters_changed(parameters: Dictionary)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
+const UiRows := preload("res://scripts/ui/UiRows.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 var parameters: Dictionary = {}
@@ -157,30 +158,22 @@ func _header_text(section_name: String, opened: bool) -> String:
 	return ("%s %s" % ["v" if opened else ">", UiText.section(section_name)])
 
 func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 28)
-	var label := Label.new()
-	label.text = UiText.parameter(key)
-	label.custom_minimum_size = Vector2(150, 0)
-	label.clip_text = true
-	row.add_child(label)
-	var slider := HSlider.new()
-	slider.min_value = _min_for_key(key, value)
-	slider.max_value = _max_for_key(key, value)
-	slider.step = 0.005 if slider.max_value <= 3.0 else 0.1
-	slider.value = value
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(slider)
-	var value_label := Label.new()
-	value_label.text = "%.2f" % value
-	value_label.custom_minimum_size = Vector2(46, 0)
-	row.add_child(value_label)
+	var max_value := _max_for_key(key, value)
+	var widgets := UiRows.add_labeled_slider(parent, UiText.parameter(key), {
+		"label_width": 150,
+		"value_width": 46,
+		"min": _min_for_key(key, value),
+		"max": max_value,
+		"step": 0.005 if max_value <= 3.0 else 0.1,
+		"value": value,
+	})
+	var slider := widgets["slider"] as HSlider
+	var value_label := widgets["value_label"] as Label
 	slider.value_changed.connect(func(new_value: float) -> void:
 		parameters[key] = new_value
 		value_label.text = "%.2f" % new_value
 		parameters_changed.emit(parameters.duplicate(true))
 	)
-	parent.add_child(row)
 
 func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 	var row := HBoxContainer.new()
