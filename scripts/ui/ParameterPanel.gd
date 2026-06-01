@@ -11,6 +11,11 @@ var parameters: Dictionary = {}
 var container: VBoxContainer
 var section_bodies: Dictionary = {}
 var collapsed_sections: Dictionary = {}
+var sliders := {}
+var color_pickers := {}
+var option_buttons := {}
+var labels := {}
+var _updating_values := false
 
 const HIDDEN_BODY_PROFILE_KEYS := {
 	"body_profile": true,
@@ -97,12 +102,33 @@ func _ready() -> void:
 	add_child(container)
 
 func set_parameters(new_parameters: Dictionary) -> void:
+	var keys_changed := false
+	if new_parameters.size() != parameters.size():
+		keys_changed = true
+	else:
+		for k in new_parameters.keys():
+			if not parameters.has(k):
+				keys_changed = true
+				break
+				
 	parameters = new_parameters.duplicate(true)
 	if container == null:
 		return
+		
+	if keys_changed or container.get_child_count() == 0:
+		_build_controls()
+	else:
+		_update_control_values()
+
+func _build_controls() -> void:
 	for child in container.get_children():
 		child.queue_free()
 	section_bodies.clear()
+	sliders.clear()
+	color_pickers.clear()
+	option_buttons.clear()
+	labels.clear()
+	
 	for key in parameters.keys():
 		if _should_hide_key(String(key)):
 			continue
@@ -114,6 +140,26 @@ func set_parameters(new_parameters: Dictionary) -> void:
 			_add_color_row(section_body, String(key), _color_from_value(value))
 		elif typeof(value) == TYPE_STRING and _is_option_parameter(String(key)):
 			_add_option_row(section_body, String(key), String(value))
+
+func _update_control_values() -> void:
+	_updating_values = true
+	for key in parameters.keys():
+		var value: Variant = parameters[key]
+		if sliders.has(key):
+			var slider := sliders[key] as HSlider
+			slider.value = float(value)
+			var label := labels[key] as Label
+			if label:
+				label.text = "%.2f" % float(value)
+		elif color_pickers.has(key):
+			var picker := color_pickers[key] as ColorPickerButton
+			picker.color = _color_from_value(value)
+		elif option_buttons.has(key):
+			var option := option_buttons[key] as OptionButton
+			var options := _options_for_key(key)
+			var selected_index := options.find(String(value))
+			option.select(maxi(selected_index, 0))
+	_updating_values = false
 
 func get_section_body(section_name: String) -> VBoxContainer:
 	return section_bodies.get(section_name, null)
@@ -171,7 +217,12 @@ func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
 	})
 	var slider := widgets["slider"] as HSlider
 	var value_label := widgets["value_label"] as Label
+	sliders[key] = slider
+	labels[key] = value_label
+	
 	slider.value_changed.connect(func(new_value: float) -> void:
+		if _updating_values:
+			return
 		parameters[key] = new_value
 		value_label.text = "%.2f" % new_value
 		parameters_changed.emit(parameters.duplicate(true))
@@ -189,7 +240,11 @@ func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 	picker.color = color
 	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(picker)
+	color_pickers[key] = picker
+	
 	picker.color_changed.connect(func(new_color: Color) -> void:
+		if _updating_values:
+			return
 		parameters[key] = "#%s" % new_color.to_html(false)
 		parameters_changed.emit(parameters.duplicate(true))
 	)
@@ -212,7 +267,11 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	var selected_index := options.find(value)
 	option.select(maxi(selected_index, 0))
 	row.add_child(option)
+	option_buttons[key] = option
+	
 	option.item_selected.connect(func(index: int) -> void:
+		if _updating_values:
+			return
 		var selected := String(option.get_item_metadata(index))
 		parameters[key] = selected
 		if key == "swim_mode":

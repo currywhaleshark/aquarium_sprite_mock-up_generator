@@ -87,14 +87,21 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_release()
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
-	if selected_handle == "":
-		return
-	_drag_live(selected_handle, event.relative)
-	input_control.accept_event()
+	if selected_handle != "":
+		_drag_live(selected_handle, event.relative)
+		input_control.accept_event()
+	else:
+		var hover := _pick_handle(event.position)
+		if hover != "":
+			input_control.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		else:
+			input_control.mouse_default_cursor_shape = Control.CURSOR_ARROW
 
 func _release() -> void:
 	selected_handle = ""
 	_set_camera_suppressed(false)
+	if input_control:
+		input_control.mouse_default_cursor_shape = Control.CURSOR_ARROW
 
 func _set_camera_suppressed(value: bool) -> void:
 	if camera_controller and camera_controller.has_method("set_drag_suppressed"):
