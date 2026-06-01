@@ -161,8 +161,23 @@ func rebuild() -> void:
 	body_pivot.add_child(anal_fin)
 
 	if param_float("pelvic_enabled", 0.0) > 0.5:
-		pelvic_l = PF.fin_shape("PelvicFinL", String(parameters.get("pelvic_shape", "triangle")), param_float("pelvic_length", 0.22), param_float("pelvic_height", 0.14), fin_mat, true)
-		pelvic_r = PF.fin_shape("PelvicFinR", String(parameters.get("pelvic_shape", "triangle")), param_float("pelvic_length", 0.22), param_float("pelvic_height", 0.14), fin_mat, true)
+		var pelvic_shape := String(parameters.get("pelvic_shape", "triangle"))
+		var pelvic_length := param_float("pelvic_length", 0.22)
+		var pelvic_height := param_float("pelvic_height", 0.14)
+		if pelvic_shape == "oval":
+			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, fin_mat)
+			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, fin_mat)
+		else:
+			var points_l := _get_fin_points("PelvicFinL", pelvic_shape, pelvic_length, pelvic_height)
+			var points_r := _get_fin_points("PelvicFinR", pelvic_shape, pelvic_length, pelvic_height)
+			var inverted_l := PackedVector3Array()
+			for p in points_l:
+				inverted_l.append(Vector3(p.x, -p.y, p.z))
+			var inverted_r := PackedVector3Array()
+			for p in points_r:
+				inverted_r.append(Vector3(p.x, -p.y, p.z))
+			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, fin_mat)
+			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, fin_mat)
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -989,6 +1004,7 @@ func _curved_fin_points(side: String, attach_t: float, margin: float, points: Pa
 	var theta := deg_to_rad(_surface_tangent_angle_degrees(side, attach_t))
 	var cos_t := cos(-theta)
 	var sin_t := sin(-theta)
+	var cos_theta := absf(cos(theta))
 	var pivot := _surface_contour_point(side, attach_t) + _contour_outward_normal(side, attach_t) * embed_margin
 	# Travelling-wave ripple: each lengthwise slice tilts about its base by a
 	# head-to-tail phase, so the free edge undulates while the membrane keeps its
@@ -999,7 +1015,7 @@ func _curved_fin_points(side: String, attach_t: float, margin: float, points: Pa
 	var tilt_amp := _median_fin_wave_tilt_amount()
 	for point in points:
 		var flat := Vector2(point.x, point.y * ventral_flip)
-		var t_prime := clampf(attach_t + point.x / x_span, 0.0, 1.0)
+		var t_prime := clampf(attach_t + (point.x * cos_theta) / x_span, 0.0, 1.0)
 		var base := _surface_contour_point(side, t_prime)
 		var normal := _contour_outward_normal(side, t_prime)
 		var world := base + normal * (embed_margin + point.y)
