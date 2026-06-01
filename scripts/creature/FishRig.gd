@@ -515,6 +515,19 @@ func _deform_shell(loop_phase: float) -> void:
 		center.z += turn_offsets[ring_index]
 		centers.append(center)
 		yaws.append(yaw)
+
+	# Align snout and head rings of the body shell to rotate and translate exactly with the head node's kinematic system
+	var head_offset := param_float("head_offset", -0.58)
+	var attach_t := _shell_attach_t_for_x(head_offset)
+	var yaw_head := _sample_animated_shell_yaw(attach_t, yaws)
+	var head_center := _sample_animated_shell_center(attach_t, centers)
+	var basis_head := Basis(Vector3.UP, deg_to_rad(yaw_head))
+	for i in range(2):
+		if i < centers.size():
+			var dx := shell_profile[i].x - head_offset
+			centers[i] = head_center + basis_head * Vector3(dx, 0.0, 0.0)
+			yaws[i] = yaw_head
+
 	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets))
 	animated_shell_centers = centers
 	animated_shell_yaws = yaws
