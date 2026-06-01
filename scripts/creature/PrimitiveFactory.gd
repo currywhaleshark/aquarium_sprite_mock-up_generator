@@ -14,6 +14,172 @@ static func ellipsoid(name: String, scale_value: Vector3, material: Material) ->
 	node.material_override = material
 	return node
 
+static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	
+	var grid := []
+	for i in range(rings + 1):
+		var phi := PI * float(i) / float(rings)
+		var ring_vertices := []
+		for j in range(segments + 1):
+			var theta := TAU * float(j) / float(segments)
+			
+			var x := -0.5 * cos(phi)
+			var y := 0.5 * sin(phi) * sin(theta)
+			var z := 0.5 * sin(phi) * cos(theta)
+			
+			var u := x + 0.5 # 0.0 (front) to 1.0 (back)
+			
+			# 1. Cephalofoil (Hammerhead)
+			if shape == "cephalofoil":
+				var z_stretch := sin(phi) * 2.2
+				z *= (1.0 + z_stretch)
+				y *= 0.42
+				x += abs(z) * 0.18 # sweep wings back
+			
+			# 2. Snout stretch & taper (for non-cephalofoil snouts)
+			if shape != "cephalofoil" and x < 0.0:
+				var stretch_t := 1.0 - (u / 0.5)
+				x -= snout_length * stretch_t * stretch_t
+				
+				if shape == "pointed" or shape == "tapered":
+					var taper_factor := lerpf(0.12, 1.0, u / 0.5)
+					y *= taper_factor
+					z *= taper_factor
+				elif shape == "blunt":
+					var taper_factor := lerpf(0.68, 1.0, pow(u / 0.5, 0.4))
+					y *= taper_factor
+					z *= taper_factor
+			
+			# 3. Nuchal Hump / Steep Forehead
+			if shape != "cephalofoil" and y > 0.0 and x < 0.1:
+				var hump_weight := sin(phi) * (1.0 - u)
+				var hump_height := 0.16 + forehead_slope * 0.15
+				if shape == "hump":
+					y += hump_weight * hump_height
+				elif shape == "steep_forehead":
+					y += hump_weight * hump_height * 0.72
+					x -= hump_weight * hump_height * 0.35
+			
+			# 4. Flattened head
+			if shape == "flattened" and y < 0.0:
+				y *= 0.65
+				
+			ring_vertices.append(Vector3(x, y, z))
+		grid.append(ring_vertices)
+		
+	# Add triangles
+	for i in rings:
+		for j in segments:
+			var p00: Vector3 = grid[i][j]
+			var p01: Vector3 = grid[i][j+1]
+			var p10: Vector3 = grid[i+1][j]
+			var p11: Vector3 = grid[i+1][j+1]
+			
+			# Triangle 1
+			st.add_vertex(p00)
+			st.add_vertex(p10)
+			st.add_vertex(p01)
+			
+			# Triangle 2
+			st.add_vertex(p01)
+			st.add_vertex(p10)
+			st.add_vertex(p11)
+			
+	st.generate_normals()
+	return st.commit()
+
+static func deformed_head(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.name = name
+	node.mesh = deformed_head_mesh(shape, snout_length, forehead_slope)
+	node.scale = head_scale
+	node.material_override = material
+	return node
+
+static func snout_appendage(type: String, bill_length: float, head_scale: Vector3, material: Material) -> Node3D:
+	var root := Node3D.new()
+	root.name = "SnoutAppendage"
+	
+	match type:
+		"swordfish_bill":
+			var mesh := CylinderMesh.new()
+			mesh.top_radius = 0.003
+			mesh.bottom_radius = 0.015
+			mesh.height = bill_length
+			mesh.radial_segments = 8
+			var node := MeshInstance3D.new()
+			node.name = "SwordfishBill"
+			node.mesh = mesh
+			node.material_override = material
+			node.rotation_degrees.z = 90.0
+			node.position.x = -bill_length * 0.5
+			root.add_child(node)
+			
+		"sawfish_saw":
+			var length := bill_length
+			var blade := BoxMesh.new()
+			blade.size = Vector3(length, 0.008, 0.024)
+			var node := MeshInstance3D.new()
+			node.name = "SawBlade"
+			node.mesh = blade
+			node.material_override = material
+			node.position.x = -length * 0.5
+			root.add_child(node)
+			
+			# Add teeth along the sides
+			var tooth_count := 6
+			for i in range(tooth_count):
+				var ratio := float(i) / float(tooth_count - 1)
+				var offset_x := -length * (0.1 + 0.8 * ratio)
+				var tooth_size := 0.006 * (1.0 - ratio * 0.4)
+				
+				for side in [-1.0, 1.0]:
+					var tooth := MeshInstance3D.new()
+					var t_mesh := BoxMesh.new()
+					t_mesh.size = Vector3(tooth_size, 0.002, tooth_size * 2.0)
+					tooth.mesh = t_mesh
+					tooth.material_override = material
+					tooth.position = Vector3(offset_x, 0.0, side * (0.012 + tooth_size))
+					root.add_child(tooth)
+					
+		"barbels":
+			var b_length := bill_length * 0.8
+			# 4 barbels
+			var barbel_positions := [
+				Vector3(0.0, -0.01, -0.015),
+				Vector3(0.0, -0.01, 0.015),
+				Vector3(0.0, -0.005, -0.005),
+				Vector3(0.0, -0.005, 0.005)
+			]
+			var barbel_rotations := [
+				Vector3(0.0, 30.0, -35.0),
+				Vector3(0.0, -30.0, -35.0),
+				Vector3(0.0, 15.0, -50.0),
+				Vector3(0.0, -15.0, -50.0)
+			]
+			for i in range(4):
+				var b_root := Node3D.new()
+				b_root.position = barbel_positions[i]
+				b_root.rotation_degrees = barbel_rotations[i]
+				root.add_child(b_root)
+				
+				var mesh := CylinderMesh.new()
+				mesh.top_radius = 0.001
+				mesh.bottom_radius = 0.004
+				mesh.height = b_length
+				mesh.radial_segments = 6
+				
+				var node := MeshInstance3D.new()
+				node.mesh = mesh
+				node.material_override = material
+				node.rotation_degrees.z = 90.0
+				node.position.x = -b_length * 0.5
+				b_root.add_child(node)
+				
+	return root
+
 static func cylinder(name: String, radius: float, height: float, material: Material) -> MeshInstance3D:
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
@@ -246,6 +412,21 @@ static func oval_fin(name: String, radius_x: float, radius_y: float, material: M
 	node.mesh = mesh
 	node.material_override = material
 	return node
+
+static func bezier_fin_points(length: float, height: float, p1: Vector2, p2: Vector2, segments: int = 8) -> PackedVector3Array:
+	var points := PackedVector3Array()
+	var p0 := Vector2(-length * 0.5, 0.0)
+	var p3 := Vector2(length * 0.5, 0.0)
+	for i in range(segments + 1):
+		var t := float(i) / float(segments)
+		var omt := 1.0 - t
+		var omt2 := omt * omt
+		var omt3 := omt2 * omt
+		var t2 := t * t
+		var t3 := t2 * t
+		var pos := omt3 * p0 + 3.0 * omt2 * t * p1 + 3.0 * omt * t2 * p2 + t3 * p3
+		points.append(Vector3(pos.x, pos.y, 0.0))
+	return points
 
 static func ray_wing(name: String, side: float, length: float, width: float, curve: float, material: Material) -> MeshInstance3D:
 	var vertices := PackedVector3Array()

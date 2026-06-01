@@ -21,13 +21,10 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
-	var hump := fish.get_node_or_null("BodyPivot/Head/NuchalHump") as MeshInstance3D
 	var mouth := fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D
 	assert(head != null)
-	assert(hump != null)
 	assert(mouth != null)
 	assert(head.scale.x > head.scale.y)
-	assert(hump.position.y > 0.0)
 	assert(mouth.position.y < -0.05)
 	var initial_head_scale_x := head.scale.x
 	var initial_shell_profile: Array = fish.shell_profile
@@ -39,14 +36,22 @@ func _ready() -> void:
 	var adjusted_parameters: Dictionary = fish.parameters.duplicate(true)
 	adjusted_parameters["snout_length"] = 0.28
 	adjusted_parameters["head_flattening"] = 0.55
+	adjusted_parameters["snout_appendage"] = "swordfish_bill"
+	adjusted_parameters["snout_appendage_length"] = 0.35
 	fish.set_parameters(adjusted_parameters)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var head_after := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
 	var mouth_after := fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D
+	var socket_after := fish.get_node_or_null("BodyPivot/Head/SnoutSocket") as Node3D
+	var appendage_after := fish.get_node_or_null("BodyPivot/Head/SnoutSocket/SnoutAppendage") as Node3D
 	var pointed_shell_profile: Array = fish.shell_profile
 	assert(head_after.scale.x > initial_head_scale_x)
 	assert(mouth_after.position.y > 0.0)
+	assert(socket_after != null)
+	assert(appendage_after != null)
+	assert(abs(socket_after.position.x - (-0.5 - 0.28)) < 0.001)
+	assert(abs(socket_after.scale.x - (1.0 / head_after.scale.x)) < 0.001)
 	assert(float(pointed_shell_profile[1].y) < initial_front_radius_y * 0.8)
 	assert(float(pointed_shell_profile[0].x) > head_after.position.x - head_after.scale.x * 0.35)
 	assert(float(pointed_shell_profile[0].x) < head_after.position.x - head_after.scale.x * 0.05)

@@ -53,6 +53,22 @@ func _ready() -> void:
 	assert(dorsal != null)
 	assert(dorsal.position.y > 0.0)
 
+	# Test custom Bezier shape points generation
+	var bezier_points := fish._get_fin_points("DorsalFin1", "bezier", 0.42, 0.28)
+	assert(bezier_points.size() == 9) # segments (8) + 1
+	# The start and end points must be rooted at -length*0.5 and length*0.5
+	assert(abs(bezier_points[0].x - (-0.21)) < 0.0001)
+	assert(abs(bezier_points[8].x - 0.21) < 0.0001)
+	
+	# Verify that altering Bezier parameters changes the generated points
+	var new_params: Dictionary = fish.get("parameters").duplicate()
+	new_params["dorsal_1_shape"] = "bezier"
+	new_params["dorsal_1_bezier_p1_x"] = 0.5
+	new_params["dorsal_1_bezier_p1_y"] = 1.5
+	fish.parameters = new_params
+	var updated_bezier_points := fish._get_fin_points("DorsalFin1", "bezier", 0.42, 0.28)
+	assert(not updated_bezier_points[4].is_equal_approx(bezier_points[4]))
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/curved_fin.ok", FileAccess.WRITE)
 	file.store_string("median fins follow the body contour")

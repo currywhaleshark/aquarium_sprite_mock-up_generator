@@ -16,11 +16,11 @@ const SLOT_LABELS := {
 }
 
 const SHAPES := {
-	"dorsal_1": ["single", "spiny", "split", "trailing", "trigger"],
-	"dorsal_2": ["single", "spiny", "split", "trailing", "trigger"],
-	"pectoral": ["oval", "triangle", "long", "rounded"],
-	"pelvic": ["triangle", "oval", "long", "rounded"],
-	"anal": ["long", "single", "spiny", "rounded"],
+	"dorsal_1": ["single", "spiny", "split", "trailing", "trigger", "bezier"],
+	"dorsal_2": ["single", "spiny", "split", "trailing", "trigger", "bezier"],
+	"pectoral": ["oval", "triangle", "long", "rounded", "bezier"],
+	"pelvic": ["triangle", "oval", "long", "rounded", "bezier"],
+	"anal": ["long", "single", "spiny", "rounded", "bezier"],
 	"caudal": ["forked_shallow", "forked_deep", "truncate", "rounded", "pointed", "lunate", "shark_heterocercal", "thresher"]
 }
 
@@ -175,7 +175,15 @@ func _rebuild_numeric_controls() -> void:
 	for child in numeric_container.get_children():
 		child.queue_free()
 	numeric_sliders.clear()
-	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {})
+	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {}).duplicate()
+	var current_shape := String(parameters.get(_shape_key(selected_slot), ""))
+	if current_shape == "bezier":
+		var prefix := selected_slot + "_bezier_"
+		slot_keys[prefix + "p1_x"] = {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": -0.25}
+		slot_keys[prefix + "p1_y"] = {"min": 0.0, "max": 2.0, "step": 0.01, "fallback": 1.0}
+		slot_keys[prefix + "p2_x"] = {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": 0.25}
+		slot_keys[prefix + "p2_y"] = {"min": 0.0, "max": 2.0, "step": 0.01, "fallback": 1.0}
+	
 	for key in slot_keys.keys():
 		_add_numeric_row(String(key), slot_keys[key])
 
@@ -206,7 +214,16 @@ func _numeric_value(key: String, config: Dictionary) -> float:
 
 func _numeric_config_for_key(key: String) -> Dictionary:
 	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {})
-	return slot_keys.get(key, {})
+	if slot_keys.has(key):
+		return slot_keys[key]
+	if key.contains("_bezier_"):
+		if key.ends_with("p1_x"):
+			return {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": -0.25}
+		elif key.ends_with("p2_x"):
+			return {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": 0.25}
+		elif key.ends_with("p1_y") or key.ends_with("p2_y"):
+			return {"min": 0.0, "max": 2.0, "step": 0.01, "fallback": 1.0}
+	return {}
 
 func _enabled_key(slot_id: String) -> String:
 	match slot_id:
