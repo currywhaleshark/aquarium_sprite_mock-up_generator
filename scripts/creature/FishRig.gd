@@ -266,6 +266,7 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 	var head_shell := _head_shell_metrics(rings, body_height, body_width, body_z_scale, head_offset, head_size, shell_expand)
 	var start_x := float(head_shell["start_x"])
 	var end_x := body_length * 0.48
+	head_shell["end_x"] = end_x
 	for i in rings.size():
 		var ring: Dictionary = BodyProfileScript.normalize_ring(rings[i], i)
 		var radius_y := body_height * (float(ring["upper_height"]) + float(ring["lower_height"])) * 0.5 + shell_expand * lerpf(1.0, 0.22, float(ring["x"]))
@@ -289,29 +290,78 @@ func _head_shell_metrics(rings: Array, body_height: float, body_width: float, bo
 	var start_x := head_offset - head_scale.x * 0.22
 	return {
 		"shape": shape,
+		"head_scale": head_scale,
+		"head_offset": head_offset,
+		"forehead_slope": param_float("forehead_slope", 0.35),
+		"shell_expand": shell_expand,
+		"start_x": start_x,
 		"radius_y": maxf(head_scale.y * 0.5 + shell_expand * 0.72, 0.04),
 		"radius_z": maxf(head_scale.z * 0.5 + shell_expand * 0.72, 0.035),
-		"start_x": start_x
 	}
+
+func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float) -> Vector2:
+	var x := clampf(x_local_unscaled, -0.499, 0.499)
+	var sin_phi := sqrt(1.0 - 4.0 * x * x)
+	var y_deformed := 0.5 * sin_phi
+	var z_deformed := 0.5 * sin_phi
+	
+	if shape == "cephalofoil":
+		z_deformed *= (1.0 + sin_phi * 2.2)
+		y_deformed *= 0.42
+	else:
+		var u := x + 0.5
+		if x < 0.0:
+			if shape == "pointed" or shape == "tapered":
+				var taper_factor := lerpf(0.12, 1.0, u / 0.5)
+				y_deformed *= taper_factor
+				z_deformed *= taper_factor
+			elif shape == "blunt":
+				var taper_factor := lerpf(0.68, 1.0, pow(u / 0.5, 0.4))
+				y_deformed *= taper_factor
+				z_deformed *= taper_factor
+		
+		if x < 0.1:
+			var hump_weight := sin_phi * (1.0 - u)
+			var hump_height := 0.16 + forehead_slope * 0.15
+			if shape == "hump":
+				y_deformed += 0.5 * hump_weight * hump_height
+			elif shape == "steep_forehead":
+				y_deformed += 0.5 * hump_weight * hump_height * 0.72
+				
+		if shape == "flattened":
+			y_deformed *= 0.825
+			
+	return Vector2(y_deformed, z_deformed)
 
 func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: float, metrics: Dictionary) -> Dictionary:
 	var ring_id := String(ring.get("id", ""))
 	if ring_id != "snout" and ring_id != "head":
 		return {"radius_y": radius_y, "radius_z": radius_z}
+	
 	var shape := String(metrics.get("shape", "rounded"))
-	var target_y := float(metrics["radius_y"])
-	var target_z := float(metrics["radius_z"])
+	var head_scale: Vector3 = metrics.get("head_scale", Vector3.ONE)
+	var head_offset: float = float(metrics.get("head_offset", 0.0))
+	var forehead_slope: float = float(metrics.get("forehead_slope", 0.35))
+	var shell_expand: float = float(metrics.get("shell_expand", 0.08))
+	var start_x: float = float(metrics.get("start_x", 0.0))
+	var end_x: float = float(metrics.get("end_x", 0.0))
+	
+	var ring_x := float(ring["x"])
+	var ring_x_world := lerpf(start_x, end_x, ring_x)
+	var x_local_unscaled := (ring_x_world - head_offset) / head_scale.x
+	
+	var contour := _get_head_contour_radius(x_local_unscaled, shape, forehead_slope)
+	
+	var target_y := head_scale.y * contour.x
+	var target_z := head_scale.z * contour.y
+	
 	if ring_id == "snout":
-		var snout_y_scale := 0.7
-		var snout_z_scale := 0.72
-		if shape == "pointed" or shape == "tapered":
-			snout_y_scale = 0.52
-			snout_z_scale = 0.58
-		elif shape == "blunt":
-			snout_y_scale = 0.82
-			snout_z_scale = 0.86
-		target_y *= snout_y_scale
-		target_z *= snout_z_scale
+		target_y += shell_expand * 0.15
+		target_z += shell_expand * 0.15
+	elif ring_id == "head":
+		target_y += shell_expand * 0.65
+		target_z += shell_expand * 0.65
+		
 	return {
 		"radius_y": maxf(target_y, 0.035),
 		"radius_z": maxf(target_z, 0.03)
