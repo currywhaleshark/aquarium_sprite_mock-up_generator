@@ -110,7 +110,7 @@ func rebuild() -> void:
 	var snout_len := param_float("snout_length", 0.0)
 	var forehead_slope := param_float("forehead_slope", 0.35)
 	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, secondary_mat)
-	head_node.position = Vector3(head_offset, 0.02 + _sample_shell_center_y_at_x(head_offset), 0.0)
+	head_node.position = Vector3(head_offset, _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
 
@@ -271,6 +271,9 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 		var ring: Dictionary = BodyProfileScript.normalize_ring(rings[i], i)
 		var radius_y := body_height * (float(ring["upper_height"]) + float(ring["lower_height"])) * 0.5 + shell_expand * lerpf(1.0, 0.22, float(ring["x"]))
 		var center_y := body_height * (float(ring["y_offset"]) + (float(ring["upper_height"]) - float(ring["lower_height"])) * 0.5)
+		var ring_id := String(ring.get("id", ""))
+		if ring_id == "snout" or ring_id == "head":
+			center_y += 0.02
 		var radius_z := body_width * body_z_scale * float(ring["width"]) * lerpf(0.62, 1.0, float(ring["roundness"])) + shell_expand * lerpf(1.0, 0.18, float(ring["x"]))
 		var adjusted := _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell)
 		radius_y = float(adjusted["radius_y"])
@@ -577,8 +580,7 @@ func _apply_animated_head(centers: PackedVector3Array, yaws: PackedFloat32Array)
 	var attach_t := _shell_attach_t_for_x(head_offset)
 	var yaw := _sample_animated_shell_yaw(attach_t, yaws)
 	var center := _sample_animated_shell_center(attach_t, centers)
-	var basis := Basis(Vector3.UP, deg_to_rad(yaw))
-	head_node.position = center + basis * Vector3(0.0, 0.02, 0.0)
+	head_node.position = center
 	head_node.rotation_degrees = Vector3(0.0, yaw, 0.0)
 	_apply_animated_eyes(yaw)
 
