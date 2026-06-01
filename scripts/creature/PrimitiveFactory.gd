@@ -14,6 +14,19 @@ static func ellipsoid(name: String, scale_value: Vector3, material: Material) ->
 	node.material_override = material
 	return node
 
+static func cylinder(name: String, radius: float, height: float, material: Material) -> MeshInstance3D:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 12
+	mesh.rings = 1
+	var node := MeshInstance3D.new()
+	node.name = name
+	node.mesh = mesh
+	node.material_override = material
+	return node
+
 static func tapered_segment(name: String, length: float, height: float, width: float, material: Material) -> MeshInstance3D:
 	var mesh := SphereMesh.new()
 	mesh.radius = 0.5

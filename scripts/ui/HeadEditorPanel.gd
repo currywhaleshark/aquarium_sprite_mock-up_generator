@@ -18,7 +18,8 @@ const NUMERIC_KEYS := {
 	"head_flattening": {"min": 0.0, "max": 0.65, "step": 0.005},
 	"eye_size": {"min": 0.01, "max": 0.16, "step": 0.005},
 	"eye_position_x": {"min": -1.5, "max": 0.2, "step": 0.005},
-	"eye_position_y": {"min": -0.5, "max": 0.6, "step": 0.005}
+	"eye_position_y": {"min": -0.5, "max": 0.6, "step": 0.005},
+	"eye_bulge": {"min": 0.0, "max": 1.0, "step": 0.01}
 }
 
 var parameters: Dictionary = {}

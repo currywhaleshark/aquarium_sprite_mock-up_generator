@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bav3d841csthv"]
+
+[ext_resource type="Script" path="res://scripts/tools/DragHandlesTest.gd" id="1_drag"]
+
+[node name="DragHandlesTest" type="Node"]
+script = ExtResource("1_drag")

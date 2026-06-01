@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c6uspe8twq05p"]
+
+[ext_resource type="Script" path="res://scripts/tools/EyeAttachmentTest.gd" id="1_eye"]
+
+[node name="EyeAttachmentTest" type="Node"]
+script = ExtResource("1_eye")

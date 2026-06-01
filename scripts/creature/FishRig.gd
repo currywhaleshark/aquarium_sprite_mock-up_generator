@@ -5,6 +5,10 @@ const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
 const TMF := preload("res://scripts/materials/ToonMaterialFactory.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
+# How far median/pelvic fin bases sink into the body so they look rooted
+# instead of floating above the surface. Larger embeds the base deeper.
+const FIN_BASE_EMBED := 0.05
+
 var body_pivot: Node3D
 var tail_pivot_1: Node3D
 var tail_pivot_2: Node3D
@@ -36,6 +40,13 @@ var pectoral_r_base_position := Vector3.ZERO
 var pectoral_l_base_rotation := Vector3.ZERO
 var pectoral_r_base_rotation := Vector3.ZERO
 var head_node: MeshInstance3D
+var eye_l: MeshInstance3D
+var eye_r: MeshInstance3D
+var eye_stalk_l: MeshInstance3D
+var eye_stalk_r: MeshInstance3D
+var eye_head_center := Vector3.ZERO
+var eye_head_scale := Vector3.ONE
+var eye_radius := 0.055
 var ring_editor_enabled := false
 var selected_body_ring_id := ""
 
@@ -54,6 +65,10 @@ func rebuild() -> void:
 	pectoral_l = null
 	pectoral_r = null
 	head_node = null
+	eye_l = null
+	eye_r = null
+	eye_stalk_l = null
+	eye_stalk_r = null
 	var base_mat := TMF.make_surface(param_color("base_color", "#49c7d1"), param_float("shadow_strength", 0.35), param_float("highlight_strength", 0.42))
 	var secondary_mat := TMF.make_surface(param_color("secondary_color", "#d8fbff"), 0.2, 0.5)
 	var fin_mat := TMF.make_surface(param_color("fin_color", "#7ee1e8"), 0.28, 0.35)
@@ -96,11 +111,14 @@ func rebuild() -> void:
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
 
-	dorsal_fin = PF.fin_shape(
+	dorsal_fin = _build_median_fin(
 		"DorsalFin1",
+		"dorsal",
 		String(parameters.get("dorsal_1_shape", "single")),
 		param_float("dorsal_1_length", 0.42),
 		param_float("dorsal_1_height", param_float("dorsal_fin_size", 0.28)),
+		param_float("dorsal_1_attach_t", 0.45),
+		0.035,
 		fin_mat
 	)
 	dorsal_base_position = _surface_position("dorsal", param_float("dorsal_1_attach_t", 0.45), 0.035)
@@ -109,11 +127,14 @@ func rebuild() -> void:
 	body_pivot.add_child(dorsal_fin)
 
 	if param_float("dorsal_2_enabled", 0.0) > 0.5:
-		dorsal_2_fin = PF.fin_shape(
+		dorsal_2_fin = _build_median_fin(
 			"DorsalFin2",
+			"dorsal",
 			String(parameters.get("dorsal_2_shape", "single")),
 			param_float("dorsal_2_length", 0.34),
 			param_float("dorsal_2_height", 0.18),
+			param_float("dorsal_2_attach_t", 0.68),
+			0.028,
 			fin_mat
 		)
 		dorsal_2_base_position = _surface_position("dorsal", param_float("dorsal_2_attach_t", 0.68), 0.028)
@@ -121,13 +142,15 @@ func rebuild() -> void:
 		dorsal_2_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", param_float("dorsal_2_attach_t", 0.68))
 		body_pivot.add_child(dorsal_2_fin)
 
-	anal_fin = PF.fin_shape(
+	anal_fin = _build_median_fin(
 		"AnalFin",
+		"ventral",
 		String(parameters.get("anal_shape", "long")),
 		param_float("anal_length", 0.36),
 		param_float("anal_height", param_float("anal_fin_size", 0.2)),
-		fin_mat,
-		true
+		param_float("anal_attach_t", 0.64),
+		0.03,
+		fin_mat
 	)
 	anal_base_position = _surface_position("ventral", param_float("anal_attach_t", 0.64), 0.03)
 	anal_fin.position = anal_base_position
@@ -153,7 +176,7 @@ func rebuild() -> void:
 	pectoral_l = PF.oval_fin("PectoralFinL", param_float("pectoral_fin_size", 0.16), param_float("pectoral_fin_size", 0.16) * 0.5, fin_mat)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -_surface_radius_z(pectoral_attach_t) - shell_expand * 0.55)
+	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -_surface_radius_z(pectoral_attach_t) - shell_expand * 0.18)
 	pectoral_l.position = pectoral_l_base_position
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	pectoral_l_base_rotation = Vector3(0.0, 25.0, -28.0 + pectoral_surface_angle)
@@ -161,19 +184,14 @@ func rebuild() -> void:
 	body_pivot.add_child(pectoral_l)
 
 	pectoral_r = PF.oval_fin("PectoralFinR", param_float("pectoral_fin_size", 0.16), param_float("pectoral_fin_size", 0.16) * 0.5, fin_mat)
-	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, _surface_radius_z(pectoral_attach_t) + shell_expand * 0.55)
+	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, _surface_radius_z(pectoral_attach_t) + shell_expand * 0.18)
 	pectoral_r.position = pectoral_r_base_position
 	pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
 	pectoral_r.rotation_degrees = pectoral_r_base_rotation
 	body_pivot.add_child(pectoral_r)
 	_apply_fin_offsets()
 
-	var eye_y := param_float("eye_position_y", 0.12)
-	var eye_x := param_float("eye_position_x", -0.78)
-	for side in [-1.0, 1.0]:
-		var eye := PF.ellipsoid("Eye%s" % ("L" if side < 0.0 else "R"), Vector3(eye_size, eye_size, eye_size), eye_mat)
-		eye.position = Vector3(eye_x, eye_y + _sample_shell_center_y_at_x(eye_x), side * body_width * 0.48)
-		body_pivot.add_child(eye)
+	_add_eyes(eye_mat, secondary_mat, head_node.position, head_scale, eye_size)
 
 	tail_pivot_1 = Node3D.new()
 	tail_pivot_1.name = "TailPivot1"
@@ -464,7 +482,7 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		pelvic_l.rotation_degrees = Vector3(0.0, pelvic_yaw + 12.0, pelvic_surface_angle)
 		pelvic_r.rotation_degrees = Vector3(0.0, pelvic_yaw - 12.0, pelvic_surface_angle)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
-	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.55
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.18
 	var pectoral_yaw := _fin_follow_yaw(pectoral_attach_t, yaws)
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	var pectoral_flap := sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
@@ -474,12 +492,13 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var left_turn_bias := -turn_direction * pectoral_fold
 	var right_turn_bias := turn_direction * pectoral_fold
 	var pectoral_offset := float(parameters.get("pectoral_fin_offset_x", 0.0))
+	var pectoral_offset_y := param_float("pectoral_offset_y", 0.0)
 	if pectoral_l:
-		pectoral_l.position = _animated_side_position(pectoral_attach_t, -0.02, -pectoral_z, pectoral_offset, centers, yaws)
+		pectoral_l.position = _animated_side_position(pectoral_attach_t, -0.02 + pectoral_offset_y, -pectoral_z, pectoral_offset, centers, yaws)
 		pectoral_l_base_rotation = Vector3(0.0, pectoral_yaw + 25.0, -28.0 + pectoral_surface_angle)
 		pectoral_l.rotation_degrees = pectoral_l_base_rotation + Vector3(pectoral_flap + left_turn_bias * 24.0, left_turn_bias * 16.0, left_turn_bias * 20.0)
 	if pectoral_r:
-		pectoral_r.position = _animated_side_position(pectoral_attach_t, -0.02, pectoral_z, pectoral_offset, centers, yaws)
+		pectoral_r.position = _animated_side_position(pectoral_attach_t, -0.02 + pectoral_offset_y, pectoral_z, pectoral_offset, centers, yaws)
 		pectoral_r_base_rotation = Vector3(0.0, pectoral_yaw - 25.0, -28.0 + pectoral_surface_angle)
 		pectoral_r.rotation_degrees = pectoral_r_base_rotation + Vector3(pectoral_flap + right_turn_bias * 24.0, right_turn_bias * 16.0, right_turn_bias * 20.0)
 
@@ -518,9 +537,9 @@ func _animated_surface_position(side: String, attach_t: float, margin: float, lo
 	var local_y := 0.0
 	match side:
 		"dorsal":
-			local_y = sample.y + margin
+			local_y = sample.y + margin - FIN_BASE_EMBED
 		"ventral":
-			local_y = -sample.y - margin
+			local_y = -sample.y - margin + FIN_BASE_EMBED
 	var center := _sample_animated_shell_center(attach_t, centers)
 	var yaw := _sample_animated_shell_yaw(attach_t, yaws)
 	return center + Basis(Vector3.UP, deg_to_rad(yaw)) * Vector3(offset_x, local_y, local_z)
@@ -620,6 +639,24 @@ func get_fin_drag_points() -> Dictionary:
 		points["pectoral"] = (pectoral_l.global_position + pectoral_r.global_position) * 0.5
 	return points
 
+func get_drag_handles() -> Dictionary:
+	var handles := get_fin_drag_points()
+	if eye_l:
+		handles["eye_l"] = eye_l.global_position
+	if eye_r:
+		handles["eye_r"] = eye_r.global_position
+	return handles
+
+func move_eye(delta_x: float, delta_y: float) -> void:
+	parameters["eye_position_x"] = clampf(float(parameters.get("eye_position_x", -0.78)) + delta_x, -1.5, 0.2)
+	parameters["eye_position_y"] = clampf(float(parameters.get("eye_position_y", 0.12)) + delta_y, -0.5, 0.6)
+	_reposition_eyes()
+
+func move_pectoral(delta_x: float, delta_y: float) -> void:
+	parameters["pectoral_attach_t"] = clampf(float(parameters.get("pectoral_attach_t", 0.32)) + delta_x, 0.02, 0.98)
+	parameters["pectoral_offset_y"] = clampf(float(parameters.get("pectoral_offset_y", 0.0)) + delta_y, -0.5, 0.5)
+	_apply_fin_offsets()
+
 func _apply_fin_offsets() -> void:
 	if dorsal_fin:
 		var dorsal_attach_t := param_float("dorsal_1_attach_t", 0.45)
@@ -648,17 +685,18 @@ func _apply_fin_offsets() -> void:
 		pelvic_l.rotation_degrees = Vector3(0.0, 12.0, pelvic_surface_angle)
 		pelvic_r.rotation_degrees = Vector3(0.0, -12.0, pelvic_surface_angle)
 	var pectoral_offset := float(parameters.get("pectoral_fin_offset_x", 0.0))
+	var pectoral_offset_y := param_float("pectoral_offset_y", 0.0)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.55
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.18
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	if pectoral_l:
-		pectoral_l_base_position = Vector3(pectoral_center.x, -0.02 + pectoral_center.y, -pectoral_z)
+		pectoral_l_base_position = Vector3(pectoral_center.x, -0.02 + pectoral_center.y + pectoral_offset_y, -pectoral_z)
 		pectoral_l.position = pectoral_l_base_position + Vector3(pectoral_offset, 0.0, 0.0)
 		pectoral_l_base_rotation = Vector3(0.0, 25.0, -28.0 + pectoral_surface_angle)
 		pectoral_l.rotation_degrees = pectoral_l_base_rotation
 	if pectoral_r:
-		pectoral_r_base_position = Vector3(pectoral_center.x, -0.02 + pectoral_center.y, pectoral_z)
+		pectoral_r_base_position = Vector3(pectoral_center.x, -0.02 + pectoral_center.y + pectoral_offset_y, pectoral_z)
 		pectoral_r.position = pectoral_r_base_position + Vector3(pectoral_offset, 0.0, 0.0)
 		pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
 		pectoral_r.rotation_degrees = pectoral_r_base_rotation
@@ -706,9 +744,9 @@ func _surface_position(side: String, attach_t: float, margin: float) -> Vector3:
 	var center_y := _sample_shell_center_y(attach_t)
 	match side:
 		"dorsal":
-			return Vector3(sample.x, center_y + sample.y + margin, 0.0)
+			return Vector3(sample.x, center_y + sample.y + margin - FIN_BASE_EMBED, 0.0)
 		"ventral":
-			return Vector3(sample.x, center_y - sample.y - margin, 0.0)
+			return Vector3(sample.x, center_y - sample.y - margin + FIN_BASE_EMBED, 0.0)
 		"side":
 			return Vector3(sample.x, center_y, 0.0)
 	return Vector3(sample.x, center_y + sample.y, 0.0)
@@ -740,6 +778,55 @@ func _surface_contour_point(side: String, attach_t: float) -> Vector2:
 		"ventral":
 			return Vector2(sample.x, center_y - sample.y)
 	return Vector2(sample.x, center_y)
+
+func _contour_outward_normal(side: String, attach_t: float) -> Vector2:
+	var delta := 1.0 / maxf(float(shell_profile.size() - 1), 1.0)
+	var before := _surface_contour_point(side, clampf(attach_t - delta, 0.0, 1.0))
+	var after := _surface_contour_point(side, clampf(attach_t + delta, 0.0, 1.0))
+	var tangent := after - before
+	if tangent.length() < 0.00001:
+		tangent = Vector2(1.0, 0.0)
+	tangent = tangent.normalized()
+	var normal := Vector2(-tangent.y, tangent.x)
+	if side == "ventral":
+		if normal.y > 0.0:
+			normal = -normal
+	elif normal.y < 0.0:
+		normal = -normal
+	return normal
+
+# Builds a median fin (dorsal/ventral) whose base hugs the body contour and
+# whose membrane bends along the body curve. `fin_curve_follow` blends between
+# the original flat fin (0) and the fully contour-following shape (1).
+func _build_median_fin(fin_name: String, side: String, shape: String, length: float, height: float, attach_t: float, margin: float, material: Material) -> MeshInstance3D:
+	var points := PF._fin_shape_points(shape, length, height)
+	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
+	return PF.polygon_fin(fin_name, _curved_fin_points(side, attach_t, margin, points, follow), material)
+
+func _curved_fin_points(side: String, attach_t: float, margin: float, points: PackedVector3Array, follow: float) -> PackedVector3Array:
+	var result := PackedVector3Array()
+	var ventral_flip := -1.0 if side == "ventral" else 1.0
+	if shell_profile.size() < 2:
+		for point in points:
+			result.append(Vector3(point.x, point.y * ventral_flip, 0.0))
+		return result
+	var x_span := maxf(shell_profile[shell_profile.size() - 1].x - shell_profile[0].x, 0.001)
+	var embed_margin := margin - FIN_BASE_EMBED
+	var theta := deg_to_rad(_surface_tangent_angle_degrees(side, attach_t))
+	var cos_t := cos(-theta)
+	var sin_t := sin(-theta)
+	var pivot := _surface_contour_point(side, attach_t) + _contour_outward_normal(side, attach_t) * embed_margin
+	for point in points:
+		var flat := Vector2(point.x, point.y * ventral_flip)
+		var t_prime := clampf(attach_t + point.x / x_span, 0.0, 1.0)
+		var base := _surface_contour_point(side, t_prime)
+		var normal := _contour_outward_normal(side, t_prime)
+		var world := base + normal * (embed_margin + point.y)
+		var rel := world - pivot
+		var local := Vector2(rel.x * cos_t - rel.y * sin_t, rel.x * sin_t + rel.y * cos_t)
+		var blended := flat.lerp(local, follow)
+		result.append(Vector3(blended.x, blended.y, 0.0))
+	return result
 
 func _sample_shell_profile(attach_t: float) -> Vector3:
 	if shell_profile.is_empty():
@@ -822,6 +909,81 @@ func _head_scale_for_shape(shape: String, head_size: float, body_height: float, 
 	head_scale.y *= 1.0 - flatten
 	head_scale.z *= 1.0 + flatten * 0.35
 	return head_scale
+
+func _add_eyes(eye_mat: Material, stalk_mat: Material, head_center: Vector3, head_scale: Vector3, eye_size: float) -> void:
+	eye_head_center = head_center
+	eye_head_scale = head_scale
+	eye_radius = eye_size
+	var layout := _eye_layout()
+	var anchor: Vector3 = layout["anchor"]
+	var eye_center_z := float(layout["eye_center_z"])
+	for side in [-1.0, 1.0]:
+		var suffix := "L" if side < 0.0 else "R"
+		var eye := PF.ellipsoid("Eye%s" % suffix, Vector3(eye_size, eye_size, eye_size), eye_mat)
+		eye.position = anchor + Vector3(0.0, 0.0, side * eye_center_z)
+		body_pivot.add_child(eye)
+		if side < 0.0:
+			eye_l = eye
+		else:
+			eye_r = eye
+		if bool(layout["has_stalk"]):
+			var stalk_length := float(layout["stalk_length"])
+			var stalk := PF.cylinder("EyeStalk%s" % suffix, eye_size * 0.34, stalk_length, stalk_mat)
+			stalk.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			stalk.position = anchor + Vector3(0.0, 0.0, side * (float(layout["stalk_inner"]) + stalk_length * 0.5))
+			body_pivot.add_child(stalk)
+			if side < 0.0:
+				eye_stalk_l = stalk
+			else:
+				eye_stalk_r = stalk
+
+# Projects the requested eye spot onto the head ellipsoid, clamped inside the
+# silhouette so the eye sits on the head instead of floating past the snout.
+# eye_bulge pushes it outward, from a flush goldfish eye to a hammerhead stalk.
+func _eye_layout() -> Dictionary:
+	var half := eye_head_scale * 0.5
+	var eye_x := param_float("eye_position_x", -0.78)
+	var eye_y := param_float("eye_position_y", 0.12)
+	var eye_bulge := clampf(param_float("eye_bulge", 0.0), 0.0, 1.0)
+	var ux := (eye_x - eye_head_center.x) / maxf(half.x, 0.001)
+	var uy := eye_y / maxf(half.y, 0.001)
+	var planar_radius := sqrt(ux * ux + uy * uy)
+	var max_planar := 0.9
+	if planar_radius > max_planar:
+		var shrink := max_planar / planar_radius
+		ux *= shrink
+		uy *= shrink
+	var surface_z := maxf(half.z, 0.02) * sqrt(maxf(1.0 - ux * ux - uy * uy, 0.0))
+	var protrusion := eye_bulge * maxf(half.z, 0.05) * 1.7
+	var stalk_inner := surface_z * 0.55
+	var eye_center_z := surface_z * 0.82 + protrusion
+	return {
+		"anchor": Vector3(eye_head_center.x + ux * half.x, eye_head_center.y + uy * half.y, 0.0),
+		"eye_center_z": eye_center_z,
+		"has_stalk": protrusion > eye_radius * 0.5,
+		"stalk_inner": stalk_inner,
+		"stalk_length": maxf(eye_center_z - eye_radius * 0.35 - stalk_inner, eye_radius * 0.4)
+	}
+
+# Lightweight live update used while dragging the eyes, avoiding a full rebuild.
+func _reposition_eyes() -> void:
+	if eye_l == null or eye_r == null:
+		return
+	var layout := _eye_layout()
+	var anchor: Vector3 = layout["anchor"]
+	var eye_center_z := float(layout["eye_center_z"])
+	eye_l.position = anchor + Vector3(0.0, 0.0, -eye_center_z)
+	eye_r.position = anchor + Vector3(0.0, 0.0, eye_center_z)
+	var stalk_inner := float(layout["stalk_inner"])
+	var stalk_length := float(layout["stalk_length"])
+	for stalk_side in [eye_stalk_l, eye_stalk_r]:
+		if stalk_side == null:
+			continue
+		var stalk_mesh := stalk_side.mesh as CylinderMesh
+		if stalk_mesh:
+			stalk_mesh.height = stalk_length
+		var stalk_sign := -1.0 if stalk_side == eye_stalk_l else 1.0
+		stalk_side.position = anchor + Vector3(0.0, 0.0, stalk_sign * (stalk_inner + stalk_length * 0.5))
 
 func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	var dark_mat := TMF.make_dark("#15191b")

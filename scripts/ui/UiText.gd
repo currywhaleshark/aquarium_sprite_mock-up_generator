@@ -96,6 +96,7 @@ const PARAMETER_LABELS := {
 	"eye_size": "눈 크기",
 	"eye_position_x": "눈 X 위치",
 	"eye_position_y": "눈 Y 위치",
+	"eye_bulge": "눈 돌출",
 	"tail_length": "꼬리 길이",
 	"tail_height": "꼬리 높이",
 	"tail_fin_size": "꼬리지느러미 크기",

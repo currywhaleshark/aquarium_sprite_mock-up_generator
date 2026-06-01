@@ -284,6 +284,7 @@ func _build_preview_world() -> void:
 	fin_drag_controller.name = "FishFinDragController"
 	add_child(fin_drag_controller)
 	fin_drag_controller.call("bind_camera", camera)
+	fin_drag_controller.call("bind_camera_controller", camera_controller)
 	fin_drag_controller.call("bind_input_control", viewport_container)
 	fin_drag_controller.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
@@ -404,6 +405,7 @@ func _bind_fin_editor_for_current_rig() -> void:
 		return
 	if _is_fish():
 		fin_drag_controller.call("bind_fish", current_rig)
+		fin_drag_controller.call("set_enabled", true)
 		if fin_edit_toggle:
 			fin_edit_toggle.disabled = false
 		if head_edit_toggle:
@@ -412,6 +414,7 @@ func _bind_fin_editor_for_current_rig() -> void:
 			body_edit_toggle.disabled = false
 	else:
 		fin_drag_controller.call("bind_fish", null)
+		fin_drag_controller.call("set_enabled", false)
 		var fish_rig := current_rig as FishRig
 		if fish_rig:
 			fish_rig.set_ring_editor_enabled(false)
@@ -608,8 +611,6 @@ func _export_current() -> void:
 	await exporter.export_preset(current_preset, current_rig, viewport)
 
 func _set_fin_edit_enabled(enabled: bool) -> void:
-	if fin_drag_controller:
-		fin_drag_controller.call("set_enabled", enabled)
 	if fin_editor_panel:
 		fin_editor_panel.visible = enabled and _is_fish()
 	var fish_rig := current_rig as FishRig
