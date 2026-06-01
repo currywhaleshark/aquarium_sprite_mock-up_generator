@@ -65,6 +65,13 @@ static func caudal_fin_shape(name: String, shape: String, length: float, height:
 	return polygon_fin(name, _caudal_shape_points(shape, length, height), material)
 
 static func polygon_fin(name: String, points: PackedVector3Array, material: Material) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.name = name
+	node.mesh = build_polygon_fin_mesh(points)
+	node.material_override = material
+	return node
+
+static func build_polygon_fin_mesh(points: PackedVector3Array) -> ArrayMesh:
 	var center := Vector3.ZERO
 	for point in points:
 		center += point
@@ -84,11 +91,7 @@ static func polygon_fin(name: String, points: PackedVector3Array, material: Mate
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	var node := MeshInstance3D.new()
-	node.name = name
-	node.mesh = mesh
-	node.material_override = material
-	return node
+	return mesh
 
 static func _fin_shape_points(shape: String, length: float, height: float) -> PackedVector3Array:
 	match shape:

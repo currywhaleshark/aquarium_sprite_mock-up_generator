@@ -75,7 +75,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var low_wave_dorsal := fish.get_node_or_null("BodyPivot/DorsalFin1") as MeshInstance3D
 	fish.apply_pose(0.25)
-	var low_dorsal_yaw := absf(low_wave_dorsal.rotation_degrees.y)
+	var low_ripple := _mesh_max_abs_z(low_wave_dorsal)
 
 	var high_wave_parameters: Dictionary = fish.parameters.duplicate(true)
 	high_wave_parameters["body_wave_amount"] = 0.95
@@ -84,8 +84,12 @@ func _ready() -> void:
 	var high_wave_dorsal := fish.get_node_or_null("BodyPivot/DorsalFin1") as MeshInstance3D
 	var high_wave_tail := fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
 	fish.apply_pose(0.25)
-	var high_dorsal_yaw := absf(high_wave_dorsal.rotation_degrees.y)
-	assert(high_dorsal_yaw > low_dorsal_yaw + 1.0)
+	# Median fins move with the body by rippling their mesh in z; the free edge
+	# undulates more as the body wave grows, and the rigid yaw rotation is gone.
+	var high_ripple := _mesh_max_abs_z(high_wave_dorsal)
+	assert(absf(high_wave_dorsal.rotation_degrees.y) < 0.001)
+	assert(high_ripple > 0.01)
+	assert(high_ripple > low_ripple + 0.005)
 
 	var high_wave_anal := fish.get_node_or_null("BodyPivot/AnalFin") as MeshInstance3D
 	var high_wave_pelvic_l := fish.get_node_or_null("BodyPivot/PelvicFinL") as MeshInstance3D
@@ -94,9 +98,7 @@ func _ready() -> void:
 	var shell_yaw := fish._sample_animated_shell_yaw(float(fish.parameters.get("dorsal_1_attach_t", 0.45)), fish.animated_shell_yaws)
 	var pelvic_shell_yaw := fish._sample_animated_shell_yaw(float(fish.parameters.get("pelvic_attach_t", 0.36)), fish.animated_shell_yaws)
 	assert(absf(shell_yaw) > 1.0)
-	assert(signf(high_wave_anal.rotation_degrees.y) == signf(high_wave_dorsal.rotation_degrees.y))
-	# Median fins now ride the body: dorsal yaw tracks the shell yaw fully.
-	assert(absf(high_dorsal_yaw - absf(shell_yaw)) < 0.5)
+	assert(_mesh_max_abs_z(high_wave_anal) > 0.005)
 	assert(absf(high_wave_pelvic_l.rotation_degrees.y - 12.0) < absf(pelvic_shell_yaw) * 0.35)
 	fish.apply_pose(0.5)
 	assert(absf(high_wave_tail.rotation_degrees.y) < 12.0)
@@ -117,3 +119,11 @@ func _mesh_bounds(mesh_instance: MeshInstance3D) -> Dictionary:
 		min_y = minf(min_y, vertex.y)
 		max_y = maxf(max_y, vertex.y)
 	return {"min_y": min_y, "max_y": max_y}
+
+func _mesh_max_abs_z(mesh_instance: MeshInstance3D) -> float:
+	var arrays := mesh_instance.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var max_abs_z := 0.0
+	for vertex in vertices:
+		max_abs_z = maxf(max_abs_z, absf(vertex.z))
+	return max_abs_z

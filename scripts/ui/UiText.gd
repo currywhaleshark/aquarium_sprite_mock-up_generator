@@ -131,7 +131,7 @@ const PARAMETER_LABELS := {
 	"body_wave_falloff": "몸통 파동 분포",
 	"fin_flap_amount": "지느러미 퍼덕임",
 	"fin_yaw_follow_strength": "지느러미 몸통 추적",
-	"median_fin_body_follow": "정중선 지느러미 몸통 추종",
+	"median_fin_wave_amount": "정중선 지느러미 물결",
 	"median_fin_flap_amount": "등/뒷지느러미 추진",
 	"median_fin_flap_phase": "등/뒷지느러미 위상",
 	"idle_bob_amount": "유휴 상하 움직임",

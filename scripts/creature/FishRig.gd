@@ -462,16 +462,18 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	if dorsal_fin:
 		var dorsal_attach_t := param_float("dorsal_1_attach_t", 0.45)
 		dorsal_fin.position = _animated_surface_position("dorsal", dorsal_attach_t, 0.035, 0.0, float(parameters.get("dorsal_fin_offset_x", 0.0)), centers, yaws)
-		dorsal_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase), _median_fin_follow_yaw(dorsal_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_attach_t))
+		dorsal_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase), 0.0, _surface_tangent_angle_degrees("dorsal", dorsal_attach_t))
+		_animate_median_fin(dorsal_fin, "dorsal", String(parameters.get("dorsal_1_shape", "single")), param_float("dorsal_1_length", 0.42), param_float("dorsal_1_height", param_float("dorsal_fin_size", 0.28)), dorsal_attach_t, 0.035, loop_phase)
 	if dorsal_2_fin:
 		var dorsal_2_attach_t := param_float("dorsal_2_attach_t", 0.68)
 		dorsal_2_fin.position = _animated_surface_position("dorsal", dorsal_2_attach_t, 0.028, 0.0, 0.0, centers, yaws)
-		dorsal_2_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.12), _median_fin_follow_yaw(dorsal_2_attach_t, yaws), _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
+		dorsal_2_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.12), 0.0, _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
+		_animate_median_fin(dorsal_2_fin, "dorsal", String(parameters.get("dorsal_2_shape", "single")), param_float("dorsal_2_length", 0.34), param_float("dorsal_2_height", 0.18), dorsal_2_attach_t, 0.028, loop_phase)
 	if anal_fin:
 		var anal_attach_t := param_float("anal_attach_t", 0.64)
-		var anal_yaw := _median_fin_follow_yaw(anal_attach_t, yaws)
 		anal_fin.position = _animated_surface_position("ventral", anal_attach_t, 0.03, 0.0, float(parameters.get("anal_fin_offset_x", 0.0)), centers, yaws)
-		anal_fin.rotation_degrees = Vector3(-_median_fin_flap(loop_phase, 0.5), anal_yaw, _surface_tangent_angle_degrees("ventral", anal_attach_t))
+		anal_fin.rotation_degrees = Vector3(-_median_fin_flap(loop_phase, 0.5), 0.0, _surface_tangent_angle_degrees("ventral", anal_attach_t))
+		_animate_median_fin(anal_fin, "ventral", String(parameters.get("anal_shape", "long")), param_float("anal_length", 0.36), param_float("anal_height", param_float("anal_fin_size", 0.2)), anal_attach_t, 0.03, loop_phase)
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -527,11 +529,13 @@ func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: 
 func _fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
 	return _sample_animated_shell_yaw(attach_t, yaws) * param_float("fin_yaw_follow_strength", 0.25)
 
-# Median fins (dorsal/anal) ride the body: they take the shell's local yaw at
-# their attachment at full strength so they sway together with the body instead
-# of adding a separately damped wobble.
-func _median_fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
-	return _sample_animated_shell_yaw(attach_t, yaws) * param_float("median_fin_body_follow", 1.0)
+# Median fins (dorsal/anal) move with the body by re-deforming their mesh each
+# frame: the base stays embedded on the contour and the free edge ripples with
+# the body wave, instead of the whole blade rigidly rotating about its root.
+func _animate_median_fin(fin_node: MeshInstance3D, side: String, shape: String, length: float, height: float, attach_t: float, margin: float, loop_phase: float) -> void:
+	var points := PF._fin_shape_points(shape, length, height)
+	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
+	fin_node.mesh = PF.build_polygon_fin_mesh(_curved_fin_points(side, attach_t, margin, points, follow, loop_phase))
 
 func _median_fin_flap(loop_phase: float, phase_offset: float = 0.0) -> float:
 	var flap_amount := param_float("median_fin_flap_amount", 1.5)
@@ -809,7 +813,7 @@ func _build_median_fin(fin_name: String, side: String, shape: String, length: fl
 	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
 	return PF.polygon_fin(fin_name, _curved_fin_points(side, attach_t, margin, points, follow), material)
 
-func _curved_fin_points(side: String, attach_t: float, margin: float, points: PackedVector3Array, follow: float) -> PackedVector3Array:
+func _curved_fin_points(side: String, attach_t: float, margin: float, points: PackedVector3Array, follow: float, loop_phase: float = -1.0) -> PackedVector3Array:
 	var result := PackedVector3Array()
 	var ventral_flip := -1.0 if side == "ventral" else 1.0
 	if shell_profile.size() < 2:
@@ -822,6 +826,13 @@ func _curved_fin_points(side: String, attach_t: float, margin: float, points: Pa
 	var cos_t := cos(-theta)
 	var sin_t := sin(-theta)
 	var pivot := _surface_contour_point(side, attach_t) + _contour_outward_normal(side, attach_t) * embed_margin
+	# Travelling-wave ripple: each lengthwise slice tilts about its base by a
+	# head-to-tail phase, so the free edge undulates while the membrane keeps its
+	# length (tilt, not stretch) and the base stays on the body.
+	var ripple := loop_phase >= 0.0
+	var ring_span := float(maxi(shell_profile.size() - 1, 1))
+	var phase_delay := param_float("phase_delay", 0.65)
+	var tilt_amp := param_float("median_fin_wave_amount", 0.6) * param_float("body_wave_amount", 0.35)
 	for point in points:
 		var flat := Vector2(point.x, point.y * ventral_flip)
 		var t_prime := clampf(attach_t + point.x / x_span, 0.0, 1.0)
@@ -831,7 +842,13 @@ func _curved_fin_points(side: String, attach_t: float, margin: float, points: Pa
 		var rel := world - pivot
 		var local := Vector2(rel.x * cos_t - rel.y * sin_t, rel.x * sin_t + rel.y * cos_t)
 		var blended := flat.lerp(local, follow)
-		result.append(Vector3(blended.x, blended.y, 0.0))
+		var out_y := blended.y
+		var z := 0.0
+		if ripple:
+			var tilt := clampf(sin(loop_phase * TAU - t_prime * ring_span * phase_delay) * tilt_amp, -1.2, 1.2)
+			z = out_y * sin(tilt)
+			out_y = out_y * cos(tilt)
+		result.append(Vector3(blended.x, out_y, z))
 	return result
 
 func _sample_shell_profile(attach_t: float) -> Vector3:
