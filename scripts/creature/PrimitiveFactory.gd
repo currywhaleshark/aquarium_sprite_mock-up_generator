@@ -388,11 +388,11 @@ static func _caudal_shape_points(shape: String, length: float, height: float) ->
 			])
 
 static func oval_fin(name: String, radius_x: float, radius_y: float, material: Material, segments: int = 18) -> MeshInstance3D:
-	var vertices := PackedVector3Array([Vector3.ZERO])
+	var vertices := PackedVector3Array([Vector3(radius_x, 0.0, 0.0)])
 	var indices := PackedInt32Array()
 	for i in segments:
 		var angle := TAU * float(i) / float(segments)
-		vertices.append(Vector3(cos(angle) * radius_x, sin(angle) * radius_y, 0.0))
+		vertices.append(Vector3(cos(angle) * radius_x + radius_x, sin(angle) * radius_y, 0.0))
 	for i in segments:
 		indices.append(0)
 		indices.append(i + 1)

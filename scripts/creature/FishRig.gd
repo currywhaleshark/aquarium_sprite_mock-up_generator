@@ -942,6 +942,7 @@ func _build_median_fin(fin_name: String, side: String, shape: String, length: fl
 	return PF.polygon_fin(fin_name, _curved_fin_points(side, attach_t, margin, points, follow), material)
 
 func _get_fin_points(fin_name: String, shape: String, length: float, height: float) -> PackedVector3Array:
+	var pts: PackedVector3Array
 	if shape == "bezier":
 		var slot := _fin_name_to_slot(fin_name)
 		var prefix := slot + "_bezier_"
@@ -951,8 +952,17 @@ func _get_fin_points(fin_name: String, shape: String, length: float, height: flo
 		var p2_y := param_float(prefix + "p2_y", 1.0)
 		var p1 := Vector2(length * p1_x, height * p1_y)
 		var p2 := Vector2(length * p2_x, height * p2_y)
-		return PF.bezier_fin_points(length, height, p1, p2)
-	return PF._fin_shape_points(shape, length, height)
+		pts = PF.bezier_fin_points(length, height, p1, p2)
+	else:
+		pts = PF._fin_shape_points(shape, length, height)
+		
+	var slot := _fin_name_to_slot(fin_name)
+	if slot == "pectoral" or slot == "pelvic":
+		var shifted := PackedVector3Array()
+		for p in pts:
+			shifted.append(p + Vector3(length * 0.5, 0.0, 0.0))
+		pts = shifted
+	return pts
 
 func _fin_name_to_slot(fin_name: String) -> String:
 	if fin_name.begins_with("DorsalFin1"):
