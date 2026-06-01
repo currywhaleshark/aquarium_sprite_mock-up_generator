@@ -37,7 +37,12 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 		var direction_name := String(directions[direction_index])
 		var direction_dir := frames_dir if directions.size() == 1 else "%s/%s" % [frames_dir, direction_name]
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(direction_dir))
-		rig.rotation_degrees = original_rotation + Vector3(0.0, direction_yaw_degrees(direction_index), 0.0)
+		var target_rotation := original_rotation
+		if directions.size() > 1:
+			target_rotation.y = direction_yaw_degrees(direction_index)
+		else:
+			target_rotation.y = original_rotation.y + direction_yaw_degrees(direction_index)
+		rig.rotation_degrees = target_rotation
 		var frame_paths := PackedStringArray()
 		for i in frame_count:
 			var phase := float(i) / float(frame_count)

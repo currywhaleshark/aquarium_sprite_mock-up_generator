@@ -56,6 +56,7 @@ var turn_left_button: Button
 var turn_right_button: Button
 var preview_direction_index := 0
 var turn_preview_active := false
+var _is_exporting := false
 var turn_preview_elapsed := 0.0
 var turn_preview_from_index := 0
 var turn_preview_target_index := 0
@@ -658,6 +659,8 @@ func _start_preview_turn(step: int) -> void:
 func _update_preview_turn(delta: float) -> void:
 	if current_rig == null:
 		return
+	if _is_exporting:
+		return
 	if not turn_preview_active:
 		current_rig.rotation_degrees.y = float(preview_direction_index) * 45.0
 		_set_turn_preview_parameters(0.0, 1, 0.0)
@@ -706,7 +709,9 @@ func _export_current() -> void:
 		export_settings["direction_count"] = int(export_panel.call("get_direction_count"))
 	current_preset["export_settings"] = export_settings
 	export_panel.set_status("출력 중...")
+	_is_exporting = true
 	await exporter.export_preset(current_preset, current_rig, viewport)
+	_is_exporting = false
 
 func _set_fin_edit_enabled(enabled: bool) -> void:
 	if fin_editor_panel:

@@ -44,11 +44,93 @@ func _ready() -> void:
 	assert(SpriteExporterScript.direction_yaw_degrees(0) == 0.0)
 	assert(SpriteExporterScript.direction_yaw_degrees(7) == 315.0)
 
+	await _test_exporter_rig_rotation()
+
 	var file := FileAccess.open("res://exports/test_results/export_grid.ok", FileAccess.WRITE)
 	file.store_string("export grid sheet and metadata contract verified")
 	file.close()
 	print("EXPORT_GRID_TEST_OK")
 	get_tree().quit(0)
+
+func _test_exporter_rig_rotation() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var dummy_script := GDScript.new()
+	dummy_script.source_code = "extends \"res://scripts/creature/CreatureRig.gd\"\nfunc apply_pose(phase: float) -> void:\n\tpass"
+	dummy_script.reload()
+	
+	var dummy_rig := Node3D.new()
+	dummy_rig.set_script(dummy_script)
+	add_child(dummy_rig)
+	dummy_rig.rotation_degrees.y = 45.0 # Initial rotation (index 1) to check Bug 2
+
+	var overwriter := OverwriterNode.new()
+	overwriter.rig = dummy_rig
+	add_child(overwriter)
+
+	var tracker := RotationTracker.new()
+	tracker.rig = dummy_rig
+	add_child(tracker)
+
+	var exporter := SpriteExporterScript.new()
+	add_child(exporter)
+
+	var preset := {
+		"name": "rotation_test",
+		"export_settings": {
+			"direction_count": 8,
+			"frame_count": 1,
+			"render_resolution": {"w": 16, "h": 16}
+		}
+	}
+
+	var vp := SubViewport.new()
+	vp.size = Vector2i(16, 16)
+	add_child(vp)
+
+	# Simulate Main.gd exporting state
+	overwriter.is_exporting = true
+
+	await exporter.export_preset(preset, dummy_rig, vp)
+
+	overwriter.is_exporting = false
+
+	var unique_yaws: Array[float] = []
+	for yaw in tracker.recorded_y_rotations:
+		var rounded: float = roundf(float(yaw))
+		if unique_yaws.is_empty() or unique_yaws[-1] != rounded:
+			unique_yaws.append(rounded)
+
+	var expected_yaws: Array[float] = [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]
+	var match_idx := 0
+	for yaw in unique_yaws:
+		if match_idx < expected_yaws.size() and absf(float(yaw) - expected_yaws[match_idx]) < 1.0:
+			match_idx += 1
+
+	assert(match_idx == expected_yaws.size(), "Exporter did not rotate rig through all 8 absolute directions correctly. Unique yaws: %s" % str(unique_yaws))
+
+	# Clean up mock output files
+	var dir := DirAccess.open("res://exports/rotation_test")
+	if dir:
+		for d in ["east", "north_east", "north", "north_west", "west", "south_west", "south", "south_east"]:
+			var subpath: String = "res://exports/rotation_test/frames/" + String(d)
+			var subdir := DirAccess.open(subpath)
+			if subdir:
+				subdir.remove("frame_000.png")
+				DirAccess.remove_absolute(subpath)
+		var frames_parent := DirAccess.open("res://exports/rotation_test/frames")
+		if frames_parent:
+			DirAccess.remove_absolute("res://exports/rotation_test/frames")
+		dir.remove("rotation_test_sheet.png")
+		dir.remove("rotation_test_metadata.json")
+		DirAccess.remove_absolute("res://exports/rotation_test")
+
+	# Clean up nodes
+	dummy_rig.queue_free()
+	overwriter.queue_free()
+	tracker.queue_free()
+	exporter.queue_free()
+	vp.queue_free()
 
 func _write_color_png(path: String, color: Color) -> String:
 	var image := Image.create(4, 4, false, Image.FORMAT_RGBA8)
@@ -58,3 +140,17 @@ func _write_color_png(path: String, color: Color) -> String:
 
 func _same_rgb(left: Color, right: Color) -> bool:
 	return absf(left.r - right.r) < 0.01 and absf(left.g - right.g) < 0.01 and absf(left.b - right.b) < 0.01
+
+class OverwriterNode extends Node:
+	var rig: Node3D
+	var is_exporting := false
+	func _process(_delta: float) -> void:
+		if rig and not is_exporting:
+			rig.rotation_degrees.y = 45.0
+
+class RotationTracker extends Node:
+	var rig: Node3D
+	var recorded_y_rotations := []
+	func _process(_delta: float) -> void:
+		if rig:
+			recorded_y_rotations.append(rig.rotation_degrees.y)
