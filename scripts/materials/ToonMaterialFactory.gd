@@ -59,6 +59,9 @@ static func make_fin_material(parameters: Dictionary) -> ShaderMaterial:
 	material.set_shader_parameter("fin_edge_width", clampf(float(parameters.get("fin_edge_width", 0.035)), 0.0, 0.25))
 	material.set_shader_parameter("fin_ray_count", clampf(float(parameters.get("fin_ray_count", 0.0)), 0.0, 32.0))
 	material.set_shader_parameter("fin_ray_strength", clampf(float(parameters.get("fin_ray_strength", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_translucency_strength", clampf(float(parameters.get("fin_translucency_strength", parameters.get("fin_translucency", 0.0))), 0.0, 1.0))
+	material.set_shader_parameter("fin_tornness", clampf(float(parameters.get("fin_tornness", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_trailing_threads", clampf(float(parameters.get("fin_trailing_threads", 0.0)), 0.0, 1.0))
 	return material
 
 static func make_dark(color_value: Variant) -> StandardMaterial3D:

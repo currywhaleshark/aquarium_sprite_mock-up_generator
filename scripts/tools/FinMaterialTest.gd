@@ -39,7 +39,10 @@ func _test_fin_material_exposes_detail_uniforms() -> void:
 		"fin_ray_count": 7.0,
 		"fin_ray_strength": 0.45,
 		"fin_tip_color": "#ffffff",
-		"fin_gradient_color": "#336699"
+		"fin_gradient_color": "#336699",
+		"fin_translucency_strength": 0.38,
+		"fin_tornness": 0.22,
+		"fin_trailing_threads": 0.31
 	})
 	assert(material is ShaderMaterial)
 	assert(material.shader is Shader)
@@ -47,6 +50,9 @@ func _test_fin_material_exposes_detail_uniforms() -> void:
 	assert(abs(float(material.get_shader_parameter("fin_edge_width")) - 0.09) < 0.001)
 	assert(abs(float(material.get_shader_parameter("fin_ray_count")) - 7.0) < 0.001)
 	assert(abs(float(material.get_shader_parameter("fin_ray_strength")) - 0.45) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_translucency_strength")) - 0.38) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_tornness")) - 0.22) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_trailing_threads")) - 0.31) < 0.001)
 	assert(material.get_shader_parameter("fin_color") is Color)
 	assert(material.get_shader_parameter("fin_edge_color") is Color)
 	assert(material.get_shader_parameter("fin_tip_color") is Color)
@@ -77,7 +83,10 @@ func _test_fin_detail_parameters_round_trip_through_fin_profile() -> void:
 		"fin_ray_count": 9.0,
 		"fin_ray_strength": 0.44,
 		"fin_tip_color": "#ccddee",
-		"fin_gradient_color": "#334455"
+		"fin_gradient_color": "#334455",
+		"fin_translucency_strength": 0.37,
+		"fin_tornness": 0.21,
+		"fin_trailing_threads": 0.29
 	}
 	var split := BodyProfileScript.split_parameters_into_profiles(params, {"name": "fin_detail_round_trip"})
 	var fin_profile: Dictionary = split.get("fin_profile", {})
@@ -88,9 +97,13 @@ func _test_fin_detail_parameters_round_trip_through_fin_profile() -> void:
 	assert(abs(float(fin_profile.get("fin_ray_strength", 0.0)) - 0.44) < 0.001)
 	assert(String(fin_profile.get("fin_tip_color", "")) == "#ccddee")
 	assert(String(fin_profile.get("fin_gradient_color", "")) == "#334455")
+	assert(abs(float(fin_profile.get("fin_translucency_strength", 0.0)) - 0.37) < 0.001)
+	assert(abs(float(fin_profile.get("fin_tornness", 0.0)) - 0.21) < 0.001)
+	assert(abs(float(fin_profile.get("fin_trailing_threads", 0.0)) - 0.29) < 0.001)
 	var rebuilt := BodyProfileScript.make_parameters_from_structured_preset(split)
 	assert(abs(float(rebuilt.get("fin_opacity", 0.0)) - 0.66) < 0.001)
 	assert(String(rebuilt.get("fin_edge_color", "")) == "#111222")
+	assert(abs(float(rebuilt.get("fin_translucency_strength", 0.0)) - 0.37) < 0.001)
 
 func _assert_mesh_has_uvs(mesh: Mesh) -> void:
 	assert(mesh != null)

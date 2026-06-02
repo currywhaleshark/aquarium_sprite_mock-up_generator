@@ -11,6 +11,9 @@ uniform float fin_opacity : hint_range(0.0, 1.0) = 1.0;
 uniform float fin_edge_width : hint_range(0.0, 0.25) = 0.035;
 uniform float fin_ray_count : hint_range(0.0, 32.0) = 0.0;
 uniform float fin_ray_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float fin_translucency_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float fin_tornness : hint_range(0.0, 1.0) = 0.0;
+uniform float fin_trailing_threads : hint_range(0.0, 1.0) = 0.0;
 
 varying vec2 v_uv;
 
@@ -32,6 +35,19 @@ void fragment() {
 		col = mix(col, fin_edge_color.rgb, ray * ray_fade * fin_ray_strength);
 	}
 
+	float backlight = smoothstep(0.45, 1.0, v_uv.x) * (1.0 - smoothstep(0.0, 0.18, min(v_uv.y, 1.0 - v_uv.y)));
+	col += fin_translucency_strength * backlight * fin_tip_color.rgb * 0.45;
+
+	float thread_mask = 0.0;
+	if (fin_trailing_threads > 0.0) {
+		thread_mask = pow(abs(sin(v_uv.y * max(fin_ray_count, 6.0) * TAU)), 30.0) * smoothstep(0.62, 1.0, v_uv.x);
+		col = mix(col, fin_tip_color.rgb, thread_mask * fin_trailing_threads);
+	}
+
+	float torn_noise = sin(v_uv.y * 37.0 + v_uv.x * 11.0) * 0.5 + 0.5;
+	float torn_cut = smoothstep(1.0 - fin_tornness * 0.35, 1.0, v_uv.x + torn_noise * fin_tornness * 0.2);
+	float alpha = fin_opacity * (1.0 - torn_cut * fin_tornness * (1.0 - thread_mask * 0.65));
+
 	ALBEDO = clamp(col, 0.0, 1.0);
-	ALPHA = fin_opacity;
+	ALPHA = clamp(alpha, 0.0, 1.0);
 }
