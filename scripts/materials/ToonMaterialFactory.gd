@@ -2,6 +2,7 @@ class_name ToonMaterialFactory
 extends RefCounted
 
 const BODY_SHADER_PATH := "res://shaders/fish_body_toon.gdshader"
+const SpeciesMarkingLayerScript := preload("res://scripts/species/SpeciesMarkingLayer.gd")
 
 # Opaque toon body material shared by the body shell and the head mesh. Carries
 # countershading (base/belly gradient) plus procedural patterns. Pattern type is
@@ -24,6 +25,9 @@ static func make_body_material(parameters: Dictionary) -> ShaderMaterial:
 	material.set_shader_parameter("iridescence_color", _as_color(parameters.get("iridescence_color", "#bfe9ff")))
 	material.set_shader_parameter("iridescence_frequency", clampf(float(parameters.get("iridescence_frequency", 2.0)), 0.1, 10.0))
 	material.set_shader_parameter("wetness", clampf(float(parameters.get("wetness", 0.0)), 0.0, 1.0))
+	var marking_uniforms := SpeciesMarkingLayerScript.encode_uniforms(parameters.get("marking_layers", []))
+	for key in marking_uniforms.keys():
+		material.set_shader_parameter(String(key), marking_uniforms[key])
 	return material
 
 static func make_surface(color_value: Variant, shadow_strength: float = 0.35, highlight_strength: float = 0.35) -> StandardMaterial3D:

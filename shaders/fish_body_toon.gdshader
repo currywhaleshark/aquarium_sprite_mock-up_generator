@@ -41,6 +41,50 @@ uniform float iridescence_frequency : hint_range(0.1, 10.0) = 2.0;
 // Wet mucus layer: a smooth clearcoat lobe over the toon body. Defaults off.
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
 
+// Species marking layers. Fixed slots keep the material contract explicit and
+// deterministic for Godot 4 shader parameters.
+uniform int marking_count = 0;
+uniform int marking_type_0 = 0;
+uniform int marking_type_1 = 0;
+uniform int marking_type_2 = 0;
+uniform int marking_type_3 = 0;
+uniform int marking_type_4 = 0;
+uniform int marking_type_5 = 0;
+uniform int marking_type_6 = 0;
+uniform int marking_type_7 = 0;
+uniform int marking_zone_0 = 0;
+uniform int marking_zone_1 = 0;
+uniform int marking_zone_2 = 0;
+uniform int marking_zone_3 = 0;
+uniform int marking_zone_4 = 0;
+uniform int marking_zone_5 = 0;
+uniform int marking_zone_6 = 0;
+uniform int marking_zone_7 = 0;
+uniform vec4 marking_color_0 : source_color = vec4(1.0);
+uniform vec4 marking_color_1 : source_color = vec4(1.0);
+uniform vec4 marking_color_2 : source_color = vec4(1.0);
+uniform vec4 marking_color_3 : source_color = vec4(1.0);
+uniform vec4 marking_color_4 : source_color = vec4(1.0);
+uniform vec4 marking_color_5 : source_color = vec4(1.0);
+uniform vec4 marking_color_6 : source_color = vec4(1.0);
+uniform vec4 marking_color_7 : source_color = vec4(1.0);
+uniform vec4 marking_rect_0 = vec4(0.0, 1.0, 0.0, 0.05);
+uniform vec4 marking_rect_1 = vec4(0.0, 1.0, 0.0, 0.05);
+uniform vec4 marking_rect_2 = vec4(0.0, 1.0, 0.0, 0.05);
+uniform vec4 marking_rect_3 = vec4(0.0, 1.0, 0.0, 0.05);
+uniform vec4 marking_rect_4 = vec4(0.0, 1.0, 0.0, 0.05);
+uniform vec4 marking_rect_5 = vec4(0.0, 1.0, 0.0, 0.05);
+uniform vec4 marking_rect_6 = vec4(0.0, 1.0, 0.0, 0.05);
+uniform vec4 marking_rect_7 = vec4(0.0, 1.0, 0.0, 0.05);
+uniform vec4 marking_params_0 = vec4(0.0, 0.025, 0.0, 0.0);
+uniform vec4 marking_params_1 = vec4(0.0, 0.025, 0.0, 1.0);
+uniform vec4 marking_params_2 = vec4(0.0, 0.025, 0.0, 2.0);
+uniform vec4 marking_params_3 = vec4(0.0, 0.025, 0.0, 3.0);
+uniform vec4 marking_params_4 = vec4(0.0, 0.025, 0.0, 4.0);
+uniform vec4 marking_params_5 = vec4(0.0, 0.025, 0.0, 5.0);
+uniform vec4 marking_params_6 = vec4(0.0, 0.025, 0.0, 6.0);
+uniform vec4 marking_params_7 = vec4(0.0, 0.025, 0.0, 7.0);
+
 varying float v_long;
 varying float v_circ;
 
@@ -138,6 +182,55 @@ float pattern_mask(int kind, float u, float v) {
 	return 0.0;
 }
 
+float band_range(float value, float start_value, float end_value, float softness) {
+	float a = smoothstep(start_value - softness, start_value + softness, value);
+	float b = 1.0 - smoothstep(end_value - softness, end_value + softness, value);
+	return clamp(a * b, 0.0, 1.0);
+}
+
+float marking_layer_mask(int kind, vec4 rect, vec4 params, float u, float up) {
+	float x0 = min(rect.x, rect.y);
+	float x1 = max(rect.x, rect.y);
+	float y = rect.z;
+	float thickness = max(rect.w, 0.001);
+	float softness = max(params.y, 0.001);
+	float xmask = band_range(u, x0, x1, softness);
+	if (kind == 1 || kind == 2) {
+		return xmask * (1.0 - smoothstep(thickness, thickness + softness, abs(up - y)));
+	}
+	if (kind == 3) {
+		float center = (x0 + x1) * 0.5;
+		float half_width = max((x1 - x0) * 0.5, thickness * 0.5);
+		return 1.0 - smoothstep(half_width, half_width + softness, abs(u - center));
+	}
+	if (kind == 4 || kind == 7) {
+		float cx = (x0 + x1) * 0.5;
+		float rx = max((x1 - x0) * 0.5, thickness);
+		float dy = (up - y) / max(thickness, 0.001);
+		float dx = (u - cx) / max(rx, 0.001);
+		float d = sqrt(dx * dx + dy * dy);
+		return 1.0 - smoothstep(1.0, 1.0 + softness * 8.0, d);
+	}
+	if (kind == 5 || kind == 6 || kind == 8) {
+		return xmask * (1.0 - smoothstep(thickness, thickness + softness, abs(up - y)));
+	}
+	if (kind == 11) {
+		float grid = max(abs(sin(u * 36.0 * TAU)), abs(sin((up * 0.5 + 0.5) * 16.0 * TAU)));
+		return xmask * smoothstep(0.92, 0.98, grid) * 0.4;
+	}
+	if (kind == 12) {
+		float edge = pvoronoi_edge(vec2(u * 8.0, (up * 0.5 + 0.5) * 8.0), 8.0);
+		return xmask * (1.0 - smoothstep(0.0, 0.12, edge));
+	}
+	return 0.0;
+}
+
+void apply_marking_layer(inout vec3 col, int kind, vec4 color, vec4 rect, vec4 params, float u, float up) {
+	float mask = marking_layer_mask(kind, rect, params, u, up) * clamp(params.x, 0.0, 1.0);
+	col = mix(col, color.rgb, mask * color.a);
+	col += color.rgb * mask * clamp(params.z, 0.0, 1.0) * 0.35;
+}
+
 void vertex() {
 	v_long = UV.x;
 	v_circ = UV.y;
@@ -156,6 +249,18 @@ void fragment() {
 	// 2. Pattern overlay.
 	float mask = pattern_mask(pattern_type, v_long, v_circ);
 	col = mix(col, pattern_color.rgb, mask * pattern_intensity);
+
+	// 2b. Species markings. These are localized, high-readability marks such as
+	// neon lateral lines, posterior bands, vertical bars, head masks, or spots.
+	int count = min(marking_count, 8);
+	if (count > 0) { apply_marking_layer(col, marking_type_0, marking_color_0, marking_rect_0, marking_params_0, v_long, up); }
+	if (count > 1) { apply_marking_layer(col, marking_type_1, marking_color_1, marking_rect_1, marking_params_1, v_long, up); }
+	if (count > 2) { apply_marking_layer(col, marking_type_2, marking_color_2, marking_rect_2, marking_params_2, v_long, up); }
+	if (count > 3) { apply_marking_layer(col, marking_type_3, marking_color_3, marking_rect_3, marking_params_3, v_long, up); }
+	if (count > 4) { apply_marking_layer(col, marking_type_4, marking_color_4, marking_rect_4, marking_params_4, v_long, up); }
+	if (count > 5) { apply_marking_layer(col, marking_type_5, marking_color_5, marking_rect_5, marking_params_5, v_long, up); }
+	if (count > 6) { apply_marking_layer(col, marking_type_6, marking_color_6, marking_rect_6, marking_params_6, v_long, up); }
+	if (count > 7) { apply_marking_layer(col, marking_type_7, marking_color_7, marking_rect_7, marking_params_7, v_long, up); }
 
 	// 3. Soft surface form: a gentle top->bottom shade read from the body's own up
 	// vector. Surface-driven, so it gives a hint of volume without any scene light
