@@ -263,20 +263,38 @@ static func build_polygon_fin_mesh(points: PackedVector3Array) -> ArrayMesh:
 	center /= float(points.size())
 	var vertices := PackedVector3Array([center])
 	var normals := PackedVector3Array([Vector3.BACK])
+	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
+	var min_x := INF
+	var max_x := -INF
+	var min_y := INF
+	var max_y := -INF
+	for point in points:
+		min_x = minf(min_x, point.x)
+		max_x = maxf(max_x, point.x)
+		min_y = minf(min_y, point.y)
+		max_y = maxf(max_y, point.y)
+	uvs.append(_fin_uv_for_point(center, min_x, max_x, min_y, max_y))
 	for point in points:
 		vertices.append(point)
 		normals.append(Vector3.BACK)
+		uvs.append(_fin_uv_for_point(point, min_x, max_x, min_y, max_y))
 	for i in points.size():
 		indices.append_array(PackedInt32Array([0, i + 1, (i + 1) % points.size() + 1]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+static func _fin_uv_for_point(point: Vector3, min_x: float, max_x: float, min_y: float, max_y: float) -> Vector2:
+	var width := maxf(max_x - min_x, 0.001)
+	var height := maxf(max_y - min_y, 0.001)
+	return Vector2((point.x - min_x) / width, (point.y - min_y) / height)
 
 static func _fin_shape_points(shape: String, length: float, height: float) -> PackedVector3Array:
 	match shape:
@@ -408,10 +426,16 @@ static func _caudal_shape_points(shape: String, length: float, height: float) ->
 
 static func oval_fin(name: String, radius_x: float, radius_y: float, material: Material, segments: int = 18) -> MeshInstance3D:
 	var vertices := PackedVector3Array([Vector3(radius_x, 0.0, 0.0)])
+	var uvs := PackedVector2Array([Vector2(0.5, 0.5)])
 	var indices := PackedInt32Array()
 	for i in segments:
 		var angle := TAU * float(i) / float(segments)
-		vertices.append(Vector3(cos(angle) * radius_x + radius_x, sin(angle) * radius_y, 0.0))
+		var point := Vector3(cos(angle) * radius_x + radius_x, sin(angle) * radius_y, 0.0)
+		vertices.append(point)
+		uvs.append(Vector2(
+			clampf(point.x / maxf(radius_x * 2.0, 0.001), 0.0, 1.0),
+			clampf((point.y + radius_y) / maxf(radius_y * 2.0, 0.001), 0.0, 1.0)
+		))
 	for i in segments:
 		indices.append(0)
 		indices.append(i + 1)
@@ -423,6 +447,7 @@ static func oval_fin(name: String, radius_x: float, radius_y: float, material: M
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

@@ -2,6 +2,7 @@ class_name ToonMaterialFactory
 extends RefCounted
 
 const BODY_SHADER_PATH := "res://shaders/fish_body_toon.gdshader"
+const FIN_SHADER_PATH := "res://shaders/fish_fin_toon.gdshader"
 const SpeciesMarkingLayerScript := preload("res://scripts/species/SpeciesMarkingLayer.gd")
 
 # Opaque toon body material shared by the body shell and the head mesh. Carries
@@ -45,6 +46,19 @@ static func make_surface(color_value: Variant, shadow_strength: float = 0.35, hi
 	# scene light, camera, or pose. highlight_strength/shadow_strength are retained
 	# in the signature for callers but no longer drive lighting under unshaded.
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return material
+
+static func make_fin_material(parameters: Dictionary) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = load(FIN_SHADER_PATH)
+	material.set_shader_parameter("fin_color", _as_color(parameters.get("fin_color", "#7ee1e8")))
+	material.set_shader_parameter("fin_edge_color", _as_color(parameters.get("fin_edge_color", parameters.get("outline_color", "#162126"))))
+	material.set_shader_parameter("fin_tip_color", _as_color(parameters.get("fin_tip_color", parameters.get("fin_color", "#d8fbff"))))
+	material.set_shader_parameter("fin_gradient_color", _as_color(parameters.get("fin_gradient_color", parameters.get("fin_color", "#7ee1e8"))))
+	material.set_shader_parameter("fin_opacity", clampf(float(parameters.get("fin_opacity", 1.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_edge_width", clampf(float(parameters.get("fin_edge_width", 0.035)), 0.0, 0.25))
+	material.set_shader_parameter("fin_ray_count", clampf(float(parameters.get("fin_ray_count", 0.0)), 0.0, 32.0))
+	material.set_shader_parameter("fin_ray_strength", clampf(float(parameters.get("fin_ray_strength", 0.0)), 0.0, 1.0))
 	return material
 
 static func make_dark(color_value: Variant) -> StandardMaterial3D:

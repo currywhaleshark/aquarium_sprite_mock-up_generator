@@ -74,7 +74,7 @@ func rebuild() -> void:
 	# the head-appendage / eye-stalk accent.
 	var body_mat := TMF.make_body_material(parameters)
 	var secondary_mat := TMF.make_surface(param_color("secondary_color", "#d8fbff"), 0.2, 0.5)
-	var fin_mat := TMF.make_surface(param_color("fin_color", "#7ee1e8"), 0.28, 0.35)
+	var fin_mat := TMF.make_fin_material(parameters)
 	var eye_mat := TMF.make_dark("#10161a")
 
 	var body_length := param_float("body_length", 1.45)

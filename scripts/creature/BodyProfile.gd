@@ -322,7 +322,9 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"dorsal_2_enabled", "dorsal_2_attach_t", "dorsal_2_shape",
 		"pectoral_attach_t", "pelvic_enabled", "pelvic_attach_t", "pelvic_shape",
 		"anal_attach_t", "anal_shape", "head_shape", "mouth_type", "snout_length",
-		"forehead_slope", "jaw_offset", "mouth_size", "head_flattening"
+		"forehead_slope", "jaw_offset", "mouth_size", "head_flattening",
+		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",
+		"fin_ray_strength", "fin_tip_color", "fin_gradient_color"
 	])
 	updated["motion_profile"] = _pick(normalized_parameters, [
 		"swim_mode", "swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",

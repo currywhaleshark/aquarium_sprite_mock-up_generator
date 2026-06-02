@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/FinMaterialTest.gd" id="1_fin_material"]
+
+[node name="FinMaterialTest" type="Node"]
+script = ExtResource("1_fin_material")
