@@ -61,6 +61,11 @@ const OPTION_LABELS := {
 	"flattened": "납작함",
 	"hump": "혹 있는 형",
 	"steep_forehead": "가파른 이마",
+	"cephalofoil": "망치형 (Cephalofoil)",
+	"none": "없음",
+	"swordfish_bill": "황새치 부리",
+	"sawfish_saw": "톱가오리 톱",
+	"barbels": "메기 수염 (Barbels)",
 	"terminal": "정면 입",
 	"superior": "위쪽 입",
 	"inferior": "아래쪽 입",
@@ -77,7 +82,14 @@ const OPTION_LABELS := {
 	"mackerel": "고등어형",
 	"tuna": "참치형",
 	"puffer": "복어형",
-	"boxfish": "박스피시형"
+	"boxfish": "박스피시형",
+	"bezier": "베지에 제어형",
+	"stripes": "세로 줄무늬",
+	"horizontal_stripes": "가로 줄무늬",
+	"spots": "점무늬",
+	"zebra": "얼룩말무늬",
+	"marbled": "대리석무늬",
+	"reticulated": "망상무늬"
 }
 
 const PARAMETER_LABELS := {
@@ -89,6 +101,8 @@ const PARAMETER_LABELS := {
 	"head_shape": "머리 형태",
 	"snout_length": "주둥이 길이",
 	"forehead_slope": "이마 경사",
+	"snout_appendage": "머리 부착물",
+	"snout_appendage_length": "부착물 길이",
 	"jaw_offset": "턱 위치",
 	"mouth_type": "입 방향",
 	"mouth_size": "입 크기",
@@ -96,6 +110,7 @@ const PARAMETER_LABELS := {
 	"eye_size": "눈 크기",
 	"eye_position_x": "눈 X 위치",
 	"eye_position_y": "눈 Y 위치",
+	"eye_bulge": "눈 돌출",
 	"tail_length": "꼬리 길이",
 	"tail_height": "꼬리 높이",
 	"tail_fin_size": "꼬리지느러미 크기",
@@ -130,12 +145,24 @@ const PARAMETER_LABELS := {
 	"body_wave_falloff": "몸통 파동 분포",
 	"fin_flap_amount": "지느러미 퍼덕임",
 	"fin_yaw_follow_strength": "지느러미 몸통 추적",
+	"median_fin_wave_amount": "정중선 지느러미 물결",
 	"median_fin_flap_amount": "등/뒷지느러미 추진",
 	"median_fin_flap_phase": "등/뒷지느러미 위상",
 	"idle_bob_amount": "유휴 상하 움직임",
 	"base_color": "기본 색",
 	"secondary_color": "보조 색",
 	"belly_color": "배 색",
+	"belly_height": "배 색 영역 높이",
+	"belly_slope": "배 색 경계 부드러움",
+	"iridescence_strength": "무지개빛 광택",
+	"iridescence_color": "무지개빛 색",
+	"iridescence_frequency": "무지개빛 빈도",
+	"wetness": "젖은 광택",
+	"pattern_type": "무늬 종류",
+	"pattern_color": "무늬 색",
+	"pattern_scale_x": "무늬 가로 크기",
+	"pattern_scale_y": "무늬 세로 크기",
+	"pattern_intensity": "무늬 진하기",
 	"fin_color": "지느러미 색",
 	"outline_color": "외곽선 색",
 	"outline_width": "외곽선 두께",
@@ -161,6 +188,7 @@ const SECTION_LABELS := {
 	"Fins": "지느러미",
 	"Motion Settings": "움직임 설정",
 	"Color Settings": "색상 설정",
+	"Pattern Settings": "무늬 설정",
 	"Visual Settings": "시각 설정",
 	"Global Settings": "전체 설정",
 	"Export": "출력",
@@ -205,6 +233,20 @@ static func option(value: String) -> String:
 	return String(OPTION_LABELS.get(value, _humanize(value)))
 
 static func parameter(key: String) -> String:
+	if key.contains("_bezier_"):
+		var suffix := ""
+		if key.ends_with("p1_x"):
+			suffix = " 조절점 1 X"
+		elif key.ends_with("p1_y"):
+			suffix = " 조절점 1 Y"
+		elif key.ends_with("p2_x"):
+			suffix = " 조절점 2 X"
+		elif key.ends_with("p2_y"):
+			suffix = " 조절점 2 Y"
+		var parts := key.split("_bezier_")
+		var slot_key := parts[0]
+		var slot_name := fin_slot(slot_key)
+		return slot_name + suffix
 	return String(PARAMETER_LABELS.get(key, _humanize(key)))
 
 static func section(section_name: String) -> String:

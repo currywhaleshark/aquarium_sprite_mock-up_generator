@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b2312t48k0iyx"]
+
+[ext_resource type="Script" path="res://scripts/tools/CurvedFinTest.gd" id="1_curved"]
+
+[node name="CurvedFinTest" type="Node"]
+script = ExtResource("1_curved")

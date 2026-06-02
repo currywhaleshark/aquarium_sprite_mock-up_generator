@@ -38,6 +38,15 @@ func _ready() -> void:
 	assert(absf(turn_right.rotation_degrees.x - straight_right_x) > 8.0)
 	assert(absf(turn_left.rotation_degrees.x - turn_right.rotation_degrees.x) > 14.0)
 
+	var early_turn_parameters: Dictionary = fish.get("parameters")
+	early_turn_parameters["turn_amount"] = 0.35
+	early_turn_parameters["turn_phase"] = 0.12
+	early_turn_parameters["turn_direction"] = 1.0
+	fish.parameters = early_turn_parameters
+	fish.apply_pose(0.25)
+	var head: MeshInstance3D = fish.get_node("BodyPivot/Head")
+	assert(absf(head.rotation_degrees.y) > 10.0)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/turn_pose.ok", FileAccess.WRITE)
 	file.store_string("turn pose layer bends shell and pectoral fins")

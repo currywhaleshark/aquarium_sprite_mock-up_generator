@@ -4,6 +4,7 @@ extends VBoxContainer
 signal parameters_changed(parameters: Dictionary)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
+const UiRows := preload("res://scripts/ui/UiRows.gd")
 
 const SLOT_LABELS := {
 	"dorsal_1": "Dorsal 1",
@@ -15,11 +16,11 @@ const SLOT_LABELS := {
 }
 
 const SHAPES := {
-	"dorsal_1": ["single", "spiny", "split", "trailing", "trigger"],
-	"dorsal_2": ["single", "spiny", "split", "trailing", "trigger"],
-	"pectoral": ["oval", "triangle", "long", "rounded"],
-	"pelvic": ["triangle", "oval", "long", "rounded"],
-	"anal": ["long", "single", "spiny", "rounded"],
+	"dorsal_1": ["single", "spiny", "split", "trailing", "trigger", "bezier"],
+	"dorsal_2": ["single", "spiny", "split", "trailing", "trigger", "bezier"],
+	"pectoral": ["oval", "triangle", "long", "rounded", "bezier"],
+	"pelvic": ["triangle", "oval", "long", "rounded", "bezier"],
+	"anal": ["long", "single", "spiny", "rounded", "bezier"],
 	"caudal": ["forked_shallow", "forked_deep", "truncate", "rounded", "pointed", "lunate", "shark_heterocercal", "thresher"]
 }
 
@@ -155,11 +156,23 @@ func _refresh_controls() -> void:
 	var attach_key := _attach_key(selected_slot)
 	attach_slider.editable = attach_key != ""
 	attach_slider.value = float(parameters.get(attach_key, _default_attach(selected_slot))) if attach_key != "" else 0.5
-	shape_option.clear()
+	
 	var shapes: Array = SHAPES.get(selected_slot, ["single"])
-	for shape in shapes:
-		shape_option.add_item(UiText.option(String(shape)))
-		shape_option.set_item_metadata(shape_option.item_count - 1, String(shape))
+	var shape_items_match := true
+	if shape_option.item_count != shapes.size():
+		shape_items_match = false
+	else:
+		for i in range(shapes.size()):
+			if String(shape_option.get_item_metadata(i)) != String(shapes[i]):
+				shape_items_match = false
+				break
+				
+	if not shape_items_match:
+		shape_option.clear()
+		for shape in shapes:
+			shape_option.add_item(UiText.option(String(shape)))
+			shape_option.set_item_metadata(shape_option.item_count - 1, String(shape))
+			
 	var current_shape := String(parameters.get(_shape_key(selected_slot), shapes[0]))
 	for i in shape_option.item_count:
 		if String(shape_option.get_item_metadata(i)) == current_shape:
@@ -171,39 +184,56 @@ func _refresh_controls() -> void:
 func _rebuild_numeric_controls() -> void:
 	if numeric_container == null:
 		return
-	for child in numeric_container.get_children():
-		child.queue_free()
-	numeric_sliders.clear()
-	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {})
-	for key in slot_keys.keys():
-		_add_numeric_row(String(key), slot_keys[key])
+		
+	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {}).duplicate()
+	var current_shape := String(parameters.get(_shape_key(selected_slot), ""))
+	if current_shape == "bezier":
+		var prefix := selected_slot + "_bezier_"
+		slot_keys[prefix + "p1_x"] = {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": -0.25}
+		slot_keys[prefix + "p1_y"] = {"min": 0.0, "max": 2.0, "step": 0.01, "fallback": 1.0}
+		slot_keys[prefix + "p2_x"] = {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": 0.25}
+		slot_keys[prefix + "p2_y"] = {"min": 0.0, "max": 2.0, "step": 0.01, "fallback": 1.0}
+		
+	var match_exact := true
+	if numeric_sliders.size() != slot_keys.size():
+		match_exact = false
+	else:
+		for key in slot_keys.keys():
+			if not numeric_sliders.has(key):
+				match_exact = false
+				break
+				
+	if match_exact:
+		for key in slot_keys.keys():
+			var widgets: Dictionary = numeric_sliders[key]
+			var slider := widgets["slider"] as HSlider
+			var label := widgets["label"] as Label
+			var value := _numeric_value(String(key), slot_keys[key])
+			slider.value = value
+			label.text = "%.2f" % value
+	else:
+		for child in numeric_container.get_children():
+			child.queue_free()
+		numeric_sliders.clear()
+		for key in slot_keys.keys():
+			_add_numeric_row(String(key), slot_keys[key])
 
 func _add_numeric_row(key: String, config: Dictionary) -> void:
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 28)
-	var label := Label.new()
-	label.text = UiText.parameter(key)
-	label.custom_minimum_size = Vector2(112, 0)
-	label.clip_text = true
-	row.add_child(label)
-	var slider := HSlider.new()
-	slider.min_value = float(config.get("min", 0.0))
-	slider.max_value = float(config.get("max", 1.0))
-	slider.step = float(config.get("step", 0.005))
-	slider.value = _numeric_value(key, config)
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(slider)
-	var value_label := Label.new()
-	value_label.text = "%.2f" % slider.value
-	value_label.custom_minimum_size = Vector2(44, 0)
-	row.add_child(value_label)
+	var widgets := UiRows.add_labeled_slider(numeric_container, UiText.parameter(key), {
+		"label_width": 112,
+		"min": float(config.get("min", 0.0)),
+		"max": float(config.get("max", 1.0)),
+		"step": float(config.get("step", 0.005)),
+		"value": _numeric_value(key, config),
+	})
+	var slider := widgets["slider"] as HSlider
+	var value_label := widgets["value_label"] as Label
 	numeric_sliders[key] = {"slider": slider, "label": value_label}
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
 		if not _updating:
 			set_numeric_parameter(key, value)
 	)
-	numeric_container.add_child(row)
 
 func _numeric_value(key: String, config: Dictionary) -> float:
 	if parameters.has(key):
@@ -215,7 +245,16 @@ func _numeric_value(key: String, config: Dictionary) -> float:
 
 func _numeric_config_for_key(key: String) -> Dictionary:
 	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {})
-	return slot_keys.get(key, {})
+	if slot_keys.has(key):
+		return slot_keys[key]
+	if key.contains("_bezier_"):
+		if key.ends_with("p1_x"):
+			return {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": -0.25}
+		elif key.ends_with("p2_x"):
+			return {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": 0.25}
+		elif key.ends_with("p1_y") or key.ends_with("p2_y"):
+			return {"min": 0.0, "max": 2.0, "step": 0.01, "fallback": 1.0}
+	return {}
 
 func _enabled_key(slot_id: String) -> String:
 	match slot_id:

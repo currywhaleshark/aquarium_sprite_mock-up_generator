@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://beditmodeexclusivitytest"]
+
+[ext_resource type="Script" path="res://scripts/tools/EditModeExclusivityTest.gd" id="1_edit_mode"]
+
+[node name="EditModeExclusivityTest" type="Node"]
+script = ExtResource("1_edit_mode")

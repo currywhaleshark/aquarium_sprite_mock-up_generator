@@ -4,12 +4,22 @@ extends ScrollContainer
 signal parameters_changed(parameters: Dictionary)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
+const UiRows := preload("res://scripts/ui/UiRows.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 var parameters: Dictionary = {}
 var container: VBoxContainer
 var section_bodies: Dictionary = {}
 var collapsed_sections: Dictionary = {}
+var sliders := {}
+var color_pickers := {}
+var option_buttons := {}
+var labels := {}
+var _updating_values := false
+# Optional category filters so one parameter set can be split across several panels
+# (e.g. separate tabs for colour and motion). Empty included_categories = show all.
+var included_categories: Array = []
+var excluded_categories: Array = []
 
 const HIDDEN_BODY_PROFILE_KEYS := {
 	"body_profile": true,
@@ -46,12 +56,14 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"eye_size": true,
 	"eye_position_x": true,
 	"eye_position_y": true,
+	"eye_bulge": true,
 	"dorsal_fin_size": true,
 	"anal_fin_size": true,
 	"pectoral_fin_size": true,
 	"dorsal_fin_offset_x": true,
 	"anal_fin_offset_x": true,
 	"pectoral_fin_offset_x": true,
+	"pectoral_offset_y": true,
 	"dorsal_1_attach_t": true,
 	"dorsal_1_shape": true,
 	"dorsal_1_length": true,
@@ -94,23 +106,69 @@ func _ready() -> void:
 	add_child(container)
 
 func set_parameters(new_parameters: Dictionary) -> void:
+	var keys_changed := false
+	if new_parameters.size() != parameters.size():
+		keys_changed = true
+	else:
+		for k in new_parameters.keys():
+			if not parameters.has(k):
+				keys_changed = true
+				break
+				
 	parameters = new_parameters.duplicate(true)
 	if container == null:
 		return
+		
+	if keys_changed or container.get_child_count() == 0:
+		_build_controls()
+	else:
+		_update_control_values()
+
+func _build_controls() -> void:
 	for child in container.get_children():
 		child.queue_free()
 	section_bodies.clear()
+	sliders.clear()
+	color_pickers.clear()
+	option_buttons.clear()
+	labels.clear()
+	
 	for key in parameters.keys():
 		if _should_hide_key(String(key)):
 			continue
 		var value: Variant = parameters[key]
-		var section_body := _ensure_section(_category_for_key(String(key)))
+		var category := _category_for_key(String(key))
+		if not included_categories.is_empty() and not included_categories.has(category):
+			continue
+		if excluded_categories.has(category):
+			continue
+		var section_body := _ensure_section(category)
 		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
 			_add_number_row(section_body, String(key), float(value))
 		elif _is_color_value(value):
 			_add_color_row(section_body, String(key), _color_from_value(value))
 		elif typeof(value) == TYPE_STRING and _is_option_parameter(String(key)):
 			_add_option_row(section_body, String(key), String(value))
+
+func _update_control_values() -> void:
+	_updating_values = true
+	for key in parameters.keys():
+		var value: Variant = parameters[key]
+		if sliders.has(key):
+			var slider := sliders[key] as HSlider
+			slider.value = float(value)
+			var label := labels[key] as Label
+			if label:
+				label.text = "%.2f" % float(value)
+		elif color_pickers.has(key):
+			var picker := color_pickers[key] as ColorPickerButton
+			picker.color = _color_from_value(value)
+		elif option_buttons.has(key):
+			var option := option_buttons[key] as OptionButton
+			var options := _options_for_key(key)
+			var selected_index := options.find(String(value))
+			option.select(maxi(selected_index, 0))
+	_updating_values = false
 
 func get_section_body(section_name: String) -> VBoxContainer:
 	return section_bodies.get(section_name, null)
@@ -157,30 +215,27 @@ func _header_text(section_name: String, opened: bool) -> String:
 	return ("%s %s" % ["v" if opened else ">", UiText.section(section_name)])
 
 func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 28)
-	var label := Label.new()
-	label.text = UiText.parameter(key)
-	label.custom_minimum_size = Vector2(150, 0)
-	label.clip_text = true
-	row.add_child(label)
-	var slider := HSlider.new()
-	slider.min_value = _min_for_key(key, value)
-	slider.max_value = _max_for_key(key, value)
-	slider.step = 0.005 if slider.max_value <= 3.0 else 0.1
-	slider.value = value
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(slider)
-	var value_label := Label.new()
-	value_label.text = "%.2f" % value
-	value_label.custom_minimum_size = Vector2(46, 0)
-	row.add_child(value_label)
+	var max_value := _max_for_key(key, value)
+	var widgets := UiRows.add_labeled_slider(parent, UiText.parameter(key), {
+		"label_width": 150,
+		"value_width": 46,
+		"min": _min_for_key(key, value),
+		"max": max_value,
+		"step": 0.005 if max_value <= 3.0 else 0.1,
+		"value": value,
+	})
+	var slider := widgets["slider"] as HSlider
+	var value_label := widgets["value_label"] as Label
+	sliders[key] = slider
+	labels[key] = value_label
+	
 	slider.value_changed.connect(func(new_value: float) -> void:
+		if _updating_values:
+			return
 		parameters[key] = new_value
 		value_label.text = "%.2f" % new_value
 		parameters_changed.emit(parameters.duplicate(true))
 	)
-	parent.add_child(row)
 
 func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 	var row := HBoxContainer.new()
@@ -194,7 +249,11 @@ func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 	picker.color = color
 	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(picker)
+	color_pickers[key] = picker
+	
 	picker.color_changed.connect(func(new_color: Color) -> void:
+		if _updating_values:
+			return
 		parameters[key] = "#%s" % new_color.to_html(false)
 		parameters_changed.emit(parameters.duplicate(true))
 	)
@@ -217,7 +276,11 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	var selected_index := options.find(value)
 	option.select(maxi(selected_index, 0))
 	row.add_child(option)
+	option_buttons[key] = option
+	
 	option.item_selected.connect(func(index: int) -> void:
+		if _updating_values:
+			return
 		var selected := String(option.get_item_metadata(index))
 		parameters[key] = selected
 		if key == "swim_mode":
@@ -227,11 +290,19 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	parent.add_child(row)
 
 func _min_for_key(key: String, value: float) -> float:
+	if key.begins_with("pattern_") or key == "belly_height" or key == "belly_slope":
+		return 0.0
 	if _is_signed_parameter(key):
 		return minf(-2.0, value * 2.0)
 	return 0.0
 
 func _max_for_key(key: String, value: float) -> float:
+	if key == "pattern_intensity" or key == "belly_height" or key == "belly_slope" or key == "wetness":
+		return 1.0
+	if key == "iridescence_frequency":
+		return 10.0
+	if key == "pattern_scale_x" or key == "pattern_scale_y":
+		return maxf(20.0, value * 2.0)
 	if _is_signed_parameter(key):
 		return maxf(2.0, absf(value) * 2.0)
 	if key.contains("color") or key.contains("strength"):
@@ -248,11 +319,15 @@ func _is_signed_parameter(key: String) -> bool:
 	return key.contains("offset") or key.contains("position") or key.ends_with("_x") or key.ends_with("_y") or key.ends_with("_z")
 
 func _category_for_key(key: String) -> String:
+	if key.begins_with("pattern"):
+		return "Pattern Settings"
+	if key == "belly_height" or key == "belly_slope" or key == "wetness" or key.begins_with("iridescence"):
+		return "Color Settings"
 	if key.contains("color"):
 		return "Color Settings"
 	if key.begins_with("head") or key.begins_with("mouth") or key.contains("snout") or key.contains("forehead") or key.contains("jaw"):
 		return "Head"
-	if key == "swim_mode" or key.begins_with("body_wave_") or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide"):
+	if key == "swim_mode" or key.begins_with("body_wave_") or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide") or key.contains("turn") or key.contains("fold") or key.contains("brace"):
 		return "Motion Settings"
 	if key.contains("fin") or key.contains("dorsal") or key.contains("pectoral") or key.contains("pelvic") or key.contains("anal") or key.contains("caudal"):
 		return "Fins"
@@ -293,9 +368,11 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "swim_mode"
+	return key == "swim_mode" or key == "pattern_type"
 
 func _options_for_key(key: String) -> Array[String]:
 	if key == "swim_mode":
 		return BodyProfileScript.swim_mode_names()
+	if key == "pattern_type":
+		return BodyProfileScript.pattern_type_names()
 	return []

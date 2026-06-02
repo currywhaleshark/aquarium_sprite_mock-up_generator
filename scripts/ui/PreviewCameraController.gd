@@ -20,8 +20,14 @@ var distance := 6.0
 var orthographic_size := 2.25
 var target := Vector3.ZERO
 var input_enabled := true
+var drag_suppressed := false
 
 var _drag_mode := ""
+
+func set_drag_suppressed(value: bool) -> void:
+	drag_suppressed = value
+	if value:
+		_drag_mode = ""
 
 func bind_camera(new_camera: Camera3D) -> void:
 	camera = new_camera
@@ -80,10 +86,14 @@ func _on_gui_input(event: InputEvent) -> void:
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.button_index == MOUSE_BUTTON_LEFT:
+		if drag_suppressed and event.pressed:
+			return
 		_drag_mode = "rotate" if event.pressed else ""
 		if event.pressed:
 			input_control.accept_event()
 	elif event.button_index == MOUSE_BUTTON_MIDDLE:
+		if drag_suppressed and event.pressed:
+			return
 		_drag_mode = "pan" if event.pressed else ""
 		if event.pressed:
 			input_control.accept_event()

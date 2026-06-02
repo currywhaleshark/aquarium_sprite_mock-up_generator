@@ -16,6 +16,7 @@ const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const UiText := preload("res://scripts/ui/UiText.gd")
+const DragHandlesOverlayScript := preload("res://scripts/ui/DragHandlesOverlay.gd")
 
 const TURN_PREVIEW_DURATION := 0.45
 
@@ -28,16 +29,21 @@ var reference_overlay_source_size := Vector2.ZERO
 var camera: Camera3D
 var camera_controller: Node
 var fin_drag_controller: Node
+var drag_handles_overlay: Control
+var preview_bg: ColorRect
 var world_root: Node3D
 var current_rig: CreatureRig
 var presets: Array[Dictionary] = []
 var current_preset: Dictionary = {}
 var preset_option: OptionButton
+var side_tabs: TabContainer
 var preset_name_edit: LineEdit
 var save_preset_button: Button
 var creature_type_label: Label
 var playback_toggle: CheckButton
-var parameter_panel: ScrollContainer
+var parameter_panel: ParameterPanel
+var color_panel: ParameterPanel
+var motion_panel: ParameterPanel
 var export_panel: VBoxContainer
 var mini_preview: TextureRect
 var display_label: Label
@@ -53,6 +59,7 @@ var turn_left_button: Button
 var turn_right_button: Button
 var preview_direction_index := 0
 var turn_preview_active := false
+var _is_exporting := false
 var turn_preview_elapsed := 0.0
 var turn_preview_from_index := 0
 var turn_preview_target_index := 0
@@ -63,8 +70,9 @@ func _ready() -> void:
 	_build_preview_world()
 	exporter = SpriteExporterScript.new()
 	add_child(exporter)
-	exporter.export_finished.connect(func(path: String) -> void: export_panel.set_status("출력 완료: %s" % path))
-	exporter.export_failed.connect(func(message: String) -> void: export_panel.set_status(message))
+	exporter.export_finished.connect(_on_export_finished)
+	exporter.export_failed.connect(_on_export_failed)
+	exporter.export_progress.connect(_on_export_progress)
 	_reload_presets()
 
 func _process(delta: float) -> void:
@@ -91,6 +99,12 @@ func _build_ui() -> void:
 	preview_stack.resized.connect(_update_reference_overlay_transform)
 	preview_column.add_child(preview_stack)
 
+	preview_bg = ColorRect.new()
+	preview_bg.name = "PreviewBg"
+	preview_bg.color = Color(0.1, 0.12, 0.15, 1.0)
+	preview_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	preview_stack.add_child(preview_bg)
+
 	viewport_container = SubViewportContainer.new()
 	viewport_container.name = "ViewportContainer"
 	viewport_container.stretch = true
@@ -106,6 +120,12 @@ func _build_ui() -> void:
 	viewport.transparent_bg = true
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport_container.add_child(viewport)
+
+	drag_handles_overlay = DragHandlesOverlayScript.new()
+	drag_handles_overlay.name = "DragHandlesOverlay"
+	drag_handles_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	drag_handles_overlay.visible = false
+	preview_stack.add_child(drag_handles_overlay)
 
 	reference_overlay = TextureRect.new()
 	reference_overlay.name = "ReferenceImageOverlay"
@@ -135,27 +155,35 @@ func _build_ui() -> void:
 	mini_preview.custom_minimum_size = Vector2(144, 96)
 	lower_preview.add_child(mini_preview)
 
-	var side_scroll := ScrollContainer.new()
-	side_scroll.name = "SidePanelScroll"
-	side_scroll.custom_minimum_size = Vector2(380, 0)
-	side_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(side_scroll)
-
+	# The side panel is a fixed-width column: a small header (title + presets) stays
+	# pinned at the top and a TabContainer fills the rest, so the tab bar never
+	# scrolls away. Each tab scrolls its own content internally.
 	var side := VBoxContainer.new()
 	side.name = "SidePanelContent"
-	side.custom_minimum_size = Vector2(360, 0)
-	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	side.custom_minimum_size = Vector2(380, 0)
 	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	side_scroll.add_child(side)
+	root.add_child(side)
 
 	var title := Label.new()
 	title.text = "절차적 스프라이트 생성기"
 	title.add_theme_font_size_override("font_size", 18)
 	side.add_child(title)
 
+	var preset_row := HBoxContainer.new()
+	preset_row.add_theme_constant_override("separation", 6)
+	side.add_child(preset_row)
+	
 	preset_option = OptionButton.new()
+	preset_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	preset_option.item_selected.connect(_load_preset)
-	side.add_child(preset_option)
+	preset_row.add_child(preset_option)
+	
+	var reset_preset_button := Button.new()
+	reset_preset_button.text = "초기화"
+	reset_preset_button.pressed.connect(func() -> void:
+		_load_preset(preset_option.selected)
+	)
+	preset_row.add_child(reset_preset_button)
 
 	var preset_save_row := HBoxContainer.new()
 	preset_save_row.add_theme_constant_override("separation", 6)
@@ -175,6 +203,23 @@ func _build_ui() -> void:
 	creature_type_label.text = "타입: 물고기"
 	side.add_child(creature_type_label)
 
+	# Split the long side panel into focused tabs so it stays easy to scan. The
+	# preset/title block above stays fixed; everything else lives in one of three
+	# tabs (shape editing / view & camera / export). Member references and signal
+	# connections are unchanged — only the parent containers differ.
+	side_tabs = TabContainer.new()
+	side_tabs.name = "SideTabs"
+	side_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	side_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side.add_child(side_tabs)
+
+	var shape_tab := _make_tab_page("모양·편집")
+	var color_tab := _make_tab_page("색상")
+	var motion_tab := _make_tab_page("움직임")
+	var view_tab := _make_tab_page("표시·카메라")
+	var export_tab := _make_tab_page("출력")
+
+	# --- 표시·카메라 탭 ---
 	playback_toggle = CheckButton.new()
 	playback_toggle.text = "애니메이션 재생"
 	playback_toggle.button_pressed = true
@@ -182,49 +227,79 @@ func _build_ui() -> void:
 		if current_rig:
 			current_rig.auto_animate = enabled
 	)
-	side.add_child(playback_toggle)
+	view_tab.add_child(playback_toggle)
 
 	var controls := PreviewControlsScript.new()
 	controls.camera_preset_changed.connect(func(preset_name: String) -> void:
 		current_preset["camera_preset"] = preset_name
 		_apply_camera()
 	)
-	side.add_child(controls)
+	view_tab.add_child(controls)
+
+	var frame_export_button := Button.new()
+	frame_export_button.text = "익스포트 프레이밍 보기"
+	frame_export_button.tooltip_text = "미리보기 카메라를 실제 출력과 동일하게 전체가 들어오도록 맞춥니다 (R로 원래 뷰 복귀)."
+	frame_export_button.pressed.connect(_frame_to_export)
+	view_tab.add_child(frame_export_button)
+
+	var bg_color_row := HBoxContainer.new()
+	bg_color_row.add_theme_constant_override("separation", 6)
+	view_tab.add_child(bg_color_row)
+
+	var bg_label := Label.new()
+	bg_label.text = "미리보기 배경색"
+	bg_label.custom_minimum_size = Vector2(112, 0)
+	bg_color_row.add_child(bg_label)
+
+	var bg_picker := ColorPickerButton.new()
+	bg_picker.color = Color(0.1, 0.12, 0.15, 1.0)
+	bg_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bg_picker.color_changed.connect(func(color: Color) -> void:
+		if preview_bg:
+			preview_bg.color = color
+	)
+	bg_color_row.add_child(bg_picker)
 
 	reference_image_panel = ReferenceImagePanelScript.new()
 	reference_image_panel.reference_changed.connect(func(settings: Dictionary) -> void:
 		_on_reference_image_changed(settings)
 	)
-	side.add_child(reference_image_panel)
+	view_tab.add_child(reference_image_panel)
+
+	# --- 모양·편집 탭 ---
+	var edit_section_label := Label.new()
+	edit_section_label.text = "부위 편집"
+	edit_section_label.add_theme_font_size_override("font_size", 15)
+	shape_tab.add_child(edit_section_label)
 
 	fin_edit_toggle = CheckButton.new()
 	fin_edit_toggle.text = "지느러미 편집"
 	fin_edit_toggle.toggled.connect(_set_fin_edit_enabled)
-	side.add_child(fin_edit_toggle)
+	shape_tab.add_child(fin_edit_toggle)
 
 	fin_editor_panel = FinEditorPanelScript.new()
 	fin_editor_panel.visible = false
 	fin_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	side.add_child(fin_editor_panel)
+	shape_tab.add_child(fin_editor_panel)
 
 	head_edit_toggle = CheckButton.new()
 	head_edit_toggle.text = "머리 편집"
 	head_edit_toggle.toggled.connect(_set_head_edit_enabled)
-	side.add_child(head_edit_toggle)
+	shape_tab.add_child(head_edit_toggle)
 
 	head_editor_panel = HeadEditorPanelScript.new()
 	head_editor_panel.visible = false
 	head_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	side.add_child(head_editor_panel)
+	shape_tab.add_child(head_editor_panel)
 
 	body_edit_toggle = CheckButton.new()
 	body_edit_toggle.text = "몸통 편집"
 	body_edit_toggle.toggled.connect(_set_body_edit_enabled)
-	side.add_child(body_edit_toggle)
+	shape_tab.add_child(body_edit_toggle)
 
 	body_editor_panel = BodyEditorPanelScript.new()
 	body_editor_panel.visible = false
@@ -236,19 +311,83 @@ func _build_ui() -> void:
 		if fish_rig:
 			fish_rig.set_selected_body_ring(ring_id)
 	)
-	side.add_child(body_editor_panel)
+	shape_tab.add_child(body_editor_panel)
 
 	parameter_panel = ParameterPanelScript.new()
 	parameter_panel.custom_minimum_size = Vector2(0, 240)
-	parameter_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	parameter_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Colour and motion live in their own tabs, so the shape tab's panel hides them.
+	parameter_panel.excluded_categories = ["Color Settings", "Pattern Settings", "Motion Settings"]
 	parameter_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	side.add_child(parameter_panel)
+	shape_tab.add_child(parameter_panel)
 
+	# --- 색상 탭 ---
+	color_panel = ParameterPanelScript.new()
+	color_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	color_panel.included_categories = ["Color Settings", "Pattern Settings"]
+	color_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
+		_apply_parameters_from_editor(parameters)
+	)
+	color_tab.add_child(color_panel)
+
+	# --- 움직임 탭 ---
+	motion_panel = ParameterPanelScript.new()
+	motion_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	motion_panel.included_categories = ["Motion Settings"]
+	motion_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
+		_apply_parameters_from_editor(parameters)
+	)
+	motion_tab.add_child(motion_panel)
+
+	# --- 출력 탭 ---
 	export_panel = ExportPanelScript.new()
 	export_panel.export_requested.connect(_export_current)
-	side.add_child(export_panel)
+	export_tab.add_child(export_panel)
+
+	var help_title := Button.new()
+	help_title.text = "> 조작 도움말"
+	help_title.toggle_mode = true
+	help_title.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	export_tab.add_child(help_title)
+
+	var help_body := VBoxContainer.new()
+	help_body.visible = false
+	help_body.add_theme_constant_override("separation", 2)
+	export_tab.add_child(help_body)
+
+	help_title.toggled.connect(func(opened: bool) -> void:
+		help_body.visible = opened
+		help_title.text = "%s 조작 도움말" % ["v" if opened else ">"]
+	)
+	
+	var help_items := [
+		"마우스 좌클릭 드래그: 카메라 회전 / 드래그 핸들 이동",
+		"마우스 휠클릭 드래그: 카메라 평행 이동 (Pan)",
+		"마우스 휠 스크롤: 카메라 줌 (Zoom)",
+		"Space 키: 애니메이션 재생 / 일시정지",
+		"R 키: 카메라 뷰 방향/줌 초기화",
+		"1, 2, 3 키: 편집 모드 전환 (1:몸통, 2:지느러미, 3:머리)",
+		"Shift 키 누른 채 드래그: 슬라이더 값 미세 조절"
+	]
+	for item in help_items:
+		var item_label := Label.new()
+		item_label.text = "• " + item
+		item_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		item_label.add_theme_font_size_override("font_size", 11)
+		help_body.add_child(item_label)
+
+# Adds one page to side_tabs. The VBox is the direct tab child (its name is the tab
+# title) and fills the tab area, so a child marked EXPAND_FILL (e.g. the parameter
+# panel) stretches to consume leftover vertical space instead of leaving a gap.
+func _make_tab_page(tab_title: String) -> VBoxContainer:
+	var content := VBoxContainer.new()
+	content.name = tab_title
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side_tabs.add_child(content)
+	return content
 
 func _build_preview_world() -> void:
 	world_root = Node3D.new()
@@ -279,7 +418,11 @@ func _build_preview_world() -> void:
 	fin_drag_controller.name = "FishFinDragController"
 	add_child(fin_drag_controller)
 	fin_drag_controller.call("bind_camera", camera)
+	fin_drag_controller.call("bind_camera_controller", camera_controller)
 	fin_drag_controller.call("bind_input_control", viewport_container)
+	if drag_handles_overlay:
+		drag_handles_overlay.camera = camera
+		drag_handles_overlay.fin_drag_controller = fin_drag_controller
 	fin_drag_controller.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
@@ -308,6 +451,8 @@ func _load_preset(index: int) -> void:
 		current_rig.auto_animate = playback_toggle.button_pressed
 	_bind_fin_editor_for_current_rig()
 	parameter_panel.set_parameters(current_preset.get("parameters", {}))
+	color_panel.set_parameters(current_preset.get("parameters", {}))
+	motion_panel.set_parameters(current_preset.get("parameters", {}))
 	if fin_editor_panel:
 		fin_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
 	if head_editor_panel:
@@ -386,7 +531,11 @@ func _apply_parameters_from_editor(parameters: Dictionary) -> void:
 
 func _sync_parameter_editors(parameters: Dictionary) -> void:
 	if parameter_panel:
-		parameter_panel.call("set_parameters", parameters)
+		parameter_panel.set_parameters(parameters)
+	if color_panel:
+		color_panel.set_parameters(parameters)
+	if motion_panel:
+		motion_panel.set_parameters(parameters)
 	if fin_editor_panel:
 		fin_editor_panel.call("set_parameters", parameters)
 	if head_editor_panel:
@@ -397,8 +546,12 @@ func _sync_parameter_editors(parameters: Dictionary) -> void:
 func _bind_fin_editor_for_current_rig() -> void:
 	if fin_drag_controller == null:
 		return
-	if String(current_preset.get("creature_type", "fish")) == "fish":
+	if _is_fish():
 		fin_drag_controller.call("bind_fish", current_rig)
+		fin_drag_controller.call("set_enabled", true)
+		if drag_handles_overlay:
+			drag_handles_overlay.fish = current_rig as FishRig
+			_update_overlay_visibility()
 		if fin_edit_toggle:
 			fin_edit_toggle.disabled = false
 		if head_edit_toggle:
@@ -407,6 +560,10 @@ func _bind_fin_editor_for_current_rig() -> void:
 			body_edit_toggle.disabled = false
 	else:
 		fin_drag_controller.call("bind_fish", null)
+		fin_drag_controller.call("set_enabled", false)
+		if drag_handles_overlay:
+			drag_handles_overlay.fish = null
+			_update_overlay_visibility()
 		var fish_rig := current_rig as FishRig
 		if fish_rig:
 			fish_rig.set_ring_editor_enabled(false)
@@ -419,6 +576,23 @@ func _bind_fin_editor_for_current_rig() -> void:
 		if body_edit_toggle:
 			body_edit_toggle.button_pressed = false
 			body_edit_toggle.disabled = true
+
+func _export_resolution() -> Vector2i:
+	var export_settings: Dictionary = current_preset.get("export_settings", {})
+	var rd: Dictionary = export_settings.get("render_resolution", {"w": 256, "h": 256})
+	return Vector2i(int(rd.get("w", 256)), int(rd.get("h", 256)))
+
+# Snaps the preview camera to match the export's auto-fit framing (whole creature in
+# frame) using the same calculation the exporter uses. R / reset restores the preset.
+func _frame_to_export() -> void:
+	if current_rig == null or camera_controller == null:
+		return
+	var framing: Dictionary = SpriteExporterScript.compute_fit_framing(current_rig, _export_resolution())
+	if float(framing.get("radius", 0.0)) <= 0.0001:
+		return
+	camera_controller.set("orthographic_size", float(framing.get("ortho_size", 2.25)))
+	camera_controller.set("target", Vector3(0.0, float(framing.get("center_y", 0.0)), 0.0))
+	camera_controller.call("_apply_camera")
 
 func _apply_camera() -> void:
 	if camera == null:
@@ -546,6 +720,7 @@ func _reset_preview_direction() -> void:
 	if current_rig:
 		current_rig.rotation_degrees.y = 0.0
 		_set_turn_preview_parameters(0.0, 1)
+	_apply_camera()
 
 func _start_preview_turn(step: int) -> void:
 	if current_rig == null:
@@ -563,36 +738,66 @@ func _start_preview_turn(step: int) -> void:
 func _update_preview_turn(delta: float) -> void:
 	if current_rig == null:
 		return
+	if _is_exporting:
+		return
 	if not turn_preview_active:
 		current_rig.rotation_degrees.y = float(preview_direction_index) * 45.0
-		_set_turn_preview_parameters(0.0, 1)
+		_set_turn_preview_parameters(0.0, 1, 0.0)
 		return
 	turn_preview_elapsed += maxf(delta, 0.0)
 	var t := clampf(turn_preview_elapsed / TURN_PREVIEW_DURATION, 0.0, 1.0)
-	var eased := t * t * (3.0 - 2.0 * t)
+	# Delay global rotation so that head bend is already entered before global yaw rotation begins
+	var rot_t := clampf((t - 0.15) / 0.85, 0.0, 1.0)
+	var eased := rot_t * rot_t * (3.0 - 2.0 * rot_t)
 	var from_yaw := float(turn_preview_from_index) * 45.0
 	var target_yaw := from_yaw + float(turn_preview_step) * 45.0
 	current_rig.rotation_degrees.y = lerpf(from_yaw, target_yaw, eased)
-	_set_turn_preview_parameters(sin(t * PI), turn_preview_step)
+	_set_turn_preview_parameters(sin(t * PI), turn_preview_step, t)
 	if t >= 1.0:
 		preview_direction_index = turn_preview_target_index
 		turn_preview_active = false
 		current_rig.rotation_degrees.y = float(preview_direction_index) * 45.0
-		_set_turn_preview_parameters(0.0, turn_preview_step)
+		_set_turn_preview_parameters(0.0, turn_preview_step, 0.0)
 
-func _set_turn_preview_parameters(turn_amount: float, direction: int) -> void:
+func _set_turn_preview_parameters(turn_amount: float, direction: int, turn_phase: float = 0.0) -> void:
 	if current_rig == null:
 		return
 	var parameters: Dictionary = current_rig.get("parameters")
 	parameters["turn_amount"] = clampf(turn_amount, 0.0, 1.0)
 	parameters["turn_direction"] = -1.0 if direction < 0 else 1.0
+	parameters["turn_phase"] = clampf(turn_phase, 0.0, 1.0)
 	if not parameters.has("turn_tail_lag"):
 		parameters["turn_tail_lag"] = 0.75
 	if not parameters.has("inside_pectoral_fold"):
-		parameters["inside_pectoral_fold"] = 1.0
+		parameters["inside_pectoral_fold"] = 0.8
+	if not parameters.has("outside_pectoral_brace"):
+		parameters["outside_pectoral_brace"] = 0.5
+	if not parameters.has("turn_curve_bias"):
+		parameters["turn_curve_bias"] = 0.5
+	if not parameters.has("turn_median_fin_bias"):
+		parameters["turn_median_fin_bias"] = 0.5
+	if not parameters.has("turn_bank_roll"):
+		parameters["turn_bank_roll"] = 10.0
 	current_rig.set("parameters", parameters)
 
+func _on_export_finished(path: String) -> void:
+	if export_panel:
+		export_panel.end_progress()
+		export_panel.set_status("출력 완료: %s" % path)
+
+func _on_export_failed(message: String) -> void:
+	if export_panel:
+		export_panel.end_progress()
+		export_panel.set_status(message)
+
+func _on_export_progress(value: float, message: String) -> void:
+	if export_panel:
+		export_panel.set_progress(value)
+		export_panel.set_status(message)
+
 func _export_current() -> void:
+	if _is_exporting:
+		return
 	if current_rig == null or current_preset.is_empty():
 		return
 	var export_settings: Dictionary = current_preset.get("export_settings", {}).duplicate(true)
@@ -600,45 +805,56 @@ func _export_current() -> void:
 		export_settings["direction_count"] = int(export_panel.call("get_direction_count"))
 	current_preset["export_settings"] = export_settings
 	export_panel.set_status("출력 중...")
+	_is_exporting = true
 	await exporter.export_preset(current_preset, current_rig, viewport)
+	_is_exporting = false
 
 func _set_fin_edit_enabled(enabled: bool) -> void:
-	if fin_drag_controller:
-		fin_drag_controller.call("set_enabled", enabled)
 	if fin_editor_panel:
-		fin_editor_panel.visible = enabled and String(current_preset.get("creature_type", "fish")) == "fish"
+		fin_editor_panel.visible = enabled and _is_fish()
 	var fish_rig := current_rig as FishRig
 	if enabled and fish_rig:
 		fish_rig.set_ring_editor_enabled(false)
-	if enabled and head_edit_toggle:
-		head_edit_toggle.button_pressed = false
-	if enabled and body_edit_toggle:
-		body_edit_toggle.button_pressed = false
+	if enabled:
+		_select_exclusive_edit_toggle(fin_edit_toggle)
+	if drag_handles_overlay:
+		drag_handles_overlay.draw_fins = enabled
+		_update_overlay_visibility()
 	_sync_edit_input_state()
 
 func _set_head_edit_enabled(enabled: bool) -> void:
 	if head_editor_panel:
-		head_editor_panel.visible = enabled and String(current_preset.get("creature_type", "fish")) == "fish"
+		head_editor_panel.visible = enabled and _is_fish()
 	var fish_rig := current_rig as FishRig
 	if enabled and fish_rig:
 		fish_rig.set_ring_editor_enabled(false)
-	if enabled and fin_edit_toggle:
-		fin_edit_toggle.button_pressed = false
-	if enabled and body_edit_toggle:
-		body_edit_toggle.button_pressed = false
+	if enabled:
+		_select_exclusive_edit_toggle(head_edit_toggle)
+	if drag_handles_overlay:
+		drag_handles_overlay.draw_head = enabled
+		_update_overlay_visibility()
 	_sync_edit_input_state()
 
 func _set_body_edit_enabled(enabled: bool) -> void:
 	if body_editor_panel:
-		body_editor_panel.visible = enabled and String(current_preset.get("creature_type", "fish")) == "fish"
+		body_editor_panel.visible = enabled and _is_fish()
 	var fish_rig := current_rig as FishRig
 	if fish_rig:
-		fish_rig.set_ring_editor_enabled(enabled and String(current_preset.get("creature_type", "fish")) == "fish")
-	if enabled and fin_edit_toggle:
-		fin_edit_toggle.button_pressed = false
-	if enabled and head_edit_toggle:
-		head_edit_toggle.button_pressed = false
+		fish_rig.set_ring_editor_enabled(enabled and _is_fish())
+	if enabled:
+		_select_exclusive_edit_toggle(body_edit_toggle)
 	_sync_edit_input_state()
+
+func _select_exclusive_edit_toggle(active_toggle: CheckButton) -> void:
+	for toggle in [fin_edit_toggle, head_edit_toggle, body_edit_toggle]:
+		if toggle != null and toggle != active_toggle:
+			toggle.button_pressed = false
+	# Bring the shape/edit tab forward so the activated editor panel is visible.
+	if side_tabs:
+		side_tabs.current_tab = 0
+
+func _is_fish() -> bool:
+	return String(current_preset.get("creature_type", "fish")) == "fish"
 
 func _on_preview_gui_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton):
@@ -670,3 +886,30 @@ func _on_preview_gui_input(event: InputEvent) -> void:
 func _sync_edit_input_state() -> void:
 	if camera_controller:
 		camera_controller.set("input_enabled", true)
+
+func _update_overlay_visibility() -> void:
+	if drag_handles_overlay:
+		drag_handles_overlay.visible = _is_fish() and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_SPACE:
+			if playback_toggle:
+				playback_toggle.button_pressed = not playback_toggle.button_pressed
+				get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_R:
+			_reset_preview_direction()
+			get_viewport().set_input_as_handled()
+		elif event.keycode >= KEY_1 and event.keycode <= KEY_3:
+			var index: int = int(event.keycode) - int(KEY_1)
+			match index:
+				0:
+					if body_edit_toggle and not body_edit_toggle.disabled:
+						body_edit_toggle.button_pressed = not body_edit_toggle.button_pressed
+				1:
+					if fin_edit_toggle and not fin_edit_toggle.disabled:
+						fin_edit_toggle.button_pressed = not fin_edit_toggle.button_pressed
+				2:
+					if head_edit_toggle and not head_edit_toggle.disabled:
+						head_edit_toggle.button_pressed = not head_edit_toggle.button_pressed
+			get_viewport().set_input_as_handled()

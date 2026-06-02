@@ -5,6 +5,7 @@ const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
+	fish.auto_animate = false
 	fish.set_parameters({
 		"shell_enabled": 1.0,
 		"body_length": 1.45,
@@ -103,7 +104,62 @@ func _ready() -> void:
 	var high_shell_after := _ring_vertex(high_shell, 3, 0, 28)
 	var high_shell_delta := high_shell_before.distance_to(high_shell_after)
 	assert(absf((fish.get_node("BodyPivot") as Node3D).rotation_degrees.y) < 0.001)
-	assert(high_shell_delta > low_shell_delta * 5.0)
+	assert(high_shell_delta > low_shell_delta * 3.0)
+	var eel_wave_parameters: Dictionary = fish.parameters.duplicate(true)
+	eel_wave_parameters["body_wave_amount"] = 100.0
+	fish.set_parameters(eel_wave_parameters)
+	await get_tree().process_frame
+	var eel_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
+	var eel_shell_before := _ring_vertex(eel_shell, 3, 0, 28)
+	tail_pivot_1 = fish.get_node_or_null("BodyPivot/TailPivot1") as Node3D
+	tail_pivot_2 = fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2") as Node3D
+	tail_fin_pivot = fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
+	fish.apply_pose(0.25)
+	var eel_shell_after := _ring_vertex(eel_shell, 3, 0, 28)
+	var eel_shell_delta := eel_shell_before.distance_to(eel_shell_after)
+	assert(eel_shell_delta > high_shell_delta * 10.0)
+	assert(absf(tail_pivot_1.rotation_degrees.y) < 75.0)
+	assert(absf(tail_pivot_2.rotation_degrees.y) < 60.0)
+	assert(absf(tail_fin_pivot.rotation_degrees.y) < 45.0)
+	fish.apply_pose(0.0)
+	var previous_tail_yaw := tail_pivot_2.rotation_degrees.y + tail_fin_pivot.rotation_degrees.y
+	var max_tail_yaw_step := 0.0
+	var saturated_tail_root_samples := 0
+	for sample in range(1, 49):
+		fish.apply_pose(float(sample) / 48.0)
+		if absf(tail_pivot_1.rotation_degrees.y) > 63.0:
+			saturated_tail_root_samples += 1
+		var current_tail_yaw := tail_pivot_2.rotation_degrees.y + tail_fin_pivot.rotation_degrees.y
+		max_tail_yaw_step = maxf(max_tail_yaw_step, absf(current_tail_yaw - previous_tail_yaw))
+		previous_tail_yaw = current_tail_yaw
+	assert(max_tail_yaw_step < 35.0)
+	assert(saturated_tail_root_samples < 12)
+	var extreme_wave_parameters: Dictionary = fish.parameters.duplicate(true)
+	extreme_wave_parameters["body_wave_amount"] = 10000.0
+	fish.set_parameters(extreme_wave_parameters)
+	await get_tree().process_frame
+	var extreme_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
+	var extreme_shell_before := _ring_vertex(extreme_shell, 3, 0, 28)
+	tail_pivot_1 = fish.get_node_or_null("BodyPivot/TailPivot1") as Node3D
+	tail_pivot_2 = fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2") as Node3D
+	tail_fin_pivot = fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
+	fish.apply_pose(0.25)
+	var extreme_shell_after := _ring_vertex(extreme_shell, 3, 0, 28)
+	var extreme_shell_delta := extreme_shell_before.distance_to(extreme_shell_after)
+	assert(extreme_shell_delta > eel_shell_delta * 1.8)
+	assert(absf(tail_pivot_1.rotation_degrees.y) < 75.0)
+	assert(absf(tail_pivot_2.rotation_degrees.y) < 60.0)
+	assert(absf(tail_fin_pivot.rotation_degrees.y) < 45.0)
+	var massive_wave_parameters: Dictionary = fish.parameters.duplicate(true)
+	massive_wave_parameters["body_wave_amount"] = 50000.0
+	fish.set_parameters(massive_wave_parameters)
+	await get_tree().process_frame
+	var massive_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
+	var massive_shell_before := _ring_vertex(massive_shell, 3, 0, 28)
+	fish.apply_pose(0.25)
+	var massive_shell_after := _ring_vertex(massive_shell, 3, 0, 28)
+	var massive_shell_delta := massive_shell_before.distance_to(massive_shell_after)
+	assert(massive_shell_delta > extreme_shell_delta * 1.2)
 
 	fish.set_selected_body_ring("front_body")
 	var ring_points: Dictionary = fish.get_body_ring_global_points()

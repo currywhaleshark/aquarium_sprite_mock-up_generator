@@ -13,7 +13,13 @@ const SWIM_MODE_PRESETS := {
 		"fin_flap_amount": 3.0,
 		"fin_yaw_follow_strength": 0.15,
 		"median_fin_flap_amount": 1.0,
-		"median_fin_flap_phase": 0.50
+		"median_fin_flap_phase": 0.50,
+		"turn_tail_lag": 0.90,
+		"inside_pectoral_fold": 0.30,
+		"outside_pectoral_brace": 0.20,
+		"turn_curve_bias": 0.80,
+		"turn_median_fin_bias": 0.20,
+		"turn_bank_roll": 5.0
 	},
 	"general": {
 		"body_wave_amount": 0.35,
@@ -24,7 +30,13 @@ const SWIM_MODE_PRESETS := {
 		"fin_flap_amount": 6.0,
 		"fin_yaw_follow_strength": 0.25,
 		"median_fin_flap_amount": 1.5,
-		"median_fin_flap_phase": 0.50
+		"median_fin_flap_phase": 0.50,
+		"turn_tail_lag": 0.75,
+		"inside_pectoral_fold": 0.80,
+		"outside_pectoral_brace": 0.50,
+		"turn_curve_bias": 0.50,
+		"turn_median_fin_bias": 0.50,
+		"turn_bank_roll": 10.0
 	},
 	"mackerel": {
 		"body_wave_amount": 0.26,
@@ -35,7 +47,13 @@ const SWIM_MODE_PRESETS := {
 		"fin_flap_amount": 4.5,
 		"fin_yaw_follow_strength": 0.20,
 		"median_fin_flap_amount": 1.0,
-		"median_fin_flap_phase": 0.50
+		"median_fin_flap_phase": 0.50,
+		"turn_tail_lag": 0.60,
+		"inside_pectoral_fold": 0.70,
+		"outside_pectoral_brace": 0.80,
+		"turn_curve_bias": 0.40,
+		"turn_median_fin_bias": 0.40,
+		"turn_bank_roll": 15.0
 	},
 	"tuna": {
 		"body_wave_amount": 0.12,
@@ -46,7 +64,13 @@ const SWIM_MODE_PRESETS := {
 		"fin_flap_amount": 2.5,
 		"fin_yaw_follow_strength": 0.12,
 		"median_fin_flap_amount": 0.6,
-		"median_fin_flap_phase": 0.50
+		"median_fin_flap_phase": 0.50,
+		"turn_tail_lag": 0.60,
+		"inside_pectoral_fold": 0.70,
+		"outside_pectoral_brace": 0.80,
+		"turn_curve_bias": 0.40,
+		"turn_median_fin_bias": 0.40,
+		"turn_bank_roll": 15.0
 	},
 	"puffer": {
 		"body_wave_amount": 0.08,
@@ -57,7 +81,13 @@ const SWIM_MODE_PRESETS := {
 		"fin_flap_amount": 12.0,
 		"fin_yaw_follow_strength": 0.10,
 		"median_fin_flap_amount": 8.0,
-		"median_fin_flap_phase": 0.25
+		"median_fin_flap_phase": 0.25,
+		"turn_tail_lag": 0.30,
+		"inside_pectoral_fold": 0.90,
+		"outside_pectoral_brace": 0.70,
+		"turn_curve_bias": 0.10,
+		"turn_median_fin_bias": 0.85,
+		"turn_bank_roll": 2.0
 	},
 	"boxfish": {
 		"body_wave_amount": 0.03,
@@ -68,7 +98,13 @@ const SWIM_MODE_PRESETS := {
 		"fin_flap_amount": 8.0,
 		"fin_yaw_follow_strength": 0.08,
 		"median_fin_flap_amount": 5.0,
-		"median_fin_flap_phase": 0.25
+		"median_fin_flap_phase": 0.25,
+		"turn_tail_lag": 0.30,
+		"inside_pectoral_fold": 0.90,
+		"outside_pectoral_brace": 0.70,
+		"turn_curve_bias": 0.10,
+		"turn_median_fin_bias": 0.85,
+		"turn_bank_roll": 2.0
 	}
 }
 const MOTION_MODE_KEYS := [
@@ -80,7 +116,13 @@ const MOTION_MODE_KEYS := [
 	"fin_flap_amount",
 	"fin_yaw_follow_strength",
 	"median_fin_flap_amount",
-	"median_fin_flap_phase"
+	"median_fin_flap_phase",
+	"turn_tail_lag",
+	"inside_pectoral_fold",
+	"outside_pectoral_brace",
+	"turn_curve_bias",
+	"turn_median_fin_bias",
+	"turn_bank_roll"
 ]
 const UNUSED_PARAMETER_KEYS := [
 	"overall_scale",
@@ -95,8 +137,39 @@ const UNUSED_PARAMETER_KEYS := [
 	"rim_light_strength"
 ]
 
+const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated"]
+const VISUAL_PATTERN_DEFAULTS := {
+	"pattern_type": "none",
+	"pattern_color": "#1f5560",
+	"pattern_scale_x": 6.0,
+	"pattern_scale_y": 4.0,
+	"pattern_intensity": 0.7,
+	"belly_height": 0.5,
+	"belly_slope": 0.22,
+	"iridescence_strength": 0.0,
+	"iridescence_color": "#bfe9ff",
+	"iridescence_frequency": 2.0,
+	"wetness": 0.0
+}
+
 static func swim_mode_names() -> Array[String]:
 	return ["eel", "general", "mackerel", "tuna", "puffer", "boxfish"]
+
+static func pattern_type_names() -> Array[String]:
+	var names: Array[String] = []
+	for name in PATTERN_TYPE_NAMES:
+		names.append(String(name))
+	return names
+
+static func pattern_type_index(pattern_type: String) -> int:
+	return maxi(PATTERN_TYPE_NAMES.find(pattern_type), 0)
+
+# Injects defaults for the back/belly gradient and procedural pattern controls so
+# every preset (including ones saved before this feature) exposes them in the UI.
+static func ensure_visual_parameters(parameters: Dictionary) -> void:
+	for key in VISUAL_PATTERN_DEFAULTS.keys():
+		if not parameters.has(key):
+			parameters[key] = VISUAL_PATTERN_DEFAULTS[key]
 
 static func valid_swim_mode(swim_mode: String) -> String:
 	if SWIM_MODE_PRESETS.has(swim_mode):
@@ -212,6 +285,7 @@ static func make_parameters_from_structured_preset(preset: Dictionary) -> Dictio
 		parameters["body_profile"] = preset["body_profile"]
 	parameters["creature_type"] = String(preset.get("type", preset.get("creature_type", "fish")))
 	normalize_motion_parameters(parameters)
+	ensure_visual_parameters(parameters)
 	return parameters
 
 static func split_parameters_into_profiles(parameters: Dictionary, preset: Dictionary) -> Dictionary:
@@ -240,11 +314,16 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"body_wave_amount", "body_wave_start", "body_wave_falloff",
 		"tail_fin_extra_swing", "fin_flap_amount",
 		"fin_yaw_follow_strength", "median_fin_flap_amount", "median_fin_flap_phase",
-		"idle_bob_amount"
+		"idle_bob_amount", "turn_tail_lag", "inside_pectoral_fold",
+		"outside_pectoral_brace", "turn_curve_bias", "turn_median_fin_bias", "turn_bank_roll"
 	])
 	updated["visual_profile"] = _pick(parameters, [
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
-		"highlight_strength", "shadow_strength"
+		"highlight_strength", "shadow_strength",
+		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
+		"pattern_intensity", "belly_height", "belly_slope",
+		"iridescence_strength", "iridescence_color", "iridescence_frequency",
+		"wetness"
 	])
 	updated["parameters"] = normalized_parameters
 	return updated
