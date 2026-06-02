@@ -33,7 +33,9 @@ const NUMERIC_KEYS := {
 	"dorsal_1": {
 		"dorsal_1_length": {"min": 0.08, "max": 1.2, "step": 0.005, "fallback": 0.42},
 		"dorsal_1_height": {"min": 0.04, "max": 0.8, "step": 0.005, "fallback_key": "dorsal_fin_size", "fallback": 0.28},
-		"dorsal_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0}
+		"dorsal_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0},
+		"fin_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0},
+		"fin_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0}
 	},
 	"dorsal_2": {
 		"dorsal_2_length": {"min": 0.08, "max": 1.2, "step": 0.005, "fallback": 0.34},
@@ -54,7 +56,10 @@ const NUMERIC_KEYS := {
 	},
 	"caudal": {
 		"tail_fin_size": {"min": 0.08, "max": 1.2, "step": 0.005, "fallback": 0.46},
-		"caudal_height_scale": {"min": 0.2, "max": 1.8, "step": 0.005, "fallback": 0.72}
+		"caudal_height_scale": {"min": 0.2, "max": 1.8, "step": 0.005, "fallback": 0.72},
+		"caudal_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
+		"fin_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0},
+		"fin_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0}
 	}
 }
 

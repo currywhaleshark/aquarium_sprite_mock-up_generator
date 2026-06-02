@@ -247,7 +247,10 @@ static func fin_shape(name: String, shape: String, length: float, height: float,
 	return polygon_fin(name, points, material)
 
 static func caudal_fin_shape(name: String, shape: String, length: float, height: float, material: Material) -> MeshInstance3D:
-	return polygon_fin(name, _caudal_shape_points(shape, length, height), material)
+	return polygon_fin(name, caudal_fin_points(shape, length, height), material)
+
+static func caudal_fin_points(shape: String, length: float, height: float) -> PackedVector3Array:
+	return _caudal_shape_points(shape, length, height)
 
 static func polygon_fin(name: String, points: PackedVector3Array, material: Material) -> MeshInstance3D:
 	var node := MeshInstance3D.new()

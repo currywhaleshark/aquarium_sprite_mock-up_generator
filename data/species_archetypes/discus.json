@@ -31,7 +31,10 @@
 			"mouth_type": "terminal",
 			"fin_opacity": 0.72,
 			"fin_ray_count": 12,
-			"fin_ray_strength": 0.2
+			"fin_ray_strength": 0.2,
+			"fin_softness": 0.34,
+			"caudal_softness": 0.32,
+			"fin_rigidity": 0.2
 		},
 		"visual_profile": {
 			"base_color": "#06b6d4",

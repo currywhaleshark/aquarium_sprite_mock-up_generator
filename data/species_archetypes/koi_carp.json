@@ -33,7 +33,10 @@
 			"gill_mark": "line",
 			"fin_opacity": 0.82,
 			"fin_ray_count": 10,
-			"fin_ray_strength": 0.22
+			"fin_ray_strength": 0.22,
+			"fin_softness": 0.24,
+			"caudal_softness": 0.3,
+			"fin_rigidity": 0.3
 		},
 		"visual_profile": {
 			"base_color": "#fff7ed",

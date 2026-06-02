@@ -31,7 +31,10 @@
 			"pectoral_fin_size": 0.1,
 			"eye_style": "tiny_puffer",
 			"mouth_detail": "beak",
-			"mouth_type": "terminal"
+			"mouth_type": "terminal",
+			"fin_softness": 0.28,
+			"caudal_softness": 0.22,
+			"fin_rigidity": 0.35
 		},
 		"visual_profile": {
 			"base_color": "#d9f99d",

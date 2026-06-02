@@ -106,6 +106,35 @@ func _ready() -> void:
 	fish.apply_pose(0.5)
 	assert(absf(high_wave_tail.rotation_degrees.y) < 12.0)
 
+	var rigid_tail_parameters: Dictionary = fish.parameters.duplicate(true)
+	rigid_tail_parameters["caudal_shape"] = "halfmoon"
+	rigid_tail_parameters["tail_fin_size"] = 0.86
+	rigid_tail_parameters["caudal_height_scale"] = 1.2
+	rigid_tail_parameters["global_sway_amount"] = 18.0
+	rigid_tail_parameters["tail_sway_multiplier"] = 1.2
+	rigid_tail_parameters["tail_fin_extra_swing"] = 0.55
+	rigid_tail_parameters["fin_softness"] = 0.0
+	rigid_tail_parameters["caudal_softness"] = 0.0
+	rigid_tail_parameters["fin_rigidity"] = 1.0
+	fish.set_parameters(rigid_tail_parameters)
+	await get_tree().process_frame
+	var rigid_caudal := fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot/TailFin") as MeshInstance3D
+	fish.apply_pose(0.25)
+	var rigid_tail_z := _mesh_max_abs_z(rigid_caudal)
+	assert(rigid_tail_z < 0.001)
+
+	var soft_tail_parameters: Dictionary = rigid_tail_parameters.duplicate(true)
+	soft_tail_parameters["fin_softness"] = 0.85
+	soft_tail_parameters["caudal_softness"] = 1.0
+	soft_tail_parameters["fin_rigidity"] = 0.0
+	fish.set_parameters(soft_tail_parameters)
+	await get_tree().process_frame
+	var soft_caudal := fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot/TailFin") as MeshInstance3D
+	fish.apply_pose(0.25)
+	var soft_tail_z := _mesh_max_abs_z(soft_caudal)
+	assert(soft_tail_z > rigid_tail_z + 0.025)
+	assert(soft_tail_z < 0.28)
+
 	var eel_fin_parameters: Dictionary = fish.parameters.duplicate(true)
 	eel_fin_parameters["body_wave_amount"] = 50000.0
 	fish.set_parameters(eel_fin_parameters)

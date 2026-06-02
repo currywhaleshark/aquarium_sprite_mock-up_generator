@@ -33,7 +33,10 @@
 			"barbel_style": "cory",
 			"gill_mark": "plate",
 			"head_shape": "flattened",
-			"head_flattening": 0.35
+			"head_flattening": 0.35,
+			"fin_softness": 0.12,
+			"caudal_softness": 0.14,
+			"fin_rigidity": 0.55
 		},
 		"visual_profile": {
 			"base_color": "#a3a08a",

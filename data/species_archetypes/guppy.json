@@ -31,7 +31,10 @@
 			"fin_edge_color": "#facc15",
 			"fin_tip_color": "#38bdf8",
 			"fin_ray_count": 9,
-			"fin_ray_strength": 0.24
+			"fin_ray_strength": 0.24,
+			"fin_softness": 0.58,
+			"caudal_softness": 0.74,
+			"fin_rigidity": 0.05
 		},
 		"visual_profile": {
 			"base_color": "#b5e48c",

@@ -78,12 +78,15 @@ func _check_signature_nodes(id: String, fish: FishRig, applied: Dictionary) -> v
 		"betta":
 			assert(String(applied.get("caudal_shape", "")) == "halfmoon")
 			assert(float(applied.get("fin_ray_strength", 0.0)) > 0.4)
+			assert(float(applied.get("caudal_softness", 0.0)) > 0.8)
 		"goldfish_oranda":
 			assert(fish.get_node_or_null("BodyPivot/Head/HeadOrnament_wen") != null)
 			assert(String(applied.get("caudal_shape", "")) == "double_fan")
+			assert(float(applied.get("caudal_softness", 0.0)) > 0.55)
 		"corydoras":
 			assert(fish.get_node_or_null("BodyPivot/Head/BarbelCluster_cory") != null)
 			assert(String(applied.get("mouth_type", "")) == "inferior")
+			assert(float(applied.get("fin_rigidity", 0.0)) > 0.4)
 		"puffer":
 			assert(String(applied.get("body_profile_shape", "")) == "round_puffer")
 			assert(String(applied.get("eye_style", "")) == "tiny_puffer")

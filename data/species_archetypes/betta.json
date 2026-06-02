@@ -37,6 +37,9 @@
 			"fin_edge_width": 0.075,
 			"fin_ray_count": 14,
 			"fin_ray_strength": 0.55,
+			"fin_softness": 0.82,
+			"caudal_softness": 0.95,
+			"fin_rigidity": 0.0,
 			"fin_tip_color": "#f472b6",
 			"mouth_type": "terminal"
 		},

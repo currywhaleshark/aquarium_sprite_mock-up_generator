@@ -20,13 +20,17 @@ func _ready() -> void:
 	panel.set_slot_shape("caudal", "thresher")
 	panel.set("selected_slot", "caudal")
 	panel.set_numeric_parameter("tail_fin_size", 0.62)
+	panel.set_numeric_parameter("caudal_softness", 0.78)
 	panel.set("selected_slot", "dorsal_1")
+	panel.set_numeric_parameter("fin_softness", 0.46)
 	panel.set_numeric_parameter("dorsal_1_height", 0.33)
 
 	assert(float(seen_parameters[0].get("dorsal_2_enabled", 0.0)) == 1.0)
 	assert(abs(float(seen_parameters[0].get("dorsal_2_attach_t", 0.0)) - 0.78) < 0.001)
 	assert(String(seen_parameters[0].get("caudal_shape", "")) == "thresher")
 	assert(abs(float(seen_parameters[0].get("tail_fin_size", 0.0)) - 0.62) < 0.001)
+	assert(abs(float(seen_parameters[0].get("caudal_softness", 0.0)) - 0.78) < 0.001)
+	assert(abs(float(seen_parameters[0].get("fin_softness", 0.0)) - 0.46) < 0.001)
 	assert(abs(float(seen_parameters[0].get("dorsal_1_height", 0.0)) - 0.33) < 0.001)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))

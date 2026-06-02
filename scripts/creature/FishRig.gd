@@ -13,6 +13,8 @@ var body_pivot: Node3D
 var tail_pivot_1: Node3D
 var tail_pivot_2: Node3D
 var tail_fin_pivot: Node3D
+var tail_fin: MeshInstance3D
+var tail_fin_base_points := PackedVector3Array()
 var outer_shell: MeshInstance3D
 var shell_profile: Array[Vector3] = []
 var shell_center_y_offsets: Array[float] = []
@@ -64,6 +66,8 @@ func rebuild() -> void:
 	pelvic_r = null
 	pectoral_l = null
 	pectoral_r = null
+	tail_fin = null
+	tail_fin_base_points = PackedVector3Array()
 	head_node = null
 	eye_l = null
 	eye_r = null
@@ -239,7 +243,8 @@ func rebuild() -> void:
 	tail_fin_pivot.position = Vector3.ZERO
 	tail_pivot_2.add_child(tail_fin_pivot)
 
-	var tail_fin := PF.caudal_fin_shape("TailFin", String(parameters.get("caudal_shape", "forked_shallow")), tail_fin_size, tail_fin_size * param_float("caudal_height_scale", 0.72), fin_mat)
+	tail_fin_base_points = PF.caudal_fin_points(String(parameters.get("caudal_shape", "forked_shallow")), tail_fin_size, tail_fin_size * param_float("caudal_height_scale", 0.72))
+	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, fin_mat)
 	tail_fin_pivot.add_child(tail_fin)
 	_update_body_ring_world_points()
 	if ring_editor_enabled or param_float("show_ring_guides", 0.0) > 0.5:
@@ -468,7 +473,9 @@ func apply_pose(loop_phase: float) -> void:
 	if tail_pivot_2:
 		tail_pivot_2.rotation_degrees.y = sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 1.8) * global_sway * tail_multiplier * tail_stem_weight
 	if tail_fin_pivot:
-		tail_fin_pivot.rotation_degrees.y = sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4) * global_sway * tail_multiplier * tail_stem_weight * 1.25
+		var direct_tail_yaw := sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4) * global_sway * tail_multiplier * tail_stem_weight * 1.25
+		tail_fin_pivot.rotation_degrees.y = direct_tail_yaw
+		_animate_caudal_fin(loop_phase, direct_tail_yaw)
 	if pectoral_l:
 		pectoral_l.rotation_degrees = pectoral_l_base_rotation
 	if pectoral_r:
@@ -716,6 +723,40 @@ func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var tail_fin_yaw := sin(loop_phase * TAU - phase_delay * 2.4) * global_sway * tail_multiplier * tail_stem_weight * tail_extra_swing
 	tail_fin_pivot.position = Vector3.ZERO
 	tail_fin_pivot.rotation_degrees = Vector3(0.0, _soft_limit_yaw(tail_fin_yaw, tail_fin_yaw_limit), 0.0)
+	_animate_caudal_fin(loop_phase, tail_fin_yaw)
+
+func _animate_caudal_fin(loop_phase: float, tail_fin_yaw: float) -> void:
+	if tail_fin == null or tail_fin_base_points.is_empty():
+		return
+	var softness := _effective_caudal_softness()
+	if softness <= 0.001:
+		tail_fin.mesh = PF.build_polygon_fin_mesh(tail_fin_base_points)
+		return
+	var min_x := INF
+	var max_x := -INF
+	var max_abs_y := 0.001
+	for point in tail_fin_base_points:
+		min_x = minf(min_x, point.x)
+		max_x = maxf(max_x, point.x)
+		max_abs_y = maxf(max_abs_y, absf(point.y))
+	var x_span := maxf(max_x - min_x, 0.001)
+	var phase_delay := param_float("phase_delay", 0.65)
+	var tail_size := maxf(param_float("tail_fin_size", 0.46), 0.001)
+	var yaw_bias := clampf(tail_fin_yaw / maxf(param_float("tail_fin_yaw_limit", 42.0), 1.0), -1.0, 1.0)
+	var deformed := PackedVector3Array()
+	for point in tail_fin_base_points:
+		var tip_t := clampf((point.x - min_x) / x_span, 0.0, 1.0)
+		var membrane_weight := 0.45 + 0.55 * clampf(absf(point.y) / max_abs_y, 0.0, 1.0)
+		var lagged_wave := sin(loop_phase * TAU - phase_delay + tip_t * softness * 1.35)
+		var z := (lagged_wave * 0.16 + yaw_bias * 0.08) * tail_size * softness * pow(tip_t, 1.25) * membrane_weight
+		deformed.append(Vector3(point.x, point.y, z))
+	tail_fin.mesh = PF.build_polygon_fin_mesh(deformed)
+
+func _effective_caudal_softness() -> float:
+	var base_softness := clampf(param_float("fin_softness", 0.0), 0.0, 1.0)
+	var caudal_softness := clampf(float(parameters.get("caudal_softness", base_softness)), 0.0, 1.0)
+	var rigidity := clampf(param_float("fin_rigidity", 0.0), 0.0, 1.0)
+	return caudal_softness * (1.0 - rigidity)
 
 func _fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
 	return _sample_animated_shell_yaw(attach_t, yaws) * param_float("fin_yaw_follow_strength", 0.25)

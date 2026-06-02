@@ -333,7 +333,8 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"head_ornament", "gill_mark", "barbel_style", "eye_style", "mouth_detail",
 		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",
 		"fin_ray_strength", "fin_tip_color", "fin_gradient_color",
-		"fin_translucency", "fin_translucency_strength", "fin_tornness", "fin_trailing_threads"
+		"fin_translucency", "fin_translucency_strength", "fin_tornness", "fin_trailing_threads",
+		"fin_softness", "caudal_softness", "fin_rigidity"
 	])
 	updated["motion_profile"] = _pick(normalized_parameters, [
 		"swim_mode", "swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",

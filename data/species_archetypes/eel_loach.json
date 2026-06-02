@@ -32,7 +32,10 @@
 			"pelvic_enabled": 0.0,
 			"mouth_type": "inferior",
 			"mouth_detail": "downturned",
-			"barbel_style": "loach"
+			"barbel_style": "loach",
+			"fin_softness": 0.12,
+			"caudal_softness": 0.18,
+			"fin_rigidity": 0.35
 		},
 		"visual_profile": {
 			"base_color": "#f5d0a9",

@@ -32,7 +32,10 @@
 			"pectoral_fin_size": 0.08,
 			"pelvic_enabled": 0.0,
 			"mouth_type": "terminal",
-			"snout_length": 0.02
+			"snout_length": 0.02,
+			"fin_softness": 0.18,
+			"caudal_softness": 0.2,
+			"fin_rigidity": 0.45
 		},
 		"visual_profile": {
 			"base_color": "#7d8f8f",

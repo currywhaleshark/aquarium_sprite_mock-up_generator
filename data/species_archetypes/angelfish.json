@@ -35,7 +35,10 @@
 			"pelvic_height": 0.08,
 			"mouth_type": "terminal",
 			"forehead_slope": 0.58,
-			"head_shape": "steep_forehead"
+			"head_shape": "steep_forehead",
+			"fin_softness": 0.46,
+			"caudal_softness": 0.35,
+			"fin_rigidity": 0.15
 		},
 		"visual_profile": {
 			"base_color": "#d8d0b8",
