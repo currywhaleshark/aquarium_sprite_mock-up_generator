@@ -13,6 +13,7 @@ const BodyEditorPanelScript := preload("res://scripts/ui/BodyEditorPanel.gd")
 const ReferenceImagePanelScript := preload("res://scripts/ui/ReferenceImagePanel.gd")
 const SpriteExporterScript := preload("res://scripts/export/SpriteExporter.gd")
 const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
+const SpeciesArchetypeStoreScript := preload("res://scripts/species/SpeciesArchetypeStore.gd")
 const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const UiText := preload("res://scripts/ui/UiText.gd")
@@ -34,8 +35,14 @@ var preview_bg: ColorRect
 var world_root: Node3D
 var current_rig: CreatureRig
 var presets: Array[Dictionary] = []
+var species_archetypes: Array[Dictionary] = []
 var current_preset: Dictionary = {}
 var preset_option: OptionButton
+var archetype_option: OptionButton
+var archetype_strength_slider: HSlider
+var archetype_read_label: Label
+var apply_archetype_button: Button
+var new_variant_button: Button
 var side_tabs: TabContainer
 var preset_name_edit: LineEdit
 var save_preset_button: Button
@@ -198,6 +205,8 @@ func _build_ui() -> void:
 	save_preset_button.text = "현재 설정 저장"
 	save_preset_button.pressed.connect(_save_current_preset)
 	preset_save_row.add_child(save_preset_button)
+
+	_build_archetype_section(side)
 
 	creature_type_label = Label.new()
 	creature_type_label.text = "타입: 물고기"
@@ -389,6 +398,55 @@ func _make_tab_page(tab_title: String) -> VBoxContainer:
 	side_tabs.add_child(content)
 	return content
 
+func _build_archetype_section(parent: VBoxContainer) -> void:
+	var title := Label.new()
+	title.text = "종 아키타입"
+	title.add_theme_font_size_override("font_size", 15)
+	parent.add_child(title)
+
+	var archetype_row := HBoxContainer.new()
+	archetype_row.add_theme_constant_override("separation", 6)
+	parent.add_child(archetype_row)
+
+	archetype_option = OptionButton.new()
+	archetype_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	archetype_option.item_selected.connect(_on_archetype_selected)
+	archetype_row.add_child(archetype_option)
+
+	apply_archetype_button = Button.new()
+	apply_archetype_button.text = "적용"
+	apply_archetype_button.pressed.connect(_apply_selected_archetype)
+	archetype_row.add_child(apply_archetype_button)
+
+	var strength_row := HBoxContainer.new()
+	strength_row.add_theme_constant_override("separation", 6)
+	parent.add_child(strength_row)
+
+	var strength_label := Label.new()
+	strength_label.text = "강도"
+	strength_label.custom_minimum_size = Vector2(44, 0)
+	strength_row.add_child(strength_label)
+
+	archetype_strength_slider = HSlider.new()
+	archetype_strength_slider.min_value = 0.0
+	archetype_strength_slider.max_value = 1.0
+	archetype_strength_slider.step = 0.05
+	archetype_strength_slider.value = 1.0
+	archetype_strength_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	strength_row.add_child(archetype_strength_slider)
+
+	new_variant_button = Button.new()
+	new_variant_button.text = "새 변형"
+	new_variant_button.pressed.connect(_apply_new_archetype_variant)
+	strength_row.add_child(new_variant_button)
+
+	archetype_read_label = Label.new()
+	archetype_read_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	archetype_read_label.add_theme_font_size_override("font_size", 11)
+	parent.add_child(archetype_read_label)
+
+	_load_species_archetype_options()
+
 func _build_preview_world() -> void:
 	world_root = Node3D.new()
 	world_root.name = "WorldRoot"
@@ -432,6 +490,114 @@ func _build_preview_world() -> void:
 	camera_controller.call("bind_input_control", viewport_container)
 	_apply_camera()
 
+func _load_species_archetype_options() -> void:
+	if archetype_option == null:
+		return
+	species_archetypes = SpeciesArchetypeStoreScript.load_all()
+	archetype_option.clear()
+	archetype_option.add_item("Generic Fish")
+	archetype_option.set_item_metadata(0, "")
+	for archetype in species_archetypes:
+		var label := String(archetype.get("label", archetype.get("id", "")))
+		archetype_option.add_item(label)
+		archetype_option.set_item_metadata(archetype_option.item_count - 1, String(archetype.get("id", "")))
+	_update_archetype_read_label()
+
+func _on_archetype_selected(_index: int) -> void:
+	_update_archetype_read_label()
+
+func _update_archetype_read_label() -> void:
+	if archetype_read_label == null or archetype_option == null:
+		return
+	var archetype := _selected_archetype()
+	if archetype.is_empty():
+		archetype_read_label.text = "수동 프리셋"
+		return
+	var priorities: Array = archetype.get("readability_priority", [])
+	archetype_read_label.text = ", ".join(priorities)
+
+func _selected_archetype() -> Dictionary:
+	if archetype_option == null or archetype_option.selected < 0:
+		return {}
+	var selected_id := String(archetype_option.get_item_metadata(archetype_option.selected))
+	if selected_id == "":
+		return {}
+	for archetype in species_archetypes:
+		if String(archetype.get("id", "")) == selected_id:
+			return archetype
+	return SpeciesArchetypeStoreScript.load_archetype(selected_id)
+
+func _sync_archetype_controls(parameters: Dictionary) -> void:
+	if archetype_option == null:
+		return
+	var archetype_id := String(parameters.get("archetype_id", ""))
+	var selected_index := 0
+	if archetype_id != "":
+		for i in archetype_option.item_count:
+			if String(archetype_option.get_item_metadata(i)) == archetype_id:
+				selected_index = i
+				break
+	archetype_option.select(selected_index)
+	if archetype_strength_slider:
+		archetype_strength_slider.value = clampf(float(parameters.get("archetype_strength", 1.0)), 0.0, 1.0)
+	_update_archetype_read_label()
+
+func _apply_selected_archetype() -> void:
+	var archetype := _selected_archetype()
+	if archetype.is_empty() or current_preset.is_empty():
+		return
+	var parameters: Dictionary = current_preset.get("parameters", {}).duplicate(true)
+	var current_id := String(parameters.get("archetype_id", ""))
+	var selected_id := String(archetype.get("id", ""))
+	var seed := int(parameters.get("variant_seed", _make_variant_seed(-1)))
+	if current_id != selected_id:
+		seed = _make_variant_seed(seed)
+	var strength := 1.0
+	if archetype_strength_slider:
+		strength = float(archetype_strength_slider.value)
+	var applied := SpeciesArchetypeStoreScript.apply_archetype(parameters, archetype, strength, seed)
+	_apply_archetype_parameters(applied)
+	if export_panel:
+		export_panel.set_status("%s 아키타입 적용" % String(archetype.get("label", selected_id)))
+
+func _apply_new_archetype_variant() -> void:
+	var archetype := _selected_archetype()
+	if archetype.is_empty() and not current_preset.is_empty():
+		var parameters: Dictionary = current_preset.get("parameters", {})
+		var archetype_id := String(parameters.get("archetype_id", ""))
+		if archetype_id != "":
+			archetype = SpeciesArchetypeStoreScript.load_archetype(archetype_id)
+	if archetype.is_empty() or current_preset.is_empty():
+		return
+	var parameters: Dictionary = current_preset.get("parameters", {}).duplicate(true)
+	var previous_seed := int(parameters.get("variant_seed", -1))
+	var strength := 1.0
+	if archetype_strength_slider:
+		strength = float(archetype_strength_slider.value)
+	var applied := SpeciesArchetypeStoreScript.apply_archetype(parameters, archetype, strength, _make_variant_seed(previous_seed))
+	_apply_archetype_parameters(applied)
+	if export_panel:
+		export_panel.set_status("%s 새 변형 적용" % String(archetype.get("label", archetype.get("id", ""))))
+
+func _make_variant_seed(previous_seed: int) -> int:
+	var seed := int(Time.get_ticks_usec() & 0x7fffffff)
+	if seed == previous_seed:
+		seed = int((seed + 1) & 0x7fffffff)
+	return seed
+
+func _apply_archetype_parameters(parameters: Dictionary) -> void:
+	current_preset["creature_type"] = "fish"
+	current_preset["type"] = "fish"
+	if (current_rig as FishRig) == null:
+		if current_rig:
+			current_rig.queue_free()
+		current_rig = FishRigScript.new()
+		current_rig.name = "ActiveRig"
+		world_root.add_child(current_rig)
+		_bind_fin_editor_for_current_rig()
+	_apply_parameters_from_editor(parameters)
+	_sync_archetype_controls(parameters)
+
 func _load_preset(index: int) -> void:
 	if index < 0 or index >= presets.size():
 		return
@@ -459,6 +625,7 @@ func _load_preset(index: int) -> void:
 		head_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
 	if body_editor_panel:
 		body_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
+	_sync_archetype_controls(current_preset.get("parameters", {}))
 	if preset_name_edit:
 		preset_name_edit.text = String(current_preset.get("name", "unnamed"))
 	if reference_image_panel:

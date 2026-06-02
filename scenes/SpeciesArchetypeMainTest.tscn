@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://d2y2v04owm1bl"]
+
+[ext_resource type="Script" path="res://scripts/tools/SpeciesArchetypeMainTest.gd" id="1_species_archetype_main"]
+
+[node name="SpeciesArchetypeMainTest" type="Node"]
+script = ExtResource("1_species_archetype_main")
