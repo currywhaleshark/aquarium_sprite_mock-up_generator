@@ -54,6 +54,7 @@ func _ready() -> void:
 	assert(int(export_settings.get("direction_count", 0)) == 8)
 	assert(int(export_settings.get("frame_count", 0)) == 4)
 	assert(SpeciesArchetypeQAExporterScript.contact_sheet_path("koi_carp") == "res://exports/_qa/species_archetypes/koi_carp_contact.png")
+	_test_contact_sheet_builder()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/species_archetype_visual_smoke.ok", FileAccess.WRITE)
@@ -88,3 +89,25 @@ func _check_signature_nodes(id: String, fish: FishRig, applied: Dictionary) -> v
 		"koi_carp":
 			assert(fish.get_node_or_null("BodyPivot/Head/BarbelCluster_koi") != null)
 			assert(String(applied.get("mouth_detail", "")) == "lip")
+
+func _test_contact_sheet_builder() -> void:
+	var output_dir := ProjectSettings.globalize_path("res://exports/test_results/species_contact_source")
+	DirAccess.make_dir_recursive_absolute(output_dir)
+	var frame_rows := []
+	for direction_index in range(8):
+		var row := PackedStringArray()
+		for frame_index in range(4):
+			var path := output_dir.path_join("d%d_f%d.png" % [direction_index, frame_index])
+			var image := Image.create(128, 96, false, Image.FORMAT_RGBA8)
+			image.fill(Color(float(direction_index) / 8.0, float(frame_index) / 4.0, 0.35, 0.82))
+			assert(image.save_png(path) == OK)
+			row.append(path)
+		frame_rows.append(row)
+	var sheet_path := output_dir.path_join("contact.png")
+	assert(SpeciesArchetypeQAExporterScript.build_contact_sheet(frame_rows, sheet_path) == OK)
+	var sheet := Image.load_from_file(sheet_path)
+	assert(sheet != null)
+	assert(sheet.get_size() == Vector2i(512, 1280))
+	assert(sheet.get_pixel(63, 63).a > 0.7)
+	assert(sheet.get_pixel(127, 64).a > 0.7)
+	assert(sheet.get_pixel(511, 0).a == 0.0)
