@@ -3,6 +3,7 @@ extends Node
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const SpeciesArchetypeStoreScript := preload("res://scripts/species/SpeciesArchetypeStore.gd")
 const SpeciesArchetypeQAExporterScript := preload("res://scripts/tools/SpeciesArchetypeQAExporter.gd")
+const SpriteExporterScript := preload("res://scripts/export/SpriteExporter.gd")
 
 const REQUIRED_IDS := [
 	"neon_tetra",
@@ -42,6 +43,9 @@ func _ready() -> void:
 		await get_tree().process_frame
 		assert(fish.get_node_or_null("BodyPivot/OuterShell") != null, "No shell for %s" % id)
 		assert(fish.get_node_or_null("BodyPivot/Head") != null, "No head for %s" % id)
+		var framing: Dictionary = SpriteExporterScript.compute_fit_framing(fish, Vector2i(128, 128))
+		assert(float(framing.get("radius", 0.0)) > 0.01, "Invalid export radius for %s" % id)
+		assert(float(framing.get("ortho_size", 0.0)) > 0.01, "Invalid export ortho for %s" % id)
 		_check_signature_nodes(id, fish, applied)
 		fish.queue_free()
 
