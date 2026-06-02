@@ -1,0 +1,77 @@
+{
+	"id": "discus",
+	"label": "Discus",
+	"creature_type": "fish",
+	"readability_priority": ["round disc silhouette", "small fins", "subtle vertical bars"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 0.98,
+			"body_height": 0.9,
+			"body_width": 0.28,
+			"head_size": 0.36,
+			"head_offset": -0.36,
+			"eye_size": 0.052
+		},
+		"body_profile": {
+			"shape": "deep_compressed"
+		},
+		"tail_profile": {
+			"tail_length": 0.36,
+			"tail_fin_size": 0.32,
+			"caudal_shape": "rounded",
+			"caudal_height_scale": 0.75
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "long",
+			"dorsal_1_length": 0.54,
+			"dorsal_1_height": 0.18,
+			"anal_shape": "long",
+			"anal_length": 0.54,
+			"anal_height": 0.16,
+			"mouth_type": "terminal",
+			"fin_opacity": 0.72,
+			"fin_ray_count": 12,
+			"fin_ray_strength": 0.2
+		},
+		"visual_profile": {
+			"base_color": "#06b6d4",
+			"belly_color": "#cffafe",
+			"fin_color": "#67e8f9",
+			"outline_color": "#083344",
+			"pattern_color": "#155e75",
+			"iridescence_strength": 0.35,
+			"wetness": 0.22
+		},
+		"motion_profile": {
+			"swim_mode": "puffer",
+			"global_sway_amount": 4.5,
+			"tail_sway_multiplier": 0.6
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "vertical_bar",
+			"zone": "body",
+			"color": "#155e75",
+			"x_start": 0.18,
+			"x_end": 0.84,
+			"y": 0.0,
+			"thickness": 0.045,
+			"emissive": 0.0
+		},
+		{
+			"type": "scale_grid",
+			"zone": "body",
+			"color": "#a5f3fc",
+			"x_start": 0.08,
+			"x_end": 0.86,
+			"y": 0.0,
+			"thickness": 0.05,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"bar_strength_variation": 0.08,
+		"color_jitter": 0.1
+	}
+}

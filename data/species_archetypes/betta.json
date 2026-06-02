@@ -1,0 +1,74 @@
+{
+	"id": "betta",
+	"label": "Betta",
+	"creature_type": "fish",
+	"readability_priority": ["compact body", "oversized ornamental fins", "bright fin edge"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.12,
+			"body_height": 0.46,
+			"body_width": 0.28,
+			"head_size": 0.36,
+			"head_offset": -0.5,
+			"eye_size": 0.052
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.52,
+			"tail_fin_size": 0.82,
+			"caudal_shape": "halfmoon",
+			"caudal_height_scale": 1.25
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "trailing",
+			"dorsal_1_length": 0.52,
+			"dorsal_1_height": 0.24,
+			"anal_shape": "trailing",
+			"anal_length": 0.68,
+			"anal_height": 0.34,
+			"pelvic_enabled": 1.0,
+			"pelvic_shape": "long",
+			"pelvic_length": 0.5,
+			"pelvic_height": 0.07,
+			"fin_opacity": 0.72,
+			"fin_edge_color": "#4c1d95",
+			"fin_edge_width": 0.075,
+			"fin_ray_count": 14,
+			"fin_ray_strength": 0.55,
+			"fin_tip_color": "#f472b6",
+			"mouth_type": "terminal"
+		},
+		"visual_profile": {
+			"base_color": "#274690",
+			"belly_color": "#8ecae6",
+			"fin_color": "#ef5da8",
+			"outline_color": "#141226",
+			"iridescence_strength": 0.35,
+			"iridescence_color": "#7dd3fc",
+			"wetness": 0.32
+		},
+		"motion_profile": {
+			"swim_mode": "puffer",
+			"global_sway_amount": 6.0,
+			"tail_sway_multiplier": 0.75
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "fin_edge",
+			"zone": "fin",
+			"color": "#4c1d95",
+			"x_start": 0.0,
+			"x_end": 1.0,
+			"y": 0.0,
+			"thickness": 0.08,
+			"emissive": 0.1
+		}
+	],
+	"variant_controls": {
+		"fin_length_variation": 0.14,
+		"color_jitter": 0.12
+	}
+}

@@ -1,0 +1,77 @@
+{
+	"id": "guppy",
+	"label": "Guppy",
+	"creature_type": "fish",
+	"readability_priority": ["tiny body", "large colorful tail", "tail spots"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 0.95,
+			"body_height": 0.32,
+			"body_width": 0.22,
+			"head_size": 0.3,
+			"head_offset": -0.42,
+			"eye_size": 0.046
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.48,
+			"tail_fin_size": 0.62,
+			"caudal_shape": "fan",
+			"caudal_height_scale": 1.05
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "rounded",
+			"dorsal_1_length": 0.24,
+			"dorsal_1_height": 0.13,
+			"anal_shape": "single",
+			"anal_length": 0.18,
+			"fin_opacity": 0.8,
+			"fin_edge_color": "#facc15",
+			"fin_tip_color": "#38bdf8",
+			"fin_ray_count": 9,
+			"fin_ray_strength": 0.24
+		},
+		"visual_profile": {
+			"base_color": "#b5e48c",
+			"belly_color": "#f0fdf4",
+			"fin_color": "#38bdf8",
+			"outline_color": "#17351f",
+			"pattern_color": "#f97316",
+			"iridescence_strength": 0.28,
+			"iridescence_color": "#facc15"
+		},
+		"motion_profile": {
+			"swim_mode": "general",
+			"global_sway_amount": 9.0,
+			"tail_sway_multiplier": 1.25
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "fin_spots",
+			"zone": "fin",
+			"color": "#f97316",
+			"x_start": 0.66,
+			"x_end": 1.0,
+			"y": 0.0,
+			"thickness": 0.18,
+			"emissive": 0.1
+		},
+		{
+			"type": "caudal_spot",
+			"zone": "body",
+			"color": "#111827",
+			"x_start": 0.74,
+			"x_end": 0.94,
+			"y": 0.08,
+			"thickness": 0.08,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"tail_shape_variation": 0.2,
+		"color_jitter": 0.16
+	}
+}

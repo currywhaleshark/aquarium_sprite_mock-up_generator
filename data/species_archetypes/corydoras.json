@@ -1,0 +1,78 @@
+{
+	"id": "corydoras",
+	"label": "Corydoras",
+	"creature_type": "fish",
+	"readability_priority": ["bottom-flat body", "inferior mouth with barbels", "saddle armor marks"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.22,
+			"body_height": 0.42,
+			"body_width": 0.42,
+			"head_size": 0.42,
+			"head_offset": -0.52,
+			"eye_size": 0.046,
+			"eye_position_y": 0.17
+		},
+		"body_profile": {
+			"shape": "bottom_flat"
+		},
+		"tail_profile": {
+			"tail_length": 0.52,
+			"tail_fin_size": 0.36,
+			"caudal_shape": "truncate",
+			"caudal_height_scale": 0.78
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "spiny",
+			"dorsal_1_length": 0.32,
+			"dorsal_1_height": 0.22,
+			"anal_shape": "single",
+			"anal_length": 0.2,
+			"mouth_type": "inferior",
+			"mouth_detail": "sucker",
+			"barbel_style": "cory",
+			"gill_mark": "plate",
+			"head_shape": "flattened",
+			"head_flattening": 0.35
+		},
+		"visual_profile": {
+			"base_color": "#a3a08a",
+			"belly_color": "#e7e5d0",
+			"fin_color": "#d6d3b8",
+			"outline_color": "#242017",
+			"pattern_color": "#4a4538",
+			"wetness": 0.18
+		},
+		"motion_profile": {
+			"swim_mode": "general",
+			"global_sway_amount": 7.5,
+			"tail_sway_multiplier": 1.0
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "saddle",
+			"zone": "body",
+			"color": "#4a4538",
+			"x_start": 0.2,
+			"x_end": 0.72,
+			"y": 0.18,
+			"thickness": 0.18,
+			"emissive": 0.0
+		},
+		{
+			"type": "scale_grid",
+			"zone": "body",
+			"color": "#f5f5dc",
+			"x_start": 0.1,
+			"x_end": 0.9,
+			"y": -0.04,
+			"thickness": 0.035,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"saddle_variation": 0.08,
+		"body_width_variation": 0.08
+	}
+}

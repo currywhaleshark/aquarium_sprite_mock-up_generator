@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b3e1i0f4muat8"]
+
+[ext_resource type="Script" path="res://scripts/tools/SpeciesArchetypeVisualSmokeTest.gd" id="1_species_visual"]
+
+[node name="SpeciesArchetypeVisualSmokeTest" type="Node"]
+script = ExtResource("1_species_visual")

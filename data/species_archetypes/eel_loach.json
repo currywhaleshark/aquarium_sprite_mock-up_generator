@@ -1,0 +1,67 @@
+{
+	"id": "eel_loach",
+	"label": "Eel Loach",
+	"creature_type": "fish",
+	"readability_priority": ["long ribbon body", "reduced fins", "banded loach markings"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.9,
+			"body_height": 0.26,
+			"body_width": 0.18,
+			"head_size": 0.28,
+			"head_offset": -0.74,
+			"eye_size": 0.035
+		},
+		"body_profile": {
+			"shape": "eel_ribbon"
+		},
+		"tail_profile": {
+			"tail_length": 0.72,
+			"tail_fin_size": 0.22,
+			"caudal_shape": "pointed",
+			"caudal_height_scale": 0.45
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "long",
+			"dorsal_1_length": 0.22,
+			"dorsal_1_height": 0.06,
+			"anal_shape": "long",
+			"anal_length": 0.28,
+			"anal_height": 0.06,
+			"pectoral_fin_size": 0.06,
+			"pelvic_enabled": 0.0,
+			"mouth_type": "inferior",
+			"mouth_detail": "downturned",
+			"barbel_style": "loach"
+		},
+		"visual_profile": {
+			"base_color": "#f5d0a9",
+			"belly_color": "#fff7ed",
+			"fin_color": "#fed7aa",
+			"outline_color": "#2c1810",
+			"pattern_color": "#7c2d12",
+			"wetness": 0.24
+		},
+		"motion_profile": {
+			"swim_mode": "eel",
+			"global_sway_amount": 12.0,
+			"tail_sway_multiplier": 1.05
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "vertical_bar",
+			"zone": "body",
+			"color": "#7c2d12",
+			"x_start": 0.06,
+			"x_end": 0.9,
+			"y": 0.02,
+			"thickness": 0.07,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"band_count_variation": 1.0,
+		"body_length_variation": 0.08
+	}
+}

@@ -1,0 +1,81 @@
+{
+	"id": "goldfish_oranda",
+	"label": "Goldfish Oranda",
+	"creature_type": "fish",
+	"readability_priority": ["round fancy body", "double fan tail", "wen head growth"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.18,
+			"body_height": 0.72,
+			"body_width": 0.5,
+			"head_size": 0.5,
+			"head_offset": -0.48,
+			"eye_size": 0.055
+		},
+		"body_profile": {
+			"shape": "round_fancy"
+		},
+		"tail_profile": {
+			"tail_length": 0.44,
+			"tail_fin_size": 0.58,
+			"caudal_shape": "double_fan",
+			"caudal_height_scale": 1.1
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "rounded",
+			"dorsal_1_length": 0.34,
+			"dorsal_1_height": 0.18,
+			"anal_shape": "rounded",
+			"anal_length": 0.28,
+			"anal_height": 0.16,
+			"head_ornament": "wen",
+			"mouth_type": "terminal",
+			"mouth_detail": "lip",
+			"fin_opacity": 0.78,
+			"fin_edge_color": "#ffedd5",
+			"fin_ray_count": 10,
+			"fin_ray_strength": 0.28
+		},
+		"visual_profile": {
+			"base_color": "#f97316",
+			"belly_color": "#fff7ed",
+			"secondary_color": "#fb923c",
+			"fin_color": "#fed7aa",
+			"outline_color": "#3b1605",
+			"pattern_color": "#fff7ed",
+			"iridescence_strength": 0.18,
+			"wetness": 0.26
+		},
+		"motion_profile": {
+			"swim_mode": "puffer",
+			"global_sway_amount": 5.5,
+			"tail_sway_multiplier": 0.72
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "calico_patch",
+			"zone": "body",
+			"color": "#fff7ed",
+			"x_start": 0.16,
+			"x_end": 0.74,
+			"y": 0.18,
+			"thickness": 0.34,
+			"emissive": 0.0
+		},
+		{
+			"type": "head_mask",
+			"zone": "head",
+			"color": "#fb923c",
+			"x_start": 0.0,
+			"x_end": 0.25,
+			"y": 0.18,
+			"thickness": 0.22,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"body_depth_variation": 0.1,
+		"color_jitter": 0.08
+	}
+}

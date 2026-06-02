@@ -1,0 +1,89 @@
+{
+	"id": "koi_carp",
+	"label": "Koi Carp",
+	"creature_type": "fish",
+	"readability_priority": ["broad carp body", "koi barbels", "red black white patches"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.42,
+			"body_height": 0.56,
+			"body_width": 0.42,
+			"head_size": 0.44,
+			"head_offset": -0.56,
+			"eye_size": 0.052
+		},
+		"body_profile": {
+			"shape": "default_fish"
+		},
+		"tail_profile": {
+			"tail_length": 0.64,
+			"tail_fin_size": 0.42,
+			"caudal_shape": "forked_shallow",
+			"caudal_height_scale": 0.82
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "single",
+			"dorsal_1_length": 0.42,
+			"dorsal_1_height": 0.2,
+			"anal_shape": "single",
+			"anal_length": 0.24,
+			"barbel_style": "koi",
+			"mouth_type": "terminal",
+			"mouth_detail": "lip",
+			"gill_mark": "line",
+			"fin_opacity": 0.82,
+			"fin_ray_count": 10,
+			"fin_ray_strength": 0.22
+		},
+		"visual_profile": {
+			"base_color": "#fff7ed",
+			"belly_color": "#ffffff",
+			"fin_color": "#fed7aa",
+			"outline_color": "#1f1b16",
+			"pattern_color": "#dc2626",
+			"iridescence_strength": 0.2,
+			"wetness": 0.22
+		},
+		"motion_profile": {
+			"swim_mode": "general",
+			"global_sway_amount": 8.0,
+			"tail_sway_multiplier": 1.05
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "calico_patch",
+			"zone": "body",
+			"color": "#dc2626",
+			"x_start": 0.18,
+			"x_end": 0.78,
+			"y": 0.2,
+			"thickness": 0.28,
+			"emissive": 0.0
+		},
+		{
+			"type": "head_mask",
+			"zone": "head",
+			"color": "#111827",
+			"x_start": 0.0,
+			"x_end": 0.24,
+			"y": 0.12,
+			"thickness": 0.18,
+			"emissive": 0.0
+		},
+		{
+			"type": "scale_grid",
+			"zone": "body",
+			"color": "#facc15",
+			"x_start": 0.12,
+			"x_end": 0.9,
+			"y": 0.0,
+			"thickness": 0.035,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"patch_seed_variation": 1.0,
+		"color_jitter": 0.08
+	}
+}

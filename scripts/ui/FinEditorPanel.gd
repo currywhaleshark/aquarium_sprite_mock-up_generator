@@ -21,7 +21,12 @@ const SHAPES := {
 	"pectoral": ["oval", "triangle", "long", "rounded", "bezier"],
 	"pelvic": ["triangle", "oval", "long", "rounded", "bezier"],
 	"anal": ["long", "single", "spiny", "rounded", "bezier"],
-	"caudal": ["forked_shallow", "forked_deep", "truncate", "rounded", "pointed", "lunate", "shark_heterocercal", "thresher"]
+	"caudal": [
+		"forked_shallow", "forked_deep", "truncate", "rounded", "pointed", "lunate",
+		"fan", "double_fan", "halfmoon", "veil", "crowntail", "spade", "lyre",
+		"top_sword", "bottom_sword", "double_sword", "butterfly",
+		"shark_heterocercal", "thresher"
+	]
 }
 
 const NUMERIC_KEYS := {

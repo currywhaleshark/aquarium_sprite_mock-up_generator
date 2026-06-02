@@ -355,6 +355,108 @@ static func _fin_shape_points(shape: String, length: float, height: float) -> Pa
 
 static func _caudal_shape_points(shape: String, length: float, height: float) -> PackedVector3Array:
 	match shape:
+		"fan":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.44, 0.0),
+				Vector3(length * 0.88, height * 0.98, 0.0),
+				Vector3(length, 0.0, 0.0),
+				Vector3(length * 0.88, -height * 0.98, 0.0),
+				Vector3(0.0, -height * 0.44, 0.0)
+			])
+		"double_fan":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.26, 0.0),
+				Vector3(length * 0.78, height, 0.0),
+				Vector3(length * 0.92, height * 0.18, 0.0),
+				Vector3(length * 0.52, 0.0, 0.0),
+				Vector3(length * 0.92, -height * 0.18, 0.0),
+				Vector3(length * 0.78, -height, 0.0),
+				Vector3(0.0, -height * 0.26, 0.0)
+			])
+		"halfmoon":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.54, 0.0),
+				Vector3(length * 0.46, height * 1.08, 0.0),
+				Vector3(length, height * 0.52, 0.0),
+				Vector3(length, -height * 0.52, 0.0),
+				Vector3(length * 0.46, -height * 1.08, 0.0),
+				Vector3(0.0, -height * 0.54, 0.0)
+			])
+		"veil":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.34, 0.0),
+				Vector3(length * 0.55, height * 0.82, 0.0),
+				Vector3(length * 1.08, height * 0.20, 0.0),
+				Vector3(length * 0.94, -height * 0.84, 0.0),
+				Vector3(length * 0.25, -height * 0.52, 0.0),
+				Vector3(0.0, -height * 0.24, 0.0)
+			])
+		"crowntail":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.42, 0.0),
+				Vector3(length * 0.72, height, 0.0),
+				Vector3(length * 0.50, height * 0.42, 0.0),
+				Vector3(length, height * 0.56, 0.0),
+				Vector3(length * 0.52, 0.0, 0.0),
+				Vector3(length, -height * 0.56, 0.0),
+				Vector3(length * 0.50, -height * 0.42, 0.0),
+				Vector3(length * 0.72, -height, 0.0),
+				Vector3(0.0, -height * 0.42, 0.0)
+			])
+		"spade":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.34, 0.0),
+				Vector3(length * 0.72, height * 0.78, 0.0),
+				Vector3(length, 0.0, 0.0),
+				Vector3(length * 0.72, -height * 0.78, 0.0),
+				Vector3(0.0, -height * 0.34, 0.0)
+			])
+		"lyre":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.24, 0.0),
+				Vector3(length * 1.05, height * 1.05, 0.0),
+				Vector3(length * 0.58, height * 0.18, 0.0),
+				Vector3(length * 0.38, 0.0, 0.0),
+				Vector3(length * 0.58, -height * 0.18, 0.0),
+				Vector3(length * 1.05, -height * 1.05, 0.0),
+				Vector3(0.0, -height * 0.24, 0.0)
+			])
+		"top_sword":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.22, 0.0),
+				Vector3(length * 1.2, height * 1.0, 0.0),
+				Vector3(length * 0.62, height * 0.08, 0.0),
+				Vector3(length * 0.78, -height * 0.46, 0.0),
+				Vector3(0.0, -height * 0.18, 0.0)
+			])
+		"bottom_sword":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.18, 0.0),
+				Vector3(length * 0.78, height * 0.46, 0.0),
+				Vector3(length * 0.62, -height * 0.08, 0.0),
+				Vector3(length * 1.2, -height * 1.0, 0.0),
+				Vector3(0.0, -height * 0.22, 0.0)
+			])
+		"double_sword":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.20, 0.0),
+				Vector3(length * 1.18, height * 0.92, 0.0),
+				Vector3(length * 0.62, height * 0.12, 0.0),
+				Vector3(length * 0.42, 0.0, 0.0),
+				Vector3(length * 0.62, -height * 0.12, 0.0),
+				Vector3(length * 1.18, -height * 0.92, 0.0),
+				Vector3(0.0, -height * 0.20, 0.0)
+			])
+		"butterfly":
+			return PackedVector3Array([
+				Vector3(0.0, height * 0.38, 0.0),
+				Vector3(length * 0.72, height * 0.95, 0.0),
+				Vector3(length * 0.92, height * 0.18, 0.0),
+				Vector3(length * 0.62, 0.0, 0.0),
+				Vector3(length * 0.92, -height * 0.18, 0.0),
+				Vector3(length * 0.72, -height * 0.95, 0.0),
+				Vector3(0.0, -height * 0.38, 0.0)
+			])
 		"forked_deep":
 			return PackedVector3Array([
 				Vector3(0.0, height * 0.22, 0.0),
