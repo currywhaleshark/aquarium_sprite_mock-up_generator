@@ -253,7 +253,23 @@ func rebuild() -> void:
 	tail_fin_pivot.position = Vector3.ZERO
 	tail_pivot_2.add_child(tail_fin_pivot)
 
-	tail_fin_base_points = PF.caudal_fin_points(String(parameters.get("caudal_shape", "forked_shallow")), tail_fin_size, tail_fin_size * param_float("caudal_height_scale", 0.72))
+	tail_fin_base_points = _get_caudal_fin_points(String(parameters.get("caudal_shape", "forked_shallow")), tail_fin_size, tail_fin_size * param_float("caudal_height_scale", 0.72))
+	
+	# Align caudal fin root vertices (x == 0.0) with the tail stem vertical radius of the body
+	var stem_radius_y := 0.04
+	if not shell_profile.is_empty():
+		stem_radius_y = shell_profile.back().y
+	var adjusted_points := PackedVector3Array()
+	for p in tail_fin_base_points:
+		var new_p := p
+		if is_zero_approx(p.x):
+			if p.y > 0.0:
+				new_p.y = stem_radius_y
+			elif p.y < 0.0:
+				new_p.y = -stem_radius_y
+		adjusted_points.append(new_p)
+	tail_fin_base_points = adjusted_points
+
 	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, fin_mat)
 	tail_fin_pivot.add_child(tail_fin)
 	_update_body_ring_world_points()
@@ -681,7 +697,11 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.18
 	var pectoral_yaw := _fin_follow_yaw(pectoral_attach_t, yaws)
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
-	var pectoral_flap := sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
+	var p_sync := String(parameters.get("pectoral_flap_sync", "alternating"))
+	var right_phase_offset := PI if p_sync == "synchronous" else 0.0
+
+	var pectoral_flap_l := sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
+	var pectoral_flap_r := sin(loop_phase * TAU * 2.0 + right_phase_offset) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
 	var turn_amount := clampf(param_float("turn_amount", 0.0), 0.0, 1.0)
 	var turn_phase := clampf(param_float("turn_phase", 0.0), 0.0, 1.0)
 	var pectoral_turn := turn_amount
@@ -698,21 +718,24 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var left_flap_scale := clampf(1.0 - (inside_fold if turn_direction > 0.0 else outside_brace), 0.0, 1.0)
 	var right_flap_scale := clampf(1.0 - (outside_brace if turn_direction > 0.0 else inside_fold), 0.0, 1.0)
 	
-	var left_pectoral_flap := pectoral_flap * left_flap_scale
-	var right_pectoral_flap := pectoral_flap * right_flap_scale
+	var left_pectoral_flap := pectoral_flap_l * left_flap_scale
+	var right_pectoral_flap := pectoral_flap_r * right_flap_scale
 	
 	var pectoral_offset := float(parameters.get("pectoral_fin_offset_x", 0.0))
 	var pectoral_offset_y := param_float("pectoral_offset_y", 0.0)
+	var p_yaw := param_float("pectoral_fin_yaw", 25.0)
+	var p_pitch := param_float("pectoral_fin_pitch", 0.0)
+	var p_roll := param_float("pectoral_fin_roll", -28.0)
 	if pectoral_l:
 		pectoral_l.position = _animated_side_position(pectoral_attach_t, -0.02 + pectoral_offset_y, -pectoral_z, pectoral_offset, centers, yaws)
-		pectoral_l_base_rotation = Vector3(0.0, pectoral_yaw + 25.0, -28.0 + pectoral_surface_angle)
+		pectoral_l_base_rotation = Vector3(p_pitch, pectoral_yaw + p_yaw, p_roll + pectoral_surface_angle)
 		pectoral_l.rotation_degrees = pectoral_l_base_rotation + Vector3(left_pectoral_flap + left_turn_bias * 24.0, left_turn_bias * 16.0, left_turn_bias * 20.0)
 	if pectoral_r:
 		pectoral_r.position = _animated_side_position(pectoral_attach_t, -0.02 + pectoral_offset_y, pectoral_z, pectoral_offset, centers, yaws)
-		pectoral_r_base_rotation = Vector3(0.0, pectoral_yaw - 25.0, -28.0 + pectoral_surface_angle)
+		pectoral_r_base_rotation = Vector3(-p_pitch, pectoral_yaw - p_yaw, p_roll + pectoral_surface_angle)
 		pectoral_r.rotation_degrees = pectoral_r_base_rotation + Vector3(right_pectoral_flap + right_turn_bias * 24.0, right_turn_bias * 16.0, right_turn_bias * 20.0)
 	_animate_blade_fin(pectoral_l as MeshInstance3D, pectoral_base_points, loop_phase, 0.0)
-	_animate_blade_fin(pectoral_r as MeshInstance3D, pectoral_base_points, loop_phase, PI)
+	_animate_blade_fin(pectoral_r as MeshInstance3D, pectoral_base_points, loop_phase, right_phase_offset)
 
 func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	if tail_pivot_1 == null or tail_pivot_2 == null or tail_fin_pivot == null:
@@ -755,7 +778,8 @@ func _animate_caudal_fin(loop_phase: float, _tail_fin_yaw: float) -> void:
 	# of wriggling on its own clock.
 	var drive_phase := loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4
 	var down_local := tail_fin.global_transform.basis.inverse() * Vector3.DOWN
-	tail_fin.mesh = PF.build_polygon_fin_mesh(_membrane_deformed_points(tail_fin_base_points, softness, drive_phase, _swim_drive_strength(), 0.0, tail_size, down_local))
+	var res := _membrane_deformed_points(tail_fin_base_points, softness, drive_phase, _swim_drive_strength(), 0.0, tail_size, down_local)
+	tail_fin.mesh = PF.build_polygon_fin_mesh(res.deformed, res.reference)
 
 # Re-deforms a paired side fin (pectoral/pelvic) into a soft trailing membrane.
 # Skips work entirely when the fin reads as rigid, preserving the original mesh.
@@ -774,15 +798,16 @@ func _animate_blade_fin(fin_node: MeshInstance3D, base_points: PackedVector3Arra
 	# Paired fins scull at roughly double the body cadence; lock to that beat.
 	var drive_phase := loop_phase * TAU * 2.0 + phase_offset
 	var down_local := fin_node.global_transform.basis.inverse() * Vector3.DOWN
-	fin_node.mesh = PF.build_polygon_fin_mesh(_membrane_deformed_points(base_points, softness, drive_phase, _swim_drive_strength(), 0.0, size_ref, down_local))
+	var res := _membrane_deformed_points(base_points, softness, drive_phase, _swim_drive_strength(), 0.0, size_ref, down_local)
+	fin_node.mesh = PF.build_polygon_fin_mesh(res.deformed, res.reference)
 
 # How far the soft membrane trails, as a fraction of the fin's span, at full drive.
 # Higher reads as a looser, more flowing fin (betta-tail style); 0 is a stiff blade.
-const FIN_SOFT_AMPLITUDE := 0.44
+const FIN_SOFT_AMPLITUDE := 0.58
 
 # Static gravity sag (fraction of span) pulled toward world-down at the free tip, so a
 # soft fin also hangs/droops a little, more as softness rises.
-const FIN_SOFT_DROOP := 0.24
+const FIN_SOFT_DROOP := 0.65
 
 # Net strength of the swimming motion the fins should flow with. Near 0 when the fish
 # is holding still (so fins settle), rising as it sways/swims harder. A small floor
@@ -802,7 +827,7 @@ func _membrane_trail(drive_phase: float, tip_t: float, lag: float) -> float:
 # Shared free-edge membrane deform. Subdivides the coarse outline so the trailing wave
 # renders as smooth cloth, then displaces z with amplitude growing toward the trailing
 # tip (+x) and free margin (|y|), scaled by how hard the fish is actually moving.
-func _membrane_deformed_points(base_points: PackedVector3Array, softness: float, drive_phase: float, drive_strength: float, phase_offset: float, size_ref: float, down_local: Vector3) -> PackedVector3Array:
+func _membrane_deformed_points(base_points: PackedVector3Array, softness: float, drive_phase: float, drive_strength: float, phase_offset: float, size_ref: float, down_local: Vector3) -> Dictionary:
 	var outline := PF.subdivide_fin_outline(base_points, 8)
 	var min_x := INF
 	var max_x := -INF
@@ -812,7 +837,7 @@ func _membrane_deformed_points(base_points: PackedVector3Array, softness: float,
 		max_x = maxf(max_x, point.x)
 		max_abs_y = maxf(max_abs_y, absf(point.y))
 	var x_span := maxf(max_x - min_x, 0.001)
-	var lag := 0.6 + softness * 2.8
+	var lag := 0.6 + softness * 5.2
 	var deformed := PackedVector3Array()
 	for point in outline:
 		var tip_t := clampf((point.x - min_x) / x_span, 0.0, 1.0)
@@ -820,9 +845,18 @@ func _membrane_deformed_points(base_points: PackedVector3Array, softness: float,
 		var membrane_weight := 0.4 + 0.6 * absf(edge_norm)
 		var trail := _membrane_trail(drive_phase + phase_offset, tip_t, lag)
 		var z := FIN_SOFT_AMPLITUDE * drive_strength * trail * size_ref * softness * pow(tip_t, 1.05) * membrane_weight
-		var sag := FIN_SOFT_DROOP * softness * pow(tip_t, 1.3) * size_ref
-		deformed.append(Vector3(point.x, point.y, point.z + z) + down_local * sag)
-	return deformed
+		var sag := FIN_SOFT_DROOP * softness * pow(tip_t, 1.1) * size_ref
+		var sag_offset := Vector3(0.0, down_local.y, down_local.z) * sag
+		
+		# Keep physical length strictly conserved relative to root (origin)
+		var r := point.length()
+		if r > 0.0001:
+			var v_dir := Vector3(point.x, point.y + sag_offset.y, point.z + z + sag_offset.z)
+			deformed.append(v_dir.normalized() * r)
+		else:
+			deformed.append(point)
+			
+	return {"deformed": deformed, "reference": outline}
 
 func _effective_caudal_softness() -> float:
 	return _effective_fin_softness("caudal")
@@ -1037,15 +1071,18 @@ func _apply_fin_offsets() -> void:
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
 	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.18
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
+	var p_yaw := param_float("pectoral_fin_yaw", 25.0)
+	var p_pitch := param_float("pectoral_fin_pitch", 0.0)
+	var p_roll := param_float("pectoral_fin_roll", -28.0)
 	if pectoral_l:
 		pectoral_l_base_position = Vector3(pectoral_center.x, -0.02 + pectoral_center.y + pectoral_offset_y, -pectoral_z)
 		pectoral_l.position = pectoral_l_base_position + Vector3(pectoral_offset, 0.0, 0.0)
-		pectoral_l_base_rotation = Vector3(0.0, 25.0, -28.0 + pectoral_surface_angle)
+		pectoral_l_base_rotation = Vector3(p_pitch, p_yaw, p_roll + pectoral_surface_angle)
 		pectoral_l.rotation_degrees = pectoral_l_base_rotation
 	if pectoral_r:
 		pectoral_r_base_position = Vector3(pectoral_center.x, -0.02 + pectoral_center.y + pectoral_offset_y, pectoral_z)
 		pectoral_r.position = pectoral_r_base_position + Vector3(pectoral_offset, 0.0, 0.0)
-		pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
+		pectoral_r_base_rotation = Vector3(-p_pitch, -p_yaw, p_roll + pectoral_surface_angle)
 		pectoral_r.rotation_degrees = pectoral_r_base_rotation
 
 func _fin_offset_key(fin_id: String) -> String:
@@ -1152,8 +1189,17 @@ func _build_median_fin(fin_name: String, side: String, shape: String, length: fl
 
 func _get_fin_points(fin_name: String, shape: String, length: float, height: float) -> PackedVector3Array:
 	var pts: PackedVector3Array
-	if shape == "bezier":
-		var slot := _fin_name_to_slot(fin_name)
+	var slot := _fin_name_to_slot(fin_name)
+	if shape == "custom":
+		var default_pts := [-0.5, 0.0, -0.25, 0.6, 0.0, 0.8, 0.25, 0.6, 0.5, 0.0]
+		if slot == "pectoral" or slot == "pelvic":
+			default_pts = [-0.5, 0.2, 0.0, 0.5, 0.5, 0.0, 0.0, -0.5, -0.5, -0.2]
+		var raw_pts: Array = parameters.get(slot + "_custom_points", default_pts)
+		pts = PackedVector3Array()
+		for i in range(0, raw_pts.size(), 2):
+			if i + 1 < raw_pts.size():
+				pts.append(Vector3(raw_pts[i] * length, raw_pts[i+1] * height, 0.0))
+	elif shape == "bezier":
 		var prefix := slot + "_bezier_"
 		var p1_x := param_float(prefix + "p1_x", -0.25)
 		var p1_y := param_float(prefix + "p1_y", 1.0)
@@ -1165,13 +1211,23 @@ func _get_fin_points(fin_name: String, shape: String, length: float, height: flo
 	else:
 		pts = PF._fin_shape_points(shape, length, height)
 		
-	var slot := _fin_name_to_slot(fin_name)
 	if slot == "pectoral" or slot == "pelvic":
 		var shifted := PackedVector3Array()
 		for p in pts:
 			shifted.append(p + Vector3(length * 0.5, 0.0, 0.0))
 		pts = shifted
 	return pts
+
+func _get_caudal_fin_points(shape: String, length: float, height: float) -> PackedVector3Array:
+	if shape == "custom":
+		var default_pts := [0.0, 0.44, 0.88, 0.98, 1.0, 0.0, 0.88, -0.98, 0.0, -0.44]
+		var raw_pts: Array = parameters.get("caudal_custom_points", default_pts)
+		var pts := PackedVector3Array()
+		for i in range(0, raw_pts.size(), 2):
+			if i + 1 < raw_pts.size():
+				pts.append(Vector3(raw_pts[i] * length, raw_pts[i+1] * height, 0.0))
+		return pts
+	return PF.caudal_fin_points(shape, length, height)
 
 func _fin_name_to_slot(fin_name: String) -> String:
 	if fin_name.begins_with("DorsalFin1"):
@@ -1255,7 +1311,7 @@ func _animated_curved_fin_points(fin_node: MeshInstance3D, side: String, attach_
 	var max_x_local := -INF
 	var max_height := 0.001
 	var soft_drive := 0.0
-	var soft_lag := 0.6 + softness * 2.8
+	var soft_lag := 0.6 + softness * 5.2
 	var soft_down := Vector3.ZERO
 	if softness > 0.001:
 		soft_drive = _swim_drive_strength()
@@ -1285,7 +1341,9 @@ func _animated_curved_fin_points(fin_node: MeshInstance3D, side: String, attach_
 			var membrane_weight := 0.4 + 0.6 * edge_norm
 			var trail := _membrane_trail(loop_phase * TAU - phase_delay, tip_t, soft_lag)
 			blended.z += FIN_SOFT_AMPLITUDE * soft_drive * trail * max_height * softness * pow(edge_norm, 1.2) * membrane_weight
-			blended += soft_down * (FIN_SOFT_DROOP * softness * pow(edge_norm, 1.3) * max_height)
+			var sag := FIN_SOFT_DROOP * softness * pow(edge_norm, 1.1) * max_height
+			var sag_offset := Vector3(0.0, soft_down.y, soft_down.z) * sag
+			blended += sag_offset
 		result.append(blended)
 	return result
 

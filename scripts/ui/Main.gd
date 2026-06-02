@@ -691,9 +691,8 @@ func _apply_parameters_from_editor(parameters: Dictionary) -> void:
 		current_rig.set_parameters(synced_parameters)
 		if playback_toggle:
 			current_rig.auto_animate = playback_toggle.button_pressed
-		var fish_rig := current_rig as FishRig
-		if fish_rig:
-			fish_rig.set_ring_editor_enabled(body_edit_toggle != null and body_edit_toggle.button_pressed)
+		if current_rig.has_method("set_ring_editor_enabled"):
+			current_rig.call("set_ring_editor_enabled", body_edit_toggle != null and body_edit_toggle.button_pressed)
 	_sync_parameter_editors(synced_parameters)
 
 func _sync_parameter_editors(parameters: Dictionary) -> void:
@@ -725,15 +724,26 @@ func _bind_fin_editor_for_current_rig() -> void:
 			head_edit_toggle.disabled = false
 		if body_edit_toggle:
 			body_edit_toggle.disabled = false
+	elif _is_ray():
+		fin_drag_controller.call("bind_fish", null)
+		fin_drag_controller.call("set_enabled", false)
+		if drag_handles_overlay:
+			drag_handles_overlay.fish = null
+			_update_overlay_visibility()
+		if fin_edit_toggle:
+			fin_edit_toggle.disabled = false
+		if head_edit_toggle:
+			head_edit_toggle.disabled = false
+		if body_edit_toggle:
+			body_edit_toggle.disabled = false
 	else:
 		fin_drag_controller.call("bind_fish", null)
 		fin_drag_controller.call("set_enabled", false)
 		if drag_handles_overlay:
 			drag_handles_overlay.fish = null
 			_update_overlay_visibility()
-		var fish_rig := current_rig as FishRig
-		if fish_rig:
-			fish_rig.set_ring_editor_enabled(false)
+		if current_rig and current_rig.has_method("set_ring_editor_enabled"):
+			current_rig.call("set_ring_editor_enabled", false)
 		if fin_edit_toggle:
 			fin_edit_toggle.button_pressed = false
 			fin_edit_toggle.disabled = true
@@ -978,10 +988,9 @@ func _export_current() -> void:
 
 func _set_fin_edit_enabled(enabled: bool) -> void:
 	if fin_editor_panel:
-		fin_editor_panel.visible = enabled and _is_fish()
-	var fish_rig := current_rig as FishRig
-	if enabled and fish_rig:
-		fish_rig.set_ring_editor_enabled(false)
+		fin_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+	if enabled and current_rig and current_rig.has_method("set_ring_editor_enabled"):
+		current_rig.call("set_ring_editor_enabled", false)
 	if enabled:
 		_select_exclusive_edit_toggle(fin_edit_toggle)
 	if drag_handles_overlay:
@@ -991,10 +1000,9 @@ func _set_fin_edit_enabled(enabled: bool) -> void:
 
 func _set_head_edit_enabled(enabled: bool) -> void:
 	if head_editor_panel:
-		head_editor_panel.visible = enabled and _is_fish()
-	var fish_rig := current_rig as FishRig
-	if enabled and fish_rig:
-		fish_rig.set_ring_editor_enabled(false)
+		head_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+	if enabled and current_rig and current_rig.has_method("set_ring_editor_enabled"):
+		current_rig.call("set_ring_editor_enabled", false)
 	if enabled:
 		_select_exclusive_edit_toggle(head_edit_toggle)
 	if drag_handles_overlay:
@@ -1004,10 +1012,9 @@ func _set_head_edit_enabled(enabled: bool) -> void:
 
 func _set_body_edit_enabled(enabled: bool) -> void:
 	if body_editor_panel:
-		body_editor_panel.visible = enabled and _is_fish()
-	var fish_rig := current_rig as FishRig
-	if fish_rig:
-		fish_rig.set_ring_editor_enabled(enabled and _is_fish())
+		body_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+	if current_rig and current_rig.has_method("set_ring_editor_enabled"):
+		current_rig.call("set_ring_editor_enabled", enabled)
 	if enabled:
 		_select_exclusive_edit_toggle(body_edit_toggle)
 	_sync_edit_input_state()
@@ -1023,6 +1030,9 @@ func _select_exclusive_edit_toggle(active_toggle: CheckButton) -> void:
 func _is_fish() -> bool:
 	return String(current_preset.get("creature_type", "fish")) == "fish"
 
+func _is_ray() -> bool:
+	return String(current_preset.get("creature_type", "fish")) == "ray"
+
 func _on_preview_gui_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton):
 		return
@@ -1031,10 +1041,9 @@ func _on_preview_gui_input(event: InputEvent) -> void:
 		return
 	if body_edit_toggle == null or not body_edit_toggle.button_pressed:
 		return
-	var fish_rig := current_rig as FishRig
-	if fish_rig == null:
+	if current_rig == null or not current_rig.has_method("get_body_ring_global_points"):
 		return
-	var ring_points: Dictionary = fish_rig.get_body_ring_global_points()
+	var ring_points: Dictionary = current_rig.call("get_body_ring_global_points")
 	var best_id := ""
 	var best_distance := INF
 	var scale := Vector2.ONE

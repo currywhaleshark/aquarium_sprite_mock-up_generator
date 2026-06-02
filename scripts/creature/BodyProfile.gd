@@ -176,6 +176,10 @@ static func ensure_visual_parameters(parameters: Dictionary) -> void:
 	for key in VISUAL_PATTERN_DEFAULTS.keys():
 		if not parameters.has(key):
 			parameters[key] = VISUAL_PATTERN_DEFAULTS[key]
+	if not parameters.has("shell_roundness"):
+		parameters["shell_roundness"] = 1.0
+	if not parameters.has("cephalic_horns"):
+		parameters["cephalic_horns"] = "none"
 
 static func valid_swim_mode(swim_mode: String) -> String:
 	if SWIM_MODE_PRESETS.has(swim_mode):
@@ -257,6 +261,33 @@ static func default_fish_rings(shape: String = "default_fish") -> Array[Dictiona
 		["tail_stem", "Tail Stem", 1.0, 0.0, 0.12, 0.12, 0.08, 0.7, 1.0]
 	])
 
+static func sample_rings(rings: Array, u: float) -> Dictionary:
+	if rings.is_empty():
+		return {"x": u, "upper_height": 0.3, "lower_height": 0.3, "width": 0.5, "y_offset": 0.0, "roundness": 1.0, "sway_weight": 1.0}
+	var r_left: Dictionary = rings[0]
+	var r_right: Dictionary = rings[-1]
+	if u <= float(r_left.get("x", 0.0)):
+		return r_left
+	if u >= float(r_right.get("x", 1.0)):
+		return r_right
+	for i in range(rings.size() - 1):
+		var r1: Dictionary = rings[i]
+		var r2: Dictionary = rings[i+1]
+		var x1 := float(r1.get("x", 0.0))
+		var x2 := float(r2.get("x", 1.0))
+		if u >= x1 and u <= x2:
+			var t := (u - x1) / maxf(x2 - x1, 0.0001)
+			return {
+				"x": u,
+				"upper_height": lerpf(float(r1.get("upper_height", 0.3)), float(r2.get("upper_height", 0.3)), t),
+				"lower_height": lerpf(float(r1.get("lower_height", 0.3)), float(r2.get("lower_height", 0.3)), t),
+				"width": lerpf(float(r1.get("width", 0.5)), float(r2.get("width", 0.5)), t),
+				"y_offset": lerpf(float(r1.get("y_offset", 0.0)), float(r2.get("y_offset", 0.0)), t),
+				"roundness": lerpf(float(r1.get("roundness", 1.0)), float(r2.get("roundness", 1.0)), t),
+				"sway_weight": lerpf(float(r1.get("sway_weight", 1.0)), float(r2.get("sway_weight", 1.0)), t)
+			}
+	return r_left
+
 static func ensure_body_profile(parameters: Dictionary) -> Dictionary:
 	var profile: Dictionary = parameters.get("body_profile", {})
 	var rings: Array = profile.get("rings", [])
@@ -316,8 +347,8 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 	updated["global"] = _pick(parameters, [
 		"body_length", "body_height", "body_width", "projection_hint",
 		"show_ring_guides", "shell_enabled", "shell_expand",
-		"shell_color_mix", "shell_opacity", "head_size", "head_offset",
-		"eye_size", "eye_position_x", "eye_position_y", "mouth_position"
+		"shell_color_mix", "shell_opacity", "shell_roundness", "head_size", "head_offset",
+		"eye_size", "eye_position_x", "eye_position_y", "mouth_position", "eye_spacing"
 	])
 	updated["body_profile"] = parameters.get("body_profile", {})
 	updated["tail_profile"] = _pick(parameters, ["tail_length", "tail_fin_size", "caudal_shape", "caudal_height_scale"])
@@ -337,7 +368,11 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"fin_softness", "fin_rigidity",
 		"dorsal_1_softness", "dorsal_1_rigidity", "dorsal_2_softness", "dorsal_2_rigidity",
 		"anal_softness", "anal_rigidity", "pelvic_softness", "pelvic_rigidity",
-		"pectoral_softness", "pectoral_rigidity", "caudal_softness", "caudal_rigidity"
+		"pectoral_softness", "pectoral_rigidity", "caudal_softness", "caudal_rigidity",
+		"pectoral_fin_yaw", "pectoral_fin_pitch", "pectoral_fin_roll",
+		"dorsal_1_custom_points", "dorsal_2_custom_points", "pectoral_custom_points",
+		"pelvic_custom_points", "anal_custom_points", "caudal_custom_points",
+		"cephalic_horns", "ray_head_shape"
 	])
 	updated["motion_profile"] = _pick(normalized_parameters, [
 		"swim_mode", "swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",
@@ -345,7 +380,8 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"tail_fin_extra_swing", "fin_flap_amount",
 		"fin_yaw_follow_strength", "median_fin_flap_amount", "median_fin_flap_phase",
 		"idle_bob_amount", "turn_tail_lag", "inside_pectoral_fold",
-		"outside_pectoral_brace", "turn_curve_bias", "turn_median_fin_bias", "turn_bank_roll"
+		"outside_pectoral_brace", "turn_curve_bias", "turn_median_fin_bias", "turn_bank_roll",
+		"pectoral_flap_sync", "wave_ripples", "ray_locomotion_mode"
 	])
 	updated["visual_profile"] = _pick(parameters, [
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
@@ -376,6 +412,14 @@ static func normalize_motion_parameters(parameters: Dictionary) -> void:
 			parameters["global_sway_amount"] = float(parameters["body_sway_amount"])
 	if not parameters.has("tail_sway_multiplier"):
 		parameters["tail_sway_multiplier"] = 1.0
+	if not parameters.has("pectoral_flap_sync"):
+		parameters["pectoral_flap_sync"] = "alternating"
+	if not parameters.has("wave_ripples"):
+		parameters["wave_ripples"] = 1.2
+	if not parameters.has("ray_locomotion_mode"):
+		parameters["ray_locomotion_mode"] = "rajiform"
+	if not parameters.has("ray_head_shape"):
+		parameters["ray_head_shape"] = "manta"
 	var default_mode := _default_swim_mode(parameters)
 	parameters["swim_mode"] = valid_swim_mode(String(parameters.get("swim_mode", default_mode)))
 	var mode_values := swim_mode_values(String(parameters["swim_mode"]))

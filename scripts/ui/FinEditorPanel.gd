@@ -5,6 +5,7 @@ signal parameters_changed(parameters: Dictionary)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
+const FinVectorEditorScript := preload("res://scripts/ui/FinVectorEditor.gd")
 
 const SLOT_LABELS := {
 	"dorsal_1": "Dorsal 1",
@@ -12,21 +13,23 @@ const SLOT_LABELS := {
 	"pectoral": "Pectoral",
 	"pelvic": "Pelvic",
 	"anal": "Anal",
-	"caudal": "Caudal"
+	"caudal": "Caudal",
+	"cephalic": "Cephalic"
 }
 
 const SHAPES := {
-	"dorsal_1": ["single", "spiny", "split", "trailing", "trigger", "bezier"],
-	"dorsal_2": ["single", "spiny", "split", "trailing", "trigger", "bezier"],
-	"pectoral": ["oval", "triangle", "long", "rounded", "bezier"],
-	"pelvic": ["triangle", "oval", "long", "rounded", "bezier"],
-	"anal": ["long", "single", "spiny", "rounded", "bezier"],
+	"dorsal_1": ["single", "spiny", "split", "trailing", "trigger", "bezier", "custom"],
+	"dorsal_2": ["single", "spiny", "split", "trailing", "trigger", "bezier", "custom"],
+	"pectoral": ["oval", "triangle", "long", "rounded", "bezier", "custom"],
+	"pelvic": ["triangle", "oval", "long", "rounded", "bezier", "custom"],
+	"anal": ["long", "single", "spiny", "rounded", "bezier", "custom"],
 	"caudal": [
 		"forked_shallow", "forked_deep", "truncate", "rounded", "pointed", "lunate",
 		"fan", "double_fan", "halfmoon", "veil", "crowntail", "spade", "lyre",
 		"top_sword", "bottom_sword", "double_sword", "butterfly",
-		"shark_heterocercal", "thresher"
-	]
+		"shark_heterocercal", "thresher", "custom"
+	],
+	"cephalic": ["none", "rolled", "unfolded"]
 }
 
 const NUMERIC_KEYS := {
@@ -46,6 +49,9 @@ const NUMERIC_KEYS := {
 	"pectoral": {
 		"pectoral_fin_size": {"min": 0.04, "max": 0.6, "step": 0.005, "fallback": 0.16},
 		"pectoral_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0},
+		"pectoral_fin_yaw": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": 25.0},
+		"pectoral_fin_pitch": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": 0.0},
+		"pectoral_fin_roll": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": -28.0},
 		"pectoral_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
 		"pectoral_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
 	},
@@ -74,10 +80,12 @@ var parameters: Dictionary = {}
 var selected_slot := "dorsal_1"
 var slot_option: OptionButton
 var enabled_check: CheckBox
+var attach_row_container: HBoxContainer
 var attach_slider: HSlider
 var shape_option: OptionButton
 var numeric_container: VBoxContainer
 var numeric_sliders := {}
+var vector_editor: Control
 var _updating := false
 
 func _ready() -> void:
@@ -87,9 +95,6 @@ func _ready() -> void:
 	add_child(title)
 
 	slot_option = OptionButton.new()
-	for slot_id in SLOT_LABELS.keys():
-		slot_option.add_item(UiText.fin_slot(slot_id))
-		slot_option.set_item_metadata(slot_option.item_count - 1, slot_id)
 	slot_option.item_selected.connect(func(index: int) -> void:
 		selected_slot = String(slot_option.get_item_metadata(index))
 		_refresh_controls()
@@ -105,11 +110,11 @@ func _ready() -> void:
 	)
 	add_child(enabled_check)
 
-	var attach_row := HBoxContainer.new()
+	attach_row_container = HBoxContainer.new()
 	var attach_label := Label.new()
 	attach_label.text = "부착 위치"
 	attach_label.custom_minimum_size = Vector2(72, 0)
-	attach_row.add_child(attach_label)
+	attach_row_container.add_child(attach_label)
 	attach_slider = HSlider.new()
 	attach_slider.min_value = 0.02
 	attach_slider.max_value = 0.98
@@ -120,8 +125,8 @@ func _ready() -> void:
 			return
 		set_slot_attach(selected_slot, value)
 	)
-	attach_row.add_child(attach_slider)
-	add_child(attach_row)
+	attach_row_container.add_child(attach_slider)
+	add_child(attach_row_container)
 
 	shape_option = OptionButton.new()
 	shape_option.item_selected.connect(func(index: int) -> void:
@@ -134,6 +139,17 @@ func _ready() -> void:
 	numeric_container = VBoxContainer.new()
 	numeric_container.add_theme_constant_override("separation", 1)
 	add_child(numeric_container)
+
+	vector_editor = FinVectorEditorScript.new()
+	vector_editor.visible = false
+	vector_editor.points_changed.connect(func(pts: Array) -> void:
+		if _updating:
+			return
+		parameters[selected_slot + "_custom_points"] = pts
+		parameters_changed.emit(parameters.duplicate(true))
+	)
+	add_child(vector_editor)
+
 	_refresh_controls()
 
 func set_parameters(new_parameters: Dictionary) -> void:
@@ -165,10 +181,53 @@ func set_numeric_parameter(key: String, value: float) -> void:
 	parameters_changed.emit(parameters.duplicate(true))
 	_refresh_controls()
 
+func _populate_slots() -> void:
+	if slot_option == null:
+		return
+	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
+	var expected_slots := []
+	if is_ray:
+		expected_slots = ["cephalic", "pelvic"]
+	else:
+		expected_slots = ["dorsal_1", "dorsal_2", "pectoral", "pelvic", "anal", "caudal"]
+	
+	var matches := true
+	if slot_option.item_count != expected_slots.size():
+		matches = false
+	else:
+		for i in range(expected_slots.size()):
+			if String(slot_option.get_item_metadata(i)) != expected_slots[i]:
+				matches = false
+				break
+	
+	if not matches:
+		var current_sel := selected_slot
+		slot_option.clear()
+		for slot_id in expected_slots:
+			slot_option.add_item(UiText.fin_slot(slot_id))
+			slot_option.set_item_metadata(slot_option.item_count - 1, slot_id)
+		var new_index := expected_slots.find(current_sel)
+		if new_index < 0:
+			new_index = 0
+		slot_option.select(new_index)
+		selected_slot = expected_slots[new_index]
+
 func _refresh_controls() -> void:
 	if slot_option == null:
 		return
 	_updating = true
+	_populate_slots()
+	
+	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
+	if is_ray:
+		enabled_check.visible = false
+		attach_row_container.visible = false
+		shape_option.visible = selected_slot == "cephalic"
+	else:
+		enabled_check.visible = true
+		attach_row_container.visible = true
+		shape_option.visible = true
+	
 	enabled_check.button_pressed = float(parameters.get(_enabled_key(selected_slot), _default_enabled(selected_slot))) > 0.5
 	var attach_key := _attach_key(selected_slot)
 	attach_slider.editable = attach_key != ""
@@ -196,6 +255,23 @@ func _refresh_controls() -> void:
 			shape_option.select(i)
 			break
 	_rebuild_numeric_controls()
+	
+	# Update Vector Editor Canvas
+	if vector_editor != null:
+		if current_shape == "custom":
+			vector_editor.visible = true
+			vector_editor.slot = selected_slot
+			var default_pts := []
+			if selected_slot == "caudal":
+				default_pts = [0.0, 0.44, 0.88, 0.98, 1.0, 0.0, 0.88, -0.98, 0.0, -0.44]
+			elif selected_slot == "pectoral" or selected_slot == "pelvic":
+				default_pts = [-0.5, 0.2, 0.0, 0.5, 0.5, 0.0, 0.0, -0.5, -0.5, -0.2]
+			else:
+				default_pts = [-0.5, 0.0, -0.25, 0.6, 0.0, 0.8, 0.25, 0.6, 0.5, 0.0]
+			vector_editor.points = parameters.get(selected_slot + "_custom_points", default_pts)
+		else:
+			vector_editor.visible = false
+			
 	_updating = false
 
 func _rebuild_numeric_controls() -> void:
@@ -236,7 +312,7 @@ func _rebuild_numeric_controls() -> void:
 			_add_numeric_row(String(key), slot_keys[key])
 
 func _add_numeric_row(key: String, config: Dictionary) -> void:
-	var widgets := UiRows.add_labeled_slider(numeric_container, UiText.parameter(key), {
+	var widgets := UiRows.add_labeled_slider(numeric_container, UiText.fin_parameter(key), {
 		"label_width": 112,
 		"min": float(config.get("min", 0.0)),
 		"max": float(config.get("max", 1.0)),
@@ -297,6 +373,8 @@ func _attach_key(slot_id: String) -> String:
 
 func _shape_key(slot_id: String) -> String:
 	match slot_id:
+		"cephalic":
+			return "cephalic_horns"
 		"dorsal_1":
 			return "dorsal_1_shape"
 		"dorsal_2":

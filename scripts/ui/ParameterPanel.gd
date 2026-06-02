@@ -64,6 +64,9 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"anal_fin_offset_x": true,
 	"pectoral_fin_offset_x": true,
 	"pectoral_offset_y": true,
+	"pectoral_fin_yaw": true,
+	"pectoral_fin_pitch": true,
+	"pectoral_fin_roll": true,
 	"dorsal_1_attach_t": true,
 	"dorsal_1_shape": true,
 	"dorsal_1_length": true,
@@ -96,7 +99,10 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"pectoral_flap_amount": true,
 	"outline_width": true,
 	"toon_steps": true,
-	"rim_light_strength": true
+	"rim_light_strength": true,
+	"cephalic_horns": true,
+	"ray_head_shape": true,
+	"eye_spacing": true
 }
 
 func _ready() -> void:
@@ -290,6 +296,8 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	parent.add_child(row)
 
 func _min_for_key(key: String, value: float) -> float:
+	if key == "wave_ripples":
+		return 0.5
 	if key.begins_with("pattern_") or key == "belly_height" or key == "belly_slope":
 		return 0.0
 	if _is_signed_parameter(key):
@@ -297,7 +305,9 @@ func _min_for_key(key: String, value: float) -> float:
 	return 0.0
 
 func _max_for_key(key: String, value: float) -> float:
-	if key == "pattern_intensity" or key == "belly_height" or key == "belly_slope" or key == "wetness":
+	if key == "wave_ripples":
+		return 3.0
+	if key == "pattern_intensity" or key == "belly_height" or key == "belly_slope" or key == "wetness" or key == "shell_roundness":
 		return 1.0
 	if key == "iridescence_frequency":
 		return 10.0
@@ -327,7 +337,7 @@ func _category_for_key(key: String) -> String:
 		return "Color Settings"
 	if key.begins_with("head") or key.begins_with("mouth") or key.contains("snout") or key.contains("forehead") or key.contains("jaw"):
 		return "Head"
-	if key == "swim_mode" or key.begins_with("body_wave_") or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide") or key.contains("turn") or key.contains("fold") or key.contains("brace"):
+	if key == "swim_mode" or key == "ray_locomotion_mode" or key == "wave_ripples" or key == "pectoral_flap_sync" or key.begins_with("body_wave_") or key.contains("speed") or key.contains("sway") or key.contains("swing") or key.contains("flap") or key.contains("phase") or key.contains("bob") or key.contains("follow") or key.contains("glide") or key.contains("turn") or key.contains("fold") or key.contains("brace"):
 		return "Motion Settings"
 	if key.contains("fin") or key.contains("dorsal") or key.contains("pectoral") or key.contains("pelvic") or key.contains("anal") or key.contains("caudal"):
 		return "Fins"
@@ -368,11 +378,19 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "swim_mode" or key == "pattern_type"
+	return key == "swim_mode" or key == "pattern_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape"
 
 func _options_for_key(key: String) -> Array[String]:
 	if key == "swim_mode":
 		return BodyProfileScript.swim_mode_names()
 	if key == "pattern_type":
 		return BodyProfileScript.pattern_type_names()
+	if key == "pectoral_flap_sync":
+		return ["alternating", "synchronous"] as Array[String]
+	if key == "cephalic_horns":
+		return ["none", "rolled", "unfolded"] as Array[String]
+	if key == "ray_locomotion_mode":
+		return ["rajiform", "mobuliform", "punting"] as Array[String]
+	if key == "ray_head_shape":
+		return ["manta", "eagle", "cownose"] as Array[String]
 	return []

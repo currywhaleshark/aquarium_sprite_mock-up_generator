@@ -28,7 +28,17 @@ const NUMERIC_KEYS := {
 	"eye_bulge": {"min": 0.0, "max": 1.0, "step": 0.01}
 }
 
+const RAY_HEAD_KEYS := {
+	"eye_size": {"min": 0.01, "max": 0.12, "step": 0.005},
+	"eye_spacing": {"min": 0.1, "max": 0.8, "step": 0.005},
+	"snout_length": {"min": 0.0, "max": 0.6, "step": 0.005}
+}
+
 var parameters: Dictionary = {}
+var options_container: VBoxContainer
+var slider_container: VBoxContainer
+var current_editor_mode := ""
+
 var head_option: OptionButton
 var mouth_option: OptionButton
 var snout_appendage_option: OptionButton
@@ -37,6 +47,8 @@ var gill_mark_option: OptionButton
 var barbel_style_option: OptionButton
 var eye_style_option: OptionButton
 var mouth_detail_option: OptionButton
+var ray_head_shape_option: OptionButton
+
 var numeric_sliders := {}
 var _updating := false
 
@@ -46,56 +58,12 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 15)
 	add_child(title)
 
-	head_option = _add_option_row("형태", HEAD_SHAPES)
-	head_option.item_selected.connect(func(index: int) -> void:
-		if not _updating:
-			set_head_shape(String(head_option.get_item_metadata(index)))
-	)
+	options_container = VBoxContainer.new()
+	add_child(options_container)
 
-	mouth_option = _add_option_row("입", MOUTH_TYPES)
-	mouth_option.item_selected.connect(func(index: int) -> void:
-		if not _updating:
-			set_mouth_type(String(mouth_option.get_item_metadata(index)))
-	)
+	slider_container = VBoxContainer.new()
+	add_child(slider_container)
 
-	head_ornament_option = _add_option_row(UiText.parameter("head_ornament"), HEAD_ORNAMENTS)
-	head_ornament_option.item_selected.connect(func(index: int) -> void:
-		if not _updating:
-			set_option_parameter("head_ornament", String(head_ornament_option.get_item_metadata(index)))
-	)
-
-	gill_mark_option = _add_option_row(UiText.parameter("gill_mark"), GILL_MARKS)
-	gill_mark_option.item_selected.connect(func(index: int) -> void:
-		if not _updating:
-			set_option_parameter("gill_mark", String(gill_mark_option.get_item_metadata(index)))
-	)
-
-	barbel_style_option = _add_option_row(UiText.parameter("barbel_style"), BARBEL_STYLES)
-	barbel_style_option.item_selected.connect(func(index: int) -> void:
-		if not _updating:
-			set_option_parameter("barbel_style", String(barbel_style_option.get_item_metadata(index)))
-	)
-
-	eye_style_option = _add_option_row(UiText.parameter("eye_style"), EYE_STYLES)
-	eye_style_option.item_selected.connect(func(index: int) -> void:
-		if not _updating:
-			set_option_parameter("eye_style", String(eye_style_option.get_item_metadata(index)))
-	)
-
-	mouth_detail_option = _add_option_row(UiText.parameter("mouth_detail"), MOUTH_DETAILS)
-	mouth_detail_option.item_selected.connect(func(index: int) -> void:
-		if not _updating:
-			set_option_parameter("mouth_detail", String(mouth_detail_option.get_item_metadata(index)))
-	)
-
-	snout_appendage_option = _add_option_row(UiText.parameter("snout_appendage"), ["none", "swordfish_bill", "sawfish_saw", "barbels"])
-	snout_appendage_option.item_selected.connect(func(index: int) -> void:
-		if not _updating:
-			set_snout_appendage(String(snout_appendage_option.get_item_metadata(index)))
-	)
-
-	for key in NUMERIC_KEYS.keys():
-		_add_numeric_row(key)
 	_refresh_controls()
 
 func set_parameters(new_parameters: Dictionary) -> void:
@@ -119,13 +87,82 @@ func set_option_parameter(key: String, value: String) -> void:
 	_emit_and_refresh()
 
 func set_numeric_parameter(key: String, value: float) -> void:
-	if not NUMERIC_KEYS.has(key):
+	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
+	var keys: Dictionary = RAY_HEAD_KEYS if is_ray else NUMERIC_KEYS
+	if not keys.has(key):
 		return
-	var config: Dictionary = NUMERIC_KEYS[key]
+	var config: Dictionary = keys[key]
 	parameters[key] = clampf(value, float(config.get("min", 0.0)), float(config.get("max", 1.0)))
 	_emit_and_refresh()
 
-func _add_option_row(label_text: String, values: Array) -> OptionButton:
+func _rebuild_controls_for_mode(is_ray: bool) -> void:
+	for child in options_container.get_children():
+		child.queue_free()
+	for child in slider_container.get_children():
+		child.queue_free()
+	numeric_sliders.clear()
+
+	if is_ray:
+		ray_head_shape_option = _add_option_row(options_container, UiText.parameter("ray_head_shape"), ["manta", "eagle", "cownose"])
+		ray_head_shape_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_option_parameter("ray_head_shape", String(ray_head_shape_option.get_item_metadata(index)))
+		)
+		for key in RAY_HEAD_KEYS.keys():
+			_add_numeric_row(slider_container, key, RAY_HEAD_KEYS[key])
+	else:
+		head_option = _add_option_row(options_container, "형태", HEAD_SHAPES)
+		head_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_head_shape(String(head_option.get_item_metadata(index)))
+		)
+
+		mouth_option = _add_option_row(options_container, "입", MOUTH_TYPES)
+		mouth_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_mouth_type(String(mouth_option.get_item_metadata(index)))
+		)
+
+		head_ornament_option = _add_option_row(options_container, UiText.parameter("head_ornament"), HEAD_ORNAMENTS)
+		head_ornament_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_option_parameter("head_ornament", String(head_ornament_option.get_item_metadata(index)))
+		)
+
+		gill_mark_option = _add_option_row(options_container, UiText.parameter("gill_mark"), GILL_MARKS)
+		gill_mark_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_option_parameter("gill_mark", String(gill_mark_option.get_item_metadata(index)))
+		)
+
+		barbel_style_option = _add_option_row(options_container, UiText.parameter("barbel_style"), BARBEL_STYLES)
+		barbel_style_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_option_parameter("barbel_style", String(barbel_style_option.get_item_metadata(index)))
+		)
+
+		eye_style_option = _add_option_row(options_container, UiText.parameter("eye_style"), EYE_STYLES)
+		eye_style_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_option_parameter("eye_style", String(eye_style_option.get_item_metadata(index)))
+		)
+
+		mouth_detail_option = _add_option_row(options_container, UiText.parameter("mouth_detail"), MOUTH_DETAILS)
+		mouth_detail_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_option_parameter("mouth_detail", String(mouth_detail_option.get_item_metadata(index)))
+		)
+
+		snout_appendage_option = _add_option_row(options_container, UiText.parameter("snout_appendage"), ["none", "swordfish_bill", "sawfish_saw", "barbels"])
+		snout_appendage_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_snout_appendage(String(snout_appendage_option.get_item_metadata(index)))
+		)
+
+		for key in NUMERIC_KEYS.keys():
+			_add_numeric_row(slider_container, key, NUMERIC_KEYS[key])
+
+func _add_option_row(parent: VBoxContainer, label_text: String, values: Array) -> OptionButton:
 	var row := HBoxContainer.new()
 	var label := Label.new()
 	label.text = label_text
@@ -137,12 +174,11 @@ func _add_option_row(label_text: String, values: Array) -> OptionButton:
 		option.add_item(UiText.option(String(value)))
 		option.set_item_metadata(option.item_count - 1, String(value))
 	row.add_child(option)
-	add_child(row)
+	parent.add_child(row)
 	return option
 
-func _add_numeric_row(key: String) -> void:
-	var config: Dictionary = NUMERIC_KEYS[key]
-	var widgets := UiRows.add_labeled_slider(self, UiText.parameter(key), {
+func _add_numeric_row(parent: VBoxContainer, key: String, config: Dictionary) -> void:
+	var widgets := UiRows.add_labeled_slider(parent, UiText.parameter(key), {
 		"row_height": 0.0,
 		"label_width": 112,
 		"min": float(config["min"]),
@@ -159,17 +195,26 @@ func _add_numeric_row(key: String) -> void:
 	)
 
 func _refresh_controls() -> void:
-	if head_option == null:
+	if options_container == null:
 		return
 	_updating = true
-	_select_option(head_option, String(parameters.get("head_shape", "rounded")))
-	_select_option(mouth_option, String(parameters.get("mouth_type", "terminal")))
-	_select_option(head_ornament_option, String(parameters.get("head_ornament", "none")))
-	_select_option(gill_mark_option, String(parameters.get("gill_mark", "none")))
-	_select_option(barbel_style_option, String(parameters.get("barbel_style", "none")))
-	_select_option(eye_style_option, String(parameters.get("eye_style", "bead")))
-	_select_option(mouth_detail_option, String(parameters.get("mouth_detail", "dot")))
-	_select_option(snout_appendage_option, String(parameters.get("snout_appendage", "none")))
+	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
+	var mode := "ray" if is_ray else "fish"
+	if mode != current_editor_mode:
+		current_editor_mode = mode
+		_rebuild_controls_for_mode(is_ray)
+
+	if is_ray:
+		_select_option(ray_head_shape_option, String(parameters.get("ray_head_shape", "manta")))
+	else:
+		_select_option(head_option, String(parameters.get("head_shape", "rounded")))
+		_select_option(mouth_option, String(parameters.get("mouth_type", "terminal")))
+		_select_option(head_ornament_option, String(parameters.get("head_ornament", "none")))
+		_select_option(gill_mark_option, String(parameters.get("gill_mark", "none")))
+		_select_option(barbel_style_option, String(parameters.get("barbel_style", "none")))
+		_select_option(eye_style_option, String(parameters.get("eye_style", "bead")))
+		_select_option(mouth_detail_option, String(parameters.get("mouth_detail", "dot")))
+		_select_option(snout_appendage_option, String(parameters.get("snout_appendage", "none")))
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]
 		var slider := widgets["slider"] as HSlider
@@ -202,6 +247,10 @@ func _default_numeric(key: String) -> float:
 			return 0.12
 		"snout_appendage_length":
 			return 0.4
+		"eye_spacing":
+			return 0.34
+		"snout_length":
+			return 0.3
 	return 0.0
 
 func _emit_and_refresh() -> void:

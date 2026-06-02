@@ -72,12 +72,39 @@ func _ready() -> void:
 	})
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var ray_shell := ray.get_node_or_null("DiscBody/MantleShell") as MeshInstance3D
+	var ray_shell := ray.get_node_or_null("DiscBody/BodyMesh") as MeshInstance3D
 	assert(ray_shell != null)
 	var ray_shell_before := _last_vertex(ray_shell)
 	ray.apply_pose(0.25)
 	var ray_shell_after := _last_vertex(ray_shell)
 	assert(ray_shell_before.distance_to(ray_shell_after) > 0.001)
+
+	# Test roundness impact on shell shape
+	var ray_diamond: RayRig = RayRigScript.new()
+	add_child(ray_diamond)
+	ray_diamond.set_parameters({
+		"shell_roundness": 0.0,
+		"base_color": "#5aaeb7"
+	})
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var shell_dia := ray_diamond.get_node("DiscBody/BodyMesh") as MeshInstance3D
+	var vert_dia := _last_vertex(shell_dia)
+
+	var ray_ellipse: RayRig = RayRigScript.new()
+	add_child(ray_ellipse)
+	ray_ellipse.set_parameters({
+		"shell_roundness": 1.0,
+		"base_color": "#5aaeb7"
+	})
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var shell_ell := ray_ellipse.get_node("DiscBody/BodyMesh") as MeshInstance3D
+	var vert_ell := _last_vertex(shell_ell)
+	
+	assert(vert_dia.distance_to(vert_ell) > 0.01)
+	ray_diamond.queue_free()
+	ray_ellipse.queue_free()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/shell_rig.ok", FileAccess.WRITE)
@@ -89,6 +116,8 @@ func _ready() -> void:
 func _last_vertex(mesh_instance: MeshInstance3D) -> Vector3:
 	var arrays := mesh_instance.mesh.surface_get_arrays(0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	if vertices.size() > 152:
+		return vertices[152] # Wingtip vertex for unified grid mesh
 	return vertices[vertices.size() - 1]
 
 func _ring_center(mesh_instance: MeshInstance3D, ring_index: int, segments: int) -> Vector3:

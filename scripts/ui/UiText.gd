@@ -41,10 +41,21 @@ const FIN_SLOTS := {
 	"pectoral": "가슴지느러미",
 	"pelvic": "배지느러미",
 	"anal": "뒷지느러미",
-	"caudal": "꼬리지느러미"
+	"caudal": "꼬리지느러미",
+	"cephalic": "머리지느러미"
 }
 
 const OPTION_LABELS := {
+	"alternating": "엇갈림 (비동기)",
+	"synchronous": "일치 (동기)",
+	"rolled": "말림 (섭식)",
+	"unfolded": "펼침 (유영)",
+	"rajiform": "물결파 (Stingray)",
+	"mobuliform": "날개짓 (Manta)",
+	"punting": "바닥 보행 (Skate)",
+	"manta": "쥐가오리형 (Manta)",
+	"eagle": "매가오리형 (Eagle)",
+	"cownose": "소코가오리형 (Cownose)",
 	"single": "기본형",
 	"spiny": "가시형",
 	"split": "갈라진 형",
@@ -115,6 +126,7 @@ const OPTION_LABELS := {
 	"puffer": "복어형",
 	"boxfish": "박스피시형",
 	"bezier": "베지에 제어형",
+	"custom": "사용자 정의",
 	"stripes": "세로 줄무늬",
 	"horizontal_stripes": "가로 줄무늬",
 	"spots": "점무늬",
@@ -181,6 +193,9 @@ const PARAMETER_LABELS := {
 	"anal_attach_t": "뒷지느러미 부착 위치",
 	"dorsal_fin_offset_x": "등지느러미 X 오프셋",
 	"pectoral_fin_offset_x": "가슴지느러미 X 오프셋",
+	"pectoral_fin_yaw": "가슴지느러미 벌림 각도",
+	"pectoral_fin_pitch": "가슴지느러미 비틀림 각도",
+	"pectoral_fin_roll": "가슴지느러미 수평 각도",
 	"anal_fin_offset_x": "뒷지느러미 X 오프셋",
 	"dorsal_2_enabled": "등지느러미 2 사용",
 	"pelvic_enabled": "배지느러미 사용",
@@ -194,6 +209,7 @@ const PARAMETER_LABELS := {
 	"body_wave_start": "몸통 파동 시작점",
 	"body_wave_falloff": "몸통 파동 분포",
 	"fin_flap_amount": "지느러미 퍼덕임",
+	"pectoral_flap_sync": "가슴지느러미 유영 모드",
 	"fin_yaw_follow_strength": "지느러미 몸통 추적",
 	"median_fin_wave_amount": "정중선 지느러미 물결",
 	"median_fin_flap_amount": "등/뒷지느러미 추진",
@@ -222,6 +238,16 @@ const PARAMETER_LABELS := {
 	"shell_expand": "쉘 확장",
 	"shell_color_mix": "쉘 색상 혼합",
 	"shell_opacity": "쉘 투명도",
+	"shell_roundness": "쉘 둥글기",
+	"wave_ripples": "물결 파동수",
+	"cephalic_horns": "머리지느러미 (뿔)",
+	"ray_locomotion_mode": "가오리 유영 방식",
+	"ray_head_shape": "가오리 머리 형태",
+	"eye_spacing": "눈 간격",
+	"disc_width": "가오리 몸 폭",
+	"disc_length": "가오리 몸 길이",
+	"disc_thickness": "가오리 몸 두께",
+	"wing_width": "날개 폭",
 	"orthographic_size": "카메라 줌",
 	"camera_yaw": "카메라 좌우 회전",
 	"camera_pitch": "카메라 상하 회전",
@@ -298,6 +324,45 @@ static func parameter(key: String) -> String:
 		var slot_name := fin_slot(slot_key)
 		return slot_name + suffix
 	return String(PARAMETER_LABELS.get(key, _humanize(key)))
+
+static func fin_parameter(key: String) -> String:
+	if key.contains("_bezier_"):
+		if key.ends_with("p1_x"):
+			return "조절점 1 X"
+		elif key.ends_with("p1_y"):
+			return "조절점 1 Y"
+		elif key.ends_with("p2_x"):
+			return "조절점 2 X"
+		elif key.ends_with("p2_y"):
+			return "조절점 2 Y"
+	if key.ends_with("_softness"):
+		return "부드러움"
+	if key.ends_with("_rigidity"):
+		return "빳빳함"
+	if key.ends_with("_length"):
+		return "길이"
+	if key.ends_with("_height"):
+		return "높이"
+	if key == "caudal_height_scale":
+		return "높이"
+	if key.ends_with("_size"):
+		return "크기"
+	if key.ends_with("_offset_x"):
+		return "X 오프셋"
+	if key == "pectoral_offset_y":
+		return "Y 오프셋"
+	if key == "pectoral_fin_yaw":
+		return "벌림 각도"
+	if key == "pectoral_fin_pitch":
+		return "비틀림 각도"
+	if key == "pectoral_fin_roll":
+		return "수평 각도"
+		
+	var base_label := parameter(key)
+	for slot_name in ["가슴지느러미 ", "배지느러미 ", "등지느러미 1 ", "등지느러미 2 ", "등지느러미 ", "뒷지느러미 ", "꼬리지느러미 "]:
+		if base_label.begins_with(slot_name):
+			return base_label.substr(slot_name.length())
+	return base_label
 
 static func section(section_name: String) -> String:
 	return String(SECTION_LABELS.get(section_name, section_name))

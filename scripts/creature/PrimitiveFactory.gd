@@ -1,6 +1,8 @@
 class_name PrimitiveFactory
 extends RefCounted
 
+const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+
 # Longitudinal UV span the head mesh occupies, snout(0) -> neck(HEAD_U_SPAN).
 # The body shell (build_fish_outer_shell_mesh) maps U uniformly over [0, 1] of the
 # whole fish length, so this MUST match the head's physical length as a fraction of
@@ -259,31 +261,45 @@ static func polygon_fin(name: String, points: PackedVector3Array, material: Mate
 	node.material_override = material
 	return node
 
-static func build_polygon_fin_mesh(points: PackedVector3Array) -> ArrayMesh:
+static func build_polygon_fin_mesh(points: PackedVector3Array, uv_reference_points: PackedVector3Array = PackedVector3Array()) -> ArrayMesh:
 	var center := Vector3.ZERO
 	for point in points:
 		center += point
 	center /= float(points.size())
+	
 	var vertices := PackedVector3Array([center])
 	var normals := PackedVector3Array([Vector3.BACK])
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
+	
+	# Determine UV bounds using reference points if provided (so UVs remain constant during deformation)
+	var ref_points := uv_reference_points if not uv_reference_points.is_empty() else points
+	var ref_center := Vector3.ZERO
+	for p in ref_points:
+		ref_center += p
+	ref_center /= float(ref_points.size())
+	
 	var min_x := INF
 	var max_x := -INF
 	var min_y := INF
 	var max_y := -INF
-	for point in points:
-		min_x = minf(min_x, point.x)
-		max_x = maxf(max_x, point.x)
-		min_y = minf(min_y, point.y)
-		max_y = maxf(max_y, point.y)
-	uvs.append(_fin_uv_for_point(center, min_x, max_x, min_y, max_y))
-	for point in points:
+	for p in ref_points:
+		min_x = minf(min_x, p.x)
+		max_x = maxf(max_x, p.x)
+		min_y = minf(min_y, p.y)
+		max_y = maxf(max_y, p.y)
+		
+	uvs.append(_fin_uv_for_point(ref_center, min_x, max_x, min_y, max_y))
+	for i in points.size():
+		var point := points[i]
+		var ref_point := ref_points[i]
 		vertices.append(point)
 		normals.append(Vector3.BACK)
-		uvs.append(_fin_uv_for_point(point, min_x, max_x, min_y, max_y))
+		uvs.append(_fin_uv_for_point(ref_point, min_x, max_x, min_y, max_y))
+		
 	for i in points.size():
 		indices.append_array(PackedInt32Array([0, i + 1, (i + 1) % points.size() + 1]))
+		
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -687,30 +703,84 @@ static func build_fish_outer_shell_mesh(
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
 
-static func ray_mantle_shell(name: String, radius_x: float, radius_z: float, crown_height: float, material: Material, segments: int = 48) -> MeshInstance3D:
+static func ray_mantle_shell(name: String, radius_x: float, radius_z: float, crown_height: float, material: Material, segments: int = 48, roundness: float = 1.0) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = name
-	node.mesh = build_ray_mantle_shell_mesh(radius_x, radius_z, crown_height, 0.0, segments)
+	node.mesh = build_ray_mantle_shell_mesh(radius_x, radius_z, crown_height, 0.0, segments, roundness)
 	node.material_override = material
 	return node
 
-static func update_ray_mantle_shell(node: MeshInstance3D, radius_x: float, radius_z: float, crown_height: float, flap_lift: float, segments: int = 48) -> void:
-	node.mesh = build_ray_mantle_shell_mesh(radius_x, radius_z, crown_height, flap_lift, segments)
+static func update_ray_mantle_shell(node: MeshInstance3D, radius_x: float, radius_z: float, crown_height: float, flap_lift: float, segments: int = 48, roundness: float = 1.0) -> void:
+	node.mesh = build_ray_mantle_shell_mesh(radius_x, radius_z, crown_height, flap_lift, segments, roundness)
 
-static func build_ray_mantle_shell_mesh(radius_x: float, radius_z: float, crown_height: float, flap_lift: float = 0.0, segments: int = 48) -> ArrayMesh:
+static func build_ray_mantle_shell_mesh(radius_x: float, radius_z: float, crown_height: float, flap_lift: float = 0.0, segments: int = 48, roundness: float = 1.0) -> ArrayMesh:
+	var num_rings := 6
 	var vertices := PackedVector3Array([Vector3(0.0, crown_height, 0.0)])
 	var normals := PackedVector3Array([Vector3.UP])
 	var indices := PackedInt32Array()
-	for i in segments:
-		var angle := TAU * float(i) / float(segments)
-		var x := cos(angle) * radius_x
-		var z := sin(angle) * radius_z
-		var wing_weight: float = abs(z) / maxf(radius_z, 0.001)
-		var edge_lift: float = crown_height * 0.18 * (1.0 + cos(angle)) + flap_lift * wing_weight
-		vertices.append(Vector3(x, edge_lift, z))
-		normals.append(Vector3.UP)
-	for i in segments:
-		indices.append_array(PackedInt32Array([0, i + 1, (i + 1) % segments + 1]))
+	
+	var wingtip_x: float = radius_x * 0.1
+	var P_back := Vector3(radius_x, 0.0, 0.0)
+	var P_left := Vector3(wingtip_x, 0.0, radius_z)
+	var P_front := Vector3(-radius_x, 0.0, 0.0)
+	var P_right := Vector3(wingtip_x, 0.0, -radius_z)
+	
+	var theta_left: float = atan2(P_left.z, P_left.x)
+	var theta_right: float = fposmod(atan2(P_right.z, P_right.x), TAU)
+	
+	for r in range(1, num_rings):
+		var t := float(r) / float(num_rings - 1)
+		for s in segments:
+			var angle := TAU * float(s) / float(segments)
+			var angle_norm := fposmod(angle, TAU)
+			
+			var boundary_pt := Vector3.ZERO
+			if angle_norm < theta_left:
+				var t_seg: float = angle_norm / theta_left
+				boundary_pt = P_back.lerp(P_left, t_seg)
+			elif angle_norm < PI:
+				var t_seg: float = (angle_norm - theta_left) / (PI - theta_left)
+				boundary_pt = P_left.lerp(P_front, t_seg)
+			elif angle_norm < theta_right:
+				var t_seg: float = (angle_norm - PI) / (theta_right - PI)
+				boundary_pt = P_front.lerp(P_right, t_seg)
+			else:
+				var t_seg: float = (angle_norm - theta_right) / (TAU - theta_right)
+				boundary_pt = P_right.lerp(P_back, t_seg)
+			
+			var x_el: float = cos(angle) * radius_x
+			var z_el: float = sin(angle) * radius_z
+			var P_ellipse := Vector3(x_el, 0.0, z_el)
+			
+			var P_blended := boundary_pt.lerp(P_ellipse, roundness)
+			
+			var x: float = P_blended.x * t
+			var z: float = P_blended.z * t
+			
+			var wing_weight: float = absf(P_blended.z) / maxf(radius_z, 0.001)
+			var edge_lift: float = crown_height * 0.18 * (1.0 + cos(angle)) + flap_lift * wing_weight
+			var y: float = lerp(crown_height, edge_lift, t * t)
+			
+			vertices.append(Vector3(x, y, z))
+			
+			var dir := Vector3(x, 0.0, z).normalized()
+			var normal := (Vector3.UP + dir * t * 0.45).normalized()
+			normals.append(normal)
+			
+	for s in segments:
+		var B := 1 + s
+		var C := 1 + (s + 1) % segments
+		indices.append_array(PackedInt32Array([0, B, C]))
+		
+	for r in range(1, num_rings - 1):
+		for s in segments:
+			var s_next := (s + 1) % segments
+			var A := 1 + (r - 1) * segments + s
+			var B := 1 + (r - 1) * segments + s_next
+			var C := 1 + r * segments + s
+			var D := 1 + r * segments + s_next
+			indices.append_array(PackedInt32Array([A, C, B, B, C, D]))
+			
 	var mesh := ArrayMesh.new()
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -719,3 +789,225 @@ static func build_ray_mantle_shell_mesh(radius_x: float, radius_z: float, crown_
 	arrays[Mesh.ARRAY_INDEX] = indices
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+static func build_ray_grid_mesh(radius_x: float, radius_z: float, crown_height: float, roundness: float = 1.0, is_double_sided: bool = true, rings: Array = [], head_shape: String = "manta", snout_length: float = 0.3) -> ArrayMesh:
+	var cols: int = 17
+	var rows: int = 17
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	
+	var wingtip_x: float = radius_x * 0.1
+	var P_back: Vector3 = Vector3(radius_x, 0.0, 0.0)
+	var P_left: Vector3 = Vector3(wingtip_x, 0.0, radius_z)
+	var P_front: Vector3 = Vector3(-radius_x, 0.0, 0.0)
+	var P_right: Vector3 = Vector3(wingtip_x, 0.0, -radius_z)
+	
+	var theta_left: float = atan2(P_left.z, P_left.x)
+	var theta_right: float = fposmod(atan2(P_right.z, P_right.x), TAU)
+	
+	var get_boundary := func(angle: float) -> Vector3:
+		var angle_norm: float = fposmod(angle, TAU)
+		var boundary_pt: Vector3 = Vector3.ZERO
+		if angle_norm < theta_left:
+			var t_seg: float = angle_norm / theta_left
+			boundary_pt = P_back.lerp(P_left, t_seg)
+		elif angle_norm < PI:
+			var t_seg: float = (angle_norm - theta_left) / (PI - theta_left)
+			boundary_pt = P_left.lerp(P_front, t_seg)
+		elif angle_norm < theta_right:
+			var t_seg: float = (angle_norm - PI) / (theta_right - PI)
+			boundary_pt = P_front.lerp(P_right, t_seg)
+		else:
+			var t_seg: float = (angle_norm - theta_right) / (TAU - theta_right)
+			boundary_pt = P_right.lerp(P_back, t_seg)
+			
+		var x_el: float = cos(angle) * radius_x
+		var z_el: float = sin(angle) * radius_z
+		var P_ellipse: Vector3 = Vector3(x_el, 0.0, z_el)
+		var pt := boundary_pt.lerp(P_ellipse, roundness)
+		
+		# Snout shape deformation in head region
+		if angle_norm > theta_left and angle_norm < theta_right:
+			var angle_from_front := absf(angle_norm - PI)
+			var head_span := PI - theta_left
+			var spade := cos(angle_from_front * (PI / 2.0 / head_span))
+			var snout_scale := snout_length / 0.3
+			
+			if head_shape == "eagle":
+				var disp := -radius_x * 0.28 * pow(spade, 2.0) * snout_scale
+				pt.x += disp
+			elif head_shape == "cownose":
+				var lobe_freq := 4.5
+				var groove := (0.14 * (1.0 - cos(angle_from_front * lobe_freq)) - 0.08) * pow(spade, 1.5)
+				pt.x += -radius_x * groove * snout_scale
+			elif head_shape == "manta":
+				var flat := -radius_x * 0.06 * (1.0 - pow(1.0 - spade, 2.0))
+				pt.x += flat
+				
+		return pt
+		
+	for c in range(cols):
+		var u: float = float(c) / float(cols - 1)
+		var x: float = -radius_x + 2.0 * radius_x * u
+		var theta: float = PI - u * PI
+		
+		var sampled := BodyProfileScript.sample_rings(rings, u)
+		var width_scale := float(sampled.get("width", 0.5)) / 0.45
+		
+		var pt_left: Vector3 = get_boundary.call(theta)
+		pt_left.z *= width_scale
+		var pt_right: Vector3 = get_boundary.call(-theta)
+		pt_right.z *= width_scale
+		
+		for r in range(rows):
+			var v: float = float(r) / float(rows - 1)
+			var pt_boundary: Vector3 = pt_right.lerp(pt_left, v)
+			var z: float = pt_boundary.z
+			var W: float = maxf(absf(pt_left.z), 0.001)
+			var t_z: float = absf(z) / W
+			var t_x: float = x / radius_x
+			var thick_profile: float = (1.0 - t_z * t_z) * (1.0 - t_x * t_x)
+			var half_thick: float = crown_height * maxf(thick_profile, 0.0)
+			
+			var y_top := half_thick * (float(sampled.get("upper_height", 0.3)) / 0.42) + float(sampled.get("y_offset", 0.0))
+			vertices.append(Vector3(x, y_top, z))
+			var dir: Vector3 = Vector3(x, 0.0, z).normalized()
+			var normal: Vector3 = (Vector3.UP + dir * t_z * 0.3).normalized()
+			normals.append(normal)
+			uvs.append(Vector2(u, v))
+			
+	for c in range(cols - 1):
+		for r in range(rows - 1):
+			var a: int = c * rows + r
+			var b: int = c * rows + r + 1
+			var d: int = (c + 1) * rows + r
+			var e: int = (c + 1) * rows + r + 1
+			indices.append_array(PackedInt32Array([a, b, d, b, e, d]))
+			
+	var mesh := ArrayMesh.new()
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	
+	if is_double_sided:
+		var b_vertices: PackedVector3Array = PackedVector3Array()
+		var b_normals: PackedVector3Array = PackedVector3Array()
+		var b_uvs: PackedVector2Array = PackedVector2Array()
+		var b_indices: PackedInt32Array = PackedInt32Array()
+		
+		for c in range(cols):
+			var u: float = float(c) / float(cols - 1)
+			var x: float = -radius_x + 2.0 * radius_x * u
+			var theta: float = PI - u * PI
+			
+			var sampled := BodyProfileScript.sample_rings(rings, u)
+			var width_scale := float(sampled.get("width", 0.5)) / 0.45
+			
+			var pt_left: Vector3 = get_boundary.call(theta)
+			pt_left.z *= width_scale
+			var pt_right: Vector3 = get_boundary.call(-theta)
+			pt_right.z *= width_scale
+			
+			for r in range(rows):
+				var v: float = float(r) / float(rows - 1)
+				var pt_boundary: Vector3 = pt_right.lerp(pt_left, v)
+				var z: float = pt_boundary.z
+				var W: float = maxf(absf(pt_left.z), 0.001)
+				var t_z: float = absf(z) / W
+				var t_x: float = x / radius_x
+				var thick_profile: float = (1.0 - t_z * t_z) * (1.0 - t_x * t_x)
+				var half_thick: float = crown_height * maxf(thick_profile, 0.0)
+				
+				var y_bottom := -half_thick * (float(sampled.get("lower_height", 0.3)) / 0.36) + float(sampled.get("y_offset", 0.0))
+				b_vertices.append(Vector3(x, y_bottom, z))
+				var dir: Vector3 = Vector3(x, 0.0, z).normalized()
+				var normal: Vector3 = (Vector3.DOWN + dir * t_z * 0.3).normalized()
+				b_normals.append(normal)
+				b_uvs.append(Vector2(u, v))
+				
+		for c in range(cols - 1):
+			for r in range(rows - 1):
+				var a: int = c * rows + r
+				var b: int = c * rows + r + 1
+				var d: int = (c + 1) * rows + r
+				var e: int = (c + 1) * rows + r + 1
+				b_indices.append_array(PackedInt32Array([a, d, b, b, d, e]))
+				
+		var b_arrays := []
+		b_arrays.resize(Mesh.ARRAY_MAX)
+		b_arrays[Mesh.ARRAY_VERTEX] = b_vertices
+		b_arrays[Mesh.ARRAY_NORMAL] = b_normals
+		b_arrays[Mesh.ARRAY_TEX_UV] = b_uvs
+		b_arrays[Mesh.ARRAY_INDEX] = b_indices
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, b_arrays)
+		
+	return mesh
+
+static func ray_cephalic_lobe(name: String, style: String, length: float, thickness: float, material: Material) -> MeshInstance3D:
+	var mesh := ArrayMesh.new()
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	
+	if style == "rolled":
+		var cols: int = 8
+		var rows: int = 8
+		for c in range(cols):
+			var u: float = float(c) / float(cols - 1)
+			var x: float = -length * u
+			var rad: float = thickness * 1.5 * (1.0 - u * 0.3)
+			for r in range(rows):
+				var v: float = float(r) / float(rows - 1)
+				var phi: float = (v - 0.5) * TAU * 0.85
+				var y: float = sin(phi) * rad
+				var z: float = cos(phi) * rad
+				vertices.append(Vector3(x, y, z))
+				normals.append(Vector3(0.0, sin(phi), cos(phi)).normalized())
+				
+		for c in range(cols - 1):
+			for r in range(rows - 1):
+				var a: int = c * rows + r
+				var b: int = c * rows + r + 1
+				var d: int = (c + 1) * rows + r
+				var e: int = (c + 1) * rows + r + 1
+				indices.append_array(PackedInt32Array([a, b, d, b, e, d]))
+	else:
+		var cols: int = 6
+		var rows: int = 5
+		for c in range(cols):
+			var u: float = float(c) / float(cols - 1)
+			var x: float = -length * u
+			var w: float = thickness * 3.0 * (1.0 - u)
+			for r in range(rows):
+				var v: float = float(r) / float(rows - 1)
+				var z: float = -w * 0.5 + w * v
+				var y: float = thickness * 0.2 * sin(v * PI) - u * 0.05
+				vertices.append(Vector3(x, y, z))
+				normals.append(Vector3.UP)
+				
+		for c in range(cols - 1):
+			for r in range(rows - 1):
+				var a: int = c * rows + r
+				var b: int = c * rows + r + 1
+				var d: int = (c + 1) * rows + r
+				var e: int = (c + 1) * rows + r + 1
+				indices.append_array(PackedInt32Array([a, b, d, b, e, d]))
+				
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	
+	var node := MeshInstance3D.new()
+	node.name = name
+	node.mesh = mesh
+	node.material_override = material
+	return node
