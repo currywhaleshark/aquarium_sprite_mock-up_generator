@@ -15,16 +15,17 @@ func _ready() -> void:
 	var fin_toggle: CheckButton = main.get("fin_edit_toggle")
 	var camera_controller: Object = main.get("camera_controller")
 	var root := main.get_node("RootLayout") as HBoxContainer
-	var side_scroll := root.get_child(1) as ScrollContainer
+	var side := root.get_child(1) as VBoxContainer
 	assert(body_panel != null)
 	assert(fin_panel != null)
 	assert(body_toggle != null)
 	assert(fin_toggle != null)
 	assert(camera_controller != null)
-	assert(side_scroll != null)
-	var side_content := side_scroll.get_child(0) as VBoxContainer
-	assert(side_content != null)
-	assert(side_scroll.size_flags_vertical == Control.SIZE_EXPAND_FILL)
+	assert(side != null)
+	assert(side.size_flags_vertical == Control.SIZE_EXPAND_FILL)
+	var side_tabs := main.get("side_tabs") as TabContainer
+	assert(side_tabs != null)
+	assert(side_tabs.get_tab_count() == 5)
 
 	body_toggle.button_pressed = true
 	await get_tree().process_frame
@@ -51,7 +52,10 @@ func _ready() -> void:
 
 	var parameter_panel: Control = main.get("parameter_panel")
 	assert(parameter_panel != null)
-	var swim_mode_option := _find_option_for_label(parameter_panel, "헤엄 방식")
+	# Motion controls (incl. swim mode) now live in their own panel/tab.
+	var motion_panel: Control = main.get("motion_panel")
+	assert(motion_panel != null)
+	var swim_mode_option := _find_option_for_label(motion_panel, "헤엄 방식")
 	assert(swim_mode_option != null)
 	var tuna_index := -1
 	for i in swim_mode_option.item_count:

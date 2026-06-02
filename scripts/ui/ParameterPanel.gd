@@ -16,6 +16,10 @@ var color_pickers := {}
 var option_buttons := {}
 var labels := {}
 var _updating_values := false
+# Optional category filters so one parameter set can be split across several panels
+# (e.g. separate tabs for colour and motion). Empty included_categories = show all.
+var included_categories: Array = []
+var excluded_categories: Array = []
 
 const HIDDEN_BODY_PROFILE_KEYS := {
 	"body_profile": true,
@@ -133,7 +137,12 @@ func _build_controls() -> void:
 		if _should_hide_key(String(key)):
 			continue
 		var value: Variant = parameters[key]
-		var section_body := _ensure_section(_category_for_key(String(key)))
+		var category := _category_for_key(String(key))
+		if not included_categories.is_empty() and not included_categories.has(category):
+			continue
+		if excluded_categories.has(category):
+			continue
+		var section_body := _ensure_section(category)
 		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
 			_add_number_row(section_body, String(key), float(value))
 		elif _is_color_value(value):
@@ -281,15 +290,17 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	parent.add_child(row)
 
 func _min_for_key(key: String, value: float) -> float:
-	if key.begins_with("pattern_") or key == "belly_height":
+	if key.begins_with("pattern_") or key == "belly_height" or key == "belly_slope":
 		return 0.0
 	if _is_signed_parameter(key):
 		return minf(-2.0, value * 2.0)
 	return 0.0
 
 func _max_for_key(key: String, value: float) -> float:
-	if key == "pattern_intensity" or key == "belly_height":
+	if key == "pattern_intensity" or key == "belly_height" or key == "belly_slope" or key == "wetness":
 		return 1.0
+	if key == "iridescence_frequency":
+		return 10.0
 	if key == "pattern_scale_x" or key == "pattern_scale_y":
 		return maxf(20.0, value * 2.0)
 	if _is_signed_parameter(key):
@@ -310,7 +321,7 @@ func _is_signed_parameter(key: String) -> bool:
 func _category_for_key(key: String) -> String:
 	if key.begins_with("pattern"):
 		return "Pattern Settings"
-	if key == "belly_height":
+	if key == "belly_height" or key == "belly_slope" or key == "wetness" or key.begins_with("iridescence"):
 		return "Color Settings"
 	if key.contains("color"):
 		return "Color Settings"

@@ -36,11 +36,14 @@ var current_rig: CreatureRig
 var presets: Array[Dictionary] = []
 var current_preset: Dictionary = {}
 var preset_option: OptionButton
+var side_tabs: TabContainer
 var preset_name_edit: LineEdit
 var save_preset_button: Button
 var creature_type_label: Label
 var playback_toggle: CheckButton
-var parameter_panel: ScrollContainer
+var parameter_panel: ParameterPanel
+var color_panel: ParameterPanel
+var motion_panel: ParameterPanel
 var export_panel: VBoxContainer
 var mini_preview: TextureRect
 var display_label: Label
@@ -67,8 +70,9 @@ func _ready() -> void:
 	_build_preview_world()
 	exporter = SpriteExporterScript.new()
 	add_child(exporter)
-	exporter.export_finished.connect(func(path: String) -> void: export_panel.set_status("출력 완료: %s" % path))
-	exporter.export_failed.connect(func(message: String) -> void: export_panel.set_status(message))
+	exporter.export_finished.connect(_on_export_finished)
+	exporter.export_failed.connect(_on_export_failed)
+	exporter.export_progress.connect(_on_export_progress)
 	_reload_presets()
 
 func _process(delta: float) -> void:
@@ -151,18 +155,14 @@ func _build_ui() -> void:
 	mini_preview.custom_minimum_size = Vector2(144, 96)
 	lower_preview.add_child(mini_preview)
 
-	var side_scroll := ScrollContainer.new()
-	side_scroll.name = "SidePanelScroll"
-	side_scroll.custom_minimum_size = Vector2(380, 0)
-	side_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(side_scroll)
-
+	# The side panel is a fixed-width column: a small header (title + presets) stays
+	# pinned at the top and a TabContainer fills the rest, so the tab bar never
+	# scrolls away. Each tab scrolls its own content internally.
 	var side := VBoxContainer.new()
 	side.name = "SidePanelContent"
-	side.custom_minimum_size = Vector2(360, 0)
-	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	side.custom_minimum_size = Vector2(380, 0)
 	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	side_scroll.add_child(side)
+	root.add_child(side)
 
 	var title := Label.new()
 	title.text = "절차적 스프라이트 생성기"
@@ -203,6 +203,23 @@ func _build_ui() -> void:
 	creature_type_label.text = "타입: 물고기"
 	side.add_child(creature_type_label)
 
+	# Split the long side panel into focused tabs so it stays easy to scan. The
+	# preset/title block above stays fixed; everything else lives in one of three
+	# tabs (shape editing / view & camera / export). Member references and signal
+	# connections are unchanged — only the parent containers differ.
+	side_tabs = TabContainer.new()
+	side_tabs.name = "SideTabs"
+	side_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	side_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side.add_child(side_tabs)
+
+	var shape_tab := _make_tab_page("모양·편집")
+	var color_tab := _make_tab_page("색상")
+	var motion_tab := _make_tab_page("움직임")
+	var view_tab := _make_tab_page("표시·카메라")
+	var export_tab := _make_tab_page("출력")
+
+	# --- 표시·카메라 탭 ---
 	playback_toggle = CheckButton.new()
 	playback_toggle.text = "애니메이션 재생"
 	playback_toggle.button_pressed = true
@@ -210,24 +227,30 @@ func _build_ui() -> void:
 		if current_rig:
 			current_rig.auto_animate = enabled
 	)
-	side.add_child(playback_toggle)
+	view_tab.add_child(playback_toggle)
 
 	var controls := PreviewControlsScript.new()
 	controls.camera_preset_changed.connect(func(preset_name: String) -> void:
 		current_preset["camera_preset"] = preset_name
 		_apply_camera()
 	)
-	side.add_child(controls)
+	view_tab.add_child(controls)
+
+	var frame_export_button := Button.new()
+	frame_export_button.text = "익스포트 프레이밍 보기"
+	frame_export_button.tooltip_text = "미리보기 카메라를 실제 출력과 동일하게 전체가 들어오도록 맞춥니다 (R로 원래 뷰 복귀)."
+	frame_export_button.pressed.connect(_frame_to_export)
+	view_tab.add_child(frame_export_button)
 
 	var bg_color_row := HBoxContainer.new()
 	bg_color_row.add_theme_constant_override("separation", 6)
-	side.add_child(bg_color_row)
-	
+	view_tab.add_child(bg_color_row)
+
 	var bg_label := Label.new()
 	bg_label.text = "미리보기 배경색"
 	bg_label.custom_minimum_size = Vector2(112, 0)
 	bg_color_row.add_child(bg_label)
-	
+
 	var bg_picker := ColorPickerButton.new()
 	bg_picker.color = Color(0.1, 0.12, 0.15, 1.0)
 	bg_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -241,41 +264,42 @@ func _build_ui() -> void:
 	reference_image_panel.reference_changed.connect(func(settings: Dictionary) -> void:
 		_on_reference_image_changed(settings)
 	)
-	side.add_child(reference_image_panel)
+	view_tab.add_child(reference_image_panel)
 
+	# --- 모양·편집 탭 ---
 	var edit_section_label := Label.new()
 	edit_section_label.text = "부위 편집"
 	edit_section_label.add_theme_font_size_override("font_size", 15)
-	side.add_child(edit_section_label)
+	shape_tab.add_child(edit_section_label)
 
 	fin_edit_toggle = CheckButton.new()
 	fin_edit_toggle.text = "지느러미 편집"
 	fin_edit_toggle.toggled.connect(_set_fin_edit_enabled)
-	side.add_child(fin_edit_toggle)
+	shape_tab.add_child(fin_edit_toggle)
 
 	fin_editor_panel = FinEditorPanelScript.new()
 	fin_editor_panel.visible = false
 	fin_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	side.add_child(fin_editor_panel)
+	shape_tab.add_child(fin_editor_panel)
 
 	head_edit_toggle = CheckButton.new()
 	head_edit_toggle.text = "머리 편집"
 	head_edit_toggle.toggled.connect(_set_head_edit_enabled)
-	side.add_child(head_edit_toggle)
+	shape_tab.add_child(head_edit_toggle)
 
 	head_editor_panel = HeadEditorPanelScript.new()
 	head_editor_panel.visible = false
 	head_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	side.add_child(head_editor_panel)
+	shape_tab.add_child(head_editor_panel)
 
 	body_edit_toggle = CheckButton.new()
 	body_edit_toggle.text = "몸통 편집"
 	body_edit_toggle.toggled.connect(_set_body_edit_enabled)
-	side.add_child(body_edit_toggle)
+	shape_tab.add_child(body_edit_toggle)
 
 	body_editor_panel = BodyEditorPanelScript.new()
 	body_editor_panel.visible = false
@@ -287,31 +311,52 @@ func _build_ui() -> void:
 		if fish_rig:
 			fish_rig.set_selected_body_ring(ring_id)
 	)
-	side.add_child(body_editor_panel)
+	shape_tab.add_child(body_editor_panel)
 
 	parameter_panel = ParameterPanelScript.new()
 	parameter_panel.custom_minimum_size = Vector2(0, 240)
-	parameter_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	parameter_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Colour and motion live in their own tabs, so the shape tab's panel hides them.
+	parameter_panel.excluded_categories = ["Color Settings", "Pattern Settings", "Motion Settings"]
 	parameter_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	side.add_child(parameter_panel)
+	shape_tab.add_child(parameter_panel)
 
+	# --- 색상 탭 ---
+	color_panel = ParameterPanelScript.new()
+	color_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	color_panel.included_categories = ["Color Settings", "Pattern Settings"]
+	color_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
+		_apply_parameters_from_editor(parameters)
+	)
+	color_tab.add_child(color_panel)
+
+	# --- 움직임 탭 ---
+	motion_panel = ParameterPanelScript.new()
+	motion_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	motion_panel.included_categories = ["Motion Settings"]
+	motion_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
+		_apply_parameters_from_editor(parameters)
+	)
+	motion_tab.add_child(motion_panel)
+
+	# --- 출력 탭 ---
 	export_panel = ExportPanelScript.new()
 	export_panel.export_requested.connect(_export_current)
-	side.add_child(export_panel)
+	export_tab.add_child(export_panel)
 
 	var help_title := Button.new()
 	help_title.text = "> 조작 도움말"
 	help_title.toggle_mode = true
 	help_title.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	side.add_child(help_title)
-	
+	export_tab.add_child(help_title)
+
 	var help_body := VBoxContainer.new()
 	help_body.visible = false
 	help_body.add_theme_constant_override("separation", 2)
-	side.add_child(help_body)
-	
+	export_tab.add_child(help_body)
+
 	help_title.toggled.connect(func(opened: bool) -> void:
 		help_body.visible = opened
 		help_title.text = "%s 조작 도움말" % ["v" if opened else ">"]
@@ -332,6 +377,17 @@ func _build_ui() -> void:
 		item_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		item_label.add_theme_font_size_override("font_size", 11)
 		help_body.add_child(item_label)
+
+# Adds one page to side_tabs. The VBox is the direct tab child (its name is the tab
+# title) and fills the tab area, so a child marked EXPAND_FILL (e.g. the parameter
+# panel) stretches to consume leftover vertical space instead of leaving a gap.
+func _make_tab_page(tab_title: String) -> VBoxContainer:
+	var content := VBoxContainer.new()
+	content.name = tab_title
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side_tabs.add_child(content)
+	return content
 
 func _build_preview_world() -> void:
 	world_root = Node3D.new()
@@ -395,6 +451,8 @@ func _load_preset(index: int) -> void:
 		current_rig.auto_animate = playback_toggle.button_pressed
 	_bind_fin_editor_for_current_rig()
 	parameter_panel.set_parameters(current_preset.get("parameters", {}))
+	color_panel.set_parameters(current_preset.get("parameters", {}))
+	motion_panel.set_parameters(current_preset.get("parameters", {}))
 	if fin_editor_panel:
 		fin_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
 	if head_editor_panel:
@@ -473,7 +531,11 @@ func _apply_parameters_from_editor(parameters: Dictionary) -> void:
 
 func _sync_parameter_editors(parameters: Dictionary) -> void:
 	if parameter_panel:
-		parameter_panel.call("set_parameters", parameters)
+		parameter_panel.set_parameters(parameters)
+	if color_panel:
+		color_panel.set_parameters(parameters)
+	if motion_panel:
+		motion_panel.set_parameters(parameters)
 	if fin_editor_panel:
 		fin_editor_panel.call("set_parameters", parameters)
 	if head_editor_panel:
@@ -514,6 +576,23 @@ func _bind_fin_editor_for_current_rig() -> void:
 		if body_edit_toggle:
 			body_edit_toggle.button_pressed = false
 			body_edit_toggle.disabled = true
+
+func _export_resolution() -> Vector2i:
+	var export_settings: Dictionary = current_preset.get("export_settings", {})
+	var rd: Dictionary = export_settings.get("render_resolution", {"w": 256, "h": 256})
+	return Vector2i(int(rd.get("w", 256)), int(rd.get("h", 256)))
+
+# Snaps the preview camera to match the export's auto-fit framing (whole creature in
+# frame) using the same calculation the exporter uses. R / reset restores the preset.
+func _frame_to_export() -> void:
+	if current_rig == null or camera_controller == null:
+		return
+	var framing: Dictionary = SpriteExporterScript.compute_fit_framing(current_rig, _export_resolution())
+	if float(framing.get("radius", 0.0)) <= 0.0001:
+		return
+	camera_controller.set("orthographic_size", float(framing.get("ortho_size", 2.25)))
+	camera_controller.set("target", Vector3(0.0, float(framing.get("center_y", 0.0)), 0.0))
+	camera_controller.call("_apply_camera")
 
 func _apply_camera() -> void:
 	if camera == null:
@@ -701,7 +780,24 @@ func _set_turn_preview_parameters(turn_amount: float, direction: int, turn_phase
 		parameters["turn_bank_roll"] = 10.0
 	current_rig.set("parameters", parameters)
 
+func _on_export_finished(path: String) -> void:
+	if export_panel:
+		export_panel.end_progress()
+		export_panel.set_status("출력 완료: %s" % path)
+
+func _on_export_failed(message: String) -> void:
+	if export_panel:
+		export_panel.end_progress()
+		export_panel.set_status(message)
+
+func _on_export_progress(value: float, message: String) -> void:
+	if export_panel:
+		export_panel.set_progress(value)
+		export_panel.set_status(message)
+
 func _export_current() -> void:
+	if _is_exporting:
+		return
 	if current_rig == null or current_preset.is_empty():
 		return
 	var export_settings: Dictionary = current_preset.get("export_settings", {}).duplicate(true)
@@ -753,6 +849,9 @@ func _select_exclusive_edit_toggle(active_toggle: CheckButton) -> void:
 	for toggle in [fin_edit_toggle, head_edit_toggle, body_edit_toggle]:
 		if toggle != null and toggle != active_toggle:
 			toggle.button_pressed = false
+	# Bring the shape/edit tab forward so the activated editor panel is visible.
+	if side_tabs:
+		side_tabs.current_tab = 0
 
 func _is_fish() -> bool:
 	return String(current_preset.get("creature_type", "fish")) == "fish"

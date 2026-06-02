@@ -1,6 +1,13 @@
 class_name PrimitiveFactory
 extends RefCounted
 
+# Longitudinal UV span the head mesh occupies, snout(0) -> neck(HEAD_U_SPAN).
+# The body shell (build_fish_outer_shell_mesh) maps U uniformly over [0, 1] of the
+# whole fish length, so this MUST match the head's physical length as a fraction of
+# total length for the stripe density / pattern to stay continuous across the neck
+# seam. Both meshes read this single constant so the two never drift apart.
+const HEAD_U_SPAN := 0.25
+
 static func ellipsoid(name: String, scale_value: Vector3, material: Material) -> MeshInstance3D:
 	var mesh := SphereMesh.new()
 	mesh.radius = 0.5
@@ -72,15 +79,14 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	# Add triangles. U runs 0.0 (snout) to HEAD_U_SPAN (neck) so pattern density on
 	# the head matches the body shell, where the head occupies roughly the front
 	# quarter of the fish length. V wraps the circumference for seamless patterns.
-	var head_u_span := 0.25
 	for i in rings:
 		for j in segments:
 			var p00: Vector3 = grid[i][j]
 			var p01: Vector3 = grid[i][j+1]
 			var p10: Vector3 = grid[i+1][j]
 			var p11: Vector3 = grid[i+1][j+1]
-			var u0 := float(i) / float(rings) * head_u_span
-			var u1 := float(i + 1) / float(rings) * head_u_span
+			var u0 := float(i) / float(rings) * HEAD_U_SPAN
+			var u1 := float(i + 1) / float(rings) * HEAD_U_SPAN
 			var v0 := float(j) / float(segments)
 			var v1 := float(j + 1) / float(segments)
 

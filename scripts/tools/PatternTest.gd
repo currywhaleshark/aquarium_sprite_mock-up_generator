@@ -68,6 +68,11 @@ func _test_shader_compiles_and_uniforms() -> void:
 		"pattern_scale_y": 5.0,
 		"pattern_intensity": 0.5,
 		"belly_height": 0.3,
+		"belly_slope": 0.4,
+		"iridescence_strength": 0.6,
+		"iridescence_color": "#ccddee",
+		"iridescence_frequency": 3.5,
+		"wetness": 0.8,
 		"body_height": 0.6,
 		"body_length": 1.3
 	})
@@ -77,6 +82,11 @@ func _test_shader_compiles_and_uniforms() -> void:
 	assert(abs(float(material.get_shader_parameter("pattern_scale_x")) - 7.0) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("pattern_intensity")) - 0.5) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("belly_height")) - 0.3) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("belly_slope")) - 0.4) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("iridescence_strength")) - 0.6) < 0.0001)
+	assert(material.get_shader_parameter("iridescence_color") is Color)
+	assert(abs(float(material.get_shader_parameter("iridescence_frequency")) - 3.5) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("wetness")) - 0.8) < 0.0001)
 	assert(material.get_shader_parameter("base_color") is Color)
 	assert(material.get_shader_parameter("belly_color") is Color)
 	assert(material.get_shader_parameter("pattern_color") is Color)
@@ -84,8 +94,9 @@ func _test_shader_compiles_and_uniforms() -> void:
 	# pattern_type names map to stable indices for the shader.
 	assert(BodyProfileScript.pattern_type_index("none") == 0)
 	assert(BodyProfileScript.pattern_type_index("marbled") == 5)
+	assert(BodyProfileScript.pattern_type_index("reticulated") == 6)
 	assert(BodyProfileScript.pattern_type_index("not_a_pattern") == 0)
-	assert(BodyProfileScript.pattern_type_names().size() == 6)
+	assert(BodyProfileScript.pattern_type_names().size() == 7)
 
 func _test_preset_round_trip() -> void:
 	var params := {
@@ -98,7 +109,12 @@ func _test_preset_round_trip() -> void:
 		"pattern_scale_x": 9.0,
 		"pattern_scale_y": 5.0,
 		"pattern_intensity": 0.42,
-		"belly_height": 0.35
+		"belly_height": 0.35,
+		"belly_slope": 0.18,
+		"iridescence_strength": 0.55,
+		"iridescence_color": "#aabbcc",
+		"iridescence_frequency": 4.0,
+		"wetness": 0.65
 	}
 	var split := BodyProfileScript.split_parameters_into_profiles(params, {"name": "round_trip"})
 	var visual: Dictionary = split.get("visual_profile", {})
@@ -108,11 +124,18 @@ func _test_preset_round_trip() -> void:
 	assert(abs(float(visual.get("pattern_scale_y", 0.0)) - 5.0) < 0.0001)
 	assert(abs(float(visual.get("pattern_intensity", 0.0)) - 0.42) < 0.0001)
 	assert(abs(float(visual.get("belly_height", 0.0)) - 0.35) < 0.0001)
+	assert(abs(float(visual.get("belly_slope", 0.0)) - 0.18) < 0.0001)
+	assert(abs(float(visual.get("iridescence_strength", 0.0)) - 0.55) < 0.0001)
+	assert(String(visual.get("iridescence_color", "")) == "#aabbcc")
+	assert(abs(float(visual.get("iridescence_frequency", 0.0)) - 4.0) < 0.0001)
+	assert(abs(float(visual.get("wetness", 0.0)) - 0.65) < 0.0001)
 
 	var rebuilt := BodyProfileScript.make_parameters_from_structured_preset(split)
 	assert(String(rebuilt.get("pattern_type", "")) == "zebra")
 	assert(abs(float(rebuilt.get("pattern_scale_x", 0.0)) - 9.0) < 0.0001)
 	assert(abs(float(rebuilt.get("belly_height", 0.0)) - 0.35) < 0.0001)
+	assert(abs(float(rebuilt.get("belly_slope", 0.0)) - 0.18) < 0.0001)
+	assert(abs(float(rebuilt.get("iridescence_strength", 0.0)) - 0.55) < 0.0001)
 
 func _test_visual_defaults_injected() -> void:
 	# A preset saved before this feature has no pattern keys; defaults must appear
@@ -127,3 +150,8 @@ func _test_visual_defaults_injected() -> void:
 	assert(legacy.has("pattern_scale_x"))
 	assert(legacy.has("pattern_intensity"))
 	assert(legacy.has("belly_height"))
+	assert(legacy.has("belly_slope"))
+	assert(legacy.has("iridescence_strength"))
+	assert(legacy.has("iridescence_color"))
+	assert(legacy.has("iridescence_frequency"))
+	assert(legacy.has("wetness"))

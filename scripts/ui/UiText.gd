@@ -88,7 +88,8 @@ const OPTION_LABELS := {
 	"horizontal_stripes": "가로 줄무늬",
 	"spots": "점무늬",
 	"zebra": "얼룩말무늬",
-	"marbled": "대리석무늬"
+	"marbled": "대리석무늬",
+	"reticulated": "망상무늬"
 }
 
 const PARAMETER_LABELS := {
@@ -152,6 +153,11 @@ const PARAMETER_LABELS := {
 	"secondary_color": "보조 색",
 	"belly_color": "배 색",
 	"belly_height": "배 색 영역 높이",
+	"belly_slope": "배 색 경계 부드러움",
+	"iridescence_strength": "무지개빛 광택",
+	"iridescence_color": "무지개빛 색",
+	"iridescence_frequency": "무지개빛 빈도",
+	"wetness": "젖은 광택",
 	"pattern_type": "무늬 종류",
 	"pattern_color": "무늬 색",
 	"pattern_scale_x": "무늬 가로 크기",

@@ -5,6 +5,7 @@ signal export_requested
 
 var direction_toggle: CheckButton
 var status_label: Label
+var progress_bar: ProgressBar
 
 func _ready() -> void:
 	direction_toggle = CheckButton.new()
@@ -15,6 +16,15 @@ func _ready() -> void:
 	button.text = "PNG + 스프라이트시트 출력"
 	button.pressed.connect(func() -> void: export_requested.emit())
 	add_child(button)
+
+	progress_bar = ProgressBar.new()
+	progress_bar.min_value = 0.0
+	progress_bar.max_value = 1.0
+	progress_bar.value = 0.0
+	progress_bar.show_percentage = true
+	progress_bar.visible = false
+	add_child(progress_bar)
+
 	status_label = Label.new()
 	status_label.text = "준비됨"
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -23,6 +33,16 @@ func _ready() -> void:
 func set_status(text: String) -> void:
 	if status_label:
 		status_label.text = text
+
+func set_progress(value: float) -> void:
+	if progress_bar:
+		progress_bar.visible = true
+		progress_bar.value = clampf(value, 0.0, 1.0)
+
+func end_progress() -> void:
+	if progress_bar:
+		progress_bar.visible = false
+		progress_bar.value = 0.0
 
 func get_direction_count() -> int:
 	if direction_toggle == null:

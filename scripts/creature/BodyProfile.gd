@@ -137,14 +137,19 @@ const UNUSED_PARAMETER_KEYS := [
 	"rim_light_strength"
 ]
 
-const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled"]
+const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated"]
 const VISUAL_PATTERN_DEFAULTS := {
 	"pattern_type": "none",
 	"pattern_color": "#1f5560",
 	"pattern_scale_x": 6.0,
 	"pattern_scale_y": 4.0,
 	"pattern_intensity": 0.7,
-	"belly_height": 0.5
+	"belly_height": 0.5,
+	"belly_slope": 0.22,
+	"iridescence_strength": 0.0,
+	"iridescence_color": "#bfe9ff",
+	"iridescence_frequency": 2.0,
+	"wetness": 0.0
 }
 
 static func swim_mode_names() -> Array[String]:
@@ -316,7 +321,9 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
 		"highlight_strength", "shadow_strength",
 		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
-		"pattern_intensity", "belly_height"
+		"pattern_intensity", "belly_height", "belly_slope",
+		"iridescence_strength", "iridescence_color", "iridescence_frequency",
+		"wetness"
 	])
 	updated["parameters"] = normalized_parameters
 	return updated
