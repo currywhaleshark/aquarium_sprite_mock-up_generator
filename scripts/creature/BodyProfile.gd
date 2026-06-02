@@ -188,8 +188,20 @@ static func apply_swim_mode(parameters: Dictionary, swim_mode: String) -> void:
 
 static func default_fish_rings(shape: String = "default_fish") -> Array[Dictionary]:
 	match shape:
+		"slender_lateral":
+			return default_fish_rings("slender_fish")
 		"deep_compressed":
 			return default_fish_rings("tall_flat_fish")
+		"round_fancy":
+			return default_fish_rings("round_chubby_fish")
+		"round_puffer":
+			return default_fish_rings("round_chubby_fish")
+		"bottom_flat":
+			return default_fish_rings("bottom_dweller_fish")
+		"eel_ribbon":
+			return default_fish_rings("slender_fish")
+		"boxy":
+			return default_fish_rings("round_chubby_fish")
 		"elongated", "eel_like", "narrow_peduncle":
 			return default_fish_rings("slender_fish")
 		"depressed", "broad_head":
@@ -283,6 +295,9 @@ static func make_parameters_from_structured_preset(preset: Dictionary) -> Dictio
 	_merge(parameters, _as_dictionary(preset.get("visual_profile", {})))
 	if preset.has("body_profile"):
 		parameters["body_profile"] = preset["body_profile"]
+	for key in ["archetype_id", "archetype_strength", "variant_seed", "marking_layers"]:
+		if preset.has(key):
+			parameters[key] = preset[key]
 	parameters["creature_type"] = String(preset.get("type", preset.get("creature_type", "fish")))
 	normalize_motion_parameters(parameters)
 	ensure_visual_parameters(parameters)
@@ -325,6 +340,9 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"iridescence_strength", "iridescence_color", "iridescence_frequency",
 		"wetness"
 	])
+	for key in ["archetype_id", "archetype_strength", "variant_seed", "marking_layers"]:
+		if parameters.has(key):
+			updated[key] = parameters[key]
 	updated["parameters"] = normalized_parameters
 	return updated
 

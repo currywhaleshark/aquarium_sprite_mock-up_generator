@@ -1,0 +1,71 @@
+{
+	"id": "angelfish",
+	"label": "Angelfish",
+	"creature_type": "fish",
+	"readability_priority": ["deep compressed body", "tall fins", "vertical bars"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 0.96,
+			"body_height": 1.05,
+			"body_width": 0.34,
+			"head_size": 0.42,
+			"head_offset": -0.38,
+			"eye_size": 0.058,
+			"eye_position_x": -0.54,
+			"eye_position_y": 0.2
+		},
+		"body_profile": {
+			"shape": "deep_compressed"
+		},
+		"tail_profile": {
+			"tail_length": 0.68,
+			"tail_fin_size": 0.5,
+			"caudal_shape": "rounded"
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "trailing",
+			"dorsal_1_length": 0.52,
+			"dorsal_1_height": 0.38,
+			"anal_shape": "trailing",
+			"anal_length": 0.52,
+			"anal_height": 0.34,
+			"pelvic_enabled": 1.0,
+			"pelvic_shape": "long",
+			"pelvic_length": 0.52,
+			"pelvic_height": 0.08,
+			"mouth_type": "terminal",
+			"forehead_slope": 0.58,
+			"head_shape": "steep_forehead"
+		},
+		"visual_profile": {
+			"base_color": "#d8d0b8",
+			"belly_color": "#f2ead7",
+			"fin_color": "#d7cfb2",
+			"outline_color": "#181411",
+			"pattern_color": "#171717",
+			"pattern_intensity": 0.7
+		},
+		"motion_profile": {
+			"swim_mode": "puffer",
+			"global_sway_amount": 7.0,
+			"tail_sway_multiplier": 0.85
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "vertical_bar",
+			"zone": "body",
+			"color": "#171717",
+			"x_start": 0.12,
+			"x_end": 0.78,
+			"y": 0.0,
+			"thickness": 0.09,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"bar_count_variation": 1.0,
+		"fin_length_variation": 0.08,
+		"color_jitter": 0.04
+	}
+}

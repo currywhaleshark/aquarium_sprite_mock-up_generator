@@ -1,0 +1,79 @@
+{
+	"id": "neon_tetra",
+	"label": "Neon Tetra",
+	"creature_type": "fish",
+	"readability_priority": ["slender body", "blue lateral stripe", "rear red lower band"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.55,
+			"body_height": 0.34,
+			"body_width": 0.24,
+			"head_size": 0.32,
+			"head_offset": -0.66,
+			"eye_size": 0.04,
+			"eye_position_x": -0.88,
+			"eye_position_y": 0.08
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.62,
+			"tail_fin_size": 0.28,
+			"caudal_shape": "forked_shallow",
+			"caudal_height_scale": 0.65
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "single",
+			"dorsal_1_length": 0.28,
+			"dorsal_1_height": 0.1,
+			"anal_shape": "long",
+			"anal_length": 0.3,
+			"pectoral_fin_size": 0.08,
+			"pelvic_enabled": 0.0,
+			"mouth_type": "terminal",
+			"snout_length": 0.02
+		},
+		"visual_profile": {
+			"base_color": "#7d8f8f",
+			"belly_color": "#dfe6dc",
+			"fin_color": "#b9d7d4",
+			"outline_color": "#162126",
+			"iridescence_strength": 0.45,
+			"iridescence_color": "#34dfff",
+			"wetness": 0.2
+		},
+		"motion_profile": {
+			"swim_mode": "general",
+			"global_sway_amount": 10.0,
+			"tail_sway_multiplier": 1.15
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "lateral_line",
+			"zone": "body",
+			"color": "#22d8ff",
+			"x_start": 0.04,
+			"x_end": 0.84,
+			"y": 0.1,
+			"thickness": 0.035,
+			"emissive": 0.75
+		},
+		{
+			"type": "horizontal_band",
+			"zone": "body",
+			"color": "#e93a3a",
+			"x_start": 0.48,
+			"x_end": 0.96,
+			"y": -0.12,
+			"thickness": 0.08,
+			"emissive": 0.15
+		}
+	],
+	"variant_controls": {
+		"body_depth_variation": 0.08,
+		"stripe_bend_variation": 0.04,
+		"color_jitter": 0.06
+	}
+}
