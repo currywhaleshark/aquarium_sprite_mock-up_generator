@@ -32,6 +32,10 @@ var pelvic_l: MeshInstance3D
 var pelvic_r: MeshInstance3D
 var pectoral_l: Node3D
 var pectoral_r: Node3D
+# Undeformed outline points for the paired side fins, captured at build time so the
+# soft-membrane flutter can re-deform their mesh each frame (shared L/R per pair).
+var pectoral_base_points := PackedVector3Array()
+var pelvic_base_points := PackedVector3Array()
 var dorsal_base_position := Vector3.ZERO
 var dorsal_2_base_position := Vector3.ZERO
 var anal_base_position := Vector3.ZERO
@@ -66,6 +70,8 @@ func rebuild() -> void:
 	pelvic_r = null
 	pectoral_l = null
 	pectoral_r = null
+	pectoral_base_points = PackedVector3Array()
+	pelvic_base_points = PackedVector3Array()
 	tail_fin = null
 	tail_fin_base_points = PackedVector3Array()
 	head_node = null
@@ -170,6 +176,7 @@ func rebuild() -> void:
 		var pelvic_length := param_float("pelvic_length", 0.22)
 		var pelvic_height := param_float("pelvic_height", 0.14)
 		if pelvic_shape == "oval":
+			pelvic_base_points = PF.oval_fin_points(pelvic_length, pelvic_height)
 			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, fin_mat)
 			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, fin_mat)
 		else:
@@ -181,6 +188,7 @@ func rebuild() -> void:
 			var inverted_r := PackedVector3Array()
 			for p in points_r:
 				inverted_r.append(Vector3(p.x, -p.y, p.z))
+			pelvic_base_points = inverted_l
 			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, fin_mat)
 			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, fin_mat)
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
@@ -199,9 +207,11 @@ func rebuild() -> void:
 	var pectoral_size := param_float("pectoral_fin_size", 0.16)
 	var pectoral_shape := String(parameters.get("pectoral_shape", "oval"))
 	if pectoral_shape == "oval":
+		pectoral_base_points = PF.oval_fin_points(pectoral_size, pectoral_size * 0.5)
 		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, fin_mat)
 	else:
 		var points_l := _get_fin_points("PectoralFinL", pectoral_shape, pectoral_size, pectoral_size * 0.5)
+		pectoral_base_points = points_l
 		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, fin_mat)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
@@ -475,7 +485,10 @@ func apply_pose(loop_phase: float) -> void:
 	if tail_fin_pivot:
 		var direct_tail_yaw := sin(loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4) * global_sway * tail_multiplier * tail_stem_weight * 1.25
 		tail_fin_pivot.rotation_degrees.y = direct_tail_yaw
-		_animate_caudal_fin(loop_phase, direct_tail_yaw)
+		# When the body shell drives the rig, _apply_animated_tail re-poses the caudal
+		# fin below; only deform here in the shell-less fallback to avoid doing it twice.
+		if outer_shell == null or shell_profile.is_empty():
+			_animate_caudal_fin(loop_phase, direct_tail_yaw)
 	if pectoral_l:
 		pectoral_l.rotation_degrees = pectoral_l_base_rotation
 	if pectoral_r:
@@ -662,6 +675,8 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		pelvic_r.position = _animated_surface_position("ventral", pelvic_attach_t, 0.02, pelvic_z, 0.0, centers, yaws)
 		pelvic_l.rotation_degrees = Vector3(0.0, pelvic_yaw + 12.0, pelvic_surface_angle)
 		pelvic_r.rotation_degrees = Vector3(0.0, pelvic_yaw - 12.0, pelvic_surface_angle)
+		_animate_blade_fin(pelvic_l, pelvic_base_points, loop_phase, 0.0)
+		_animate_blade_fin(pelvic_r, pelvic_base_points, loop_phase, PI)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.18
 	var pectoral_yaw := _fin_follow_yaw(pectoral_attach_t, yaws)
@@ -696,6 +711,8 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		pectoral_r.position = _animated_side_position(pectoral_attach_t, -0.02 + pectoral_offset_y, pectoral_z, pectoral_offset, centers, yaws)
 		pectoral_r_base_rotation = Vector3(0.0, pectoral_yaw - 25.0, -28.0 + pectoral_surface_angle)
 		pectoral_r.rotation_degrees = pectoral_r_base_rotation + Vector3(right_pectoral_flap + right_turn_bias * 24.0, right_turn_bias * 16.0, right_turn_bias * 20.0)
+	_animate_blade_fin(pectoral_l as MeshInstance3D, pectoral_base_points, loop_phase, 0.0)
+	_animate_blade_fin(pectoral_r as MeshInstance3D, pectoral_base_points, loop_phase, PI)
 
 func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	if tail_pivot_1 == null or tail_pivot_2 == null or tail_fin_pivot == null:
@@ -725,38 +742,99 @@ func _apply_animated_tail(loop_phase: float, centers: PackedVector3Array, yaws: 
 	tail_fin_pivot.rotation_degrees = Vector3(0.0, _soft_limit_yaw(tail_fin_yaw, tail_fin_yaw_limit), 0.0)
 	_animate_caudal_fin(loop_phase, tail_fin_yaw)
 
-func _animate_caudal_fin(loop_phase: float, tail_fin_yaw: float) -> void:
+func _animate_caudal_fin(loop_phase: float, _tail_fin_yaw: float) -> void:
 	if tail_fin == null or tail_fin_base_points.is_empty():
 		return
 	var softness := _effective_caudal_softness()
+	# Rigid: leave the flat base mesh built in rebuild() untouched. Any parameter
+	# change re-runs rebuild(), so the mesh can never be stuck in a deformed state.
 	if softness <= 0.001:
-		tail_fin.mesh = PF.build_polygon_fin_mesh(tail_fin_base_points)
 		return
+	var tail_size := maxf(param_float("tail_fin_size", 0.46), 0.001)
+	# Lock the membrane to the tail's own swing phase so it trails the swing instead
+	# of wriggling on its own clock.
+	var drive_phase := loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4
+	var down_local := tail_fin.global_transform.basis.inverse() * Vector3.DOWN
+	tail_fin.mesh = PF.build_polygon_fin_mesh(_membrane_deformed_points(tail_fin_base_points, softness, drive_phase, _swim_drive_strength(), 0.0, tail_size, down_local))
+
+# Re-deforms a paired side fin (pectoral/pelvic) into a soft trailing membrane.
+# Skips work entirely when the fin reads as rigid, preserving the original mesh.
+func _animate_blade_fin(fin_node: MeshInstance3D, base_points: PackedVector3Array, loop_phase: float, phase_offset: float) -> void:
+	if fin_node == null or base_points.is_empty():
+		return
+	var softness := _effective_fin_softness(_fin_name_to_slot(fin_node.name))
+	if softness <= 0.001:
+		return
+	var max_x := -INF
+	var min_x := INF
+	for point in base_points:
+		min_x = minf(min_x, point.x)
+		max_x = maxf(max_x, point.x)
+	var size_ref := maxf(max_x - min_x, 0.001)
+	# Paired fins scull at roughly double the body cadence; lock to that beat.
+	var drive_phase := loop_phase * TAU * 2.0 + phase_offset
+	var down_local := fin_node.global_transform.basis.inverse() * Vector3.DOWN
+	fin_node.mesh = PF.build_polygon_fin_mesh(_membrane_deformed_points(base_points, softness, drive_phase, _swim_drive_strength(), 0.0, size_ref, down_local))
+
+# How far the soft membrane trails, as a fraction of the fin's span, at full drive.
+# Higher reads as a looser, more flowing fin (betta-tail style); 0 is a stiff blade.
+const FIN_SOFT_AMPLITUDE := 0.44
+
+# Static gravity sag (fraction of span) pulled toward world-down at the free tip, so a
+# soft fin also hangs/droops a little, more as softness rises.
+const FIN_SOFT_DROOP := 0.24
+
+# Net strength of the swimming motion the fins should flow with. Near 0 when the fish
+# is holding still (so fins settle), rising as it sways/swims harder. A small floor
+# keeps a gentle drift for hovering fish like bettas.
+func _swim_drive_strength() -> float:
+	var global_sway := param_float("global_sway_amount", param_float("body_sway_amount", 3.0))
+	var tail_multiplier := param_float("tail_sway_multiplier", 1.0)
+	return clampf(0.12 + absf(global_sway * tail_multiplier) / 14.0, 0.0, 1.3)
+
+# Trailing membrane bend: the tip lags the base by tip_t * lag, so the membrane curves
+# from the difference between the rigid swing and the lagged tip — strongest as the
+# motion crosses through center (fastest), easing at the swing extremes. This is what
+# makes the fin look dragged through water rather than self-animated.
+func _membrane_trail(drive_phase: float, tip_t: float, lag: float) -> float:
+	return sin(drive_phase) - sin(drive_phase - tip_t * lag)
+
+# Shared free-edge membrane deform. Subdivides the coarse outline so the trailing wave
+# renders as smooth cloth, then displaces z with amplitude growing toward the trailing
+# tip (+x) and free margin (|y|), scaled by how hard the fish is actually moving.
+func _membrane_deformed_points(base_points: PackedVector3Array, softness: float, drive_phase: float, drive_strength: float, phase_offset: float, size_ref: float, down_local: Vector3) -> PackedVector3Array:
+	var outline := PF.subdivide_fin_outline(base_points, 8)
 	var min_x := INF
 	var max_x := -INF
 	var max_abs_y := 0.001
-	for point in tail_fin_base_points:
+	for point in outline:
 		min_x = minf(min_x, point.x)
 		max_x = maxf(max_x, point.x)
 		max_abs_y = maxf(max_abs_y, absf(point.y))
 	var x_span := maxf(max_x - min_x, 0.001)
-	var phase_delay := param_float("phase_delay", 0.65)
-	var tail_size := maxf(param_float("tail_fin_size", 0.46), 0.001)
-	var yaw_bias := clampf(tail_fin_yaw / maxf(param_float("tail_fin_yaw_limit", 42.0), 1.0), -1.0, 1.0)
+	var lag := 0.6 + softness * 2.8
 	var deformed := PackedVector3Array()
-	for point in tail_fin_base_points:
+	for point in outline:
 		var tip_t := clampf((point.x - min_x) / x_span, 0.0, 1.0)
-		var membrane_weight := 0.45 + 0.55 * clampf(absf(point.y) / max_abs_y, 0.0, 1.0)
-		var lagged_wave := sin(loop_phase * TAU - phase_delay + tip_t * softness * 1.35)
-		var z := (lagged_wave * 0.16 + yaw_bias * 0.08) * tail_size * softness * pow(tip_t, 1.25) * membrane_weight
-		deformed.append(Vector3(point.x, point.y, z))
-	tail_fin.mesh = PF.build_polygon_fin_mesh(deformed)
+		var edge_norm := clampf(point.y / max_abs_y, -1.0, 1.0)
+		var membrane_weight := 0.4 + 0.6 * absf(edge_norm)
+		var trail := _membrane_trail(drive_phase + phase_offset, tip_t, lag)
+		var z := FIN_SOFT_AMPLITUDE * drive_strength * trail * size_ref * softness * pow(tip_t, 1.05) * membrane_weight
+		var sag := FIN_SOFT_DROOP * softness * pow(tip_t, 1.3) * size_ref
+		deformed.append(Vector3(point.x, point.y, point.z + z) + down_local * sag)
+	return deformed
 
 func _effective_caudal_softness() -> float:
+	return _effective_fin_softness("caudal")
+
+# Per-fin softness, with the global fin_softness/fin_rigidity acting as the default
+# when a slot has no explicit override. Returns the net softness after rigidity damping.
+func _effective_fin_softness(slot: String) -> float:
 	var base_softness := clampf(param_float("fin_softness", 0.0), 0.0, 1.0)
-	var caudal_softness := clampf(float(parameters.get("caudal_softness", base_softness)), 0.0, 1.0)
-	var rigidity := clampf(param_float("fin_rigidity", 0.0), 0.0, 1.0)
-	return caudal_softness * (1.0 - rigidity)
+	var base_rigidity := clampf(param_float("fin_rigidity", 0.0), 0.0, 1.0)
+	var softness := clampf(float(parameters.get("%s_softness" % slot, base_softness)), 0.0, 1.0)
+	var rigidity := clampf(float(parameters.get("%s_rigidity" % slot, base_rigidity)), 0.0, 1.0)
+	return softness * (1.0 - rigidity)
 
 func _fin_follow_yaw(attach_t: float, yaws: PackedFloat32Array) -> float:
 	return _sample_animated_shell_yaw(attach_t, yaws) * param_float("fin_yaw_follow_strength", 0.25)
@@ -1168,7 +1246,27 @@ func _animated_curved_fin_points(fin_node: MeshInstance3D, side: String, attach_
 		
 	var turn_direction := _turn_direction()
 	var turn_median_bias_angle := param_float("turn_median_fin_bias", 0.5) * median_turn * turn_direction * 12.0
-	for point in points:
+	# Soft free-edge flutter, layered on top of the body-wave tilt. When active the
+	# outline is subdivided so the flowing ripple stays smooth; amplitude grows toward
+	# the free margin (+y) and several crests travel head-to-tail along the span (x).
+	var softness := _effective_fin_softness(_fin_name_to_slot(fin_node.name))
+	var work_points := points
+	var min_x_local := INF
+	var max_x_local := -INF
+	var max_height := 0.001
+	var soft_drive := 0.0
+	var soft_lag := 0.6 + softness * 2.8
+	var soft_down := Vector3.ZERO
+	if softness > 0.001:
+		soft_drive = _swim_drive_strength()
+		soft_down = fin_node.global_transform.basis.inverse() * Vector3.DOWN
+		work_points = PF.subdivide_fin_outline(points, 8)
+		for point in work_points:
+			min_x_local = minf(min_x_local, point.x)
+			max_x_local = maxf(max_x_local, point.x)
+			max_height = maxf(max_height, absf(point.y))
+	var x_span_local := maxf(max_x_local - min_x_local, 0.001)
+	for point in work_points:
 		var t_prime := clampf(attach_t + point.x / x_span, 0.0, 1.0)
 		var tilt := clampf(sin(loop_phase * TAU - t_prime * ring_span * phase_delay) * tilt_amp, -1.2, 1.2)
 		var fin_height := maxf(point.y, 0.0)
@@ -1178,7 +1276,17 @@ func _animated_curved_fin_points(fin_node: MeshInstance3D, side: String, attach_
 		var animated_point := _animated_surface_position(side, t_prime, surface_margin, local_z, 0.0, centers, yaws)
 		animated_point.z = lerpf(pivot_surface.z, animated_point.z, z_follow)
 		var static_point := _curved_fin_points(side, attach_t, margin, PackedVector3Array([point]), follow, loop_phase)[0]
-		result.append(static_point.lerp(inverse_transform * animated_point, follow))
+		var blended := static_point.lerp(inverse_transform * animated_point, follow)
+		if softness > 0.001:
+			# Free edge trails the body wave passing along the fin (head-to-tail),
+			# locked to that motion so it flows with the swim instead of self-rippling.
+			var tip_t := clampf((point.x - min_x_local) / x_span_local, 0.0, 1.0)
+			var edge_norm := clampf(absf(point.y) / max_height, 0.0, 1.0)
+			var membrane_weight := 0.4 + 0.6 * edge_norm
+			var trail := _membrane_trail(loop_phase * TAU - phase_delay, tip_t, soft_lag)
+			blended.z += FIN_SOFT_AMPLITUDE * soft_drive * trail * max_height * softness * pow(edge_norm, 1.2) * membrane_weight
+			blended += soft_down * (FIN_SOFT_DROOP * softness * pow(edge_norm, 1.3) * max_height)
+		result.append(blended)
 	return result
 
 func _sample_shell_profile(attach_t: float) -> Vector3:

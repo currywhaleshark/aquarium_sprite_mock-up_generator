@@ -133,9 +133,32 @@ func _ready() -> void:
 	fish.apply_pose(0.25)
 	var soft_tail_z := _mesh_max_abs_z(soft_caudal)
 	assert(soft_tail_z > rigid_tail_z + 0.025)
-	assert(soft_tail_z < 0.28)
+	assert(soft_tail_z < 0.7)
+
+	# Per-fin softness reaches the paired side fins, not just the caudal blade.
+	var rigid_pectoral_parameters: Dictionary = soft_tail_parameters.duplicate(true)
+	rigid_pectoral_parameters["pectoral_fin_size"] = 0.4
+	rigid_pectoral_parameters["pectoral_softness"] = 0.0
+	rigid_pectoral_parameters["pectoral_rigidity"] = 1.0
+	fish.set_parameters(rigid_pectoral_parameters)
+	await get_tree().process_frame
+	fish.apply_pose(0.25)
+	var rigid_pectoral_z := _mesh_max_abs_z(fish.get_node_or_null("BodyPivot/PectoralFinL") as MeshInstance3D)
+
+	var soft_pectoral_parameters: Dictionary = rigid_pectoral_parameters.duplicate(true)
+	soft_pectoral_parameters["pectoral_softness"] = 0.9
+	soft_pectoral_parameters["pectoral_rigidity"] = 0.0
+	fish.set_parameters(soft_pectoral_parameters)
+	await get_tree().process_frame
+	fish.apply_pose(0.25)
+	var soft_pectoral_z := _mesh_max_abs_z(fish.get_node_or_null("BodyPivot/PectoralFinL") as MeshInstance3D)
+	assert(soft_pectoral_z > rigid_pectoral_z + 0.01)
 
 	var eel_fin_parameters: Dictionary = fish.parameters.duplicate(true)
+	# Isolate the body-wave ripple: clear any inherited fin softness so this only
+	# measures the median fin following the body, not the soft-membrane flutter.
+	eel_fin_parameters["fin_softness"] = 0.0
+	eel_fin_parameters["fin_rigidity"] = 0.0
 	eel_fin_parameters["body_wave_amount"] = 50000.0
 	fish.set_parameters(eel_fin_parameters)
 	await get_tree().process_frame

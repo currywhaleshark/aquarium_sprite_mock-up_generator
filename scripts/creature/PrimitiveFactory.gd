@@ -562,6 +562,31 @@ static func oval_fin(name: String, radius_x: float, radius_y: float, material: M
 	node.material_override = material
 	return node
 
+# Outline points of an oval fin, matching oval_fin()'s ring layout (base near the
+# local origin, tip extending to +x). Used to rebuild the fin through
+# build_polygon_fin_mesh() when a soft-membrane deform is active.
+static func oval_fin_points(radius_x: float, radius_y: float, segments: int = 18) -> PackedVector3Array:
+	var points := PackedVector3Array()
+	for i in segments:
+		var angle := TAU * float(i) / float(segments)
+		points.append(Vector3(cos(angle) * radius_x + radius_x, sin(angle) * radius_y, 0.0))
+	return points
+
+# Densifies a coarse fin outline by linearly interpolating extra vertices along each
+# edge of the closed loop. Used only on the soft-membrane path so a travelling ripple
+# renders as smooth flowing cloth instead of a few coarse folds.
+static func subdivide_fin_outline(points: PackedVector3Array, segments_per_edge: int) -> PackedVector3Array:
+	var count := points.size()
+	if count < 3 or segments_per_edge <= 1:
+		return points
+	var dense := PackedVector3Array()
+	for i in count:
+		var a := points[i]
+		var b := points[(i + 1) % count]
+		for s in segments_per_edge:
+			dense.append(a.lerp(b, float(s) / float(segments_per_edge)))
+	return dense
+
 static func bezier_fin_points(length: float, height: float, p1: Vector2, p2: Vector2, segments: int = 8) -> PackedVector3Array:
 	var points := PackedVector3Array()
 	var p0 := Vector2(-length * 0.5, 0.0)

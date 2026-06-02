@@ -334,7 +334,10 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",
 		"fin_ray_strength", "fin_tip_color", "fin_gradient_color",
 		"fin_translucency", "fin_translucency_strength", "fin_tornness", "fin_trailing_threads",
-		"fin_softness", "caudal_softness", "fin_rigidity"
+		"fin_softness", "fin_rigidity",
+		"dorsal_1_softness", "dorsal_1_rigidity", "dorsal_2_softness", "dorsal_2_rigidity",
+		"anal_softness", "anal_rigidity", "pelvic_softness", "pelvic_rigidity",
+		"pectoral_softness", "pectoral_rigidity", "caudal_softness", "caudal_rigidity"
 	])
 	updated["motion_profile"] = _pick(normalized_parameters, [
 		"swim_mode", "swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",

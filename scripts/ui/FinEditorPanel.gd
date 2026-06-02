@@ -34,32 +34,39 @@ const NUMERIC_KEYS := {
 		"dorsal_1_length": {"min": 0.08, "max": 1.2, "step": 0.005, "fallback": 0.42},
 		"dorsal_1_height": {"min": 0.04, "max": 0.8, "step": 0.005, "fallback_key": "dorsal_fin_size", "fallback": 0.28},
 		"dorsal_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0},
-		"fin_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0},
-		"fin_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0}
+		"dorsal_1_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
+		"dorsal_1_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
 	},
 	"dorsal_2": {
 		"dorsal_2_length": {"min": 0.08, "max": 1.2, "step": 0.005, "fallback": 0.34},
-		"dorsal_2_height": {"min": 0.04, "max": 0.8, "step": 0.005, "fallback": 0.18}
+		"dorsal_2_height": {"min": 0.04, "max": 0.8, "step": 0.005, "fallback": 0.18},
+		"dorsal_2_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
+		"dorsal_2_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
 	},
 	"pectoral": {
 		"pectoral_fin_size": {"min": 0.04, "max": 0.6, "step": 0.005, "fallback": 0.16},
-		"pectoral_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0}
+		"pectoral_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0},
+		"pectoral_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
+		"pectoral_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
 	},
 	"pelvic": {
 		"pelvic_length": {"min": 0.04, "max": 0.7, "step": 0.005, "fallback": 0.22},
-		"pelvic_height": {"min": 0.03, "max": 0.5, "step": 0.005, "fallback": 0.14}
+		"pelvic_height": {"min": 0.03, "max": 0.5, "step": 0.005, "fallback": 0.14},
+		"pelvic_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
+		"pelvic_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
 	},
 	"anal": {
 		"anal_length": {"min": 0.04, "max": 1.0, "step": 0.005, "fallback": 0.36},
 		"anal_height": {"min": 0.03, "max": 0.7, "step": 0.005, "fallback_key": "anal_fin_size", "fallback": 0.2},
-		"anal_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0}
+		"anal_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0},
+		"anal_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
+		"anal_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
 	},
 	"caudal": {
 		"tail_fin_size": {"min": 0.08, "max": 1.2, "step": 0.005, "fallback": 0.46},
 		"caudal_height_scale": {"min": 0.2, "max": 1.8, "step": 0.005, "fallback": 0.72},
 		"caudal_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
-		"fin_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0},
-		"fin_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0}
+		"caudal_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
 	}
 }
 
