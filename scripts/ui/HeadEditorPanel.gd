@@ -8,6 +8,11 @@ const UiRows := preload("res://scripts/ui/UiRows.gd")
 
 const HEAD_SHAPES := ["rounded", "tapered", "pointed", "blunt", "broad", "flattened", "hump", "steep_forehead", "cephalofoil"]
 const MOUTH_TYPES := ["terminal", "superior", "inferior", "subterminal", "protrusible"]
+const HEAD_ORNAMENTS := ["none", "wen", "nuchal_hump", "cheek_pad", "forehead_bump"]
+const GILL_MARKS := ["none", "line", "crescent", "plate"]
+const BARBEL_STYLES := ["none", "cory", "loach", "koi"]
+const EYE_STYLES := ["bead", "large", "telescope", "celestial", "tiny_puffer"]
+const MOUTH_DETAILS := ["dot", "lip", "beak", "sucker", "downturned"]
 const NUMERIC_KEYS := {
 	"head_size": {"min": 0.12, "max": 1.2, "step": 0.005},
 	"head_offset": {"min": -1.5, "max": 0.4, "step": 0.005},
@@ -27,6 +32,11 @@ var parameters: Dictionary = {}
 var head_option: OptionButton
 var mouth_option: OptionButton
 var snout_appendage_option: OptionButton
+var head_ornament_option: OptionButton
+var gill_mark_option: OptionButton
+var barbel_style_option: OptionButton
+var eye_style_option: OptionButton
+var mouth_detail_option: OptionButton
 var numeric_sliders := {}
 var _updating := false
 
@@ -46,6 +56,36 @@ func _ready() -> void:
 	mouth_option.item_selected.connect(func(index: int) -> void:
 		if not _updating:
 			set_mouth_type(String(mouth_option.get_item_metadata(index)))
+	)
+
+	head_ornament_option = _add_option_row(UiText.parameter("head_ornament"), HEAD_ORNAMENTS)
+	head_ornament_option.item_selected.connect(func(index: int) -> void:
+		if not _updating:
+			set_option_parameter("head_ornament", String(head_ornament_option.get_item_metadata(index)))
+	)
+
+	gill_mark_option = _add_option_row(UiText.parameter("gill_mark"), GILL_MARKS)
+	gill_mark_option.item_selected.connect(func(index: int) -> void:
+		if not _updating:
+			set_option_parameter("gill_mark", String(gill_mark_option.get_item_metadata(index)))
+	)
+
+	barbel_style_option = _add_option_row(UiText.parameter("barbel_style"), BARBEL_STYLES)
+	barbel_style_option.item_selected.connect(func(index: int) -> void:
+		if not _updating:
+			set_option_parameter("barbel_style", String(barbel_style_option.get_item_metadata(index)))
+	)
+
+	eye_style_option = _add_option_row(UiText.parameter("eye_style"), EYE_STYLES)
+	eye_style_option.item_selected.connect(func(index: int) -> void:
+		if not _updating:
+			set_option_parameter("eye_style", String(eye_style_option.get_item_metadata(index)))
+	)
+
+	mouth_detail_option = _add_option_row(UiText.parameter("mouth_detail"), MOUTH_DETAILS)
+	mouth_detail_option.item_selected.connect(func(index: int) -> void:
+		if not _updating:
+			set_option_parameter("mouth_detail", String(mouth_detail_option.get_item_metadata(index)))
 	)
 
 	snout_appendage_option = _add_option_row(UiText.parameter("snout_appendage"), ["none", "swordfish_bill", "sawfish_saw", "barbels"])
@@ -72,6 +112,10 @@ func set_mouth_type(mouth_type: String) -> void:
 
 func set_snout_appendage(type: String) -> void:
 	parameters["snout_appendage"] = type
+	_emit_and_refresh()
+
+func set_option_parameter(key: String, value: String) -> void:
+	parameters[key] = value
 	_emit_and_refresh()
 
 func set_numeric_parameter(key: String, value: float) -> void:
@@ -120,6 +164,11 @@ func _refresh_controls() -> void:
 	_updating = true
 	_select_option(head_option, String(parameters.get("head_shape", "rounded")))
 	_select_option(mouth_option, String(parameters.get("mouth_type", "terminal")))
+	_select_option(head_ornament_option, String(parameters.get("head_ornament", "none")))
+	_select_option(gill_mark_option, String(parameters.get("gill_mark", "none")))
+	_select_option(barbel_style_option, String(parameters.get("barbel_style", "none")))
+	_select_option(eye_style_option, String(parameters.get("eye_style", "bead")))
+	_select_option(mouth_detail_option, String(parameters.get("mouth_detail", "dot")))
 	_select_option(snout_appendage_option, String(parameters.get("snout_appendage", "none")))
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]

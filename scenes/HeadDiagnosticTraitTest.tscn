@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c0gycw5h8u6mq"]
+
+[ext_resource type="Script" path="res://scripts/tools/HeadDiagnosticTraitTest.gd" id="1_head_traits"]
+
+[node name="HeadDiagnosticTraitTest" type="Node"]
+script = ExtResource("1_head_traits")

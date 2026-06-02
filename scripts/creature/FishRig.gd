@@ -1225,6 +1225,16 @@ func _head_scale_for_shape(shape: String, head_size: float, body_height: float, 
 func _add_eyes(eye_mat: Material, stalk_mat: Material, head_center: Vector3, head_scale: Vector3, eye_size: float) -> void:
 	eye_head_center = head_center
 	eye_head_scale = head_scale
+	var eye_style := String(parameters.get("eye_style", "bead"))
+	match eye_style:
+		"large":
+			eye_size *= 1.35
+		"telescope":
+			eye_size *= 1.5
+		"celestial":
+			eye_size *= 1.2
+		"tiny_puffer":
+			eye_size *= 0.62
 	eye_radius = eye_size
 	var layout := _eye_layout()
 	var anchor: Vector3 = layout["anchor"]
@@ -1257,6 +1267,12 @@ func _eye_layout() -> Dictionary:
 	var eye_x := param_float("eye_position_x", -0.78)
 	var eye_y := param_float("eye_position_y", 0.12)
 	var eye_bulge := clampf(param_float("eye_bulge", 0.0), 0.0, 1.0)
+	var eye_style := String(parameters.get("eye_style", "bead"))
+	if eye_style == "telescope":
+		eye_bulge = maxf(eye_bulge, 0.85)
+	elif eye_style == "celestial":
+		eye_y += eye_head_scale.y * 0.12
+		eye_bulge = maxf(eye_bulge, 0.45)
 	var ux := (eye_x - eye_head_center.x) / maxf(half.x, 0.001)
 	var uy := eye_y / maxf(half.y, 0.001)
 	var planar_radius := sqrt(ux * ux + uy * uy)
@@ -1303,6 +1319,8 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	var mouth_type := String(parameters.get("mouth_type", "terminal"))
 	var snout_length := param_float("snout_length", 0.0)
 	var mouth_size := param_float("mouth_size", 0.08)
+	_add_head_ornament(head, String(parameters.get("head_ornament", "none")), material)
+	_add_gill_mark(head, String(parameters.get("gill_mark", "none")), dark_mat)
 	
 	# Snout Appendage Socket
 	var snout_app_type := String(parameters.get("snout_appendage", "none"))
@@ -1317,11 +1335,127 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 		var app_length := param_float("snout_appendage_length", 0.4)
 		var app_node := PF.snout_appendage(snout_app_type, app_length, head.scale, material)
 		snout_socket.add_child(app_node)
+
+	_add_barbel_cluster(head, String(parameters.get("barbel_style", "none")), material, snout_length)
 		
 	var mouth := PF.ellipsoid("Mouth", Vector3(mouth_size, mouth_size * 0.28, mouth_size * 0.55), dark_mat)
-	mouth.position = _mouth_position_for_type(mouth_type, head.scale, snout_length)
+	var mouth_position := _mouth_position_for_type(mouth_type, head.scale, snout_length)
+	mouth.position = mouth_position
 	mouth.rotation_degrees.z = _mouth_angle_for_type(mouth_type)
 	head.add_child(mouth)
+	_add_mouth_detail(head, String(parameters.get("mouth_detail", "dot")), mouth_position, mouth_size, dark_mat)
+
+func _add_head_ornament(head: MeshInstance3D, ornament: String, material: Material) -> void:
+	if ornament == "none" or ornament == "":
+		return
+	var root := Node3D.new()
+	root.name = "HeadOrnament_%s" % ornament
+	head.add_child(root)
+	match ornament:
+		"wen":
+			var lobe_positions := [
+				Vector3(-0.18, 0.24, 0.0),
+				Vector3(-0.10, 0.30, -0.08),
+				Vector3(-0.10, 0.30, 0.08),
+				Vector3(0.02, 0.27, -0.10),
+				Vector3(0.02, 0.27, 0.10),
+				Vector3(0.12, 0.20, -0.06),
+				Vector3(0.12, 0.20, 0.06)
+			]
+			for i in lobe_positions.size():
+				var lobe := PF.ellipsoid("WenLobe%d" % i, Vector3(0.09, 0.07, 0.07), material)
+				lobe.position = lobe_positions[i]
+				root.add_child(lobe)
+		"nuchal_hump", "forehead_bump":
+			var hump := PF.ellipsoid("ForeheadMass", Vector3(0.18, 0.18, 0.14), material)
+			hump.position = Vector3(-0.10, 0.28, 0.0)
+			root.add_child(hump)
+		"cheek_pad":
+			for side in [-1.0, 1.0]:
+				var pad := PF.ellipsoid("CheekPad%s" % ("L" if side < 0.0 else "R"), Vector3(0.10, 0.08, 0.05), material)
+				pad.position = Vector3(-0.16, -0.03, side * 0.28)
+				root.add_child(pad)
+
+func _add_gill_mark(head: MeshInstance3D, mark: String, material: Material) -> void:
+	if mark == "none" or mark == "":
+		return
+	var root := Node3D.new()
+	root.name = "GillMark_%s" % mark
+	head.add_child(root)
+	match mark:
+		"line":
+			for side in [-1.0, 1.0]:
+				var line := PF.cylinder("GillLine%s" % ("L" if side < 0.0 else "R"), 0.006, 0.22, material)
+				line.position = Vector3(0.18, 0.02, side * 0.47)
+				line.rotation_degrees.x = 6.0 * side
+				root.add_child(line)
+		"crescent":
+			for side in [-1.0, 1.0]:
+				for i in range(3):
+					var dash := PF.cylinder("GillCrescent%s_%d" % [("L" if side < 0.0 else "R"), i], 0.005, 0.10, material)
+					dash.position = Vector3(0.15 + float(i) * 0.025, 0.07 - float(i) * 0.065, side * 0.47)
+					dash.rotation_degrees.z = -18.0 + float(i) * 18.0
+					root.add_child(dash)
+		"plate":
+			for side in [-1.0, 1.0]:
+				var plate := PF.ellipsoid("GillPlate%s" % ("L" if side < 0.0 else "R"), Vector3(0.035, 0.15, 0.012), material)
+				plate.position = Vector3(0.18, 0.0, side * 0.47)
+				root.add_child(plate)
+
+func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material, snout_length: float) -> void:
+	if style == "none" or style == "":
+		return
+	var root := Node3D.new()
+	root.name = "BarbelCluster_%s" % style
+	root.position = Vector3(-0.48 - snout_length * 0.18, -0.12, 0.0)
+	head.add_child(root)
+	var specs := []
+	match style:
+		"koi":
+			specs = [[-1.0, 0.18, -24.0], [1.0, 0.18, -24.0]]
+		"loach":
+			specs = [[-1.0, 0.16, -18.0], [1.0, 0.16, -18.0], [-1.0, 0.12, -38.0], [1.0, 0.12, -38.0], [-1.0, 0.10, 8.0], [1.0, 0.10, 8.0]]
+		_:
+			specs = [[-1.0, 0.14, -20.0], [1.0, 0.14, -20.0], [-1.0, 0.11, -42.0], [1.0, 0.11, -42.0]]
+	for i in specs.size():
+		var spec: Array = specs[i]
+		var side := float(spec[0])
+		var length := float(spec[1])
+		var angle := float(spec[2])
+		var socket := Node3D.new()
+		socket.name = "Barbel%d" % i
+		socket.position = Vector3(0.0, 0.0, side * 0.06)
+		socket.rotation_degrees = Vector3(0.0, side * 22.0, angle)
+		root.add_child(socket)
+		var whisker := PF.cylinder("BarbelSegment", 0.004, length, material)
+		whisker.rotation_degrees.z = 90.0
+		whisker.position.x = -length * 0.5
+		socket.add_child(whisker)
+
+func _add_mouth_detail(head: MeshInstance3D, detail: String, mouth_position: Vector3, mouth_size: float, material: Material) -> void:
+	if detail == "none" or detail == "dot" or detail == "":
+		return
+	var root := Node3D.new()
+	root.name = "MouthDetail_%s" % detail
+	root.position = mouth_position
+	head.add_child(root)
+	match detail:
+		"lip":
+			var lip := PF.ellipsoid("LipPad", Vector3(mouth_size * 1.25, mouth_size * 0.42, mouth_size * 0.72), material)
+			root.add_child(lip)
+		"beak":
+			for i in range(2):
+				var beak := PF.ellipsoid("BeakHalf%d" % i, Vector3(mouth_size * 0.92, mouth_size * 0.24, mouth_size * 0.42), material)
+				beak.position = Vector3(-mouth_size * 0.18, mouth_size * (0.22 if i == 0 else -0.22), 0.0)
+				root.add_child(beak)
+		"sucker":
+			var disc := PF.ellipsoid("SuckerDisc", Vector3(mouth_size * 1.45, mouth_size * 0.72, mouth_size * 1.15), material)
+			disc.rotation_degrees.z = -18.0
+			root.add_child(disc)
+		"downturned":
+			var downturn := PF.ellipsoid("DownturnedLip", Vector3(mouth_size * 1.05, mouth_size * 0.32, mouth_size * 0.58), material)
+			downturn.position = Vector3(0.0, -mouth_size * 0.36, 0.0)
+			root.add_child(downturn)
 
 func _mouth_position_for_type(mouth_type: String, head_scale: Vector3, snout_length: float) -> Vector3:
 	var x := -head_scale.x * 0.43 - snout_length * 0.08

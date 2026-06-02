@@ -323,6 +323,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"pectoral_attach_t", "pelvic_enabled", "pelvic_attach_t", "pelvic_shape",
 		"anal_attach_t", "anal_shape", "head_shape", "mouth_type", "snout_length",
 		"forehead_slope", "jaw_offset", "mouth_size", "head_flattening",
+		"head_ornament", "gill_mark", "barbel_style", "eye_style", "mouth_detail",
 		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",
 		"fin_ray_strength", "fin_tip_color", "fin_gradient_color"
 	])
