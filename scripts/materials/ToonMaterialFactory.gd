@@ -26,6 +26,12 @@ static func make_body_material(parameters: Dictionary) -> ShaderMaterial:
 	material.set_shader_parameter("iridescence_color", _as_color(parameters.get("iridescence_color", "#bfe9ff")))
 	material.set_shader_parameter("iridescence_frequency", clampf(float(parameters.get("iridescence_frequency", 2.0)), 0.1, 10.0))
 	material.set_shader_parameter("wetness", clampf(float(parameters.get("wetness", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("scale_strength", clampf(float(parameters.get("scale_strength", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("scale_size", clampf(float(parameters.get("scale_size", 16.0)), 4.0, 64.0))
+	material.set_shader_parameter("lateral_line_strength", clampf(float(parameters.get("lateral_line_strength", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("pearlscale_strength", clampf(float(parameters.get("pearlscale_strength", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("metallic_scale_strength", clampf(float(parameters.get("metallic_scale_strength", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("emissive_marking_strength", clampf(float(parameters.get("emissive_marking_strength", 0.0)), 0.0, 1.0))
 	var marking_uniforms := SpeciesMarkingLayerScript.encode_uniforms(parameters.get("marking_layers", []))
 	for key in marking_uniforms.keys():
 		material.set_shader_parameter(String(key), marking_uniforms[key])

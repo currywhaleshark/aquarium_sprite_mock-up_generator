@@ -149,7 +149,13 @@ const VISUAL_PATTERN_DEFAULTS := {
 	"iridescence_strength": 0.0,
 	"iridescence_color": "#bfe9ff",
 	"iridescence_frequency": 2.0,
-	"wetness": 0.0
+	"wetness": 0.0,
+	"scale_strength": 0.0,
+	"scale_size": 16.0,
+	"lateral_line_strength": 0.0,
+	"pearlscale_strength": 0.0,
+	"metallic_scale_strength": 0.0,
+	"emissive_marking_strength": 0.0
 }
 
 static func swim_mode_names() -> Array[String]:
@@ -343,7 +349,8 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
 		"pattern_intensity", "belly_height", "belly_slope",
 		"iridescence_strength", "iridescence_color", "iridescence_frequency",
-		"wetness"
+		"wetness", "scale_strength", "scale_size", "lateral_line_strength",
+		"pearlscale_strength", "metallic_scale_strength", "emissive_marking_strength"
 	])
 	for key in ["archetype_id", "archetype_strength", "variant_seed", "marking_layers"]:
 		if parameters.has(key):

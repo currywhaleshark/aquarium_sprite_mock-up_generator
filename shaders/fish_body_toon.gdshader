@@ -40,6 +40,12 @@ uniform float iridescence_frequency : hint_range(0.1, 10.0) = 2.0;
 
 // Wet mucus layer: a smooth clearcoat lobe over the toon body. Defaults off.
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
+uniform float scale_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float scale_size : hint_range(4.0, 64.0) = 16.0;
+uniform float lateral_line_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float pearlscale_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float metallic_scale_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float emissive_marking_strength : hint_range(0.0, 1.0) = 0.0;
 
 // Species marking layers. Fixed slots keep the material contract explicit and
 // deterministic for Godot 4 shader parameters.
@@ -228,7 +234,7 @@ float marking_layer_mask(int kind, vec4 rect, vec4 params, float u, float up) {
 void apply_marking_layer(inout vec3 col, int kind, vec4 color, vec4 rect, vec4 params, float u, float up) {
 	float mask = marking_layer_mask(kind, rect, params, u, up) * clamp(params.x, 0.0, 1.0);
 	col = mix(col, color.rgb, mask * color.a);
-	col += color.rgb * mask * clamp(params.z, 0.0, 1.0) * 0.35;
+	col += color.rgb * mask * clamp(params.z + emissive_marking_strength, 0.0, 1.0) * 0.35;
 }
 
 void vertex() {
@@ -261,6 +267,21 @@ void fragment() {
 	if (count > 5) { apply_marking_layer(col, marking_type_5, marking_color_5, marking_rect_5, marking_params_5, v_long, up); }
 	if (count > 6) { apply_marking_layer(col, marking_type_6, marking_color_6, marking_rect_6, marking_params_6, v_long, up); }
 	if (count > 7) { apply_marking_layer(col, marking_type_7, marking_color_7, marking_rect_7, marking_params_7, v_long, up); }
+
+	// 2c. Species surface readability. These are stylized and UV-locked, giving
+	// small sprites a hint of scales without needing texture maps or lighting.
+	float scale_columns = max(scale_size, 1.0);
+	float scale_rows = max(scale_size * 0.55, 1.0);
+	float scale_grid = max(abs(sin(v_long * scale_columns * TAU)), abs(sin(v_circ * scale_rows * TAU)));
+	float scale_edge = smoothstep(0.93, 0.995, scale_grid);
+	col = mix(col, col * 0.78, scale_edge * scale_strength * 0.28);
+	float pearl_cell = pnoise(vec2(v_long * scale_columns, v_circ * scale_rows), scale_rows);
+	float pearl = smoothstep(0.58, 0.9, pearl_cell) * pearlscale_strength;
+	col += vec3(1.0, 0.94, 0.78) * pearl * 0.18;
+	float metallic_band = 0.5 + 0.5 * sin((v_long * scale_columns * 0.5 + up * 0.35) * TAU);
+	col += vec3(1.0, 0.88, 0.52) * metallic_band * metallic_scale_strength * 0.14;
+	float lateral = 1.0 - smoothstep(0.035, 0.09, abs(up - 0.08));
+	col += vec3(0.68, 0.9, 1.0) * lateral * lateral_line_strength * 0.26;
 
 	// 3. Soft surface form: a gentle top->bottom shade read from the body's own up
 	// vector. Surface-driven, so it gives a hint of volume without any scene light

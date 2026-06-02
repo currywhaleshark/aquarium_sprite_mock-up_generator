@@ -73,6 +73,12 @@ func _test_shader_compiles_and_uniforms() -> void:
 		"iridescence_color": "#ccddee",
 		"iridescence_frequency": 3.5,
 		"wetness": 0.8,
+		"scale_strength": 0.36,
+		"scale_size": 18.0,
+		"lateral_line_strength": 0.41,
+		"pearlscale_strength": 0.22,
+		"metallic_scale_strength": 0.33,
+		"emissive_marking_strength": 0.44,
 		"body_height": 0.6,
 		"body_length": 1.3
 	})
@@ -87,6 +93,12 @@ func _test_shader_compiles_and_uniforms() -> void:
 	assert(material.get_shader_parameter("iridescence_color") is Color)
 	assert(abs(float(material.get_shader_parameter("iridescence_frequency")) - 3.5) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("wetness")) - 0.8) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("scale_strength")) - 0.36) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("scale_size")) - 18.0) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("lateral_line_strength")) - 0.41) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("pearlscale_strength")) - 0.22) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("metallic_scale_strength")) - 0.33) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("emissive_marking_strength")) - 0.44) < 0.0001)
 	assert(material.get_shader_parameter("base_color") is Color)
 	assert(material.get_shader_parameter("belly_color") is Color)
 	assert(material.get_shader_parameter("pattern_color") is Color)
@@ -114,7 +126,13 @@ func _test_preset_round_trip() -> void:
 		"iridescence_strength": 0.55,
 		"iridescence_color": "#aabbcc",
 		"iridescence_frequency": 4.0,
-		"wetness": 0.65
+		"wetness": 0.65,
+		"scale_strength": 0.3,
+		"scale_size": 15.0,
+		"lateral_line_strength": 0.25,
+		"pearlscale_strength": 0.2,
+		"metallic_scale_strength": 0.4,
+		"emissive_marking_strength": 0.45
 	}
 	var split := BodyProfileScript.split_parameters_into_profiles(params, {"name": "round_trip"})
 	var visual: Dictionary = split.get("visual_profile", {})
@@ -129,6 +147,12 @@ func _test_preset_round_trip() -> void:
 	assert(String(visual.get("iridescence_color", "")) == "#aabbcc")
 	assert(abs(float(visual.get("iridescence_frequency", 0.0)) - 4.0) < 0.0001)
 	assert(abs(float(visual.get("wetness", 0.0)) - 0.65) < 0.0001)
+	assert(abs(float(visual.get("scale_strength", 0.0)) - 0.3) < 0.0001)
+	assert(abs(float(visual.get("scale_size", 0.0)) - 15.0) < 0.0001)
+	assert(abs(float(visual.get("lateral_line_strength", 0.0)) - 0.25) < 0.0001)
+	assert(abs(float(visual.get("pearlscale_strength", 0.0)) - 0.2) < 0.0001)
+	assert(abs(float(visual.get("metallic_scale_strength", 0.0)) - 0.4) < 0.0001)
+	assert(abs(float(visual.get("emissive_marking_strength", 0.0)) - 0.45) < 0.0001)
 
 	var rebuilt := BodyProfileScript.make_parameters_from_structured_preset(split)
 	assert(String(rebuilt.get("pattern_type", "")) == "zebra")
@@ -136,6 +160,8 @@ func _test_preset_round_trip() -> void:
 	assert(abs(float(rebuilt.get("belly_height", 0.0)) - 0.35) < 0.0001)
 	assert(abs(float(rebuilt.get("belly_slope", 0.0)) - 0.18) < 0.0001)
 	assert(abs(float(rebuilt.get("iridescence_strength", 0.0)) - 0.55) < 0.0001)
+	assert(abs(float(rebuilt.get("scale_strength", 0.0)) - 0.3) < 0.0001)
+	assert(abs(float(rebuilt.get("metallic_scale_strength", 0.0)) - 0.4) < 0.0001)
 
 func _test_visual_defaults_injected() -> void:
 	# A preset saved before this feature has no pattern keys; defaults must appear
@@ -155,3 +181,9 @@ func _test_visual_defaults_injected() -> void:
 	assert(legacy.has("iridescence_color"))
 	assert(legacy.has("iridescence_frequency"))
 	assert(legacy.has("wetness"))
+	assert(legacy.has("scale_strength"))
+	assert(legacy.has("scale_size"))
+	assert(legacy.has("lateral_line_strength"))
+	assert(legacy.has("pearlscale_strength"))
+	assert(legacy.has("metallic_scale_strength"))
+	assert(legacy.has("emissive_marking_strength"))
