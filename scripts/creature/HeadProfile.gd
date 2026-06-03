@@ -130,3 +130,16 @@ static func ventral_offset(u: float, sin_phi: float, curve: float, peak: float) 
 	if curve == 0.0:
 		return 0.0
 	return curve * PROFILE_GAIN * sin_phi * _profile_long_weight(u, peak)
+
+# Localized crown/forehead bump (Phase 3). Unlike the dorsal profile, which only
+# raises the top silhouette and fades to nothing at the narrowing snout, this is a
+# gaussian blob on the upper surface centered at head-local x = `pos`. The caller
+# raises y by height * falloff and pushes x by -forward * height * falloff, so a
+# forward lean makes the bump JUT OUT in front (Napoleon-wrasse-style overhang)
+# rather than only bulging upward. Returns the gaussian weight (0 off the bump).
+static func head_bump_falloff(x: float, theta: float, pos: float, width: float) -> float:
+	var w_top := sin(theta) # 1 at the top, 0 at the sides, <0 underneath
+	if w_top <= 0.0:
+		return 0.0
+	var d := (x - pos) / maxf(width, 0.001)
+	return exp(-d * d) * w_top

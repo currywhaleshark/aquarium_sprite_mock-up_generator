@@ -24,6 +24,10 @@ const NUMERIC_KEYS := {
 	"head_top_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
 	"head_top_peak": {"min": -0.5, "max": 1.0, "step": 0.01},
 	"head_belly_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
+	"head_bump_height": {"min": 0.0, "max": 0.5, "step": 0.005},
+	"head_bump_pos": {"min": -0.5, "max": 0.5, "step": 0.01},
+	"head_bump_width": {"min": 0.06, "max": 0.5, "step": 0.01},
+	"head_bump_forward": {"min": -1.0, "max": 1.0, "step": 0.01},
 	"forehead_slope": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"jaw_offset": {"min": -0.3, "max": 0.3, "step": 0.005},
 	"mouth_size": {"min": 0.02, "max": 0.24, "step": 0.005},
@@ -262,6 +266,8 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 		return float(parameters.get("snout_length", 0.0)) > 0.001
 	if key == "head_top_peak":
 		return absf(float(parameters.get("head_top_curve", 0.0))) > 0.001
+	if key == "head_bump_pos" or key == "head_bump_width" or key == "head_bump_forward":
+		return float(parameters.get("head_bump_height", 0.0)) > 0.001
 	return true
 
 func _same_key_list(left: Array[String], right: Array[String]) -> bool:
@@ -307,6 +313,12 @@ func _default_numeric(key: String) -> float:
 			return 0.0
 		"head_top_peak":
 			return 0.35
+		"head_bump_pos":
+			return -0.2
+		"head_bump_width":
+			return 0.18
+		"head_bump_forward":
+			return 0.5
 	return 0.0
 
 func _emit_and_refresh() -> void:

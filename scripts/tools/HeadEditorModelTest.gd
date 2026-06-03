@@ -115,6 +115,28 @@ func _ready() -> void:
 	await get_tree().process_frame
 	assert(_max_y(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D)) > base_top + 0.1)
 
+	# Forehead bump: a forward-leaning crown bump must push geometry both up and
+	# forward (-x), i.e. it juts out in front rather than only bulging upward.
+	var no_bump: Dictionary = flat_top.duplicate(true)
+	no_bump["head_bump_height"] = 0.0
+	fish.set_parameters(no_bump)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var no_bump_verts := _head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D)
+	var base_crown_y := _max_y(no_bump_verts)
+
+	var bumped: Dictionary = no_bump.duplicate(true)
+	bumped["head_bump_height"] = 0.35
+	bumped["head_bump_pos"] = -0.2
+	bumped["head_bump_forward"] = 0.8
+	fish.set_parameters(bumped)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var bumped_verts := _head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D)
+	# Crown rises and the bump region pushes forward (-x).
+	assert(_max_y(bumped_verts) > base_crown_y + 0.05)
+	assert(_max_forward_push(no_bump_verts, bumped_verts) > 0.05)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
 	file.store_string("head editor model applied")
@@ -145,6 +167,15 @@ func _max_y(verts: PackedVector3Array) -> float:
 	for v in verts:
 		max_y = maxf(max_y, v.y)
 	return max_y
+
+# Largest forward (-x) displacement among upper vertices between two meshes that
+# share vertex ordering.
+func _max_forward_push(a: PackedVector3Array, b: PackedVector3Array) -> float:
+	var max_push := 0.0
+	for i in mini(a.size(), b.size()):
+		if a[i].y > 0.05:
+			max_push = maxf(max_push, a[i].x - b[i].x)
+	return max_push
 
 # Largest vertical change among head-body vertices (x > 0.1, behind the snout).
 # The two meshes share vertex ordering, so compare index by index.
