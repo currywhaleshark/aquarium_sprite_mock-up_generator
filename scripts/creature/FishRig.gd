@@ -4,6 +4,7 @@ extends "res://scripts/creature/CreatureRig.gd"
 const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
 const TMF := preload("res://scripts/materials/ToonMaterialFactory.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
 
 # How far median/pelvic fin bases sink into the body so they look rooted
 # instead of floating above the surface. Larger embeds the base deeper.
@@ -338,42 +339,35 @@ func _head_shell_metrics(rings: Array, body_height: float, body_width: float, bo
 func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float) -> Vector2:
 	var x := clampf(x_local_unscaled, -0.499 - snout_length, 0.499)
 	var x_base := x
-	if shape != "cephalofoil" and x < 0.0 and snout_length > 0.001:
-		var disc := 1.0 - 16.0 * snout_length * x
-		if disc >= 0.0:
-			x_base = (1.0 - sqrt(disc)) / (8.0 * snout_length)
-			
+	if shape != "cephalofoil":
+		x_base = HeadProfile.snout_base_x(snout_length, x)
+
 	x_base = clampf(x_base, -0.499, 0.499)
 	var sin_phi := sqrt(1.0 - 4.0 * x_base * x_base)
 	var y_deformed := 0.5 * sin_phi
 	var z_deformed := 0.5 * sin_phi
-	
+
 	if shape == "cephalofoil":
-		z_deformed *= (1.0 + sin_phi * 2.2)
-		y_deformed *= 0.42
+		z_deformed *= (1.0 + sin_phi * HeadProfile.CEPHALOFOIL_Z_GAIN)
+		y_deformed *= HeadProfile.CEPHALOFOIL_Y_SCALE
 	else:
 		var u := x_base + 0.5
 		if x_base < 0.0:
-			if shape == "pointed" or shape == "tapered":
-				var taper_factor := lerpf(0.12, 1.0, u / 0.5)
-				y_deformed *= taper_factor
-				z_deformed *= taper_factor
-			elif shape == "blunt":
-				var taper_factor := lerpf(0.68, 1.0, pow(u / 0.5, 0.4))
-				y_deformed *= taper_factor
-				z_deformed *= taper_factor
-		
+			var taper := HeadProfile.taper_factor(shape, u)
+			y_deformed *= taper
+			z_deformed *= taper
+
 		if x_base < 0.1:
 			var hump_weight := sin_phi * (1.0 - u)
-			var hump_height := 0.16 + forehead_slope * 0.15
+			var hump_height := HeadProfile.hump_height(forehead_slope)
 			if shape == "hump":
 				y_deformed += 0.5 * hump_weight * hump_height
 			elif shape == "steep_forehead":
-				y_deformed += 0.5 * hump_weight * hump_height * 0.72
-				
+				y_deformed += 0.5 * hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_SCALE
+
 		if shape == "flattened":
-			y_deformed *= 0.825
-			
+			y_deformed *= HeadProfile.FLATTEN_CONTOUR_FACTOR
+
 	return Vector2(y_deformed, z_deformed)
 
 func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: float, metrics: Dictionary) -> Dictionary:

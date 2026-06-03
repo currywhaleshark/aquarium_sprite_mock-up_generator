@@ -2,6 +2,7 @@ class_name PrimitiveFactory
 extends RefCounted
 
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
 
 # Longitudinal UV span the head mesh occupies, snout(0) -> neck(HEAD_U_SPAN).
 # The body shell (build_fish_outer_shell_mesh) maps U uniformly over [0, 1] of the
@@ -42,38 +43,31 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			
 			# 1. Cephalofoil (Hammerhead)
 			if shape == "cephalofoil":
-				var z_stretch := sin(phi) * 2.2
+				var z_stretch := sin(phi) * HeadProfile.CEPHALOFOIL_Z_GAIN
 				z *= (1.0 + z_stretch)
-				y *= 0.42
-				x += abs(z) * 0.18 # sweep wings back
-			
+				y *= HeadProfile.CEPHALOFOIL_Y_SCALE
+				x += abs(z) * HeadProfile.CEPHALOFOIL_SWEEP # sweep wings back
+
 			# 2. Snout stretch & taper (for non-cephalofoil snouts)
 			if shape != "cephalofoil" and x < 0.0:
-				var stretch_t := 1.0 - (u / 0.5)
-				x -= snout_length * stretch_t * stretch_t
-				
-				if shape == "pointed" or shape == "tapered":
-					var taper_factor := lerpf(0.12, 1.0, u / 0.5)
-					y *= taper_factor
-					z *= taper_factor
-				elif shape == "blunt":
-					var taper_factor := lerpf(0.68, 1.0, pow(u / 0.5, 0.4))
-					y *= taper_factor
-					z *= taper_factor
-			
+				x -= HeadProfile.snout_forward_x_shift(snout_length, u)
+				var taper := HeadProfile.taper_factor(shape, u)
+				y *= taper
+				z *= taper
+
 			# 3. Nuchal Hump / Steep Forehead
 			if shape != "cephalofoil" and y > 0.0 and x < 0.1:
 				var hump_weight := sin(phi) * (1.0 - u)
-				var hump_height := 0.16 + forehead_slope * 0.15
+				var hump_height := HeadProfile.hump_height(forehead_slope)
 				if shape == "hump":
 					y += hump_weight * hump_height
 				elif shape == "steep_forehead":
-					y += hump_weight * hump_height * 0.72
-					x -= hump_weight * hump_height * 0.35
-			
+					y += hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_SCALE
+					x -= hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_X_SHIFT
+
 			# 4. Flattened head
 			if shape == "flattened" and y < 0.0:
-				y *= 0.65
+				y *= HeadProfile.FLATTEN_MESH_FACTOR
 				
 			ring_vertices.append(Vector3(x, y, z))
 		grid.append(ring_vertices)
