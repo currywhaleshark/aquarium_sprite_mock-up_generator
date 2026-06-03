@@ -46,10 +46,11 @@
   `snout_tip_round`(끝 둥글기). 변형을 `u`의 좁은 전방 윈도에만 집중(스무스 블렌딩).
   입은 항상 주둥이 끝에 앵커링(`_mouth_position_for_type`이 주둥이 끝 참조).
 
-- **Phase 2 — 등선/배선 프로파일을 연속 컨트롤로**
-  `head_top_profile`(오목↔직선↔볼록), `head_top_peak_pos`(최고점 위치),
-  `head_bottom_profile`. 기존 hump/steep_forehead/flattened/forehead_slope를 흡수.
-  flatten 메시(0.65) vs 컨트롤(0.825) 불일치도 여기서 정리.
+- **Phase 2 — 등선/배선 프로파일을 연속 컨트롤로 (완료)**
+  `head_top_curve`(오목↔볼록), `head_top_peak`(최고점 위치), `head_belly_curve`(납작↔둥금)
+  추가. 중립 기본값(가산식)이라 기존 프리셋 불변, 이산 hump/steep/flattened는 시작점으로 유지.
+  미해결: 몸통 셸 contour는 아직 연속 프로파일 미반영(머리 메시가 실루엣 지배). flatten
+  메시(0.65) vs 컨트롤(0.825) 불일치 정리도 추후.
 
 - **Phase 3 — 혹/볼혹 파라메트릭 + 머리 스케일에서 독립**
   국소 가우시안 표면 범프(솔기 없는 연속 표면) 및 절대크기 부착 메시.
