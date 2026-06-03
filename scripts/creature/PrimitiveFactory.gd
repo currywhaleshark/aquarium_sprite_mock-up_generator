@@ -33,6 +33,9 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	var snout_taper := float(sculpt.get("snout_taper", 0.0))
 	var snout_shift := float(sculpt.get("snout_y_shift", 0.0))
 	var snout_curve := float(sculpt.get("snout_curve", 0.0))
+	var top_curve := float(sculpt.get("head_top_curve", 0.0))
+	var top_peak := float(sculpt.get("head_top_peak", 0.35))
+	var belly_curve := float(sculpt.get("head_belly_curve", 0.0))
 
 	var grid := []
 	for i in range(rings + 1):
@@ -75,6 +78,13 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			# 4. Flattened head
 			if shape == "flattened" and y < 0.0:
 				y *= HeadProfile.FLATTEN_MESH_FACTOR
+
+			# 4b. Continuous dorsal/ventral profile (forehead hump, flat top, flat belly).
+			if shape != "cephalofoil":
+				if y > 0.0:
+					y += HeadProfile.dorsal_offset(u, sin(phi), top_curve, top_peak)
+				elif y < 0.0:
+					y -= HeadProfile.ventral_offset(u, sin(phi), belly_curve, 0.45)
 
 			# 5. Jaw shear + snout curve: the snout tip follows the mouth and can curl
 			# up/down, while the snout base (where it meets the head) stays fixed, so the

@@ -104,3 +104,29 @@ static func snout_y_shift(shift: float, u: float, snout_base: float = SNOUT_BLEN
 		return 0.0
 	var t := 1.0 - u / snout_base # 1 at the tip, 0 at the snout base
 	return shift * t + curve * SNOUT_CURVE_SCALE * t * t
+
+# Continuous dorsal/ventral head profile (Phase 2). Each is a smooth bell along the
+# head centered at `peak` (0 = snout, 1 = nape) that raises (+) or lowers (-) the top
+# or bottom silhouette, weighted by the cross-section girth so it fades at the poles.
+# Replaces the freedom the discrete hump/steep_forehead/flattened shapes used to bake
+# in: + dorsal = nuchal hump (Napoleon wrasse), - dorsal = flat/concave top (arowana),
+# - ventral = flat belly/throat. Defaults are 0 (neutral, no change).
+const PROFILE_GAIN := 0.5
+const PROFILE_SPAN := 0.5
+
+static func _profile_long_weight(u: float, peak: float) -> float:
+	var d := (u - peak) / PROFILE_SPAN
+	return clampf(1.0 - d * d, 0.0, 1.0)
+
+# Added to a top vertex's y (y > 0).
+static func dorsal_offset(u: float, sin_phi: float, curve: float, peak: float) -> float:
+	if curve == 0.0:
+		return 0.0
+	return curve * PROFILE_GAIN * sin_phi * _profile_long_weight(u, peak)
+
+# Downward magnitude for a bottom vertex (y < 0); the caller adds it to y (push down)
+# for positive curve and pulls the belly in (flatter) for negative curve.
+static func ventral_offset(u: float, sin_phi: float, curve: float, peak: float) -> float:
+	if curve == 0.0:
+		return 0.0
+	return curve * PROFILE_GAIN * sin_phi * _profile_long_weight(u, peak)

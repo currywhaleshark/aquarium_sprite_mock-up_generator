@@ -21,6 +21,9 @@ const NUMERIC_KEYS := {
 	"snout_thickness": {"min": 0.15, "max": 1.0, "step": 0.01},
 	"snout_taper": {"min": 0.0, "max": 1.0, "step": 0.01},
 	"snout_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
+	"head_top_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
+	"head_top_peak": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"head_belly_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
 	"forehead_slope": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"jaw_offset": {"min": -0.3, "max": 0.3, "step": 0.005},
 	"mouth_size": {"min": 0.02, "max": 0.24, "step": 0.005},
@@ -257,6 +260,8 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 		return appendage != "" and appendage != "none"
 	if key == "snout_base" or key == "snout_thickness" or key == "snout_taper" or key == "snout_curve":
 		return float(parameters.get("snout_length", 0.0)) > 0.001
+	if key == "head_top_peak":
+		return absf(float(parameters.get("head_top_curve", 0.0))) > 0.001
 	return true
 
 func _same_key_list(left: Array[String], right: Array[String]) -> bool:
@@ -300,6 +305,8 @@ func _default_numeric(key: String) -> float:
 			return 1.0
 		"snout_taper":
 			return 0.0
+		"head_top_peak":
+			return 0.35
 	return 0.0
 
 func _emit_and_refresh() -> void:

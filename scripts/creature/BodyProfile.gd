@@ -364,6 +364,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"pelvic_length", "pelvic_height", "anal_attach_t", "anal_shape", "anal_length", "anal_height",
 		"head_shape", "mouth_type", "snout_length",
 		"snout_base", "snout_thickness", "snout_taper", "snout_curve",
+		"head_top_curve", "head_top_peak", "head_belly_curve",
 		"forehead_slope", "jaw_offset", "mouth_size", "head_flattening",
 		"head_ornament", "gill_mark", "barbel_style", "eye_style", "mouth_detail",
 		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",

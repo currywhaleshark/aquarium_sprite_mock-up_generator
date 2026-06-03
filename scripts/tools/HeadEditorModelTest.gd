@@ -98,6 +98,23 @@ func _ready() -> void:
 	assert(_front_tip_max_y(curved_verts) > _front_tip_max_y(neutral_verts) + 0.1)
 	assert(_max_back_y_delta(neutral_verts, curved_verts) < 0.001)
 
+	# Dorsal profile: a positive head_top_curve raises the top of the head (nuchal
+	# hump) without dropping the belly; a negative one flattens the top (arowana).
+	var flat_top: Dictionary = neutral_jaw.duplicate(true)
+	flat_top["snout_length"] = 0.0
+	flat_top["head_top_curve"] = 0.0
+	fish.set_parameters(flat_top)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var base_top := _max_y(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D))
+
+	var humped: Dictionary = flat_top.duplicate(true)
+	humped["head_top_curve"] = 0.9
+	fish.set_parameters(humped)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert(_max_y(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D)) > base_top + 0.1)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
 	file.store_string("head editor model applied")
@@ -121,6 +138,12 @@ func _front_tip_max_y(verts: PackedVector3Array) -> float:
 	for v in verts:
 		if v.x < -0.45:
 			max_y = maxf(max_y, v.y)
+	return max_y
+
+func _max_y(verts: PackedVector3Array) -> float:
+	var max_y := -INF
+	for v in verts:
+		max_y = maxf(max_y, v.y)
 	return max_y
 
 # Largest vertical change among head-body vertices (x > 0.1, behind the snout).
