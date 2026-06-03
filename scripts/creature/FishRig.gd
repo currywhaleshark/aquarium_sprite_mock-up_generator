@@ -1398,7 +1398,17 @@ func _head_sculpt_params() -> Dictionary:
 		"snout_base": param_float("snout_base", HeadProfile.SNOUT_BLEND_HALF),
 		"snout_thickness": param_float("snout_thickness", 1.0),
 		"snout_taper": param_float("snout_taper", 0.0),
+		"snout_y_shift": _snout_y_shift(),
 	}
+
+# How far the snout is translated vertically by the jaw. Matches the mouth's own
+# vertical offset from its no-jaw baseline (see _mouth_position_for_type) so the
+# snout geometry and the mouth move together instead of the mouth floating.
+func _snout_y_shift() -> float:
+	var jaw_offset := param_float("jaw_offset", 0.0)
+	if String(parameters.get("mouth_type", "terminal")) == "superior":
+		return absf(jaw_offset)
+	return jaw_offset
 
 func _head_scale_for_shape(shape: String, head_size: float, body_height: float, body_width: float) -> Vector3:
 	var flatten := clampf(param_float("head_flattening", 0.0), 0.0, 0.65)
@@ -1543,7 +1553,7 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	if snout_app_type != "none":
 		var snout_socket := Node3D.new()
 		snout_socket.name = "SnoutSocket"
-		snout_socket.position = Vector3(-0.5 - snout_length, 0.0, 0.0)
+		snout_socket.position = Vector3(-0.5 - snout_length, _snout_y_shift(), 0.0)
 		# Cancel out head scaling so the appendage isn't deformed
 		snout_socket.scale = Vector3(1.0 / head.scale.x, 1.0 / head.scale.y, 1.0 / head.scale.z)
 		head.add_child(snout_socket)
@@ -1656,7 +1666,7 @@ func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material
 		return
 	var root := Node3D.new()
 	root.name = "BarbelCluster_%s" % style
-	root.position = Vector3(-0.48 - snout_length * 0.18, -0.12, 0.0)
+	root.position = Vector3(-0.48 - snout_length * 0.18, -0.12 + _snout_y_shift(), 0.0)
 	head.add_child(root)
 	var specs := []
 	match style:
@@ -1707,25 +1717,25 @@ func _add_mouth_detail(head: MeshInstance3D, detail: String, mouth_position: Vec
 			root.add_child(downturn)
 
 func _mouth_position_for_type(mouth_type: String, _head_scale: Vector3, _snout_length: float) -> Vector3:
-	# _head_front_surface_x now follows the deformed snout tip, so the snout length
-	# is no longer added to the outset here (that double-counted the protrusion).
-	var jaw_offset := param_float("jaw_offset", 0.0)
+	# The mouth sits on the snout at its no-jaw baseline height, then rides the snout
+	# vertical shift so it stays attached to the deformed geometry (the mesh applies the
+	# same shift via snout_y_shift). _head_front_surface_x already follows the snout tip
+	# in x, so the snout length is not re-added to the outset here.
+	var base_y := 0.0
+	var outset := 0.035
 	match mouth_type:
 		"superior":
-			var y := 0.11 + absf(jaw_offset)
-			return Vector3(_head_front_surface_x(y, 0.0, 0.035), y, 0.0)
+			base_y = 0.11
 		"inferior":
-			var y := -0.14 + jaw_offset
-			return Vector3(_head_front_surface_x(y, 0.0, 0.028), y, 0.0)
+			base_y = -0.14
+			outset = 0.028
 		"subterminal":
-			var y := -0.07 + jaw_offset
-			return Vector3(_head_front_surface_x(y, 0.0, 0.032), y, 0.0)
+			base_y = -0.07
+			outset = 0.032
 		"protrusible":
-			var y := jaw_offset
-			return Vector3(_head_front_surface_x(y, 0.0, 0.10), y, 0.0)
-		_:
-			var y := jaw_offset
-			return Vector3(_head_front_surface_x(y, 0.0, 0.035), y, 0.0)
+			outset = 0.10
+	var shift := _snout_y_shift()
+	return Vector3(_head_front_surface_x(base_y, 0.0, outset), base_y + shift, 0.0)
 
 func _mouth_angle_for_type(mouth_type: String) -> float:
 	match mouth_type:
