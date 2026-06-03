@@ -22,7 +22,7 @@ const NUMERIC_KEYS := {
 	"snout_taper": {"min": 0.0, "max": 1.0, "step": 0.01},
 	"snout_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
 	"head_top_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
-	"head_top_peak": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"head_top_peak": {"min": -0.5, "max": 1.0, "step": 0.01},
 	"head_belly_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
 	"forehead_slope": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"jaw_offset": {"min": -0.3, "max": 0.3, "step": 0.005},
