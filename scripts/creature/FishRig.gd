@@ -1398,17 +1398,23 @@ func _head_sculpt_params() -> Dictionary:
 		"snout_base": param_float("snout_base", HeadProfile.SNOUT_BLEND_HALF),
 		"snout_thickness": param_float("snout_thickness", 1.0),
 		"snout_taper": param_float("snout_taper", 0.0),
-		"snout_y_shift": _snout_y_shift(),
+		"snout_y_shift": _snout_jaw_shift(),
+		"snout_curve": param_float("snout_curve", 0.0),
 	}
 
-# How far the snout is translated vertically by the jaw. Matches the mouth's own
-# vertical offset from its no-jaw baseline (see _mouth_position_for_type) so the
-# snout geometry and the mouth move together instead of the mouth floating.
-func _snout_y_shift() -> float:
+# Linear jaw shear of the snout tip. Matches the mouth's own vertical offset from
+# its no-jaw baseline (see _mouth_position_for_type) so the snout geometry and the
+# mouth move together instead of the mouth floating.
+func _snout_jaw_shift() -> float:
 	var jaw_offset := param_float("jaw_offset", 0.0)
 	if String(parameters.get("mouth_type", "terminal")) == "superior":
 		return absf(jaw_offset)
 	return jaw_offset
+
+# Total vertical displacement at the snout tip (jaw shear + curve arc). Used to keep
+# the mouth, snout socket, and barbels riding the deformed snout tip.
+func _snout_tip_displacement() -> float:
+	return HeadProfile.snout_y_shift(_snout_jaw_shift(), 0.0, param_float("snout_base", HeadProfile.SNOUT_BLEND_HALF), param_float("snout_curve", 0.0))
 
 func _head_scale_for_shape(shape: String, head_size: float, body_height: float, body_width: float) -> Vector3:
 	var flatten := clampf(param_float("head_flattening", 0.0), 0.0, 0.65)
@@ -1553,7 +1559,7 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	if snout_app_type != "none":
 		var snout_socket := Node3D.new()
 		snout_socket.name = "SnoutSocket"
-		snout_socket.position = Vector3(-0.5 - snout_length, _snout_y_shift(), 0.0)
+		snout_socket.position = Vector3(-0.5 - snout_length, _snout_tip_displacement(), 0.0)
 		# Cancel out head scaling so the appendage isn't deformed
 		snout_socket.scale = Vector3(1.0 / head.scale.x, 1.0 / head.scale.y, 1.0 / head.scale.z)
 		head.add_child(snout_socket)
@@ -1666,7 +1672,7 @@ func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material
 		return
 	var root := Node3D.new()
 	root.name = "BarbelCluster_%s" % style
-	root.position = Vector3(-0.48 - snout_length * 0.18, -0.12 + _snout_y_shift(), 0.0)
+	root.position = Vector3(-0.48 - snout_length * 0.18, -0.12 + _snout_tip_displacement(), 0.0)
 	head.add_child(root)
 	var specs := []
 	match style:
@@ -1734,7 +1740,7 @@ func _mouth_position_for_type(mouth_type: String, _head_scale: Vector3, _snout_l
 			outset = 0.032
 		"protrusible":
 			outset = 0.10
-	var shift := _snout_y_shift()
+	var shift := _snout_tip_displacement()
 	return Vector3(_head_front_surface_x(base_y, 0.0, outset), base_y + shift, 0.0)
 
 func _mouth_angle_for_type(mouth_type: String) -> float:

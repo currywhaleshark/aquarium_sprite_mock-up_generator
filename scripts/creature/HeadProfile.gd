@@ -90,12 +90,17 @@ static func taper_factor(shape: String, u: float) -> float:
 static func hump_height(forehead_slope: float) -> float:
 	return HUMP_BASE_HEIGHT + forehead_slope * HUMP_SLOPE_GAIN
 
-# Vertical shear of the snout driven by the jaw. The snout TIP moves by `shift`
-# (the mouth's offset from its no-jaw baseline) while the snout base, where it meets
-# the head, stays put - so a symmetric snout (◁) shears into a right triangle with a
-# flat top (jaw up) or flat bottom (jaw down). The head body (u >= snout_base) is
-# untouched: the shift ramps linearly from full at the tip to 0 at the snout base.
-static func snout_y_shift(shift: float, u: float, snout_base: float = SNOUT_BLEND_HALF) -> float:
-	if shift == 0.0 or u >= snout_base:
+# Vertical arc (local units) of the snout tip at |snout_curve| = 1.
+const SNOUT_CURVE_SCALE := 0.4
+
+# Vertical deformation of the snout. Two stacked effects, both pinned to 0 at the
+# snout base (u = snout_base) so the head body never moves:
+#   * jaw shear (`shift`): a LINEAR ramp - the tip follows the mouth, straight edges,
+#     so a symmetric snout (◁) shears into a flat-top / flat-bottom right triangle.
+#   * curve (`curve`, -1..1): a QUADRATIC arc that bends the snout up (+) or down (-)
+#     with the bend concentrated toward the tip; magnitude sets how much it curls.
+static func snout_y_shift(shift: float, u: float, snout_base: float = SNOUT_BLEND_HALF, curve: float = 0.0) -> float:
+	if u >= snout_base:
 		return 0.0
-	return shift * (1.0 - u / snout_base)
+	var t := 1.0 - u / snout_base # 1 at the tip, 0 at the snout base
+	return shift * t + curve * SNOUT_CURVE_SCALE * t * t

@@ -87,6 +87,17 @@ func _ready() -> void:
 	# ...but the head body (behind the snout base, x > 0.1) must stay put.
 	assert(_max_back_y_delta(neutral_verts, dropped_verts) < 0.001)
 
+	# Snout curve: an upward curve raises the snout tip (jaw neutral) while the head
+	# body again stays put.
+	var curved_jaw: Dictionary = neutral_jaw.duplicate(true)
+	curved_jaw["snout_curve"] = 0.8
+	fish.set_parameters(curved_jaw)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var curved_verts := _head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D)
+	assert(_front_tip_max_y(curved_verts) > _front_tip_max_y(neutral_verts) + 0.1)
+	assert(_max_back_y_delta(neutral_verts, curved_verts) < 0.001)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
 	file.store_string("head editor model applied")
@@ -104,6 +115,13 @@ func _front_tip_min_y(verts: PackedVector3Array) -> float:
 		if v.x < -0.45:
 			min_y = minf(min_y, v.y)
 	return min_y
+
+func _front_tip_max_y(verts: PackedVector3Array) -> float:
+	var max_y := -INF
+	for v in verts:
+		if v.x < -0.45:
+			max_y = maxf(max_y, v.y)
+	return max_y
 
 # Largest vertical change among head-body vertices (x > 0.1, behind the snout).
 # The two meshes share vertex ordering, so compare index by index.

@@ -158,6 +158,7 @@ const PARAMETER_LABELS := {
 	"snout_base": "주둥이 폭(돌출 범위)",
 	"snout_thickness": "주둥이 굵기",
 	"snout_taper": "주둥이 뾰족함",
+	"snout_curve": "주둥이 휨(아래 ↔ 위)",
 	"forehead_slope": "이마 경사",
 	"snout_appendage": "머리 부착물",
 	"snout_appendage_length": "부착물 길이",

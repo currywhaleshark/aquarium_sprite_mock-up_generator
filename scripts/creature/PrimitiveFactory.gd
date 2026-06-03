@@ -32,6 +32,7 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	var snout_thickness := float(sculpt.get("snout_thickness", 1.0))
 	var snout_taper := float(sculpt.get("snout_taper", 0.0))
 	var snout_shift := float(sculpt.get("snout_y_shift", 0.0))
+	var snout_curve := float(sculpt.get("snout_curve", 0.0))
 
 	var grid := []
 	for i in range(rings + 1):
@@ -75,10 +76,11 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			if shape == "flattened" and y < 0.0:
 				y *= HeadProfile.FLATTEN_MESH_FACTOR
 
-			# 5. Jaw shear: the snout tip follows the mouth while the snout base (where
-			# it meets the head) stays fixed, so the head body itself does not move.
+			# 5. Jaw shear + snout curve: the snout tip follows the mouth and can curl
+			# up/down, while the snout base (where it meets the head) stays fixed, so the
+			# head body itself does not move.
 			if shape != "cephalofoil":
-				y += HeadProfile.snout_y_shift(snout_shift, u, snout_base)
+				y += HeadProfile.snout_y_shift(snout_shift, u, snout_base, snout_curve)
 
 			ring_vertices.append(Vector3(x, y, z))
 		grid.append(ring_vertices)
