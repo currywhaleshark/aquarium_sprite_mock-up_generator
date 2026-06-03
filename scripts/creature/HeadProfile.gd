@@ -14,9 +14,22 @@ extends RefCounted
 # intentionally unchanged from the previous inline implementations; later phases
 # replace these discrete-shape branches with continuous controls in one place.
 
-# Only the front half of the head (u < SNOUT_BLEND_HALF, where u = base_x + 0.5,
-# 0 = snout tip .. 1 = neck) participates in the snout stretch.
+# Only the front of the head (u < snout_base, where u = base_x + 0.5, 0 = snout
+# tip .. 1 = neck) participates in the snout stretch. SNOUT_BLEND_HALF is the
+# legacy/default window (whole front half) that reproduces the pre-Phase-1 shape.
 const SNOUT_BLEND_HALF := 0.5
+
+# Continuous snout sculpt controls (Phase 1). Defaults are NEUTRAL: with these the
+# head is identical to the legacy snout_length-only behaviour.
+#   snout_base      width of the stretch window (smaller = a thin tube protruding
+#                   from an otherwise normal head; larger = the whole front elongates)
+#   snout_thickness girth at the snout tip as a fraction of the undeformed radius
+#   snout_taper     how sharply the girth narrows toward the tip (0 = even, 1 = pointed)
+const SNOUT_SCULPT_DEFAULTS := {
+	"snout_base": 0.5,
+	"snout_thickness": 1.0,
+	"snout_taper": 0.0,
+}
 
 const HUMP_BASE_HEIGHT := 0.16
 const HUMP_SLOPE_GAIN := 0.15
@@ -33,20 +46,37 @@ const CEPHALOFOIL_Z_GAIN := 2.2
 const CEPHALOFOIL_Y_SCALE := 0.42
 const CEPHALOFOIL_SWEEP := 0.18
 
-# Forward: how far a front-half vertex is pulled toward the snout tip.
-static func snout_forward_x_shift(snout_length: float, u: float) -> float:
-	var stretch_t := 1.0 - (u / SNOUT_BLEND_HALF)
+# Forward: how far a vertex inside the snout window is pulled toward the tip.
+static func snout_forward_x_shift(snout_length: float, u: float, snout_base: float = SNOUT_BLEND_HALF) -> float:
+	if snout_length <= 0.0 or u >= snout_base:
+		return 0.0
+	var stretch_t := 1.0 - (u / snout_base)
 	return snout_length * stretch_t * stretch_t
 
-# Inverse of snout_forward_x_shift: given a stretched local x (< 0), recover the
-# base-sphere x it originated from. Returns x unchanged when there is no snout.
-static func snout_base_x(snout_length: float, x: float) -> float:
-	if snout_length <= 0.001 or x >= 0.0:
+# Inverse of snout_forward_x_shift: given a stretched local x, recover the
+# base-sphere x it originated from. Returns x unchanged outside the snout window.
+# Derivation: x_world = x_base - L*((a - 0.5 - x_base)/a)^2 with a = snout_base,
+# L = snout_length. Substituting s = a - 0.5 - x_base gives the quadratic
+# (L/a^2)s^2 + s + (x_world - a + 0.5) = 0; take the non-negative root for s.
+static func snout_base_x(snout_length: float, x: float, snout_base: float = SNOUT_BLEND_HALF) -> float:
+	if snout_length <= 0.001 or x >= snout_base - 0.5:
 		return x
-	var disc := 1.0 - 16.0 * snout_length * x
+	var a := snout_base
+	var coeff := snout_length / (a * a)
+	var disc := 1.0 - 4.0 * coeff * (x - a + 0.5)
 	if disc < 0.0:
 		return x
-	return (1.0 - sqrt(disc)) / (8.0 * snout_length)
+	var s := (-1.0 + sqrt(disc)) / (2.0 * coeff)
+	return a - 0.5 - s
+
+# Radial (girth) multiplier applied to the y/z radius inside the snout window.
+# Returns 1.0 (neutral) outside the window or with default thickness/taper.
+static func snout_radial_scale(snout_length: float, u: float, snout_base: float, thickness: float, taper: float) -> float:
+	if snout_length <= 0.0 or u >= snout_base:
+		return 1.0
+	var w := 1.0 - (u / snout_base) # 1 at the tip, 0 at the window base
+	var shaped := pow(w, lerpf(1.0, 3.0, clampf(taper, 0.0, 1.0)))
+	return lerpf(1.0, thickness, shaped)
 
 # Multiplier applied to the y/z radius in the front half to sharpen the snout.
 static func taper_factor(shape: String, u: float) -> float:

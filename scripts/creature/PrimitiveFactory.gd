@@ -24,10 +24,14 @@ static func ellipsoid(name: String, scale_value: Vector3, material: Material) ->
 	node.material_override = material
 	return node
 
-static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24) -> ArrayMesh:
+static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	
+
+	var snout_base := float(sculpt.get("snout_base", HeadProfile.SNOUT_BLEND_HALF))
+	var snout_thickness := float(sculpt.get("snout_thickness", 1.0))
+	var snout_taper := float(sculpt.get("snout_taper", 0.0))
+
 	var grid := []
 	for i in range(rings + 1):
 		var phi := PI * float(i) / float(rings)
@@ -50,10 +54,11 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 
 			# 2. Snout stretch & taper (for non-cephalofoil snouts)
 			if shape != "cephalofoil" and x < 0.0:
-				x -= HeadProfile.snout_forward_x_shift(snout_length, u)
+				x -= HeadProfile.snout_forward_x_shift(snout_length, u, snout_base)
 				var taper := HeadProfile.taper_factor(shape, u)
-				y *= taper
-				z *= taper
+				var snout_r := HeadProfile.snout_radial_scale(snout_length, u, snout_base, snout_thickness, snout_taper)
+				y *= taper * snout_r
+				z *= taper * snout_r
 
 			# 3. Nuchal Hump / Steep Forehead
 			if shape != "cephalofoil" and y > 0.0 and x < 0.1:
@@ -105,10 +110,10 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	st.generate_normals()
 	return st.commit()
 
-static func deformed_head(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material) -> MeshInstance3D:
+static func deformed_head(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = name
-	node.mesh = deformed_head_mesh(shape, snout_length, forehead_slope)
+	node.mesh = deformed_head_mesh(shape, snout_length, forehead_slope, 18, 24, sculpt)
 	node.scale = head_scale
 	node.material_override = material
 	return node

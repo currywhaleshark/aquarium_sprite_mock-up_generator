@@ -121,7 +121,7 @@ func rebuild() -> void:
 	var head_shape := String(parameters.get("head_shape", "rounded"))
 	var snout_len := param_float("snout_length", 0.0)
 	var forehead_slope := param_float("forehead_slope", 0.35)
-	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, body_mat)
+	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, body_mat, _head_sculpt_params())
 	head_node.position = Vector3(head_offset, _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
@@ -324,23 +324,27 @@ func _head_shell_metrics(rings: Array, body_height: float, body_width: float, bo
 	var shape := String(parameters.get("head_shape", "rounded"))
 	var head_scale := _head_scale_for_shape(shape, head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
 	var start_x := head_offset - head_scale.x * 0.22
+	var sculpt := _head_sculpt_params()
 	return {
 		"shape": shape,
 		"head_scale": head_scale,
 		"head_offset": head_offset,
 		"forehead_slope": param_float("forehead_slope", 0.35),
 		"snout_length": param_float("snout_length", 0.0),
+		"snout_base": float(sculpt["snout_base"]),
+		"snout_thickness": float(sculpt["snout_thickness"]),
+		"snout_taper": float(sculpt["snout_taper"]),
 		"shell_expand": shell_expand,
 		"start_x": start_x,
 		"radius_y": maxf(head_scale.y * 0.5 + shell_expand * 0.72, 0.04),
 		"radius_z": maxf(head_scale.z * 0.5 + shell_expand * 0.72, 0.035),
 	}
 
-func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float) -> Vector2:
+func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float, snout_base: float = HeadProfile.SNOUT_BLEND_HALF, snout_thickness: float = 1.0, snout_taper: float = 0.0) -> Vector2:
 	var x := clampf(x_local_unscaled, -0.499 - snout_length, 0.499)
 	var x_base := x
 	if shape != "cephalofoil":
-		x_base = HeadProfile.snout_base_x(snout_length, x)
+		x_base = HeadProfile.snout_base_x(snout_length, x, snout_base)
 
 	x_base = clampf(x_base, -0.499, 0.499)
 	var sin_phi := sqrt(1.0 - 4.0 * x_base * x_base)
@@ -354,8 +358,9 @@ func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_s
 		var u := x_base + 0.5
 		if x_base < 0.0:
 			var taper := HeadProfile.taper_factor(shape, u)
-			y_deformed *= taper
-			z_deformed *= taper
+			var snout_r := HeadProfile.snout_radial_scale(snout_length, u, snout_base, snout_thickness, snout_taper)
+			y_deformed *= taper * snout_r
+			z_deformed *= taper * snout_r
 
 		if x_base < 0.1:
 			var hump_weight := sin_phi * (1.0 - u)
@@ -387,7 +392,7 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 	if x_local_unscaled >= 0.5:
 		return {"radius_y": radius_y, "radius_z": radius_z}
 		
-	var contour := _get_head_contour_radius(x_local_unscaled, shape, forehead_slope, snout_length)
+	var contour := _get_head_contour_radius(x_local_unscaled, shape, forehead_slope, snout_length, float(metrics.get("snout_base", HeadProfile.SNOUT_BLEND_HALF)), float(metrics.get("snout_thickness", 1.0)), float(metrics.get("snout_taper", 0.0)))
 	
 	var r_head_y := head_scale.y * contour.x
 	var r_head_z := head_scale.z * contour.y
@@ -1388,6 +1393,13 @@ func set_body_profile_shape(shape: String) -> void:
 	parameters["body_profile"] = {"rings": BodyProfileScript.default_fish_rings(shape)}
 	rebuild()
 
+func _head_sculpt_params() -> Dictionary:
+	return {
+		"snout_base": param_float("snout_base", HeadProfile.SNOUT_BLEND_HALF),
+		"snout_thickness": param_float("snout_thickness", 1.0),
+		"snout_taper": param_float("snout_taper", 0.0),
+	}
+
 func _head_scale_for_shape(shape: String, head_size: float, body_height: float, body_width: float) -> Vector3:
 	var flatten := clampf(param_float("head_flattening", 0.0), 0.0, 0.65)
 	var head_scale := Vector3(head_size, body_height * 0.82, body_width * 0.92)
@@ -1560,9 +1572,17 @@ func _head_top_surface_y(local_x: float, local_z: float, outset: float = 0.025) 
 	return sqrt(y_sq) + outset
 
 func _head_front_surface_x(local_y: float, local_z: float, outset: float = 0.025) -> float:
+	# Front-most x of the head silhouette at (local_y, local_z), accounting for the
+	# snout stretch so mouths/sockets stay anchored to the real deformed snout tip
+	# instead of a plain radius-0.5 sphere.
 	var radius := 0.5
 	var x_sq := maxf(radius * radius - local_y * local_y - local_z * local_z, 0.0)
-	return -sqrt(x_sq) - outset
+	var x_base := -sqrt(x_sq)
+	if String(parameters.get("head_shape", "rounded")) != "cephalofoil":
+		var snout_length := param_float("snout_length", 0.0)
+		var snout_base := param_float("snout_base", HeadProfile.SNOUT_BLEND_HALF)
+		x_base -= HeadProfile.snout_forward_x_shift(snout_length, x_base + 0.5, snout_base)
+	return x_base - outset
 
 func _add_head_ornament(head: MeshInstance3D, ornament: String, material: Material) -> void:
 	if ornament == "none" or ornament == "":
@@ -1686,24 +1706,26 @@ func _add_mouth_detail(head: MeshInstance3D, detail: String, mouth_position: Vec
 			downturn.position = Vector3(0.0, -mouth_size * 0.36, 0.0)
 			root.add_child(downturn)
 
-func _mouth_position_for_type(mouth_type: String, _head_scale: Vector3, snout_length: float) -> Vector3:
+func _mouth_position_for_type(mouth_type: String, _head_scale: Vector3, _snout_length: float) -> Vector3:
+	# _head_front_surface_x now follows the deformed snout tip, so the snout length
+	# is no longer added to the outset here (that double-counted the protrusion).
 	var jaw_offset := param_float("jaw_offset", 0.0)
 	match mouth_type:
 		"superior":
 			var y := 0.11 + absf(jaw_offset)
-			return Vector3(_head_front_surface_x(y, 0.0, 0.035 + snout_length * 0.12), y, 0.0)
+			return Vector3(_head_front_surface_x(y, 0.0, 0.035), y, 0.0)
 		"inferior":
 			var y := -0.14 + jaw_offset
-			return Vector3(_head_front_surface_x(y, 0.0, 0.028 + snout_length * 0.10), y, 0.0)
+			return Vector3(_head_front_surface_x(y, 0.0, 0.028), y, 0.0)
 		"subterminal":
 			var y := -0.07 + jaw_offset
-			return Vector3(_head_front_surface_x(y, 0.0, 0.032 + snout_length * 0.10), y, 0.0)
+			return Vector3(_head_front_surface_x(y, 0.0, 0.032), y, 0.0)
 		"protrusible":
 			var y := jaw_offset
-			return Vector3(_head_front_surface_x(y, 0.0, 0.10 + snout_length * 0.18), y, 0.0)
+			return Vector3(_head_front_surface_x(y, 0.0, 0.10), y, 0.0)
 		_:
 			var y := jaw_offset
-			return Vector3(_head_front_surface_x(y, 0.0, 0.035 + snout_length * 0.12), y, 0.0)
+			return Vector3(_head_front_surface_x(y, 0.0, 0.035), y, 0.0)
 
 func _mouth_angle_for_type(mouth_type: String) -> float:
 	match mouth_type:
