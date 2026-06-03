@@ -311,6 +311,7 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 		var adjusted := _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell)
 		radius_y = float(adjusted["radius_y"])
 		radius_z = float(adjusted["radius_z"])
+		center_y += float(adjusted.get("center_y_delta", 0.0))
 		shell_profile.append(Vector3(lerpf(start_x, end_x, float(ring["x"])), radius_y, radius_z))
 		shell_center_y_offsets.append(center_y)
 		shell_ring_ids.append(String(ring.get("id", "ring_%d" % i)))
@@ -334,6 +335,14 @@ func _head_shell_metrics(rings: Array, body_height: float, body_width: float, bo
 		"snout_base": float(sculpt["snout_base"]),
 		"snout_thickness": float(sculpt["snout_thickness"]),
 		"snout_taper": float(sculpt["snout_taper"]),
+		"head_top_curve": float(sculpt["head_top_curve"]),
+		"head_top_peak": float(sculpt["head_top_peak"]),
+		"head_belly_curve": float(sculpt["head_belly_curve"]),
+		"head_bump_height": float(sculpt["head_bump_height"]),
+		"head_bump_pos": float(sculpt["head_bump_pos"]),
+		"head_bump_width": float(sculpt["head_bump_width"]),
+		"head_bump_round": float(sculpt["head_bump_round"]),
+		"head_bump_angle": float(sculpt["head_bump_angle"]),
 		"shell_expand": shell_expand,
 		"start_x": start_x,
 		"radius_y": maxf(head_scale.y * 0.5 + shell_expand * 0.72, 0.04),
@@ -390,24 +399,45 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 	var x_local_unscaled := (ring_x_world - head_offset) / head_scale.x
 	
 	if x_local_unscaled >= 0.5:
-		return {"radius_y": radius_y, "radius_z": radius_z}
-		
-	var contour := _get_head_contour_radius(x_local_unscaled, shape, forehead_slope, snout_length, float(metrics.get("snout_base", HeadProfile.SNOUT_BLEND_HALF)), float(metrics.get("snout_thickness", 1.0)), float(metrics.get("snout_taper", 0.0)))
-	
+		return {"radius_y": radius_y, "radius_z": radius_z, "center_y_delta": 0.0}
+
+	var snout_base: float = float(metrics.get("snout_base", HeadProfile.SNOUT_BLEND_HALF))
+	var contour := _get_head_contour_radius(x_local_unscaled, shape, forehead_slope, snout_length, snout_base, float(metrics.get("snout_thickness", 1.0)), float(metrics.get("snout_taper", 0.0)))
+
 	var r_head_y := head_scale.y * contour.x
 	var r_head_z := head_scale.z * contour.y
-	
+
 	var blend_factor := clampf((x_local_unscaled - (-0.22)) / (0.5 - (-0.22)), 0.0, 1.0)
-	
+
 	var exp_offset_y := lerpf(shell_expand * 0.15, shell_expand * lerpf(1.0, 0.22, ring_x), blend_factor)
 	var exp_offset_z := lerpf(shell_expand * 0.15, shell_expand * lerpf(1.0, 0.18, ring_x), blend_factor)
-	
+
 	var target_y := lerpf(r_head_y, radius_y - shell_expand * lerpf(1.0, 0.22, ring_x), blend_factor) + exp_offset_y
 	var target_z := lerpf(r_head_z, radius_z - shell_expand * lerpf(1.0, 0.18, ring_x), blend_factor) + exp_offset_z
-	
+
+	# Grow the shell asymmetrically so it encloses the continuous dorsal/ventral
+	# profile and the crown bump near the head (the shell is a symmetric tube, so a
+	# top-only bulge becomes a radius increase plus an upward center shift). Fades
+	# into the body via head_weight so the trunk is untouched.
+	var center_y_delta := 0.0
+	if shape != "cephalofoil":
+		var sx := clampf(HeadProfile.snout_base_x(snout_length, clampf(x_local_unscaled, -0.499 - snout_length, 0.499), snout_base), -0.499, 0.499)
+		var s_sin := sqrt(maxf(1.0 - 4.0 * sx * sx, 0.0))
+		var s_u := sx + 0.5
+		var top_extra := head_scale.y * HeadProfile.dorsal_offset(s_u, s_sin, float(metrics.get("head_top_curve", 0.0)), float(metrics.get("head_top_peak", 0.35)))
+		var bottom_extra := head_scale.y * HeadProfile.ventral_offset(s_u, s_sin, float(metrics.get("head_belly_curve", 0.0)), 0.45)
+		var bump_v := head_scale.y * float(metrics.get("head_bump_height", 0.0)) * cos(deg_to_rad(float(metrics.get("head_bump_angle", 35.0)))) * HeadProfile.head_bump_falloff(sx, PI * 0.5, float(metrics.get("head_bump_pos", -0.2)), float(metrics.get("head_bump_width", 0.18)), float(metrics.get("head_bump_round", 0.6)))
+		top_extra += maxf(bump_v, 0.0)
+		var head_weight := 1.0 - blend_factor
+		top_extra *= head_weight
+		bottom_extra *= head_weight
+		target_y += 0.5 * (top_extra + bottom_extra)
+		center_y_delta = 0.5 * (top_extra - bottom_extra)
+
 	return {
 		"radius_y": maxf(target_y, 0.035),
-		"radius_z": maxf(target_z, 0.03)
+		"radius_z": maxf(target_z, 0.03),
+		"center_y_delta": center_y_delta
 	}
 
 func _add_ring_guides() -> void:

@@ -137,6 +137,29 @@ func _ready() -> void:
 	assert(_max_y(bumped_verts) > base_crown_y + 0.05)
 	assert(_max_forward_push(no_bump_verts, bumped_verts) > 0.05)
 
+	# The body shell follows a strong dorsal hump near the head: the head ring grows
+	# taller and its center shifts up so the shell encloses the bulge.
+	var shell_neutral: Dictionary = flat_top.duplicate(true)
+	shell_neutral["shell_enabled"] = 1.0
+	shell_neutral["head_top_curve"] = 0.0
+	shell_neutral["head_bump_height"] = 0.0
+	fish.set_parameters(shell_neutral)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var hi := _shell_ring_index(fish, "snout")
+	assert(hi >= 0)
+	var base_radius := float(fish.shell_profile[hi].y)
+	var base_center := float(fish.shell_center_y_offsets[hi])
+
+	var shell_hump: Dictionary = shell_neutral.duplicate(true)
+	shell_hump["head_top_curve"] = 0.9
+	shell_hump["head_top_peak"] = 0.2
+	fish.set_parameters(shell_hump)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert(float(fish.shell_profile[hi].y) > base_radius + 0.01)
+	assert(float(fish.shell_center_y_offsets[hi]) > base_center + 0.005)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
 	file.store_string("head editor model applied")
@@ -161,6 +184,10 @@ func _front_tip_max_y(verts: PackedVector3Array) -> float:
 		if v.x < -0.45:
 			max_y = maxf(max_y, v.y)
 	return max_y
+
+func _shell_ring_index(fish: Node, ring_id: String) -> int:
+	var ids: Array = fish.shell_ring_ids
+	return ids.find(ring_id)
 
 func _max_y(verts: PackedVector3Array) -> float:
 	var max_y := -INF
