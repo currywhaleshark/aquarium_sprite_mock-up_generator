@@ -166,6 +166,7 @@ const PARAMETER_LABELS := {
 	"head_bump_pos": "혹 위치(앞 ↔ 뒤)",
 	"head_bump_width": "혹 폭",
 	"head_bump_forward": "혹 전방 돌출",
+	"head_bump_round": "혹 윤곽(부드럽 ↔ 뚜렷)",
 	"forehead_slope": "이마 경사",
 	"snout_appendage": "머리 부착물",
 	"snout_appendage_length": "부착물 길이",

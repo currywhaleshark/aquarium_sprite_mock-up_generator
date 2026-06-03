@@ -133,13 +133,20 @@ static func ventral_offset(u: float, sin_phi: float, curve: float, peak: float) 
 
 # Localized crown/forehead bump (Phase 3). Unlike the dorsal profile, which only
 # raises the top silhouette and fades to nothing at the narrowing snout, this is a
-# gaussian blob on the upper surface centered at head-local x = `pos`. The caller
+# rounded dome on the upper surface centered at head-local x = `pos`. The caller
 # raises y by height * falloff and pushes x by -forward * height * falloff, so a
 # forward lean makes the bump JUT OUT in front (Napoleon-wrasse-style overhang)
-# rather than only bulging upward. Returns the gaussian weight (0 off the bump).
-static func head_bump_falloff(x: float, theta: float, pos: float, width: float) -> float:
+# rather than only bulging upward.
+#
+# The dome has a DEFINED edge at |x - pos| = width (it reads as a distinct mass, not
+# a soft gaussian blend). `round` shapes that edge: 0 = soft shoulder that eases into
+# the head, 1 = a steep, bulbous dome that pops out. Returns the weight (0 off it).
+static func head_bump_falloff(x: float, theta: float, pos: float, width: float, round_amount: float = 0.6) -> float:
 	var w_top := sin(theta) # 1 at the top, 0 at the sides, <0 underneath
 	if w_top <= 0.0:
 		return 0.0
 	var d := (x - pos) / maxf(width, 0.001)
-	return exp(-d * d) * w_top
+	var cap := maxf(1.0 - d * d, 0.0)
+	# Lower exponent -> rounder top, steeper (more distinct) shoulder.
+	var p := lerpf(2.0, 0.5, clampf(round_amount, 0.0, 1.0))
+	return pow(cap, p) * w_top

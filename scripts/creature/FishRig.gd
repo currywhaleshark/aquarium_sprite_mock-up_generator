@@ -1407,6 +1407,7 @@ func _head_sculpt_params() -> Dictionary:
 		"head_bump_pos": param_float("head_bump_pos", -0.2),
 		"head_bump_width": param_float("head_bump_width", 0.18),
 		"head_bump_forward": param_float("head_bump_forward", 0.5),
+		"head_bump_round": param_float("head_bump_round", 0.6),
 	}
 
 # Linear jaw shear of the snout tip. Matches the mouth's own vertical offset from

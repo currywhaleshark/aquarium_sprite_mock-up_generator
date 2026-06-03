@@ -40,6 +40,7 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	var bump_pos := float(sculpt.get("head_bump_pos", -0.2))
 	var bump_width := float(sculpt.get("head_bump_width", 0.18))
 	var bump_forward := float(sculpt.get("head_bump_forward", 0.5))
+	var bump_round := float(sculpt.get("head_bump_round", 0.6))
 
 	var grid := []
 	for i in range(rings + 1):
@@ -92,7 +93,7 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 
 			# 4c. Localized crown bump that can jut forward (-x), not just upward.
 			if shape != "cephalofoil" and bump_height != 0.0:
-				var bump_g := HeadProfile.head_bump_falloff(x, theta, bump_pos, bump_width)
+				var bump_g := HeadProfile.head_bump_falloff(x, theta, bump_pos, bump_width, bump_round)
 				y += bump_height * bump_g
 				x -= bump_forward * bump_height * bump_g
 
