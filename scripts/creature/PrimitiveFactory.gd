@@ -39,8 +39,12 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	var bump_height := float(sculpt.get("head_bump_height", 0.0))
 	var bump_pos := float(sculpt.get("head_bump_pos", -0.2))
 	var bump_width := float(sculpt.get("head_bump_width", 0.18))
-	var bump_forward := float(sculpt.get("head_bump_forward", 0.5))
 	var bump_round := float(sculpt.get("head_bump_round", 0.6))
+	# Protrusion direction: 0 deg = straight up, 90 deg = straight forward, >90 leans
+	# forward-and-down (overhang), negative leans back.
+	var bump_rad := deg_to_rad(float(sculpt.get("head_bump_angle", 35.0)))
+	var bump_up := cos(bump_rad)
+	var bump_fwd := sin(bump_rad)
 
 	var grid := []
 	for i in range(rings + 1):
@@ -91,11 +95,11 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 				elif y < 0.0:
 					y -= HeadProfile.ventral_offset(u, sin(phi), belly_curve, 0.45)
 
-			# 4c. Localized crown bump that can jut forward (-x), not just upward.
+			# 4c. Localized crown bump protruding at head_bump_angle (up .. forward).
 			if shape != "cephalofoil" and bump_height != 0.0:
-				var bump_g := HeadProfile.head_bump_falloff(x, theta, bump_pos, bump_width, bump_round)
-				y += bump_height * bump_g
-				x -= bump_forward * bump_height * bump_g
+				var bump_amt := bump_height * HeadProfile.head_bump_falloff(x, theta, bump_pos, bump_width, bump_round)
+				y += bump_amt * bump_up
+				x -= bump_amt * bump_fwd
 
 			# 5. Jaw shear + snout curve: the snout tip follows the mouth and can curl
 			# up/down, while the snout base (where it meets the head) stays fixed, so the

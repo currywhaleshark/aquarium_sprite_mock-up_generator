@@ -128,7 +128,7 @@ func _ready() -> void:
 	var bumped: Dictionary = no_bump.duplicate(true)
 	bumped["head_bump_height"] = 0.35
 	bumped["head_bump_pos"] = -0.2
-	bumped["head_bump_forward"] = 0.8
+	bumped["head_bump_angle"] = 60.0
 	fish.set_parameters(bumped)
 	await get_tree().process_frame
 	await get_tree().process_frame

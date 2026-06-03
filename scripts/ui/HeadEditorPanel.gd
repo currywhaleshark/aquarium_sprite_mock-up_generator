@@ -27,7 +27,7 @@ const NUMERIC_KEYS := {
 	"head_bump_height": {"min": 0.0, "max": 0.8, "step": 0.005},
 	"head_bump_pos": {"min": -0.5, "max": 0.5, "step": 0.01},
 	"head_bump_width": {"min": 0.06, "max": 0.5, "step": 0.01},
-	"head_bump_forward": {"min": -1.0, "max": 1.5, "step": 0.01},
+	"head_bump_angle": {"min": -45.0, "max": 120.0, "step": 1.0},
 	"head_bump_round": {"min": 0.0, "max": 1.0, "step": 0.01},
 	"forehead_slope": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"jaw_offset": {"min": -0.3, "max": 0.3, "step": 0.005},
@@ -267,7 +267,7 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 		return float(parameters.get("snout_length", 0.0)) > 0.001
 	if key == "head_top_peak":
 		return absf(float(parameters.get("head_top_curve", 0.0))) > 0.001
-	if key == "head_bump_pos" or key == "head_bump_width" or key == "head_bump_forward" or key == "head_bump_round":
+	if key == "head_bump_pos" or key == "head_bump_width" or key == "head_bump_angle" or key == "head_bump_round":
 		return float(parameters.get("head_bump_height", 0.0)) > 0.001
 	return true
 
@@ -318,8 +318,8 @@ func _default_numeric(key: String) -> float:
 			return -0.2
 		"head_bump_width":
 			return 0.18
-		"head_bump_forward":
-			return 0.5
+		"head_bump_angle":
+			return 35.0
 		"head_bump_round":
 			return 0.6
 	return 0.0

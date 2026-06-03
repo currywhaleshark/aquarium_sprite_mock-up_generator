@@ -365,7 +365,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"head_shape", "mouth_type", "snout_length",
 		"snout_base", "snout_thickness", "snout_taper", "snout_curve",
 		"head_top_curve", "head_top_peak", "head_belly_curve",
-		"head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_forward", "head_bump_round",
+		"head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round",
 		"forehead_slope", "jaw_offset", "mouth_size", "head_flattening",
 		"head_ornament", "gill_mark", "barbel_style", "eye_style", "mouth_detail",
 		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",
