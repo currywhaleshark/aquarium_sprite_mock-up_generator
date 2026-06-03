@@ -9,15 +9,23 @@ func _ready() -> void:
 	await get_tree().process_frame
 	panel.set_parameters({
 		"custom_offset_x": -0.5,
-		"body_length": 1.2
+		"body_length": 1.2,
+		"disc_thickness": 0.16,
+		"tail_thickness": 0.055
 	})
 	var offset_slider := _find_slider_for_label(panel, UiText.parameter("custom_offset_x"))
 	var body_slider := _find_slider_for_label(panel, UiText.parameter("body_length"))
+	var disc_thickness_slider := _find_slider_for_label(panel, UiText.parameter("disc_thickness"))
+	var tail_thickness_slider := _find_slider_for_label(panel, UiText.parameter("tail_thickness"))
 	assert(offset_slider != null)
 	assert(body_slider != null)
+	assert(disc_thickness_slider != null)
+	assert(tail_thickness_slider != null)
 	assert(offset_slider.min_value < -0.5)
 	assert(offset_slider.max_value > 0.5)
 	assert(body_slider.min_value == 0.0)
+	assert(absf(disc_thickness_slider.max_value - 0.3) < 0.0001)
+	assert(absf(tail_thickness_slider.max_value - 0.2) < 0.0001)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/parameter_panel_range.ok", FileAccess.WRITE)

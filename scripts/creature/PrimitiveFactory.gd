@@ -790,7 +790,7 @@ static func build_ray_mantle_shell_mesh(radius_x: float, radius_z: float, crown_
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
 
-static func build_ray_grid_mesh(radius_x: float, radius_z: float, crown_height: float, roundness: float = 1.0, is_double_sided: bool = true, rings: Array = [], head_shape: String = "manta", snout_length: float = 0.3) -> ArrayMesh:
+static func build_ray_grid_mesh(radius_x: float, radius_z: float, crown_height: float, roundness: float = 1.0, is_double_sided: bool = true, rings: Array = [], head_shape: String = "manta", snout_length: float = 0.3, wing_width: float = 1.0, wing_curve: float = 0.0) -> ArrayMesh:
 	var cols: int = 17
 	var rows: int = 17
 	var vertices: PackedVector3Array = PackedVector3Array()
@@ -868,12 +868,17 @@ static func build_ray_grid_mesh(radius_x: float, radius_z: float, crown_height: 
 			var W: float = maxf(absf(pt_left.z), 0.001)
 			var t_z: float = absf(z) / W
 			var t_x: float = x / radius_x
+			var edge_weight := pow(t_z, 1.35)
+			var boundary_x := pt_boundary.x
+			var x_contoured := lerpf(x, boundary_x, edge_weight)
+			var x_shaped := lerpf(x_contoured, x_contoured * maxf(wing_width, 0.05), edge_weight)
 			var thick_profile: float = (1.0 - t_z * t_z) * (1.0 - t_x * t_x)
 			var half_thick: float = crown_height * maxf(thick_profile, 0.0)
 			
-			var y_top := half_thick * (float(sampled.get("upper_height", 0.3)) / 0.42) + float(sampled.get("y_offset", 0.0))
-			vertices.append(Vector3(x, y_top, z))
-			var dir: Vector3 = Vector3(x, 0.0, z).normalized()
+			var edge_curve_y := wing_curve * edge_weight
+			var y_top := half_thick * (float(sampled.get("upper_height", 0.3)) / 0.42) + float(sampled.get("y_offset", 0.0)) + edge_curve_y
+			vertices.append(Vector3(x_shaped, y_top, z))
+			var dir: Vector3 = Vector3(x_shaped, 0.0, z).normalized()
 			var normal: Vector3 = (Vector3.UP + dir * t_z * 0.3).normalized()
 			normals.append(normal)
 			uvs.append(Vector2(u, v))
@@ -921,12 +926,17 @@ static func build_ray_grid_mesh(radius_x: float, radius_z: float, crown_height: 
 				var W: float = maxf(absf(pt_left.z), 0.001)
 				var t_z: float = absf(z) / W
 				var t_x: float = x / radius_x
+				var edge_weight := pow(t_z, 1.35)
+				var boundary_x := pt_boundary.x
+				var x_contoured := lerpf(x, boundary_x, edge_weight)
+				var x_shaped := lerpf(x_contoured, x_contoured * maxf(wing_width, 0.05), edge_weight)
 				var thick_profile: float = (1.0 - t_z * t_z) * (1.0 - t_x * t_x)
 				var half_thick: float = crown_height * maxf(thick_profile, 0.0)
 				
-				var y_bottom := -half_thick * (float(sampled.get("lower_height", 0.3)) / 0.36) + float(sampled.get("y_offset", 0.0))
-				b_vertices.append(Vector3(x, y_bottom, z))
-				var dir: Vector3 = Vector3(x, 0.0, z).normalized()
+				var edge_curve_y := wing_curve * edge_weight
+				var y_bottom := -half_thick * (float(sampled.get("lower_height", 0.3)) / 0.36) + float(sampled.get("y_offset", 0.0)) + edge_curve_y
+				b_vertices.append(Vector3(x_shaped, y_bottom, z))
+				var dir: Vector3 = Vector3(x_shaped, 0.0, z).normalized()
 				var normal: Vector3 = (Vector3.DOWN + dir * t_z * 0.3).normalized()
 				b_normals.append(normal)
 				b_uvs.append(Vector2(u, v))

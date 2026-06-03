@@ -698,6 +698,9 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	var pectoral_yaw := _fin_follow_yaw(pectoral_attach_t, yaws)
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	var p_sync := String(parameters.get("pectoral_flap_sync", "alternating"))
+	# Fish pectoral fins are mirrored in transform space. A PI phase offset makes the
+	# left/right fins read as visually synchronous; zero offset reads as alternating.
+	# Ray wing sync uses a different surface-wave basis, so do not mirror this blindly.
 	var right_phase_offset := PI if p_sync == "synchronous" else 0.0
 
 	var pectoral_flap_l := sin(loop_phase * TAU * 2.0) * param_float("fin_flap_amount", param_float("pectoral_flap_amount", 10.0))
@@ -1545,12 +1548,27 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 
 	_add_barbel_cluster(head, String(parameters.get("barbel_style", "none")), material, snout_length)
 		
-	var mouth := PF.ellipsoid("Mouth", Vector3(mouth_size, mouth_size * 0.28, mouth_size * 0.55), dark_mat)
 	var mouth_position := _mouth_position_for_type(mouth_type, head.scale, snout_length)
+	var mouth := PF.ellipsoid("Mouth", Vector3(mouth_size * 0.72, mouth_size * 0.34, mouth_size * 0.82), dark_mat)
 	mouth.position = mouth_position
 	mouth.rotation_degrees.z = _mouth_angle_for_type(mouth_type)
 	head.add_child(mouth)
 	_add_mouth_detail(head, String(parameters.get("mouth_detail", "dot")), mouth_position, mouth_size, dark_mat)
+
+func _head_side_surface_z(local_x: float, local_y: float, outset: float = 0.025) -> float:
+	var radius := 0.5
+	var z_sq := maxf(radius * radius - local_x * local_x - local_y * local_y, 0.0)
+	return sqrt(z_sq) + outset
+
+func _head_top_surface_y(local_x: float, local_z: float, outset: float = 0.025) -> float:
+	var radius := 0.5
+	var y_sq := maxf(radius * radius - local_x * local_x - local_z * local_z, 0.0)
+	return sqrt(y_sq) + outset
+
+func _head_front_surface_x(local_y: float, local_z: float, outset: float = 0.025) -> float:
+	var radius := 0.5
+	var x_sq := maxf(radius * radius - local_y * local_y - local_z * local_z, 0.0)
+	return -sqrt(x_sq) - outset
 
 func _add_head_ornament(head: MeshInstance3D, ornament: String, material: Material) -> void:
 	if ornament == "none" or ornament == "":
@@ -1571,16 +1589,20 @@ func _add_head_ornament(head: MeshInstance3D, ornament: String, material: Materi
 			]
 			for i in lobe_positions.size():
 				var lobe := PF.ellipsoid("WenLobe%d" % i, Vector3(0.09, 0.07, 0.07), material)
-				lobe.position = lobe_positions[i]
+				var lobe_position: Vector3 = lobe_positions[i]
+				lobe_position.y = _head_top_surface_y(lobe_position.x, lobe_position.z, 0.035)
+				lobe.position = lobe_position
 				root.add_child(lobe)
 		"nuchal_hump", "forehead_bump":
 			var hump := PF.ellipsoid("ForeheadMass", Vector3(0.18, 0.18, 0.14), material)
-			hump.position = Vector3(-0.10, 0.28, 0.0)
+			hump.position = Vector3(-0.10, _head_top_surface_y(-0.10, 0.0, 0.055), 0.0)
 			root.add_child(hump)
 		"cheek_pad":
 			for side in [-1.0, 1.0]:
 				var pad := PF.ellipsoid("CheekPad%s" % ("L" if side < 0.0 else "R"), Vector3(0.10, 0.08, 0.05), material)
-				pad.position = Vector3(-0.16, -0.03, side * 0.28)
+				var pad_x := -0.16
+				var pad_y := -0.03
+				pad.position = Vector3(pad_x, pad_y, side * _head_side_surface_z(pad_x, pad_y, 0.03))
 				root.add_child(pad)
 
 func _add_gill_mark(head: MeshInstance3D, mark: String, material: Material) -> void:
@@ -1592,21 +1614,27 @@ func _add_gill_mark(head: MeshInstance3D, mark: String, material: Material) -> v
 	match mark:
 		"line":
 			for side in [-1.0, 1.0]:
-				var line := PF.cylinder("GillLine%s" % ("L" if side < 0.0 else "R"), 0.006, 0.22, material)
-				line.position = Vector3(0.18, 0.02, side * 0.47)
+				var line_x := 0.18
+				var line_y := 0.02
+				var line := PF.cylinder("GillLine%s" % ("L" if side < 0.0 else "R"), 0.009, 0.24, material)
+				line.position = Vector3(line_x, line_y, side * _head_side_surface_z(line_x, line_y, 0.04))
 				line.rotation_degrees.x = 6.0 * side
 				root.add_child(line)
 		"crescent":
 			for side in [-1.0, 1.0]:
 				for i in range(3):
-					var dash := PF.cylinder("GillCrescent%s_%d" % [("L" if side < 0.0 else "R"), i], 0.005, 0.10, material)
-					dash.position = Vector3(0.15 + float(i) * 0.025, 0.07 - float(i) * 0.065, side * 0.47)
+					var dash_x := 0.15 + float(i) * 0.025
+					var dash_y := 0.07 - float(i) * 0.065
+					var dash := PF.cylinder("GillCrescent%s_%d" % [("L" if side < 0.0 else "R"), i], 0.008, 0.12, material)
+					dash.position = Vector3(dash_x, dash_y, side * _head_side_surface_z(dash_x, dash_y, 0.04))
 					dash.rotation_degrees.z = -18.0 + float(i) * 18.0
 					root.add_child(dash)
 		"plate":
 			for side in [-1.0, 1.0]:
-				var plate := PF.ellipsoid("GillPlate%s" % ("L" if side < 0.0 else "R"), Vector3(0.035, 0.15, 0.012), material)
-				plate.position = Vector3(0.18, 0.0, side * 0.47)
+				var plate_x := 0.18
+				var plate_y := 0.0
+				var plate := PF.ellipsoid("GillPlate%s" % ("L" if side < 0.0 else "R"), Vector3(0.045, 0.17, 0.018), material)
+				plate.position = Vector3(plate_x, plate_y, side * _head_side_surface_z(plate_x, plate_y, 0.04))
 				root.add_child(plate)
 
 func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material, snout_length: float) -> void:
@@ -1639,11 +1667,11 @@ func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material
 		whisker.position.x = -length * 0.5
 		socket.add_child(whisker)
 
-func _add_mouth_detail(head: MeshInstance3D, detail: String, mouth_position: Vector3, mouth_size: float, material: Material) -> void:
+func _add_mouth_detail(head: MeshInstance3D, detail: String, mouth_position: Vector3, mouth_size: float, material: Material, side_suffix: String = "") -> void:
 	if detail == "none" or detail == "dot" or detail == "":
 		return
 	var root := Node3D.new()
-	root.name = "MouthDetail_%s" % detail
+	root.name = "MouthDetail_%s%s" % [detail, side_suffix]
 	root.position = mouth_position
 	head.add_child(root)
 	match detail:
@@ -1664,20 +1692,24 @@ func _add_mouth_detail(head: MeshInstance3D, detail: String, mouth_position: Vec
 			downturn.position = Vector3(0.0, -mouth_size * 0.36, 0.0)
 			root.add_child(downturn)
 
-func _mouth_position_for_type(mouth_type: String, head_scale: Vector3, snout_length: float) -> Vector3:
-	var x := -head_scale.x * 0.43 - snout_length * 0.08
+func _mouth_position_for_type(mouth_type: String, _head_scale: Vector3, snout_length: float) -> Vector3:
 	var jaw_offset := param_float("jaw_offset", 0.0)
 	match mouth_type:
 		"superior":
-			return Vector3(x, head_scale.y * 0.22 + absf(jaw_offset), 0.0)
+			var y := 0.11 + absf(jaw_offset)
+			return Vector3(_head_front_surface_x(y, 0.0, 0.035 + snout_length * 0.12), y, 0.0)
 		"inferior":
-			return Vector3(x * 0.92, -head_scale.y * 0.28 + jaw_offset, 0.0)
+			var y := -0.14 + jaw_offset
+			return Vector3(_head_front_surface_x(y, 0.0, 0.028 + snout_length * 0.10), y, 0.0)
 		"subterminal":
-			return Vector3(x * 0.96, -head_scale.y * 0.14 + jaw_offset, 0.0)
+			var y := -0.07 + jaw_offset
+			return Vector3(_head_front_surface_x(y, 0.0, 0.032 + snout_length * 0.10), y, 0.0)
 		"protrusible":
-			return Vector3(x - 0.08 - snout_length * 0.12, jaw_offset, 0.0)
+			var y := jaw_offset
+			return Vector3(_head_front_surface_x(y, 0.0, 0.10 + snout_length * 0.18), y, 0.0)
 		_:
-			return Vector3(x, jaw_offset, 0.0)
+			var y := jaw_offset
+			return Vector3(_head_front_surface_x(y, 0.0, 0.035 + snout_length * 0.12), y, 0.0)
 
 func _mouth_angle_for_type(mouth_type: String) -> float:
 	match mouth_type:

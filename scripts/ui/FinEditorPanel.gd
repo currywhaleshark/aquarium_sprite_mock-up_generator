@@ -204,7 +204,8 @@ func _populate_slots() -> void:
 		var current_sel := selected_slot
 		slot_option.clear()
 		for slot_id in expected_slots:
-			slot_option.add_item(UiText.fin_slot(slot_id))
+			var label := UiText.ray_fin_slot(slot_id) if is_ray else UiText.fin_slot(slot_id)
+			slot_option.add_item(label)
 			slot_option.set_item_metadata(slot_option.item_count - 1, slot_id)
 		var new_index := expected_slots.find(current_sel)
 		if new_index < 0:

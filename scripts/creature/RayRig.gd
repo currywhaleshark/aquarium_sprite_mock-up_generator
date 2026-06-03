@@ -33,7 +33,6 @@ var shell_ring_ids: Array[String] = []
 
 func rebuild() -> void:
 	super.rebuild()
-	await get_tree().process_frame
 	body_mesh = null
 	eye_l = null
 	eye_r = null
@@ -43,16 +42,45 @@ func rebuild() -> void:
 	pelvic_r = null
 	
 	var base_mat := TMF.make_surface(param_color("base_color", "#6dbbc3"), param_float("shadow_strength", 0.35), param_float("highlight_strength", 0.5))
+	var dorsal_mat := TMF.make_body_material(parameters)
 	var underside_mat := TMF.make_surface(param_color("underside_color", "#d7f0ed"), 0.18, 0.45)
 	var eye_mat := TMF.make_dark("#10161a")
 
 	var disc_width := param_float("disc_width", 1.35)
 	var disc_length := param_float("disc_length", 1.05)
 	var disc_thickness := param_float("disc_thickness", 0.16)
-	var wing_width := param_float("wing_width", 1.25)
+	var wing_width := param_float("wing_width", 1.0)
+	var wing_length := param_float("wing_length", 1.25)
+	var wing_curve := param_float("wing_curve", 0.0)
 	var tail_length := param_float("tail_length", 1.35)
 	var tail_thickness := param_float("tail_thickness", 0.055)
+	var tail_style := String(parameters.get("ray_tail_style", "whip"))
+	match tail_style:
+		"manta_thread":
+			tail_length *= 1.28
+			tail_thickness *= 0.58
+		"stout_skate":
+			tail_length *= 0.72
+			tail_thickness *= 1.65
+		"short_round":
+			tail_length *= 0.48
+			tail_thickness *= 1.25
 	var shell_roundness := param_float("shell_roundness", 1.0)
+	var disc_shape := String(parameters.get("ray_disc_shape", "diamond"))
+	match disc_shape:
+		"round", "electric":
+			disc_length *= 0.92
+			wing_length *= 0.82
+			shell_roundness = maxf(shell_roundness, 0.96)
+		"manta":
+			wing_length *= 1.16
+			shell_roundness = minf(shell_roundness, 0.45)
+		"skate":
+			disc_length *= 1.08
+			wing_length *= 0.92
+			shell_roundness = minf(shell_roundness, 0.55)
+		"diamond":
+			shell_roundness = minf(shell_roundness, 0.72)
 	var cephalic_style := String(parameters.get("cephalic_horns", "none"))
 
 	var body_profile := BodyProfileScript.ensure_body_profile(parameters)
@@ -67,7 +95,7 @@ func rebuild() -> void:
 
 	# 1. Build the seamless unified body mesh (double-sided)
 	mantle_radius_x = disc_length * 0.5
-	mantle_radius_z = wing_width
+	mantle_radius_z = wing_length
 	mantle_crown_height = disc_thickness
 	
 	shell_profile.clear()
@@ -81,17 +109,17 @@ func rebuild() -> void:
 		var lx := -mantle_radius_x + 2.0 * mantle_radius_x * rx
 		var radius_y := disc_thickness * (float(ring["upper_height"]) + float(ring["lower_height"])) * 0.5
 		var center_y := disc_thickness * (float(ring["y_offset"]) + (float(ring["upper_height"]) - float(ring["lower_height"])) * 0.5)
-		var radius_z := wing_width * (float(ring["width"]) / 0.45)
+		var radius_z := wing_length * (float(ring["width"]) / 0.45)
 		
 		shell_profile.append(Vector3(lx, radius_y, radius_z))
 		shell_center_y_offsets.append(center_y)
 		shell_ring_ids.append(ring_id)
 	
-	var array_mesh := PF.build_ray_grid_mesh(mantle_radius_x, mantle_radius_z, mantle_crown_height, shell_roundness, true, rings, head_shape, snout_len)
+	var array_mesh := PF.build_ray_grid_mesh(mantle_radius_x, mantle_radius_z, mantle_crown_height, shell_roundness, true, rings, head_shape, snout_len, wing_width, wing_curve)
 	body_mesh = MeshInstance3D.new()
 	body_mesh.name = "BodyMesh"
 	body_mesh.mesh = array_mesh
-	body_mesh.set_surface_override_material(0, base_mat)
+	body_mesh.set_surface_override_material(0, dorsal_mat)
 	body_mesh.set_surface_override_material(1, underside_mat)
 	disc_body.add_child(body_mesh)
 	
@@ -163,6 +191,20 @@ func rebuild() -> void:
 	var tail_tip := PF.tapered_segment("TailTip", tail_length * 0.38, tail_thickness * 0.55, tail_thickness * 0.55, base_mat)
 	tail_tip.position = Vector3(tail_length * 0.19, 0.0, 0.0)
 	tail_pivot_2.add_child(tail_tip)
+
+	if bool(parameters.get("ray_tail_spine_enabled", false)):
+		var spine := PF.fin_shape("TailSpine", "trigger", tail_length * 0.18, tail_thickness * 3.0, base_mat)
+		spine.position = Vector3(tail_length * 0.46, tail_thickness * 0.45, 0.0)
+		spine.rotation_degrees = Vector3(0.0, 0.0, -18.0)
+		tail_pivot_1.add_child(spine)
+
+	if bool(parameters.get("ray_dorsal_tail_fins", false)):
+		var dorsal_tail_1 := PF.fin_shape("TailDorsalFin1", "single", tail_length * 0.18, tail_thickness * 2.2, base_mat)
+		dorsal_tail_1.position = Vector3(tail_length * 0.32, tail_thickness * 0.48, 0.0)
+		tail_pivot_1.add_child(dorsal_tail_1)
+		var dorsal_tail_2 := PF.fin_shape("TailDorsalFin2", "single", tail_length * 0.14, tail_thickness * 1.7, base_mat)
+		dorsal_tail_2.position = Vector3(tail_length * 0.12, tail_thickness * 0.34, 0.0)
+		tail_pivot_2.add_child(dorsal_tail_2)
 	
 	_update_body_ring_world_points()
 	if ring_editor_enabled or param_float("show_ring_guides", 0.0) > 0.5:
@@ -172,14 +214,18 @@ func apply_pose(loop_phase: float) -> void:
 	# Glide bobbing
 	var bob_wave := sin(loop_phase * TAU)
 	position.y = bob_wave * param_float("glide_bob_amount", 0.025)
-	if disc_body:
-		disc_body.rotation_degrees.z = bob_wave * 1.2
 		
 	# Locomotion Mode configurations
 	var loc_mode := String(parameters.get("ray_locomotion_mode", "rajiform"))
 	var wave_ripples := param_float("wave_ripples", 1.2)
 	var flap_amp := param_float("flap_amplitude", 8.0)
-	var sync_mode := String(parameters.get("pectoral_flap_sync", "alternating"))
+	var sync_mode := String(parameters.get("pectoral_flap_sync", "synchronous"))
+	var turn_amount := clampf(param_float("turn_amount", 0.0), 0.0, 1.0)
+	var turn_phase := clampf(param_float("turn_phase", 0.0), 0.0, 1.0)
+	var turn_direction := -1.0 if param_float("turn_direction", 1.0) < 0.0 else 1.0
+	var turn_envelope := turn_amount
+	if turn_amount > 0.001 and turn_phase > 0.001:
+		turn_envelope = turn_amount * sin(PI * pow(turn_phase, 0.45))
 	
 	if loc_mode == "mobuliform":
 		wave_ripples = 0.6
@@ -191,11 +237,32 @@ func apply_pose(loop_phase: float) -> void:
 		flap_amp = 1.5
 		wave_ripples = 1.0
 
+	var bank_degrees := 18.0
+	if loc_mode == "mobuliform":
+		bank_degrees = 30.0
+	elif loc_mode == "punting":
+		bank_degrees = 8.0
+	if disc_body:
+		disc_body.rotation_degrees = Vector3(
+			turn_direction * turn_envelope * bank_degrees,
+			0.0,
+			bob_wave * 1.2
+		)
+
 	var get_wave_y := func(pos: Vector3) -> float:
 		var wing_t := absf(pos.z) / maxf(mantle_radius_z, 0.001)
-		var amp := flap_amp * 0.025 * pow(wing_t, 1.5)
+		var side_sign := -1.0 if pos.z < 0.0 else 1.0
+		var outboard := side_sign == turn_direction
+		var turn_amp_bias := 1.0
+		var turn_phase_bias := 0.0
+		var turn_ripple_bias := 1.0
+		if turn_envelope > 0.001 and wing_t > 0.05:
+			turn_amp_bias += turn_envelope * (0.32 if outboard else -0.24)
+			turn_phase_bias = turn_direction * side_sign * turn_envelope * (-0.34 if outboard else 0.18)
+			turn_ripple_bias += turn_envelope * (0.08 if outboard else -0.12)
+		var amp := flap_amp * turn_amp_bias * 0.025 * pow(wing_t, 1.5)
 		var t_x := (pos.x + mantle_radius_x) / maxf(2.0 * mantle_radius_x, 0.001)
-		var phase := loop_phase * TAU - t_x * wave_ripples * TAU
+		var phase := loop_phase * TAU - t_x * wave_ripples * turn_ripple_bias * TAU + turn_phase_bias
 		var side_phase := 0.0
 		if pos.z < 0.0 and sync_mode == "alternating":
 			side_phase = PI
@@ -245,8 +312,10 @@ func apply_pose(loop_phase: float) -> void:
 	if loc_mode == "punting":
 		# Punting: pelvic fins rowing / walking back and forth
 		var row_phase := loop_phase * TAU
-		var row_angle_l := sin(row_phase) * 22.0
-		var row_angle_r := sin(row_phase + PI) * 22.0 # Alternating bipedal punting
+		var left_outboard := turn_direction < 0.0
+		var right_outboard := turn_direction > 0.0
+		var row_angle_l := sin(row_phase) * 22.0 * (1.0 + turn_envelope * (0.35 if left_outboard else -0.2))
+		var row_angle_r := sin(row_phase + PI) * 22.0 * (1.0 + turn_envelope * (0.35 if right_outboard else -0.2))
 		
 		if pelvic_l:
 			pelvic_l.rotation_degrees = Vector3(cos(row_phase) * 6.0, -8.0 + row_angle_l, 0.0)
@@ -273,9 +342,9 @@ func apply_pose(loop_phase: float) -> void:
 	# Tail follow rotation
 	var follow := param_float("tail_follow_amount", 5.0)
 	if tail_pivot_1:
-		tail_pivot_1.rotation_degrees.y = sin(loop_phase * TAU - 0.7) * follow
+		tail_pivot_1.rotation_degrees.y = sin(loop_phase * TAU - 0.7) * follow - turn_direction * turn_envelope * follow * 0.55
 	if tail_pivot_2:
-		tail_pivot_2.rotation_degrees.y = sin(loop_phase * TAU - 1.1) * follow * 1.4
+		tail_pivot_2.rotation_degrees.y = sin(loop_phase * TAU - 1.1) * follow * 1.4 - turn_direction * turn_envelope * follow * 0.85
 
 func set_ring_editor_enabled(enabled: bool) -> void:
 	ring_editor_enabled = enabled

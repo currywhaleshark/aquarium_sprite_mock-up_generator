@@ -28,9 +28,16 @@ func _ready() -> void:
 	assert(wen != null)
 	assert(wen.get_child_count() >= 5)
 	assert(gill != null)
+	assert(_max_child_local_y(wen) > 0.38)
+	assert(_max_abs_child_local_z(gill) > 0.48)
 	assert(barbels != null)
 	assert(barbels.get_child_count() >= 4)
 	assert(mouth_detail != null)
+	var mouth := fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D
+	assert(mouth != null)
+	assert(mouth.position.x < -0.48)
+	assert(absf(mouth.position.z) < 0.08)
+	assert(fish.get_node_or_null("BodyPivot/Head/MouthR") == null)
 	assert(eye_l != null)
 	assert(eye_l.scale.x > 0.07)
 	assert(stalk_l != null)
@@ -76,3 +83,17 @@ func _ready() -> void:
 	file.close()
 	print("HEAD_DIAGNOSTIC_TRAIT_TEST_OK")
 	get_tree().quit(0)
+
+func _max_child_local_y(node: Node) -> float:
+	var max_y := -INF
+	for child in node.get_children():
+		if child is Node3D:
+			max_y = maxf(max_y, (child as Node3D).position.y)
+	return max_y
+
+func _max_abs_child_local_z(node: Node) -> float:
+	var max_z := 0.0
+	for child in node.get_children():
+		if child is Node3D:
+			max_z = maxf(max_z, absf((child as Node3D).position.z))
+	return max_z

@@ -37,6 +37,18 @@ func _ready() -> void:
 	assert(abs(float(seen_parameters[0].get("pectoral_rigidity", 0.0)) - 0.6) < 0.001)
 	assert(abs(float(seen_parameters[0].get("dorsal_1_height", 0.0)) - 0.33) < 0.001)
 
+	panel.set_parameters({
+		"creature_type": "ray",
+		"cephalic_horns": "rolled",
+		"pelvic_length": 0.24,
+		"pelvic_height": 0.12
+	})
+	var slot_option := panel.get("slot_option") as OptionButton
+	assert(slot_option.item_count == 2)
+	assert(slot_option.get_item_text(0) == "두흉엽")
+	assert(slot_option.get_item_text(1) == "골반엽")
+	assert(panel.get("selected_slot") == "cephalic")
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/fin_editor_panel.ok", FileAccess.WRITE)
 	file.store_string("fin editor panel parameters emitted")

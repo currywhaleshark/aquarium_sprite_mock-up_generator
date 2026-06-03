@@ -12,13 +12,21 @@ func _ready() -> void:
 	panel.set_parameters({
 		"head_shape": "rounded",
 		"mouth_type": "terminal",
+		"snout_appendage": "none",
 		"head_offset": -0.58,
 		"eye_position_y": 0.12,
 		"snout_length": 0.0,
 		"mouth_size": 0.08
 	})
+	assert(not _has_numeric_slider(panel, "forehead_slope"))
+	assert(not _has_numeric_slider(panel, "snout_appendage_length"))
 	panel.set_head_shape("steep_forehead")
+	assert(_has_numeric_slider(panel, "forehead_slope"))
 	panel.set_mouth_type("inferior")
+	panel.set_snout_appendage("swordfish_bill")
+	assert(_has_numeric_slider(panel, "snout_appendage_length"))
+	panel.set_snout_appendage("none")
+	assert(not _has_numeric_slider(panel, "snout_appendage_length"))
 	panel.set_numeric_parameter("snout_length", 0.24)
 	panel.set_numeric_parameter("head_offset", -0.72)
 	panel.set_numeric_parameter("eye_position_y", 0.2)
@@ -34,3 +42,7 @@ func _ready() -> void:
 	file.close()
 	print("HEAD_EDITOR_PANEL_TEST_OK")
 	get_tree().quit(0)
+
+func _has_numeric_slider(panel: Node, key: String) -> bool:
+	var sliders: Dictionary = panel.get("numeric_sliders")
+	return sliders.has(key)

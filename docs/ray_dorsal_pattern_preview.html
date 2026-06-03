@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ray dorsal pattern preview</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #101417;
+      color: #e8f0ed;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      padding: 18px 24px 8px;
+      border-bottom: 1px solid #2c3637;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      font-weight: 650;
+    }
+
+    p {
+      margin: 0;
+      color: #aab7b4;
+      font-size: 14px;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+      gap: 16px;
+      padding: 18px 24px 24px;
+      align-items: stretch;
+    }
+
+    section {
+      border: 1px solid #2c3637;
+      border-radius: 8px;
+      background: #171d20;
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 12px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .tank {
+      min-height: 320px;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 50% 34%, rgba(139, 194, 190, 0.10), transparent 34%),
+        linear-gradient(#132024, #10161a);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    svg {
+      width: min(92%, 420px);
+      height: auto;
+      overflow: visible;
+    }
+
+    .note {
+      font-size: 13px;
+      line-height: 1.45;
+      color: #aab7b4;
+      min-height: 56px;
+    }
+
+    .disc {
+      fill: #5aaeb7;
+      stroke: #1b3338;
+      stroke-width: 2;
+    }
+
+    .belly {
+      fill: #d6ebe5;
+      opacity: 0.86;
+    }
+
+    .tail {
+      fill: none;
+      stroke: #5aaeb7;
+      stroke-width: 10;
+      stroke-linecap: round;
+    }
+
+    .tail-tip {
+      stroke-width: 5;
+    }
+
+    .spot {
+      fill: #285f67;
+      opacity: 0.72;
+    }
+
+    .edge-spot {
+      opacity: 0.4;
+    }
+
+    .fade {
+      opacity: 0.18;
+    }
+
+    .label {
+      fill: #dff1ee;
+      font-size: 13px;
+      font-weight: 650;
+      text-anchor: middle;
+    }
+
+    .cutline {
+      fill: none;
+      stroke: #effaf7;
+      stroke-dasharray: 5 5;
+      stroke-width: 1.4;
+      opacity: 0.6;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>가오리 등판 전용 무늬 프리뷰</h1>
+    <p>물고기 무늬 로직을 재사용하되, 가오리는 위쪽 surface에만 패턴 재질을 얹는 방향 비교입니다.</p>
+  </header>
+  <main>
+    <section>
+      <h2>추천: 등판 surface만 패턴</h2>
+      <div class="tank">
+        <svg viewBox="-220 -150 440 310" aria-label="dorsal only pattern">
+          <path class="tail" d="M82 26 C150 48 178 84 206 132"></path>
+          <path class="tail tail-tip" d="M205 132 C214 146 219 154 224 164"></path>
+          <path class="disc" d="M-168 18 C-126 -92 -28 -128 82 -76 C144 -46 180 8 164 56 C128 116 22 128 -72 104 C-132 88 -176 58 -168 18Z"></path>
+          <ellipse class="spot" cx="-74" cy="-20" rx="15" ry="10"></ellipse>
+          <ellipse class="spot" cx="-26" cy="-48" rx="10" ry="7"></ellipse>
+          <ellipse class="spot" cx="24" cy="-36" rx="13" ry="8"></ellipse>
+          <ellipse class="spot edge-spot" cx="-104" cy="36" rx="12" ry="8"></ellipse>
+          <ellipse class="spot edge-spot" cx="74" cy="26" rx="11" ry="7"></ellipse>
+          <path class="belly" d="M-62 42 C-28 18 50 20 94 46 C58 70 -16 74 -62 42Z"></path>
+          <path class="cutline" d="M-150 40 C-76 86 58 86 146 42"></path>
+          <text class="label" x="0" y="-116">무늬는 윗면만</text>
+        </svg>
+      </div>
+      <div class="note">RayRig의 BodyMesh가 위/아래 surface를 분리해 만들기 때문에, material override를 surface별로 주면 하복부는 밝은 underside를 유지할 수 있습니다.</div>
+    </section>
+
+    <section>
+      <h2>비추천: 전체 메시 패턴</h2>
+      <div class="tank">
+        <svg viewBox="-220 -150 440 310" aria-label="all surface pattern">
+          <path class="tail" d="M82 26 C150 48 178 84 206 132"></path>
+          <path class="tail tail-tip" d="M205 132 C214 146 219 154 224 164"></path>
+          <path class="disc" d="M-168 18 C-126 -92 -28 -128 82 -76 C144 -46 180 8 164 56 C128 116 22 128 -72 104 C-132 88 -176 58 -168 18Z"></path>
+          <ellipse class="spot" cx="-74" cy="-20" rx="15" ry="10"></ellipse>
+          <ellipse class="spot" cx="-26" cy="-48" rx="10" ry="7"></ellipse>
+          <ellipse class="spot" cx="24" cy="-36" rx="13" ry="8"></ellipse>
+          <ellipse class="spot" cx="-104" cy="36" rx="12" ry="8"></ellipse>
+          <ellipse class="spot" cx="74" cy="26" rx="11" ry="7"></ellipse>
+          <ellipse class="spot fade" cx="-32" cy="48" rx="14" ry="9"></ellipse>
+          <ellipse class="spot fade" cx="36" cy="56" rx="11" ry="7"></ellipse>
+          <path class="belly" d="M-62 42 C-28 18 50 20 94 46 C58 70 -16 74 -62 42Z"></path>
+          <ellipse class="spot fade" cx="-8" cy="48" rx="13" ry="8"></ellipse>
+          <text class="label" x="0" y="-116">하복부까지 번짐</text>
+        </svg>
+      </div>
+      <div class="note">기존 fish 패턴 재질을 그대로 전체 material로 쓰면 underside가 더러워지고, 회전 프리뷰에서 배면 식별이 흐려질 가능성이 큽니다.</div>
+    </section>
+
+    <section>
+      <h2>확장: 등판 영역 마스크</h2>
+      <div class="tank">
+        <svg viewBox="-220 -150 440 310" aria-label="masked dorsal pattern">
+          <path class="tail" d="M82 26 C150 48 178 84 206 132"></path>
+          <path class="tail tail-tip" d="M205 132 C214 146 219 154 224 164"></path>
+          <path class="disc" d="M-168 18 C-126 -92 -28 -128 82 -76 C144 -46 180 8 164 56 C128 116 22 128 -72 104 C-132 88 -176 58 -168 18Z"></path>
+          <ellipse class="spot" cx="-86" cy="-36" rx="12" ry="8"></ellipse>
+          <ellipse class="spot" cx="-48" cy="-58" rx="9" ry="6"></ellipse>
+          <ellipse class="spot" cx="4" cy="-55" rx="11" ry="7"></ellipse>
+          <ellipse class="spot" cx="56" cy="-28" rx="10" ry="7"></ellipse>
+          <path class="belly" d="M-62 42 C-28 18 50 20 94 46 C58 70 -16 74 -62 42Z"></path>
+          <path class="cutline" d="M-144 4 C-70 -16 72 -12 144 8"></path>
+          <text class="label" x="0" y="-116">등 중앙/가장자리 강도 조절</text>
+        </svg>
+      </div>
+      <div class="note">나중에 `ray_dorsal_pattern_coverage` 같은 값으로 중앙부/가장자리 커버리지를 조절하면 종별 차이를 더 만들 수 있습니다.</div>
+    </section>
+  </main>
+</body>
+</html>

@@ -14,6 +14,7 @@ func _ready() -> void:
 	panel.set_parameters({
 		"head_offset": -0.5,
 		"eye_size": 0.05,
+		"mouth_position": -0.84,
 		"head_shape": "rounded",
 		"dorsal_1_attach_t": 0.45,
 		"dorsal_1_height": 0.28,
@@ -52,6 +53,10 @@ func _ready() -> void:
 	assert(panel.get_section_body("Motion Settings") != null)
 	assert(panel.get_section_body("Color Settings") != null)
 	assert(panel.get_section_body("Global Settings") != null)
+	assert(UiText.parameter("cephalic_horns") == "두흉엽")
+	assert(UiText.parameter("shell_roundness") == "디스크 둥글기")
+	assert(UiText.parameter("ray_tail_spine_enabled") == "꼬리 가시")
+	assert(UiText.parameter("ray_dorsal_tail_fins") == "꼬리 등지느러미")
 	assert(_find_option_for_label(panel, UiText.parameter("swim_mode")) != null)
 	assert(_find_slider_for_label_in_section(panel, "Motion Settings", UiText.parameter("body_wave_amount")) != null)
 	assert(_find_slider_for_label_in_section(panel, "Motion Settings", UiText.parameter("body_wave_start")) != null)
@@ -62,6 +67,7 @@ func _ready() -> void:
 	assert(_find_slider_for_label(panel, UiText.parameter("median_fin_flap_phase")) != null)
 	assert(_find_slider_for_label(panel, UiText.parameter("head_offset")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("eye_size")) == null)
+	assert(_find_slider_for_label(panel, UiText.parameter("mouth_position")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("dorsal_1_height")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("dorsal_1_attach_t")) == null)
 	assert(_find_slider_for_label(panel, UiText.parameter("tail_length")) == null)

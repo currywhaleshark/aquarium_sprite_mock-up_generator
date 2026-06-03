@@ -348,10 +348,13 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"body_length", "body_height", "body_width", "projection_hint",
 		"show_ring_guides", "shell_enabled", "shell_expand",
 		"shell_color_mix", "shell_opacity", "shell_roundness", "head_size", "head_offset",
-		"eye_size", "eye_position_x", "eye_position_y", "mouth_position", "eye_spacing"
+		"eye_size", "eye_position_x", "eye_position_y", "eye_spacing"
 	])
 	updated["body_profile"] = parameters.get("body_profile", {})
-	updated["tail_profile"] = _pick(parameters, ["tail_length", "tail_fin_size", "caudal_shape", "caudal_height_scale"])
+	updated["tail_profile"] = _pick(parameters, [
+		"tail_length", "tail_fin_size", "caudal_shape", "caudal_height_scale",
+		"ray_tail_style", "ray_tail_spine_enabled", "ray_dorsal_tail_fins"
+	])
 	updated["fin_profile"] = _pick(parameters, [
 		"dorsal_fin_size", "anal_fin_size", "pectoral_fin_size",
 		"dorsal_fin_offset_x", "anal_fin_offset_x", "pectoral_fin_offset_x",
@@ -372,7 +375,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"pectoral_fin_yaw", "pectoral_fin_pitch", "pectoral_fin_roll",
 		"dorsal_1_custom_points", "dorsal_2_custom_points", "pectoral_custom_points",
 		"pelvic_custom_points", "anal_custom_points", "caudal_custom_points",
-		"cephalic_horns", "ray_head_shape"
+		"cephalic_horns", "ray_head_shape", "ray_disc_shape"
 	])
 	updated["motion_profile"] = _pick(normalized_parameters, [
 		"swim_mode", "swim_speed", "global_sway_amount", "phase_delay", "tail_sway_multiplier",
@@ -420,6 +423,14 @@ static func normalize_motion_parameters(parameters: Dictionary) -> void:
 		parameters["ray_locomotion_mode"] = "rajiform"
 	if not parameters.has("ray_head_shape"):
 		parameters["ray_head_shape"] = "manta"
+	if not parameters.has("ray_disc_shape"):
+		parameters["ray_disc_shape"] = "diamond"
+	if not parameters.has("ray_tail_style"):
+		parameters["ray_tail_style"] = "whip"
+	if not parameters.has("ray_tail_spine_enabled"):
+		parameters["ray_tail_spine_enabled"] = false
+	if not parameters.has("ray_dorsal_tail_fins"):
+		parameters["ray_dorsal_tail_fins"] = false
 	var default_mode := _default_swim_mode(parameters)
 	parameters["swim_mode"] = valid_swim_mode(String(parameters.get("swim_mode", default_mode)))
 	var mode_values := swim_mode_values(String(parameters["swim_mode"]))

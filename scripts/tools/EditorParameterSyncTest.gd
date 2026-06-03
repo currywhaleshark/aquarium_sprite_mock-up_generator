@@ -11,25 +11,44 @@ func _ready() -> void:
 
 	var body_panel: Object = main.get("body_editor_panel")
 	var fin_panel: Object = main.get("fin_editor_panel")
+	var head_panel: Object = main.get("head_editor_panel")
 	var body_toggle: CheckButton = main.get("body_edit_toggle")
 	var fin_toggle: CheckButton = main.get("fin_edit_toggle")
+	var head_toggle: CheckButton = main.get("head_edit_toggle")
+	var editor_scroll: ScrollContainer = main.get("editor_panel_scroll")
+	var editor_stack: VBoxContainer = main.get("editor_panel_stack")
 	var camera_controller: Object = main.get("camera_controller")
 	var root := main.get_node("RootLayout") as HBoxContainer
 	var side := root.get_child(1) as VBoxContainer
 	assert(body_panel != null)
 	assert(fin_panel != null)
+	assert(head_panel != null)
 	assert(body_toggle != null)
 	assert(fin_toggle != null)
+	assert(head_toggle != null)
+	assert(editor_scroll != null)
+	assert(editor_stack != null)
 	assert(camera_controller != null)
 	assert(side != null)
 	assert(side.size_flags_vertical == Control.SIZE_EXPAND_FILL)
 	var side_tabs := main.get("side_tabs") as TabContainer
 	assert(side_tabs != null)
 	assert(side_tabs.get_tab_count() == 5)
+	assert(not editor_scroll.visible)
+	assert((fin_panel as Node).get_parent() == editor_stack)
+	assert((head_panel as Node).get_parent() == editor_stack)
+	assert((body_panel as Node).get_parent() == editor_stack)
 
 	body_toggle.button_pressed = true
 	await get_tree().process_frame
+	assert(editor_scroll.visible)
 	assert(bool(camera_controller.get("input_enabled")))
+	fin_toggle.button_pressed = true
+	await get_tree().process_frame
+	assert(editor_scroll.visible)
+	head_toggle.button_pressed = true
+	await get_tree().process_frame
+	assert(editor_scroll.visible)
 	fin_toggle.button_pressed = true
 	await get_tree().process_frame
 	assert(bool(camera_controller.get("input_enabled")))

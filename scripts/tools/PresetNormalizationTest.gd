@@ -81,6 +81,27 @@ func _ready() -> void:
 	assert(not split_visual.has("rim_light_strength"))
 	assert(not split_motion.has("pectoral_flap_amount"))
 
+	var ray_split := BodyProfileScript.split_parameters_into_profiles({
+		"creature_type": "ray",
+		"ray_disc_shape": "electric",
+		"ray_tail_style": "stout_skate",
+		"ray_tail_spine_enabled": true,
+		"ray_dorsal_tail_fins": true,
+		"ray_head_shape": "cownose",
+		"cephalic_horns": "rolled"
+	}, {"name": "ray_split_check", "creature_type": "ray"})
+	var ray_fin_profile: Dictionary = ray_split.get("fin_profile", {})
+	var ray_tail_profile: Dictionary = ray_split.get("tail_profile", {})
+	assert(String(ray_fin_profile.get("ray_disc_shape", "")) == "electric")
+	assert(String(ray_tail_profile.get("ray_tail_style", "")) == "stout_skate")
+	assert(bool(ray_tail_profile.get("ray_tail_spine_enabled", false)))
+	assert(bool(ray_tail_profile.get("ray_dorsal_tail_fins", false)))
+	var rebuilt_ray := BodyProfileScript.make_parameters_from_structured_preset(ray_split)
+	assert(String(rebuilt_ray.get("ray_disc_shape", "")) == "electric")
+	assert(String(rebuilt_ray.get("ray_tail_style", "")) == "stout_skate")
+	assert(bool(rebuilt_ray.get("ray_tail_spine_enabled", false)))
+	assert(bool(rebuilt_ray.get("ray_dorsal_tail_fins", false)))
+
 	var long_fish := _find_preset(presets, "long_fish")
 	assert(not long_fish.is_empty())
 	var long_parameters: Dictionary = long_fish.get("parameters", {})

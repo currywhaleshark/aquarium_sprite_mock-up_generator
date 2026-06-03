@@ -40,7 +40,8 @@ const HIDDEN_BODY_PROFILE_KEYS := {
 	"lateral_compression": true,
 	"body_depth_bias": true,
 	"head_vertical_offset": true,
-	"tail_vertical_offset": true
+	"tail_vertical_offset": true,
+	"mouth_position": true
 }
 
 const SPECIALIZED_EDITOR_KEYS := {
@@ -102,6 +103,10 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"rim_light_strength": true,
 	"cephalic_horns": true,
 	"ray_head_shape": true,
+	"ray_disc_shape": true,
+	"ray_tail_style": true,
+	"ray_tail_spine_enabled": true,
+	"ray_dorsal_tail_fins": true,
 	"eye_spacing": true
 }
 
@@ -305,6 +310,10 @@ func _min_for_key(key: String, value: float) -> float:
 	return 0.0
 
 func _max_for_key(key: String, value: float) -> float:
+	if key == "disc_thickness":
+		return 0.3
+	if key == "tail_thickness":
+		return 0.2
 	if key == "wave_ripples":
 		return 3.0
 	if key == "pattern_intensity" or key == "belly_height" or key == "belly_slope" or key == "wetness" or key == "shell_roundness":
@@ -378,7 +387,7 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "swim_mode" or key == "pattern_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape"
+	return key == "swim_mode" or key == "pattern_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style"
 
 func _options_for_key(key: String) -> Array[String]:
 	if key == "swim_mode":
@@ -393,4 +402,8 @@ func _options_for_key(key: String) -> Array[String]:
 		return ["rajiform", "mobuliform", "punting"] as Array[String]
 	if key == "ray_head_shape":
 		return ["manta", "eagle", "cownose"] as Array[String]
+	if key == "ray_disc_shape":
+		return ["diamond", "round", "manta", "skate", "electric"] as Array[String]
+	if key == "ray_tail_style":
+		return ["whip", "manta_thread", "stout_skate", "short_round"] as Array[String]
 	return []

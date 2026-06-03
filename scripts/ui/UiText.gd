@@ -42,7 +42,12 @@ const FIN_SLOTS := {
 	"pelvic": "배지느러미",
 	"anal": "뒷지느러미",
 	"caudal": "꼬리지느러미",
-	"cephalic": "머리지느러미"
+	"cephalic": "두흉엽"
+}
+
+const RAY_FIN_SLOTS := {
+	"cephalic": "두흉엽",
+	"pelvic": "골반엽"
 }
 
 const OPTION_LABELS := {
@@ -56,6 +61,13 @@ const OPTION_LABELS := {
 	"manta": "쥐가오리형 (Manta)",
 	"eagle": "매가오리형 (Eagle)",
 	"cownose": "소코가오리형 (Cownose)",
+	"diamond": "마름모형",
+	"round": "원반형",
+	"electric": "전기가오리형",
+	"whip": "채찍꼬리",
+	"manta_thread": "만타 실꼬리",
+	"stout_skate": "스케이트 굵은꼬리",
+	"short_round": "짧은 둥근꼬리",
 	"single": "기본형",
 	"spiny": "가시형",
 	"split": "갈라진 형",
@@ -238,11 +250,15 @@ const PARAMETER_LABELS := {
 	"shell_expand": "쉘 확장",
 	"shell_color_mix": "쉘 색상 혼합",
 	"shell_opacity": "쉘 투명도",
-	"shell_roundness": "쉘 둥글기",
+	"shell_roundness": "디스크 둥글기",
 	"wave_ripples": "물결 파동수",
-	"cephalic_horns": "머리지느러미 (뿔)",
+	"cephalic_horns": "두흉엽",
 	"ray_locomotion_mode": "가오리 유영 방식",
 	"ray_head_shape": "가오리 머리 형태",
+	"ray_disc_shape": "가오리 디스크 형태",
+	"ray_tail_style": "가오리 꼬리 형태",
+	"ray_tail_spine_enabled": "꼬리 가시",
+	"ray_dorsal_tail_fins": "꼬리 등지느러미",
 	"eye_spacing": "눈 간격",
 	"disc_width": "가오리 몸 폭",
 	"disc_length": "가오리 몸 길이",
@@ -304,6 +320,9 @@ static func body_ring(ring_id: String, fallback: String = "") -> String:
 
 static func fin_slot(slot_id: String) -> String:
 	return String(FIN_SLOTS.get(slot_id, _humanize(slot_id)))
+
+static func ray_fin_slot(slot_id: String) -> String:
+	return String(RAY_FIN_SLOTS.get(slot_id, fin_slot(slot_id)))
 
 static func option(value: String) -> String:
 	return String(OPTION_LABELS.get(value, _humanize(value)))

@@ -50,6 +50,7 @@ var mouth_detail_option: OptionButton
 var ray_head_shape_option: OptionButton
 
 var numeric_sliders := {}
+var current_numeric_keys: Array[String] = []
 var _updating := false
 
 func _ready() -> void:
@@ -101,6 +102,7 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 	for child in slider_container.get_children():
 		child.queue_free()
 	numeric_sliders.clear()
+	current_numeric_keys.clear()
 
 	if is_ray:
 		ray_head_shape_option = _add_option_row(options_container, UiText.parameter("ray_head_shape"), ["manta", "eagle", "cownose"])
@@ -108,8 +110,6 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 			if not _updating:
 				set_option_parameter("ray_head_shape", String(ray_head_shape_option.get_item_metadata(index)))
 		)
-		for key in RAY_HEAD_KEYS.keys():
-			_add_numeric_row(slider_container, key, RAY_HEAD_KEYS[key])
 	else:
 		head_option = _add_option_row(options_container, "형태", HEAD_SHAPES)
 		head_option.item_selected.connect(func(index: int) -> void:
@@ -158,9 +158,6 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 			if not _updating:
 				set_snout_appendage(String(snout_appendage_option.get_item_metadata(index)))
 		)
-
-		for key in NUMERIC_KEYS.keys():
-			_add_numeric_row(slider_container, key, NUMERIC_KEYS[key])
 
 func _add_option_row(parent: VBoxContainer, label_text: String, values: Array) -> OptionButton:
 	var row := HBoxContainer.new()
@@ -215,6 +212,7 @@ func _refresh_controls() -> void:
 		_select_option(eye_style_option, String(parameters.get("eye_style", "bead")))
 		_select_option(mouth_detail_option, String(parameters.get("mouth_detail", "dot")))
 		_select_option(snout_appendage_option, String(parameters.get("snout_appendage", "none")))
+	_sync_numeric_controls(is_ray)
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]
 		var slider := widgets["slider"] as HSlider
@@ -223,6 +221,45 @@ func _refresh_controls() -> void:
 		slider.value = value
 		label.text = "%.2f" % value
 	_updating = false
+
+func _sync_numeric_controls(is_ray: bool) -> void:
+	var visible_keys := _visible_numeric_keys(is_ray)
+	if _same_key_list(current_numeric_keys, visible_keys):
+		return
+	for child in slider_container.get_children():
+		child.queue_free()
+	numeric_sliders.clear()
+	current_numeric_keys = visible_keys.duplicate()
+	var source: Dictionary = RAY_HEAD_KEYS if is_ray else NUMERIC_KEYS
+	for key in visible_keys:
+		_add_numeric_row(slider_container, key, source[key])
+
+func _visible_numeric_keys(is_ray: bool) -> Array[String]:
+	var result: Array[String] = []
+	var source: Dictionary = RAY_HEAD_KEYS if is_ray else NUMERIC_KEYS
+	for key in source.keys():
+		var key_text := String(key)
+		if not is_ray and not _should_show_fish_numeric_key(key_text):
+			continue
+		result.append(key_text)
+	return result
+
+func _should_show_fish_numeric_key(key: String) -> bool:
+	if key == "forehead_slope":
+		var shape := String(parameters.get("head_shape", "rounded"))
+		return shape == "hump" or shape == "steep_forehead"
+	if key == "snout_appendage_length":
+		var appendage := String(parameters.get("snout_appendage", "none"))
+		return appendage != "" and appendage != "none"
+	return true
+
+func _same_key_list(left: Array[String], right: Array[String]) -> bool:
+	if left.size() != right.size():
+		return false
+	for i in left.size():
+		if left[i] != right[i]:
+			return false
+	return true
 
 func _select_option(option: OptionButton, value: String) -> void:
 	for i in option.item_count:

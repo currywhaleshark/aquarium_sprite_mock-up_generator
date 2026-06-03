@@ -55,6 +55,8 @@ var export_panel: VBoxContainer
 var mini_preview: TextureRect
 var display_label: Label
 var fin_edit_toggle: CheckButton
+var editor_panel_scroll: ScrollContainer
+var editor_panel_stack: VBoxContainer
 var fin_editor_panel: VBoxContainer
 var head_edit_toggle: CheckButton
 var head_editor_panel: VBoxContainer
@@ -286,12 +288,25 @@ func _build_ui() -> void:
 	fin_edit_toggle.toggled.connect(_set_fin_edit_enabled)
 	shape_tab.add_child(fin_edit_toggle)
 
+	editor_panel_scroll = ScrollContainer.new()
+	editor_panel_scroll.name = "EditorPanelScroll"
+	editor_panel_scroll.visible = false
+	editor_panel_scroll.custom_minimum_size = Vector2(0, 180)
+	editor_panel_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	editor_panel_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	shape_tab.add_child(editor_panel_scroll)
+
+	editor_panel_stack = VBoxContainer.new()
+	editor_panel_stack.name = "EditorPanelStack"
+	editor_panel_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	editor_panel_scroll.add_child(editor_panel_stack)
+
 	fin_editor_panel = FinEditorPanelScript.new()
 	fin_editor_panel.visible = false
 	fin_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	shape_tab.add_child(fin_editor_panel)
+	editor_panel_stack.add_child(fin_editor_panel)
 
 	head_edit_toggle = CheckButton.new()
 	head_edit_toggle.text = "머리 편집"
@@ -303,7 +318,7 @@ func _build_ui() -> void:
 	head_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	shape_tab.add_child(head_editor_panel)
+	editor_panel_stack.add_child(head_editor_panel)
 
 	body_edit_toggle = CheckButton.new()
 	body_edit_toggle.text = "몸통 편집"
@@ -320,7 +335,7 @@ func _build_ui() -> void:
 		if fish_rig:
 			fish_rig.set_selected_body_ring(ring_id)
 	)
-	shape_tab.add_child(body_editor_panel)
+	editor_panel_stack.add_child(body_editor_panel)
 
 	parameter_panel = ParameterPanelScript.new()
 	parameter_panel.custom_minimum_size = Vector2(0, 240)
@@ -589,8 +604,7 @@ func _apply_archetype_parameters(parameters: Dictionary) -> void:
 	current_preset["creature_type"] = "fish"
 	current_preset["type"] = "fish"
 	if (current_rig as FishRig) == null:
-		if current_rig:
-			current_rig.queue_free()
+		_discard_current_rig()
 		current_rig = FishRigScript.new()
 		current_rig.name = "ActiveRig"
 		world_root.add_child(current_rig)
@@ -602,8 +616,7 @@ func _load_preset(index: int) -> void:
 	if index < 0 or index >= presets.size():
 		return
 	current_preset = presets[index].duplicate(true)
-	if current_rig:
-		current_rig.queue_free()
+	_discard_current_rig()
 	var creature_type := String(current_preset.get("creature_type", "fish"))
 	if creature_type == "ray":
 		current_rig = RayRigScript.new()
@@ -639,6 +652,18 @@ func _load_preset(index: int) -> void:
 	_update_display_preview_label()
 	_update_creature_type_label()
 	export_panel.set_status("%s 불러옴" % UiText.preset_name(String(current_preset.get("name", "unnamed"))))
+
+func _discard_current_rig() -> void:
+	if current_rig:
+		if current_rig.get_parent():
+			current_rig.get_parent().remove_child(current_rig)
+		current_rig.queue_free()
+		current_rig = null
+	if world_root:
+		for child in world_root.get_children():
+			if child.name == "ActiveRig":
+				world_root.remove_child(child)
+				child.queue_free()
 
 func _reload_presets(select_path: String = "") -> void:
 	presets = PresetStoreScript.load_all()
@@ -989,6 +1014,7 @@ func _export_current() -> void:
 func _set_fin_edit_enabled(enabled: bool) -> void:
 	if fin_editor_panel:
 		fin_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+	_update_editor_panel_scroll_visibility()
 	if enabled and current_rig and current_rig.has_method("set_ring_editor_enabled"):
 		current_rig.call("set_ring_editor_enabled", false)
 	if enabled:
@@ -1001,6 +1027,7 @@ func _set_fin_edit_enabled(enabled: bool) -> void:
 func _set_head_edit_enabled(enabled: bool) -> void:
 	if head_editor_panel:
 		head_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+	_update_editor_panel_scroll_visibility()
 	if enabled and current_rig and current_rig.has_method("set_ring_editor_enabled"):
 		current_rig.call("set_ring_editor_enabled", false)
 	if enabled:
@@ -1013,6 +1040,7 @@ func _set_head_edit_enabled(enabled: bool) -> void:
 func _set_body_edit_enabled(enabled: bool) -> void:
 	if body_editor_panel:
 		body_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+	_update_editor_panel_scroll_visibility()
 	if current_rig and current_rig.has_method("set_ring_editor_enabled"):
 		current_rig.call("set_ring_editor_enabled", enabled)
 	if enabled:
@@ -1026,6 +1054,15 @@ func _select_exclusive_edit_toggle(active_toggle: CheckButton) -> void:
 	# Bring the shape/edit tab forward so the activated editor panel is visible.
 	if side_tabs:
 		side_tabs.current_tab = 0
+
+func _update_editor_panel_scroll_visibility() -> void:
+	if editor_panel_scroll == null:
+		return
+	editor_panel_scroll.visible = (
+		(fin_editor_panel != null and fin_editor_panel.visible)
+		or (head_editor_panel != null and head_editor_panel.visible)
+		or (body_editor_panel != null and body_editor_panel.visible)
+	)
 
 func _is_fish() -> bool:
 	return String(current_preset.get("creature_type", "fish")) == "fish"
