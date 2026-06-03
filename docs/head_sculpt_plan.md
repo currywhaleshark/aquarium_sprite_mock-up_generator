@@ -73,8 +73,28 @@
   Head*Test, ShellRigTest, ParameterPanel*Test 갱신. 메시 정점 vs 셸 반경 정합 회귀 테스트.
   대표 5종 실루엣을 신규 슬라이더만으로 재현 가능한지 수동 검증.
 
+## 진행 현황 (2026-06-04 기준)
+
+- 브랜치: `head-sculpt/phase0-unify-profile` (main에서 분기, 아직 PR 없음).
+- 완료: Phase 0(수식 단일화) · 1(주둥이 분리 + 턱 전단 + 주둥이 휨) · 2(등선/배선 연속
+  프로파일) · 3(전방 돌출 돔 혹: 크기/위치/폭/각도/윤곽) · 4(접이식 섹션 UI) ·
+  5의 일부(몸통 셸이 프로파일/혹 반영).
+- 전체 35개 테스트 통과.
+
+### 내일 할 일 (남은 작업)
+
+1. **Phase 5 본작업(선택)**: 이산 `head_shape`(hump/steep_forehead/flattened)·
+   `head_ornament` enum의 baked 변형을 제거하고 연속 파라미터로 단일화 + `ensure_head_parameters`
+   신설로 기존 프리셋 매핑. 주의: 현재는 baked + 연속이 가산 공존(저위험)이라 굳이 안 해도 동작.
+   진행 시 ShellRigTest/HeadEditorModelTest의 형태 의존 단언과 프리셋 외형 변화 주의.
+2. **Phase 6 검증**: 대표 5종(나비고기·쥐치복·나폴레옹·금붕어·아로와나)을 신규 슬라이더만으로
+   재현해 보고 부족한 컨트롤 발견·보완.
+3. 후보: 좌우 측면 볼혹(금붕어 볼), 혹 복수 개, 부착 메시 방식 혹, 머리 메시 테셀레이션 상향
+   (윤곽 1.0 근처 큰 혹에서 각짐), flatten 메시(0.65) vs contour(0.825) 불일치 정리.
+
 ## 참고
 
 - 테스트: `tools/run_godot_cli_tests.ps1` (Godot 4.6.2 headless, 35 scenes).
 - `HeadProfile`는 전역 `class_name`이 아니라 preload 상수로 참조한다
   (headless 실행이 신규 전역 클래스를 인식하지 못함).
+- 신규 머리 파라미터는 모두 중립 기본값(가산식)이라 기존 프리셋 외형 불변.
