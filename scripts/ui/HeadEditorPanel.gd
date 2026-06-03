@@ -65,6 +65,23 @@ var numeric_sliders := {}
 var current_numeric_keys: Array[String] = []
 var _updating := false
 
+# Collapsible groupings for the (many) fish head sliders. Keys not listed in any
+# section fall through to a trailing "기타" group so nothing is ever dropped.
+const FISH_SECTIONS := [
+	{"title": "머리 본체", "keys": ["head_size", "head_offset", "head_flattening"]},
+	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length"]},
+	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
+	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},
+	{"title": "입", "keys": ["jaw_offset", "mouth_size"]},
+	{"title": "눈", "keys": ["eye_size", "eye_position_x", "eye_position_y", "eye_bulge"]},
+]
+const RAY_SECTIONS := [
+	{"title": "머리", "keys": ["snout_length", "eye_size", "eye_spacing"]},
+]
+
+var section_bodies := {}
+var section_expanded := {}
+
 func _ready() -> void:
 	var title := Label.new()
 	title.text = "머리 편집"
@@ -241,10 +258,53 @@ func _sync_numeric_controls(is_ray: bool) -> void:
 	for child in slider_container.get_children():
 		child.queue_free()
 	numeric_sliders.clear()
+	section_bodies.clear()
 	current_numeric_keys = visible_keys.duplicate()
 	var source: Dictionary = RAY_HEAD_KEYS if is_ray else NUMERIC_KEYS
+	var sections: Array = RAY_SECTIONS if is_ray else FISH_SECTIONS
+	var visible_set := {}
 	for key in visible_keys:
-		_add_numeric_row(slider_container, key, source[key])
+		visible_set[key] = true
+
+	var placed := {}
+	for section in sections:
+		var keys_in: Array[String] = []
+		for key in section["keys"]:
+			if visible_set.has(key):
+				keys_in.append(String(key))
+				placed[key] = true
+		if not keys_in.is_empty():
+			_add_section(String(section["title"]), keys_in, source)
+
+	# Safety net: any visible key not assigned to a section still gets shown.
+	var leftover: Array[String] = []
+	for key in visible_keys:
+		if not placed.has(key):
+			leftover.append(key)
+	if not leftover.is_empty():
+		_add_section("기타", leftover, source)
+
+func _add_section(title: String, keys: Array[String], source: Dictionary) -> void:
+	var header := Button.new()
+	header.toggle_mode = true
+	header.flat = true
+	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	header.add_theme_font_size_override("font_size", 13)
+	header.button_pressed = bool(section_expanded.get(title, true))
+	slider_container.add_child(header)
+
+	var body := VBoxContainer.new()
+	slider_container.add_child(body)
+	for key in keys:
+		_add_numeric_row(body, key, source[key])
+	section_bodies[title] = body
+
+	var apply := func(expanded: bool) -> void:
+		section_expanded[title] = expanded
+		body.visible = expanded
+		header.text = ("▾ " if expanded else "▸ ") + title
+	apply.call(header.button_pressed)
+	header.toggled.connect(func(pressed: bool) -> void: apply.call(pressed))
 
 func _visible_numeric_keys(is_ray: bool) -> Array[String]:
 	var result: Array[String] = []
