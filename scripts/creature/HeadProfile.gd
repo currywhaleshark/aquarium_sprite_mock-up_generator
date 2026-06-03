@@ -90,19 +90,12 @@ static func taper_factor(shape: String, u: float) -> float:
 static func hump_height(forehead_slope: float) -> float:
 	return HUMP_BASE_HEIGHT + forehead_slope * HUMP_SLOPE_GAIN
 
-# How far past the snout window the vertical shift blends back into the head body.
-const JAW_BLEND_SPAN := 0.18
-
-# Vertical shift applied so the whole snout translates with the jaw (the mouth's
-# offset from its no-jaw baseline). The snout (u < snout_base) moves as a RIGID block
-# by `shift` - it does not curve - then ramps smoothly to 0 over JAW_BLEND_SPAN so it
-# rejoins the head body without a step.
+# Vertical shear of the snout driven by the jaw. The snout TIP moves by `shift`
+# (the mouth's offset from its no-jaw baseline) while the snout base, where it meets
+# the head, stays put - so a symmetric snout (◁) shears into a right triangle with a
+# flat top (jaw up) or flat bottom (jaw down). The head body (u >= snout_base) is
+# untouched: the shift ramps linearly from full at the tip to 0 at the snout base.
 static func snout_y_shift(shift: float, u: float, snout_base: float = SNOUT_BLEND_HALF) -> float:
-	if shift == 0.0:
+	if shift == 0.0 or u >= snout_base:
 		return 0.0
-	if u <= snout_base:
-		return shift
-	if u >= snout_base + JAW_BLEND_SPAN:
-		return 0.0
-	var t := (u - snout_base) / JAW_BLEND_SPAN
-	return shift * (1.0 - smoothstep(0.0, 1.0, t))
+	return shift * (1.0 - u / snout_base)

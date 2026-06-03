@@ -75,7 +75,8 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			if shape == "flattened" and y < 0.0:
 				y *= HeadProfile.FLATTEN_MESH_FACTOR
 
-			# 5. Jaw shift: the whole snout translates with the mouth (rigid, no curve).
+			# 5. Jaw shear: the snout tip follows the mouth while the snout base (where
+			# it meets the head) stays fixed, so the head body itself does not move.
 			if shape != "cephalofoil":
 				y += HeadProfile.snout_y_shift(snout_shift, u, snout_base)
 
