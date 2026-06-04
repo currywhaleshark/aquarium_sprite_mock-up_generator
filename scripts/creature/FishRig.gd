@@ -599,8 +599,14 @@ func _deform_shell(loop_phase: float) -> void:
 	var basis_head := Basis(Vector3.UP, deg_to_rad(yaw_head))
 	for i in range(2):
 		if i < centers.size():
+			# head_center already includes the interpolated shell_center_y_offset, but the
+			# per-ring offset is re-added downstream (mesh builder + _animated_ring_center).
+			# Preserve each ring's raw y so the vertical offset is applied exactly once;
+			# only the yaw rotation and x/z translation follow the head kinematics.
+			var raw_y := centers[i].y
 			var dx := shell_profile[i].x - head_offset
 			centers[i] = head_center + basis_head * Vector3(dx, 0.0, 0.0)
+			centers[i].y = raw_y
 			yaws[i] = yaw_head
 
 	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets))
