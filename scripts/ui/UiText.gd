@@ -301,6 +301,7 @@ const SECTION_LABELS := {
 
 const REFERENCE_LABELS := {
 	"scale": "크기",
+	"rotation": "회전(°)",
 	"offset_x": "X 위치",
 	"offset_y": "Y 위치",
 	"opacity": "투명도"

@@ -8,6 +8,7 @@ const UiRows := preload("res://scripts/ui/UiRows.gd")
 
 const NUMERIC_SETTINGS := {
 	"scale": {"min": 0.05, "max": 4.0, "step": 0.01},
+	"rotation": {"min": -180.0, "max": 180.0, "step": 1.0},
 	"offset_x": {"min": -900.0, "max": 900.0, "step": 1.0},
 	"offset_y": {"min": -700.0, "max": 700.0, "step": 1.0},
 	"opacity": {"min": 0.05, "max": 1.0, "step": 0.01}
@@ -17,6 +18,7 @@ var settings := {
 	"path": "",
 	"visible": false,
 	"scale": 1.0,
+	"rotation": 0.0,
 	"offset_x": 0.0,
 	"offset_y": 0.0,
 	"opacity": 0.45

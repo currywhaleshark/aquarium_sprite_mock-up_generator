@@ -829,6 +829,7 @@ func _default_reference_image_settings() -> Dictionary:
 		"path": "",
 		"visible": false,
 		"scale": 1.0,
+		"rotation": 0.0,
 		"offset_x": 0.0,
 		"offset_y": 0.0,
 		"opacity": 0.45
@@ -885,6 +886,8 @@ func _update_reference_overlay_transform() -> void:
 	var center := _world_to_preview_position(Vector3.ZERO) + offset
 	reference_overlay.position = center - display_size * 0.5
 	reference_overlay.size = display_size
+	reference_overlay.pivot_offset = display_size * 0.5
+	reference_overlay.rotation_degrees = float(settings.get("rotation", 0.0))
 
 func _has_reference_camera_anchor(settings: Dictionary) -> bool:
 	return settings.has("anchor_orthographic_size")
