@@ -26,6 +26,20 @@ func _ready() -> void:
 	assert(mouth != null)
 	assert(head.scale.x > head.scale.y)
 	assert(mouth.position.y < -0.05)
+	# The mouth is a dark opening band framed by upper/lower lip bands that curve along the
+	# snout (so it reads as a real mouth hugging the surface, not a flat coin). The opening
+	# band's x must recede toward its z edges (it wraps the snout), not stay flat.
+	var lip_upper := fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D
+	var lip_lower := fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D
+	assert(lip_upper != null and lip_lower != null)
+	var mouth_verts: PackedVector3Array = mouth.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var center_x := INF
+	var edge_x := -INF
+	for v in mouth_verts:
+		if absf(v.z) < 0.01:
+			center_x = minf(center_x, v.x)   # local x near centre (most negative = frontmost)
+		edge_x = maxf(edge_x, v.x)            # x at the widest z (recedes back, larger)
+	assert(edge_x > center_x + 0.001)         # band curves back at the edges -> hugs the snout
 	var initial_head_scale_x := head.scale.x
 	var initial_shell_profile: Array = fish.shell_profile
 	var initial_front_radius_y := float(initial_shell_profile[1].y)
@@ -160,12 +174,41 @@ func _ready() -> void:
 	assert(float(fish.shell_profile[hi].y) > base_radius + 0.01)
 	assert(float(fish.shell_center_y_offsets[hi]) > base_center + 0.005)
 
+	# mouth_open actually gapes the jaws (hinged): the lower jaw drops further than the
+	# upper lifts, so the front-edge gap grows from a closed slit to a wide opening.
+	var closed: Dictionary = shell_neutral.duplicate(true)
+	closed["mouth_open"] = 0.0
+	fish.set_parameters(closed)
+	await get_tree().process_frame
+	var closed_gap := _jaw_gap(fish)
+	var agape: Dictionary = shell_neutral.duplicate(true)
+	agape["mouth_open"] = 1.0
+	fish.set_parameters(agape)
+	await get_tree().process_frame
+	assert(_jaw_gap(fish) > closed_gap + 0.04)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
 	file.store_string("head editor model applied")
 	file.close()
 	print("HEAD_EDITOR_MODEL_TEST_OK")
 	get_tree().quit(0)
+
+func _jaw_front_edge_y(fish, node_path: String) -> float:
+	var node := fish.get_node_or_null(node_path) as MeshInstance3D
+	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var xf := node.global_transform
+	var min_x := INF
+	var y_at := 0.0
+	for v in verts:
+		var w := xf * v
+		if w.x < min_x:
+			min_x = w.x
+			y_at = w.y
+	return y_at
+
+func _jaw_gap(fish) -> float:
+	return _jaw_front_edge_y(fish, "BodyPivot/Head/MouthLipUpper") - _jaw_front_edge_y(fish, "BodyPivot/Head/MouthLipLower")
 
 func _head_vertices(head: MeshInstance3D) -> PackedVector3Array:
 	var arr_mesh := head.mesh as ArrayMesh

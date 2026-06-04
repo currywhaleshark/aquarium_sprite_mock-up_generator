@@ -178,6 +178,7 @@ const PARAMETER_LABELS := {
 	"jaw_offset": "턱 위치",
 	"mouth_type": "입 방향",
 	"mouth_size": "입 크기",
+	"mouth_open": "입 벌림",
 	"head_flattening": "머리 납작함",
 	"eye_size": "눈 크기",
 	"eye_position_x": "눈 X 위치",

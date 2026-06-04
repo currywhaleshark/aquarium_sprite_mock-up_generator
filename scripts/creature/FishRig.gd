@@ -19,6 +19,12 @@ var tail_fin_base_points := PackedVector3Array()
 var outer_shell: MeshInstance3D
 var shell_profile: Array[Vector3] = []
 var shell_center_y_offsets: Array[float] = []
+# Per-ring (upper_height - lower_height) * 0.5 * body_height. shell_profile.y stays the
+# AVERAGE radius and shell_center_y_offsets stays the shifted center, so every sampler and
+# the ring extremes are unchanged; the mesh builder uses this to give each ring an
+# independent upper/lower radius (egg cross-section) so editing one height no longer
+# reshapes the opposite side.
+var shell_radius_half_diff: Array[float] = []
 var shell_ring_ids: Array[String] = []
 var animated_shell_centers := PackedVector3Array()
 var animated_shell_yaws := PackedFloat32Array()
@@ -114,7 +120,7 @@ func rebuild() -> void:
 	_build_shell_profile_from_rings(rings, body_length, body_height, body_width, body_z_scale, head_offset, head_size, tail_length, shell_expand)
 
 	if param_float("shell_enabled", 1.0) > 0.5:
-		outer_shell = PF.fish_outer_shell("OuterShell", shell_profile, body_mat, shell_segments, PackedFloat32Array(shell_center_y_offsets))
+		outer_shell = PF.fish_outer_shell("OuterShell", shell_profile, body_mat, shell_segments, PackedFloat32Array(shell_center_y_offsets), PackedFloat32Array(shell_radius_half_diff))
 		body_pivot.add_child(outer_shell)
 
 	var head_scale := _head_scale_for_shape(String(parameters.get("head_shape", "rounded")), head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
@@ -293,6 +299,7 @@ func get_body_ring_global_points() -> Dictionary:
 func _build_shell_profile_from_rings(rings: Array, body_length: float, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, tail_length: float, shell_expand: float) -> void:
 	shell_profile = []
 	shell_center_y_offsets = []
+	shell_radius_half_diff = []
 	shell_ring_ids = []
 	if rings.is_empty():
 		rings = BodyProfileScript.default_fish_rings()
@@ -314,6 +321,9 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 		center_y += float(adjusted.get("center_y_delta", 0.0))
 		shell_profile.append(Vector3(lerpf(start_x, end_x, float(ring["x"])), radius_y, radius_z))
 		shell_center_y_offsets.append(center_y)
+		# Asymmetry magnitude for the egg cross-section. center_y already carries the same
+		# (upper-lower)/2 shift, so the mesh recovers the true centerline as center_y - this.
+		shell_radius_half_diff.append(body_height * (float(ring["upper_height"]) - float(ring["lower_height"])) * 0.5)
 		shell_ring_ids.append(String(ring.get("id", "ring_%d" % i)))
 	shell_tail_pivot_1_x = _ring_x_by_id("rear_body", body_length * 0.48)
 	shell_tail_pivot_2_x = _ring_x_by_id("tail_stem", shell_tail_pivot_1_x + tail_length * 0.5)
@@ -433,6 +443,13 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 		bottom_extra *= head_weight
 		target_y += 0.5 * (top_extra + bottom_extra)
 		center_y_delta = 0.5 * (top_extra - bottom_extra)
+		# A concave profile (e.g. arowana's lowered top) shrinks target_y symmetrically,
+		# but the head mesh only lowers its top - its bottom keeps the base radius and so
+		# pokes through the now-too-thin shell ("head splits / inside shows" seam). Stop the
+		# shell from shrinking below the un-profiled head contour so it still encloses the
+		# rigid head. This is a floor (never grows past the head's natural size) so it does
+		# NOT fatten the head or create a head/body step; it only cancels the over-shrink.
+		target_y = maxf(target_y, r_head_y + exp_offset_y)
 
 	return {
 		"radius_y": maxf(target_y, 0.035),
@@ -609,7 +626,7 @@ func _deform_shell(loop_phase: float) -> void:
 			centers[i].y = raw_y
 			yaws[i] = yaw_head
 
-	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets))
+	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets), PackedFloat32Array(shell_radius_half_diff))
 	animated_shell_centers = centers
 	animated_shell_yaws = yaws
 	_apply_animated_attachments(loop_phase, centers, yaws)
@@ -1552,17 +1569,37 @@ func _eye_layout() -> Dictionary:
 	var ux := (eye_x - eye_head_center.x) / maxf(half.x, 0.001)
 	var uy := eye_y / maxf(half.y, 0.001)
 	var planar_radius := sqrt(ux * ux + uy * uy)
-	var max_planar := 0.9
+	# Allow the eye almost out to the front rim (0.98) instead of 0.9 so it can ride
+	# onto an elongated snout; the snout shift below carries it the rest of the way.
+	var max_planar := 0.98
 	if planar_radius > max_planar:
 		var shrink := max_planar / planar_radius
 		ux *= shrink
 		uy *= shrink
 	var surface_z := maxf(half.z, 0.02) * sqrt(maxf(1.0 - ux * ux - uy * uy, 0.0))
+	# Carry the eye forward along the snout stretch (and thin it onto the tapered
+	# snout girth) using the same deformation the head mesh / mouth anchor use, so a
+	# long tube snout (butterflyfish, arowana) lets the eye sit ahead of the round head.
+	var anchor_x := eye_head_center.x + ux * half.x
+	var anchor_y := eye_head_center.y + uy * half.y
+	if String(parameters.get("head_shape", "rounded")) != "cephalofoil":
+		var snout_base := param_float("snout_base", HeadProfile.SNOUT_BLEND_HALF)
+		var u := ux * 0.5 + 0.5 # head-local x (-0.5..0.5) mapped to 0=tip .. 1=nape
+		var snout_length := param_float("snout_length", 0.0)
+		if snout_length > 0.0:
+			anchor_x -= HeadProfile.snout_forward_x_shift(snout_length, u, snout_base) * eye_head_scale.x
+			var snout_r := HeadProfile.snout_radial_scale(snout_length, u, snout_base, param_float("snout_thickness", 1.0), param_float("snout_taper", 0.0))
+			surface_z *= snout_r
+		# Ride the eye with the snout's vertical jaw shear + curve (same deformation the mesh
+		# and mouth use), so raising/lowering the jaw carries the eye's reachable range with the
+		# new silhouette instead of pinning it to the pre-shear head. Length-independent: the
+		# shear applies across the whole front window even with no snout elongation.
+		anchor_y += HeadProfile.snout_y_shift(_snout_jaw_shift(), u, snout_base, param_float("snout_curve", 0.0)) * eye_head_scale.y
 	var protrusion := eye_bulge * maxf(half.z, 0.05) * 1.7
 	var stalk_inner := surface_z * 0.55
 	var eye_center_z := surface_z * 0.82 + protrusion
 	return {
-		"anchor": Vector3(eye_head_center.x + ux * half.x, eye_head_center.y + uy * half.y, 0.0),
+		"anchor": Vector3(anchor_x, anchor_y, 0.0),
 		"eye_center_z": eye_center_z,
 		"has_stalk": protrusion > eye_radius * 0.5,
 		"stalk_inner": stalk_inner,
@@ -1615,11 +1652,124 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	_add_barbel_cluster(head, String(parameters.get("barbel_style", "none")), material, snout_length)
 		
 	var mouth_position := _mouth_position_for_type(mouth_type, head.scale, snout_length)
-	var mouth := PF.ellipsoid("Mouth", Vector3(mouth_size * 0.72, mouth_size * 0.34, mouth_size * 0.82), dark_mat)
-	mouth.position = mouth_position
-	mouth.rotation_degrees.z = _mouth_angle_for_type(mouth_type)
-	head.add_child(mouth)
+	_add_mouth(head, mouth_position, mouth_type, mouth_size, param_float("mouth_open", 0.25), dark_mat)
 	_add_mouth_detail(head, String(parameters.get("mouth_detail", "dot")), mouth_position, mouth_size, dark_mat)
+
+# The mouth is built as CURVED BANDS that hug the snout surface, not a flat disc pasted on
+# the tip. Each band samples the head's front silhouette across the mouth width (z), so its
+# x recedes toward the edges and it wraps around the tapering snout. A dark aperture band
+# (the opening) is framed by an upper and lower lip band in a darkened body tone (flat,
+# unshaded -> defined by colour). mouth_open grows the aperture height for an open look.
+# The aperture keeps the node name `Mouth` (MeshInstance3D at mouth_position) so jaw shear
+# still rides it and tests keep their handle.
+func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: String, mouth_size: float, mouth_open: float, dark_mat: Material) -> void:
+	var t := clampf(mouth_open, 0.0, 1.0)
+	var open_y := mouth_size * lerpf(0.05, 0.62, t)  # aperture half-height: closed slit .. agape
+	var lip_h := mouth_size * 0.28
+	var z_half := mouth_size * 0.95
+	var angle := _mouth_angle_for_type(mouth_type)
+	var my := mouth_position.y
+
+	var lip_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
+	lip_mat.albedo_color = lip_mat.albedo_color.darkened(0.34)
+
+	# Clamp the mouth against the ACTUAL head mesh, not the analytic silhouette: snout taper /
+	# profile make the real surface recede from the radius-0.5 sphere, so a large mouth that
+	# wraps onto those regions would bury. Sampling the built head vertices keeps it honest.
+	var head_verts: PackedVector3Array = head.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+
+	# Dark interior band: the opening. Grows tall with mouth_open and hugs the surface, so a
+	# high mouth_open reads as a real gape (the jaws below swing off it to expose it). The
+	# mouth-type tilt is baked into the mesh so the node has no rotation that could bury it.
+	var mouth := MeshInstance3D.new()
+	mouth.name = "Mouth"
+	mouth.mesh = _mouth_band_mesh(my, mouth_position, -open_y, open_y, z_half, mouth_size * 0.03, 0.0, 0.0, angle, true, head_verts)
+	mouth.material_override = dark_mat
+	mouth.position = mouth_position
+	head.add_child(mouth)
+
+	# Upper and lower jaws (lip bands) HINGE open around a pivot behind the mouth, driven by
+	# the same mouth_open (no extra slider). The lower jaw drops further than the upper lifts,
+	# the way a fish gapes. The open rotation is baked into the mesh and every vertex is then
+	# clamped to stay in front of the head surface, so the jaws ride along the snout as they
+	# open instead of sinking into the mesh.
+	var hinge_x := mouth_size * 0.5
+	var jaws := [
+		{"name": "MouthLipUpper", "lo": open_y, "hi": open_y + lip_h, "open": -t * 22.0},
+		{"name": "MouthLipLower", "lo": -(open_y + lip_h), "hi": -open_y, "open": t * 36.0},
+	]
+	for jw in jaws:
+		var lip := MeshInstance3D.new()
+		lip.name = String(jw["name"])
+		lip.mesh = _mouth_band_mesh(my, mouth_position, float(jw["lo"]), float(jw["hi"]), z_half * 0.98, mouth_size * 0.06, hinge_x, float(jw["open"]), angle, true, head_verts)
+		lip.material_override = lip_mat
+		lip.position = mouth_position
+		head.add_child(lip)
+
+# Builds a thin ribbon that follows the head's front silhouette across the mouth width, so
+# the mouth curves around the snout instead of sitting flat. Coordinates are local to
+# `origin` (the mouth node). The jaw open rotation (`open_deg` about a z-hinge `hinge_x`
+# behind the mouth) and the mouth-type tilt (`tilt_deg` about the origin) are baked in; when
+# `clamp_surface` is set, each vertex is pulled forward so it never sinks behind the head
+# front surface (the jaw slides along the snout as it gapes instead of burying into it).
+func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float, z_half: float, outset: float, hinge_x: float = 0.0, open_deg: float = 0.0, tilt_deg: float = 0.0, clamp_surface: bool = false, head_verts: PackedVector3Array = PackedVector3Array(), z_segs: int = 10) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var hinge_world_x := origin.x + hinge_x
+	var open_r := deg_to_rad(open_deg)
+	var tilt_r := deg_to_rad(tilt_deg)
+	var rows: Array[float] = [y_lo, y_hi]
+	var grid := []
+	for ry in rows:
+		var line := []
+		for j in range(z_segs + 1):
+			var z := lerpf(-z_half, z_half, float(j) / float(z_segs))
+			var ay: float = center_y + ry
+			var p := Vector3(_head_front_surface_x(ay, z, outset), ay, z)
+			if open_r != 0.0:
+				var dx := p.x - hinge_world_x
+				var dy := p.y - center_y
+				p.x = hinge_world_x + dx * cos(open_r) - dy * sin(open_r)
+				p.y = center_y + dx * sin(open_r) + dy * cos(open_r)
+			if tilt_r != 0.0:
+				var tx := p.x - origin.x
+				var ty := p.y - origin.y
+				p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
+				p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
+			if clamp_surface:
+				p.x = minf(p.x, _head_mesh_front_x(head_verts, p.y, p.z, outset))
+			line.append(p - origin)
+		grid.append(line)
+	for j in range(z_segs):
+		var p00: Vector3 = grid[0][j]
+		var p01: Vector3 = grid[0][j + 1]
+		var p10: Vector3 = grid[1][j]
+		var p11: Vector3 = grid[1][j + 1]
+		st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
+		st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
+	st.generate_normals()
+	return st.commit()
+
+# Local front-surface x at (y, z), read from the REAL deformed head mesh (taper / profile /
+# jaw-shear included) so the mouth clamps onto the actual skin, not the analytic sphere. Uses
+# the FRONT vertex (x < 0.25) closest in the (y, z) plane - the local surface, not the most
+# forward neighbour, which would sit proud of a receding snout and let the mouth bury. Returns
+# that x minus `outset` so the mouth sits just proud of the skin.
+func _head_mesh_front_x(verts: PackedVector3Array, y: float, z: float, outset: float) -> float:
+	var best_d := INF
+	var best_x := INF
+	for v in verts:
+		if v.x > 0.25:
+			continue # ignore the back hemisphere
+		var dy := v.y - y
+		var dz := v.z - z
+		var d := dy * dy + dz * dz
+		if d < best_d:
+			best_d = d
+			best_x = v.x
+	if best_x == INF:
+		return _head_front_surface_x(y, z, outset)
+	return best_x - outset
 
 func _head_side_surface_z(local_x: float, local_y: float, outset: float = 0.025) -> float:
 	var radius := 0.5

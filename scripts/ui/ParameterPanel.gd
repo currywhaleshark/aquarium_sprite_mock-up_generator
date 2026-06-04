@@ -53,6 +53,7 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"forehead_slope": true,
 	"jaw_offset": true,
 	"mouth_size": true,
+	"mouth_open": true,
 	"head_flattening": true,
 	"eye_size": true,
 	"eye_position_x": true,

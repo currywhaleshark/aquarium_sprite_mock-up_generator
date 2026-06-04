@@ -89,11 +89,18 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 				y *= HeadProfile.FLATTEN_MESH_FACTOR
 
 			# 4b. Continuous dorsal/ventral profile (forehead hump, flat top, flat belly).
+			# Weight by |sin(theta)| so the offset is full at the crown/keel (theta = 90/270)
+			# and fades to zero at the flanks (theta = 0/180). Without this the whole upper
+			# (or lower) hemisphere shifts uniformly, dragging the side vertices out past the
+			# body shell's silhouette-based envelope and tearing the head/shell seam. The
+			# shell contour samples theta = 90, which still gets the full offset, so the two
+			# stay matched.
 			if shape != "cephalofoil":
+				var theta_w := absf(sin(theta))
 				if y > 0.0:
-					y += HeadProfile.dorsal_offset(u, sin(phi), top_curve, top_peak)
+					y += HeadProfile.dorsal_offset(u, sin(phi), top_curve, top_peak) * theta_w
 				elif y < 0.0:
-					y -= HeadProfile.ventral_offset(u, sin(phi), belly_curve, 0.45)
+					y -= HeadProfile.ventral_offset(u, sin(phi), belly_curve, 0.45) * theta_w
 
 			# 4c. Localized crown bump protruding at head_bump_angle (up .. forward).
 			if shape != "cephalofoil" and bump_height != 0.0:
@@ -672,18 +679,18 @@ static func ray_wing(name: String, side: float, length: float, width: float, cur
 	node.material_override = material
 	return node
 
-static func fish_outer_shell(name: String, profile: Array[Vector3], material: Material, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array()) -> MeshInstance3D:
+static func fish_outer_shell(name: String, profile: Array[Vector3], material: Material, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array(), radius_half_diffs: PackedFloat32Array = PackedFloat32Array()) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = name
-	node.mesh = build_fish_outer_shell_mesh(profile, PackedFloat32Array(), segments, PackedVector3Array(), PackedFloat32Array(), center_y_offsets)
+	node.mesh = build_fish_outer_shell_mesh(profile, PackedFloat32Array(), segments, PackedVector3Array(), PackedFloat32Array(), center_y_offsets, radius_half_diffs)
 	node.material_override = material
 	return node
 
 static func update_fish_outer_shell(node: MeshInstance3D, profile: Array[Vector3], z_offsets: PackedFloat32Array, segments: int = 28) -> void:
 	node.mesh = build_fish_outer_shell_mesh(profile, z_offsets, segments)
 
-static func update_fish_outer_shell_bent(node: MeshInstance3D, profile: Array[Vector3], centers: PackedVector3Array, yaw_degrees: PackedFloat32Array, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array()) -> void:
-	node.mesh = build_fish_outer_shell_mesh(profile, PackedFloat32Array(), segments, centers, yaw_degrees, center_y_offsets)
+static func update_fish_outer_shell_bent(node: MeshInstance3D, profile: Array[Vector3], centers: PackedVector3Array, yaw_degrees: PackedFloat32Array, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array(), radius_half_diffs: PackedFloat32Array = PackedFloat32Array()) -> void:
+	node.mesh = build_fish_outer_shell_mesh(profile, PackedFloat32Array(), segments, centers, yaw_degrees, center_y_offsets, radius_half_diffs)
 
 static func build_fish_outer_shell_mesh(
 	profile: Array[Vector3],
@@ -691,7 +698,8 @@ static func build_fish_outer_shell_mesh(
 	segments: int = 28,
 	centers: PackedVector3Array = PackedVector3Array(),
 	yaw_degrees: PackedFloat32Array = PackedFloat32Array(),
-	center_y_offsets: PackedFloat32Array = PackedFloat32Array()
+	center_y_offsets: PackedFloat32Array = PackedFloat32Array(),
+	radius_half_diffs: PackedFloat32Array = PackedFloat32Array()
 ) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
@@ -709,13 +717,25 @@ static func build_fish_outer_shell_mesh(
 		var ring_yaw := deg_to_rad(yaw_degrees[ring_index] if ring_index < yaw_degrees.size() else 0.0)
 		var ring_basis := Basis(Vector3.UP, ring_yaw)
 		var u := float(ring_index) / float(last_ring)
+		# Egg cross-section: the upper half uses radius (point.y + hd), the lower half
+		# (point.y - hd), about the true centerline (center.y - hd). This keeps the top and
+		# bottom extremes at center.y +/- point.y exactly as a symmetric ring, so samplers
+		# and fin anchors are untouched, while letting the two heights curve independently.
+		# hd is clamped so the thinner side never collapses through the centerline.
+		var hd := radius_half_diffs[ring_index] if ring_index < radius_half_diffs.size() else 0.0
+		hd = clampf(hd, -point.y * 0.9, point.y * 0.9)
+		var r_up := point.y + hd
+		var r_lo := point.y - hd
+		var center_true_y := center.y - hd
 		for segment in range(verts_per_ring):
 			var angle := TAU * float(segment) / float(segments)
-			var y := sin(angle) * point.y
+			var sin_a := sin(angle)
+			var r_y := r_up if sin_a >= 0.0 else r_lo
+			var y := (center_true_y - center.y) + sin_a * r_y
 			var z := cos(angle) * point.z
 			var local_vertex := Vector3(0.0, y, z)
 			vertices.append(center + ring_basis * local_vertex)
-			var local_normal := Vector3(0.0, y / maxf(point.y, 0.001), z / maxf(point.z, 0.001)).normalized()
+			var local_normal := Vector3(0.0, sin_a / maxf(r_y, 0.001), z / maxf(point.z, 0.001)).normalized()
 			normals.append((ring_basis * local_normal).normalized())
 			uvs.append(Vector2(u, float(segment) / float(segments)))
 	for ring_index in profile.size() - 1:
