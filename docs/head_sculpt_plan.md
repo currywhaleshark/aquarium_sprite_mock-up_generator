@@ -81,8 +81,35 @@
   5의 일부(몸통 셸이 프로파일/혹 반영).
 - 전체 35개 테스트 통과.
 
+## 진행 추가분 (2026-06-04 저녁, 아로와나 재현 중)
+
+Phase 6 검증을 아로와나 프리셋으로 진행하던 중 발견·처리한 내용.
+
+- **완료: 참조 이미지 회전 슬라이더.** 오버레이에 `rotation`(−180°~180°) 추가.
+  `ReferenceImagePanel.NUMERIC_SETTINGS`/기본 settings, `UiText.REFERENCE_LABELS`("회전(°)"),
+  `Main._default_reference_image_settings` + `_update_reference_overlay_transform`(중심
+  pivot 기준 `rotation_degrees`). 기본값 0이라 기존 외형/테스트 불변.
+- **완료: 머리 단차(swim 애니메이션 한정) 수정.** `FishRig._deform_shell`에서 snout·head
+  링(0,1)을 머리 노드에 정렬하며 덮어쓸 때 `shell_center_y_offsets`가 이중 적용되던 버그.
+  `head_center`에 이미 보간 offset이 포함되는데 메시 빌더와 `_animated_ring_center`가 또
+  더해, 머리 영역만 ~offset(≈0.097)만큼 솟아 front_body와 단차 발생(rest에선 정상).
+  수정: 링 덮어쓸 때 각 링의 raw y 보존, yaw 회전·x/z 이동만 머리 운동에 따름.
+  헤드리스 프로브로 head.y 0.097, 셸 head top 0.322 확인(이전 0.19/0.42). 35개 테스트 통과.
+
+### 아직 남은 머리 이슈 (사용자 테스트로 확인, 미해결)
+
+- **머리가 갈라져 속(내부 backface)이 보이는 부분.** 머리 구체 메시와 몸통 셸이 만나는
+  솔기에서 둘이 완전히 겹치지 않아 틈이 보임. (앞에서 봤을 때 머리-셸 사이 빈 공간은
+  파라미터 조절로 들어갔다고 함 → 남은 건 옆/특정 각도의 갈라짐.) 두 표면 겹침 구간
+  정합 또는 솔기 캡 필요.
+- **눈이 앞으로 더 안 나감(막힘).** `eye_position_x` 슬라이더 범위는 −1.5까지 열려 있으나,
+  `FishRig._eye_layout`이 눈을 머리 타원체에 투영하며 `max_planar = 0.9`로 클램프 → 머리
+  앞 가장자리에서 더 못 나감. 주둥이가 길어진(아로와나) 경우 눈을 주둥이 쪽으로 더 보내려면
+  이 클램프/투영 기준(머리 스케일 대비)을 완화하거나 주둥이 길이 반영 필요.
+
 ### 내일 할 일 (남은 작업)
 
+0. **위 '남은 머리 이슈' 2건 우선 처리**(머리 솔기 갈라짐 · 눈 전방 한계).
 1. **Phase 5 본작업(선택)**: 이산 `head_shape`(hump/steep_forehead/flattened)·
    `head_ornament` enum의 baked 변형을 제거하고 연속 파라미터로 단일화 + `ensure_head_parameters`
    신설로 기존 프리셋 매핑. 주의: 현재는 baked + 연속이 가산 공존(저위험)이라 굳이 안 해도 동작.
