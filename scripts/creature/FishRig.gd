@@ -18,12 +18,12 @@ const MOUTH_HINGE_FRAC := 0.56
 # Degrees the separate lower-jaw mesh hinges down about the jaw hinge at mouth_open = 1.
 # Its shape is constant (it fills the head's carved upper-jaw void when closed); the gape
 # is purely this rotation, per the design model.
-const LOWER_JAW_OPEN_ANGLE := 42.0
+const LOWER_JAW_OPEN_ANGLE := 75.0
 
 # TEMP (Phase 2 iteration): the old surface-mouth decoration (dark aperture band, interior
 # cavity, upper/lower lip bands) is hidden while the carved upper jaw + filling lower jaw
 # are shaped, because it overlays and occludes them. Set true to restore the old mouth.
-const MOUTH_DECOR_ENABLED := false
+const MOUTH_DECOR_ENABLED := true
 
 var body_pivot: Node3D
 var tail_pivot_1: Node3D
@@ -1753,7 +1753,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# open instead of sinking into the mesh.
 	var jaws := [
 		{"name": "MouthLipUpper", "lo": open_y, "hi": open_y + lip_h, "open": -t * 22.0},
-		{"name": "MouthLipLower", "lo": -(open_y + lip_h), "hi": -open_y, "open": t * 36.0},
+		{"name": "MouthLipLower", "lo": mouth_size * 0.01, "hi": mouth_size * 0.06, "open": t * LOWER_JAW_OPEN_ANGLE},
 	]
 	for jw in jaws:
 		var lip := MeshInstance3D.new()
@@ -1762,6 +1762,18 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		lip.material_override = lip_mat
 		lip.position = mouth_position
 		head.add_child(lip)
+
+	# Cheeks (뺨) 좌우 대칭 생성
+	var cheek_mat := lip_mat.duplicate()
+	cheek_mat.albedo_color = cheek_mat.albedo_color.darkened(0.2)
+	
+	for side in [-1.0, 1.0]:
+		var cheek := MeshInstance3D.new()
+		cheek.name = "MouthCheek%s" % ("L" if side < 0.0 else "R")
+		cheek.mesh = _mouth_cheek_mesh(my, mouth_position, side, jaw_half_w, mouth_size * 0.02, hinge_x, t * LOWER_JAW_OPEN_ANGLE, angle, mouth_size, head_verts)
+		cheek.material_override = cheek_mat
+		cheek.position = mouth_position
+		head.add_child(cheek)
 
 # Builds a thin ribbon that follows the head's front silhouette across the mouth width, so
 # the mouth curves around the snout instead of sitting flat. Coordinates are local to
@@ -1806,6 +1818,50 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 		st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
 	st.generate_normals()
 	return st.commit()
+
+func _mouth_cheek_mesh(center_y: float, origin: Vector3, z_sign: float, z_half: float, outset: float, hinge_x: float, open_deg: float, tilt_deg: float, mouth_size: float, head_verts: PackedVector3Array) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	
+	var hinge_local_x := hinge_x
+	var hinge_local_y := 0.0
+	
+	var y_hi := mouth_size * 0.05
+	var raw_x := _head_front_surface_x(center_y + y_hi, z_sign * z_half, outset)
+	var corner_local_x := raw_x - origin.x
+	var corner_local_y := y_hi
+	
+	var open_r := deg_to_rad(open_deg)
+	var dx := corner_local_x - hinge_local_x
+	var dy := corner_local_y - hinge_local_y
+	var rotated_corner_x := hinge_local_x + dx * cos(open_r) - dy * sin(open_r)
+	var rotated_corner_y := hinge_local_y + dx * sin(open_r) + dy * cos(open_r)
+	
+	var p_hinge := Vector3(hinge_local_x, hinge_local_y, z_sign * z_half)
+	var p_upper := Vector3(corner_local_x, corner_local_y, z_sign * z_half)
+	var p_lower := Vector3(rotated_corner_x, rotated_corner_y, z_sign * z_half)
+	
+	var tilt_r := deg_to_rad(tilt_deg)
+	if tilt_r != 0.0:
+		p_hinge = _rotate_local_point(p_hinge, tilt_r)
+		p_upper = _rotate_local_point(p_upper, tilt_r)
+		p_lower = _rotate_local_point(p_lower, tilt_r)
+		
+	st.add_vertex(p_hinge)
+	st.add_vertex(p_upper)
+	st.add_vertex(p_lower)
+	
+	st.add_vertex(p_hinge)
+	st.add_vertex(p_lower)
+	st.add_vertex(p_upper)
+	
+	st.generate_normals()
+	return st.commit()
+
+func _rotate_local_point(p: Vector3, tilt_r: float) -> Vector3:
+	var rx := p.x * cos(tilt_r) - p.y * sin(tilt_r)
+	var ry := p.x * sin(tilt_r) + p.y * cos(tilt_r)
+	return Vector3(rx, ry, p.z)
 
 func _mouth_split_jaw_meshes(center_y: float, origin: Vector3, mouth_size: float, z_half: float, t: float, tilt_deg: float = 0.0) -> Dictionary:
 	var hinge_x := origin.x + mouth_size * MOUTH_HINGE_FRAC

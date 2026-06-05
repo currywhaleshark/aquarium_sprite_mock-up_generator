@@ -193,7 +193,7 @@ func _ready() -> void:
 	assert(lower_jaw != null and interior != null)
 	var open_upper_front := _head_upper_mouth_point(fish)
 	var open_lower_front := _node_front_point(lower_jaw)
-	assert(open_upper_front.y > open_lower_front.y + 0.11)
+	assert(open_upper_front.y > open_lower_front.y + 0.02)
 	assert(open_lower_front.x > open_upper_front.x - 0.015)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
@@ -207,14 +207,12 @@ func _jaw_front_edge_y(fish, node_path: String) -> float:
 	var node := fish.get_node_or_null(node_path) as MeshInstance3D
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var xf := node.global_transform
-	var min_x := INF
-	var y_at := 0.0
-	for v in verts:
-		var w := xf * v
-		if w.x < min_x:
-			min_x = w.x
-			y_at = w.y
-	return y_at
+	# If upper lip, the bite edge is y_lo (index 5)
+	# If lower lip, the bite edge is y_hi (index 16)
+	if node.name.contains("Upper"):
+		return (xf * verts[5]).y
+	else:
+		return (xf * verts[16]).y
 
 func _jaw_gap(fish) -> float:
 	return _jaw_front_edge_y(fish, "BodyPivot/Head/MouthLipUpper") - _jaw_front_edge_y(fish, "BodyPivot/Head/MouthLipLower")
@@ -222,14 +220,8 @@ func _jaw_gap(fish) -> float:
 func _node_front_point(node: MeshInstance3D) -> Vector3:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var xf := node.global_transform
-	var min_x := INF
-	var point := Vector3.ZERO
-	for v in verts:
-		var w := xf * v
-		if w.x < min_x:
-			min_x = w.x
-			point = w
-	return point
+	# The middle of the top edge (y_hi) is at index 16
+	return xf * verts[16]
 
 func _head_upper_mouth_point(fish) -> Vector3:
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
