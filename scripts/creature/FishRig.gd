@@ -1751,6 +1751,11 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# rides up/down. 0 reproduces the legacy jaw position.
 	var jaw_hinge_x_off: float = sculpt["jaw_hinge_x"]
 	var jaw_hinge_y_off: float = sculpt["jaw_hinge_y"]
+	# Premaxilla protrusion at the current gape (head-local; 0 without protrusion). The lip
+	# bands already ride it because they clamp to the protruded head surface; the lower-jaw
+	# dome does not, so we extend its front forward by this so the jaws meet as a tube
+	# instead of the lower jaw lagging behind the protruded upper jaw.
+	var premax_fwd: float = HeadProfile.JAW_SNOUT_FRONT_X - jaw_lm["upper_tip"].x
 
 	var lip_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
 	lip_mat.albedo_color = lip_mat.albedo_color.darkened(0.34)
@@ -1773,7 +1778,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	var jaw_half_w: float = PF.UPPER_JAW_CARVE_HALF_WIDTH * 0.85
 	var lower_jaw := MeshInstance3D.new()
 	lower_jaw.name = "MouthLowerJaw"
-	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off)
+	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd)
 	lower_jaw.material_override = lip_mat
 	lower_jaw.position = mouth_position
 	head.add_child(lower_jaw)
@@ -1879,7 +1884,7 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 	st.generate_normals()
 	return st.commit()
 
-func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, ring_count: int = 7, segments: int = 18) -> ArrayMesh:
+func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, ring_count: int = 7, segments: int = 18) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var scale := clampf(jaw_scale, 0.45, 1.8)
@@ -1891,7 +1896,9 @@ func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, m
 	# comes from the shared helper so the editor's hinge marker lands on the real pivot.
 	var hinge_pt := _lower_jaw_hinge_local(origin, jaw_scale, hinge_x_off, hinge_y_off)
 	var top_y := hinge_pt.y
-	var front_x := origin.x - 0.045
+	# front_extend reaches the jaw tip forward (toward the protruded premaxilla) while the
+	# hinge stays fixed, so the lower jaw lengthens into the tube rather than translating.
+	var front_x := origin.x - 0.045 - front_extend
 	var hinge_x := hinge_pt.x
 	var center_x := (front_x + hinge_x) * 0.5
 	var x_radius := maxf((hinge_x - front_x) * 0.5, 0.18)

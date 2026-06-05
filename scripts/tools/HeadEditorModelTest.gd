@@ -277,6 +277,23 @@ func _ready() -> void:
 	var hinge_low_world := fish.get_jaw_hinge_world()
 	assert(hinge_high_world.y > hinge_low_world.y + 0.03)
 
+	# Tube mouth: at full gape the lower jaw extends forward with the protruding premaxilla
+	# (front reaches out while the hinge stays put), so a protrusible jaw's lower-jaw mesh is
+	# longer than a non-protrusible one instead of lagging behind the protruded upper jaw.
+	var flat_open: Dictionary = shell_neutral.duplicate(true)
+	flat_open["mouth_type"] = "terminal"
+	flat_open["mouth_open"] = 1.0
+	flat_open["jaw_protrusion"] = 0.0
+	fish.set_parameters(flat_open)
+	await get_tree().process_frame
+	var flat_jaw_size := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).length()
+	var tube_open: Dictionary = flat_open.duplicate(true)
+	tube_open["jaw_protrusion"] = 0.25
+	fish.set_parameters(tube_open)
+	await get_tree().process_frame
+	var tube_jaw_size := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).length()
+	assert(tube_jaw_size > flat_jaw_size + 0.05)
+
 	var small_mouth: Dictionary = shell_neutral.duplicate(true)
 	small_mouth["mouth_open"] = 0.0
 	small_mouth["mouth_size"] = 0.06
