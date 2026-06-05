@@ -184,6 +184,8 @@ func _ready() -> void:
 	var closed_upper_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D)
 	var closed_lower_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D)
 	var closed_lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
+	# A fully closed mouth gets no dark cavity (it could otherwise peek out of a shut mouth).
+	assert(fish.get_node_or_null("BodyPivot/Head/MouthCavity") == null)
 	var lower_jaw_extent := _mesh_extent(closed_lower_jaw)
 	assert(lower_jaw_extent.x > 0.35)
 	assert(lower_jaw_extent.y > 0.16)
@@ -210,6 +212,13 @@ func _ready() -> void:
 	assert(open_upper_front.y > open_lower_front.y + 0.02)
 	assert(open_lower_front.x > open_upper_front.x - 0.015)
 	assert(open_lower_front.y < closed_front_jaw.y - 0.08)
+	# Open mouth gets a head-scale dark cavity that fills the gape (much larger than the
+	# mouth_size dark band) so the opening reads as a deep recess, not the body-coloured roof.
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	assert(cavity != null)
+	var cavity_extent := _mesh_extent(cavity)
+	var dark_band_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D)
+	assert(cavity_extent.y > dark_band_extent.y * 1.5)
 
 	# Premaxilla protrusion (Phase 7): a protrusible jaw throws the upper jaw FORWARD (-x)
 	# as the mouth opens, so the head's snout-front vertices advance. With no protrusion the

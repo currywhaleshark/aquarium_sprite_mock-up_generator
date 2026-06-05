@@ -1785,6 +1785,19 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	jaw_hinge_local = _lower_jaw_hinge_local(mouth_position, lower_jaw_scale, jaw_hinge_x_off, jaw_hinge_y_off)
 	jaw_hinge_valid = true
 
+	# Dark mouth cavity: a head-scale dark lining nested just inside the closed lower jaw.
+	# The small mouth_size dark bands below only cover a fraction of the head-scale gape, so
+	# without this the open mouth shows the body-coloured carve roof instead of a deep recess.
+	# It rides the same hinge/protrusion as the jaw and is revealed as the jaw swings down;
+	# skipped on a fully closed mouth so it can never peek out of a shut mouth.
+	if t > 0.01:
+		var cavity := MeshInstance3D.new()
+		cavity.name = "MouthCavity"
+		cavity.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.9, mouth_size, 0.0, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd)
+		cavity.material_override = dark_mat
+		cavity.position = mouth_position
+		head.add_child(cavity)
+
 	if not MOUTH_DECOR_ENABLED:
 		return
 
