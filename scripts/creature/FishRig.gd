@@ -1805,7 +1805,11 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	for side in [-1.0, 1.0]:
 		var cheek := MeshInstance3D.new()
 		cheek.name = "MouthCheek%s" % ("L" if side < 0.0 else "R")
-		cheek.mesh = _mouth_cheek_mesh(my, mouth_position, side, jaw_half_w * buccal_expand, mouth_size * 0.02, hinge_x + jaw_hinge_x_off, open_deg, angle, mouth_size, head_verts)
+		# The cheek fills the gap behind the jaw corner, so it only follows the hinge BACK
+		# when the jaw lengthens (positive offset). A forward hinge would jut the cheek
+		# triangle out in front of the mouth as two thin spikes, so clamp the offset to >= 0.
+		var cheek_hinge_x := hinge_x + maxf(jaw_hinge_x_off, 0.0)
+		cheek.mesh = _mouth_cheek_mesh(my, mouth_position, side, jaw_half_w * buccal_expand, mouth_size * 0.02, cheek_hinge_x, open_deg, angle, mouth_size, head_verts)
 		cheek.material_override = cheek_mat
 		cheek.position = mouth_position
 		head.add_child(cheek)
