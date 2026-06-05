@@ -1785,15 +1785,16 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	jaw_hinge_local = _lower_jaw_hinge_local(mouth_position, lower_jaw_scale, jaw_hinge_x_off, jaw_hinge_y_off)
 	jaw_hinge_valid = true
 
-	# Dark mouth cavity: a head-scale dark lining nested just inside the closed lower jaw.
-	# The small mouth_size dark bands below only cover a fraction of the head-scale gape, so
-	# without this the open mouth shows the body-coloured carve roof instead of a deep recess.
-	# It rides the same hinge/protrusion as the jaw and is revealed as the jaw swings down;
-	# skipped on a fully closed mouth so it can never peek out of a shut mouth.
+	# Dark mouth cavity: a thin dark sheet hugging the carved roof of the mouth (clamped to
+	# the head surface, just proud of it), NOT a solid dome. The small mouth_size dark bands
+	# below only cover a fraction of the head-scale gape, so without this the open mouth shows
+	# the body-coloured carve roof. Because it rides the actual recessed surface it reads as a
+	# carved-in recess with no protruding volume; revealed as the lower jaw swings off it.
+	# Skipped on a fully closed mouth so it can never peek out of a shut mouth.
 	if t > 0.01:
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
-		cavity.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.9, mouth_size, 0.0, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd)
+		cavity.mesh = _mouth_cavity_mesh(my, mouth_position, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale, PF.UPPER_JAW_CARVE_HALF_WIDTH * 0.85, mouth_size * 0.04, angle, head_verts)
 		cavity.material_override = dark_mat
 		cavity.position = mouth_position
 		head.add_child(cavity)
@@ -1894,6 +1895,41 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 		var p11: Vector3 = grid[1][j + 1]
 		st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
 		st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
+	st.generate_normals()
+	return st.commit()
+
+# Thin dark lining of the carved mouth roof: a grid of vertices clamped onto the actual
+# (carved) head front surface from the bite line down to the carve depth, just proud of the
+# skin (outset) so it shows without z-fighting. Unlike a dome this adds no volume - it reads
+# as the recessed inside of the mouth. Sampled over several y rows so it follows the curve.
+func _mouth_cavity_mesh(center_y: float, origin: Vector3, depth: float, z_half: float, outset: float, tilt_deg: float, head_verts: PackedVector3Array, rows: int = 5, z_segs: int = 12) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tilt_r := deg_to_rad(tilt_deg)
+	var top := center_y + depth * 0.05
+	var bottom := center_y - depth
+	var grid := []
+	for i in range(rows + 1):
+		var ay := lerpf(top, bottom, float(i) / float(rows))
+		var line := []
+		for j in range(z_segs + 1):
+			var z := lerpf(-z_half, z_half, float(j) / float(z_segs))
+			var p := Vector3(_head_mesh_front_x(head_verts, ay, z, outset), ay, z)
+			if tilt_r != 0.0:
+				var tx := p.x - origin.x
+				var ty := p.y - origin.y
+				p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
+				p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
+			line.append(p - origin)
+		grid.append(line)
+	for i in range(rows):
+		for j in range(z_segs):
+			var p00: Vector3 = grid[i][j]
+			var p01: Vector3 = grid[i][j + 1]
+			var p10: Vector3 = grid[i + 1][j]
+			var p11: Vector3 = grid[i + 1][j + 1]
+			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
+			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
 	st.generate_normals()
 	return st.commit()
 

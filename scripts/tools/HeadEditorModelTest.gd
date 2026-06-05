@@ -181,8 +181,11 @@ func _ready() -> void:
 	fish.set_parameters(closed)
 	await get_tree().process_frame
 	var closed_gap := _jaw_gap(fish)
-	var closed_upper_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D)
-	var closed_lower_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D)
+	# Measure the lips relative to the HEAD (not world) so the rig's idle animation doesn't
+	# add frame-phase noise to these tight stability comparisons.
+	var closed_head := fish.get_node_or_null("BodyPivot/Head") as Node3D
+	var closed_upper_lip_extent := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D, closed_head)
+	var closed_lower_lip_extent := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D, closed_head)
 	var closed_lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
 	# A fully closed mouth gets no dark cavity (it could otherwise peek out of a shut mouth).
 	assert(fish.get_node_or_null("BodyPivot/Head/MouthCavity") == null)
@@ -198,8 +201,9 @@ func _ready() -> void:
 	fish.set_parameters(agape)
 	await get_tree().process_frame
 	assert(_jaw_gap(fish) > closed_gap + 0.01)
-	var open_upper_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D)
-	var open_lower_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D)
+	var open_head := fish.get_node_or_null("BodyPivot/Head") as Node3D
+	var open_upper_lip_extent := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D, open_head)
+	var open_lower_lip_extent := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D, open_head)
 	assert(absf(open_upper_lip_extent.position.y - closed_upper_lip_extent.position.y) < 0.005)
 	assert(open_lower_lip_extent.position.y < closed_lower_lip_extent.position.y - 0.015)
 	var upper_jaw := fish.get_node_or_null("BodyPivot/Head/MouthUpperJaw") as MeshInstance3D
@@ -415,6 +419,17 @@ func _world_mesh_extent(node: MeshInstance3D) -> AABB:
 		max_v.x = maxf(max_v.x, w.x)
 		max_v.y = maxf(max_v.y, w.y)
 		max_v.z = maxf(max_v.z, w.z)
+	return AABB(min_v, max_v - min_v)
+
+func _head_local_mesh_extent(node: MeshInstance3D, head: Node3D) -> AABB:
+	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var to_head := head.global_transform.affine_inverse() * node.global_transform
+	var min_v := Vector3(INF, INF, INF)
+	var max_v := Vector3(-INF, -INF, -INF)
+	for v in verts:
+		var w := to_head * v
+		min_v.x = minf(min_v.x, w.x); min_v.y = minf(min_v.y, w.y); min_v.z = minf(min_v.z, w.z)
+		max_v.x = maxf(max_v.x, w.x); max_v.y = maxf(max_v.y, w.y); max_v.z = maxf(max_v.z, w.z)
 	return AABB(min_v, max_v - min_v)
 
 func _body_profile_with_head_lower(parameters: Dictionary, lower_height: float) -> Dictionary:
