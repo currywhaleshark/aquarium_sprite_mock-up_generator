@@ -238,6 +238,36 @@ func _ready() -> void:
 	var noprotr_open_front := _min_x(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D))
 	assert(absf(noprotr_open_front - protr_closed_front) < 0.01)
 
+	# Hinge controls (Phase 7): jaw_hinge_x lengthens the lower jaw (hinge further back ->
+	# longer jaw mesh) and jaw_hinge_y raises/lowers the whole jaw with its pivot. Both were
+	# inert until the jaw mesh consumed them.
+	var jaw_short: Dictionary = shell_neutral.duplicate(true)
+	jaw_short["mouth_type"] = "terminal"
+	jaw_short["mouth_open"] = 0.2
+	jaw_short["jaw_hinge_x"] = -0.15
+	fish.set_parameters(jaw_short)
+	await get_tree().process_frame
+	var short_jaw_len := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).x
+	var jaw_long: Dictionary = jaw_short.duplicate(true)
+	jaw_long["jaw_hinge_x"] = 0.3
+	fish.set_parameters(jaw_long)
+	await get_tree().process_frame
+	var long_jaw_len := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).x
+	assert(long_jaw_len > short_jaw_len + 0.05)
+
+	var jaw_low: Dictionary = jaw_short.duplicate(true)
+	jaw_low["jaw_hinge_x"] = 0.0
+	jaw_low["jaw_hinge_y"] = -0.12
+	fish.set_parameters(jaw_low)
+	await get_tree().process_frame
+	var low_jaw_y := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).position.y
+	var jaw_high: Dictionary = jaw_low.duplicate(true)
+	jaw_high["jaw_hinge_y"] = 0.12
+	fish.set_parameters(jaw_high)
+	await get_tree().process_frame
+	var high_jaw_y := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).position.y
+	assert(high_jaw_y > low_jaw_y + 0.03)
+
 	var small_mouth: Dictionary = shell_neutral.duplicate(true)
 	small_mouth["mouth_open"] = 0.0
 	small_mouth["mouth_size"] = 0.06

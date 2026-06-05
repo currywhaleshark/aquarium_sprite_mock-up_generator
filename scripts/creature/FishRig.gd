@@ -1723,9 +1723,15 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# cheeks all rotate by the SAME depression the carve/landmarks use. open_deg is the
 	# lower-jaw depression in degrees; buccal_expand widens the mouth floor/cheeks as the
 	# gape opens (the suction-feeding cavity expansion), 1.0 when closed.
-	var jaw_lm := HeadProfile.jaw_landmarks(_head_sculpt_params(), t)
+	var sculpt := _head_sculpt_params()
+	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, t)
 	var open_deg: float = rad_to_deg(jaw_lm["gape_angle"])
 	var buccal_expand := lerpf(1.0, 1.22, t)
+	# Hinge controls (resolved value = mouth_type seed + user override). Applied as offsets
+	# to the lower jaw / cheek hinges so the jaw visibly lengthens (hinge back) or the pivot
+	# rides up/down. 0 reproduces the legacy jaw position.
+	var jaw_hinge_x_off: float = sculpt["jaw_hinge_x"]
+	var jaw_hinge_y_off: float = sculpt["jaw_hinge_y"]
 
 	var lip_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
 	lip_mat.albedo_color = lip_mat.albedo_color.darkened(0.34)
@@ -1748,7 +1754,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	var jaw_half_w: float = PF.UPPER_JAW_CARVE_HALF_WIDTH * 0.85
 	var lower_jaw := MeshInstance3D.new()
 	lower_jaw.name = "MouthLowerJaw"
-	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, open_deg, angle)
+	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off)
 	lower_jaw.material_override = lip_mat
 	lower_jaw.position = mouth_position
 	head.add_child(lower_jaw)
@@ -1799,7 +1805,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	for side in [-1.0, 1.0]:
 		var cheek := MeshInstance3D.new()
 		cheek.name = "MouthCheek%s" % ("L" if side < 0.0 else "R")
-		cheek.mesh = _mouth_cheek_mesh(my, mouth_position, side, jaw_half_w * buccal_expand, mouth_size * 0.02, hinge_x, open_deg, angle, mouth_size, head_verts)
+		cheek.mesh = _mouth_cheek_mesh(my, mouth_position, side, jaw_half_w * buccal_expand, mouth_size * 0.02, hinge_x + jaw_hinge_x_off, open_deg, angle, mouth_size, head_verts)
 		cheek.material_override = cheek_mat
 		cheek.position = mouth_position
 		head.add_child(cheek)
@@ -1848,16 +1854,18 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 	st.generate_normals()
 	return st.commit()
 
-func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, ring_count: int = 7, segments: int = 18) -> ArrayMesh:
+func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, ring_count: int = 7, segments: int = 18) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var scale := clampf(jaw_scale, 0.45, 1.8)
 	var width_scale := clampf(mouth_size / 0.08, 0.45, 2.2)
 	var depth := PF.UPPER_JAW_CARVE_DEPTH * scale * 1.2
 	var z_radius := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((scale - 0.45) / 1.35, 0.0, 1.0)) * width_scale
-	var top_y := center_y + depth * 0.06
+	# hinge_x_off lengthens the jaw (hinge further back -> bigger x_radius); hinge_y_off
+	# raises/lowers the whole jaw with its pivot. Phase 7 jaw_hinge_x/_y controls.
+	var top_y := center_y + depth * 0.06 + hinge_y_off
 	var front_x := origin.x - 0.045
-	var hinge_x := maxf(0.18, origin.x + 0.42)
+	var hinge_x := maxf(0.18, origin.x + 0.42) + hinge_x_off
 	var center_x := (front_x + hinge_x) * 0.5
 	var x_radius := maxf((hinge_x - front_x) * 0.5, 0.18)
 	var hinge := Vector3(hinge_x, top_y, 0.0)
