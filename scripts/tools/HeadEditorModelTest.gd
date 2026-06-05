@@ -186,6 +186,15 @@ func _ready() -> void:
 	fish.set_parameters(agape)
 	await get_tree().process_frame
 	assert(_jaw_gap(fish) > closed_gap + 0.04)
+	var upper_jaw := fish.get_node_or_null("BodyPivot/Head/MouthUpperJaw") as MeshInstance3D
+	var lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
+	var interior := fish.get_node_or_null("BodyPivot/Head/MouthInterior") as MeshInstance3D
+	assert(upper_jaw == null)
+	assert(lower_jaw != null and interior != null)
+	var open_upper_front := _head_upper_mouth_point(fish)
+	var open_lower_front := _node_front_point(lower_jaw)
+	assert(open_upper_front.y > open_lower_front.y + 0.11)
+	assert(open_lower_front.x > open_upper_front.x - 0.015)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
@@ -209,6 +218,37 @@ func _jaw_front_edge_y(fish, node_path: String) -> float:
 
 func _jaw_gap(fish) -> float:
 	return _jaw_front_edge_y(fish, "BodyPivot/Head/MouthLipUpper") - _jaw_front_edge_y(fish, "BodyPivot/Head/MouthLipLower")
+
+func _node_front_point(node: MeshInstance3D) -> Vector3:
+	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var xf := node.global_transform
+	var min_x := INF
+	var point := Vector3.ZERO
+	for v in verts:
+		var w := xf * v
+		if w.x < min_x:
+			min_x = w.x
+			point = w
+	return point
+
+func _head_upper_mouth_point(fish) -> Vector3:
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var mouth := fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D
+	var verts: PackedVector3Array = head.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var xf := head.global_transform
+	var mouth_y := mouth.global_position.y
+	var min_x := INF
+	var point := Vector3.ZERO
+	for v in verts:
+		var w := xf * v
+		if w.y < mouth_y:
+			continue
+		if absf(w.z - mouth.global_position.z) > head.scale.z * 0.16:
+			continue
+		if w.x < min_x:
+			min_x = w.x
+			point = w
+	return point
 
 func _head_vertices(head: MeshInstance3D) -> PackedVector3Array:
 	var arr_mesh := head.mesh as ArrayMesh

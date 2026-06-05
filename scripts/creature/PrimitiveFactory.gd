@@ -11,6 +11,17 @@ const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
 # seam. Both meshes read this single constant so the two never drift apart.
 const HEAD_U_SPAN := 0.25
 
+# Upper-jaw carve: the head's lower-front is PERMANENTLY cut into an upper-jaw biting
+# plane (the head IS the upper jaw). Sizes are in head-LOCAL units (head radius 0.5),
+# so the cut scales with the head, NOT with mouth_size - the carve is a head-shape
+# feature, while mouth_size/mouth_open drive the separate lower jaw + cheek. The lower
+# jaw fills this carved region when the mouth is closed so the head still reads whole.
+const UPPER_JAW_CARVE_DEPTH := 0.22       # how far below the bite line the cut reaches
+const UPPER_JAW_CARVE_BACK := 0.20        # max rearward (+x) push of the carved surface
+const UPPER_JAW_CARVE_UP := 0.13          # max upward (+y) push of the carved surface
+const UPPER_JAW_CARVE_LENGTH := 0.50      # how far back along the snout (u) the cut spans
+const UPPER_JAW_CARVE_HALF_WIDTH := 0.24  # z half-span of the cut
+
 static func ellipsoid(name: String, scale_value: Vector3, material: Material) -> MeshInstance3D:
 	var mesh := SphereMesh.new()
 	mesh.radius = 0.5
@@ -45,6 +56,7 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	var bump_rad := deg_to_rad(float(sculpt.get("head_bump_angle", 35.0)))
 	var bump_up := cos(bump_rad)
 	var bump_fwd := sin(bump_rad)
+	var mouth_center_y := float(sculpt.get("mouth_center_y", 0.0))
 
 	var grid := []
 	for i in range(rings + 1):
@@ -113,6 +125,24 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			# head body itself does not move.
 			if shape != "cephalofoil":
 				y += HeadProfile.snout_y_shift(snout_shift, u, snout_base, snout_curve)
+
+			# 6. Upper-jaw silhouette: the head mesh ITSELF is the upper jaw, and its
+			# underside is carved into a defined biting plane ALWAYS - not only when the
+			# mouth opens. This is the base shape (the teardrop "head+upper jaw" of the
+			# sketch). The gape comes entirely from the separate lower-jaw mesh swinging
+			# down below this plane; mouth_open only widens the carve slightly so the
+			# upper lip lifts a touch as the jaw drops. The lower jaw fills this carved
+			# region when closed (mouth_open = 0) so the head still reads as whole.
+			# front_w stretches the cut back along the snout (jaw plane length); center_w
+			# widens it across the mouth's z so it spans the mouth width, not a notch.
+			if shape != "cephalofoil" and x < 0.04:
+				var front_w := smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
+				var lower_edge := mouth_center_y - UPPER_JAW_CARVE_DEPTH
+				var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, y)
+				var center_w := 1.0 - clampf(absf(z) / UPPER_JAW_CARVE_HALF_WIDTH, 0.0, 1.0)
+				var carve_w := front_w * lower_w * center_w
+				x += UPPER_JAW_CARVE_BACK * carve_w
+				y += UPPER_JAW_CARVE_UP * carve_w
 
 			ring_vertices.append(Vector3(x, y, z))
 		grid.append(ring_vertices)

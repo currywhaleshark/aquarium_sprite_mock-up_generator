@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mouth Split Visual Mockup</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172126;
+      --muted: #66737a;
+      --paper: #f7f4ee;
+      --panel: #ffffff;
+      --fish: #55c6c7;
+      --fish-dark: #26969b;
+      --belly: #d9fbf2;
+      --mouth: #1d2326;
+      --cut: #d24545;
+      --upper: #75d7d5;
+      --lower: #38b7bd;
+      --guide: #3d5a80;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 28px 0 36px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 750;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid #ded8cd;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 8px 22px rgba(45, 40, 31, 0.08);
+    }
+
+    .panel h2 {
+      margin: 0;
+      padding: 14px 16px 6px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .panel p {
+      min-height: 58px;
+      margin: 0;
+      padding: 0 16px 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: linear-gradient(#fbfaf7, #f3efe7);
+      border-top: 1px solid #ebe5db;
+    }
+
+    .caption {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 14px 16px 16px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+    }
+
+    .notes {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .note {
+      padding: 15px 16px;
+      background: #fff;
+      border: 1px solid #ded8cd;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .note strong { color: var(--ink); }
+
+    .hero-panel {
+      margin-bottom: 18px;
+      background: #fff;
+      border: 2px solid #2f7f86;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 10px 26px rgba(31, 69, 74, 0.12);
+    }
+
+    .hero-panel h2 {
+      margin: 0;
+      padding: 16px 18px 4px;
+      font-size: 21px;
+      letter-spacing: 0;
+    }
+
+    .hero-panel p {
+      margin: 0;
+      padding: 0 18px 14px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .big-svg {
+      border-top: 1px solid #d8e4e4;
+      background: linear-gradient(#fbfaf7, #eef6f4);
+    }
+
+    @media (max-width: 900px) {
+      .grid, .notes { grid-template-columns: 1fr; }
+      .panel p { min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>입을 “그린 것”과 “쪼개서 열린 것”의 차이</h1>
+  <p class="lead">
+    왼쪽은 현재 방식에 가까운 표면 장식입니다. 가운데는 개선 방향의 핵심 구조이고,
+    오른쪽은 <code>mouth_open</code>이 올라갔을 때 실제로 보여야 하는 결과입니다.
+  </p>
+
+  <section class="hero-panel" aria-label="side view pacman gape target">
+    <h2>목표: 옆에서 봤을 때 팩맨처럼 벌어진 실루엣</h2>
+    <p>
+      입 주변에 선을 그리는 정도가 아니라, 머리 앞쪽 윤곽 자체가 위턱과 아래턱으로 갈라져
+      삼각형에 가까운 빈 공간을 만듭니다. 이것이 구현 기준입니다.
+    </p>
+    <svg class="big-svg" viewBox="0 0 980 360" role="img" aria-label="side view pacman mouth opening">
+      <defs>
+        <linearGradient id="sideBody" x1="0" x2="1">
+          <stop offset="0" stop-color="#50c5c9"/>
+          <stop offset="1" stop-color="#d9fbf2"/>
+        </linearGradient>
+        <marker id="arrowHero" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 Z" fill="#3d5a80"/>
+        </marker>
+      </defs>
+
+      <text x="92" y="44" fill="#172126" font-size="18" font-weight="700">닫힘</text>
+      <path d="M392 178 C342 82 164 76 85 142 C27 190 79 270 178 273 C289 276 360 230 392 178 Z" fill="url(#sideBody)" stroke="#1d737a" stroke-width="4"/>
+      <path d="M92 145 C55 169 50 203 88 228" fill="none" stroke="#1d737a" stroke-width="4"/>
+      <ellipse cx="164" cy="137" rx="13" ry="12" fill="#102027"/>
+      <path d="M75 178 C105 166 137 166 169 178 C136 187 104 187 75 178 Z" fill="#1d2326" stroke="#111" stroke-width="2"/>
+      <path d="M76 168 C108 157 141 160 172 176" fill="none" stroke="#1d737a" stroke-width="7" stroke-linecap="round"/>
+      <path d="M76 188 C108 198 141 194 172 180" fill="none" stroke="#1d737a" stroke-width="7" stroke-linecap="round"/>
+
+      <text x="594" y="44" fill="#172126" font-size="18" font-weight="700">mouth_open = 1.0</text>
+      <path d="M895 178 C845 82 667 76 588 142 C542 180 562 248 638 268 C747 292 858 236 895 178 Z" fill="url(#sideBody)" stroke="#1d737a" stroke-width="4"/>
+      <ellipse cx="667" cy="137" rx="13" ry="12" fill="#102027"/>
+
+      <path d="M585 138 C628 88 690 84 737 126 C681 128 628 134 585 138 Z" fill="#75d7d5" stroke="#146d75" stroke-width="4"/>
+      <path d="M584 219 C629 277 700 265 742 184 C690 210 633 223 584 219 Z" fill="#38b7bd" stroke="#146d75" stroke-width="4"/>
+      <path d="M585 138 C636 135 690 128 737 126 C753 146 754 166 742 184 C693 210 633 223 584 219 Z" fill="#1d2326"/>
+
+      <circle cx="742" cy="154" r="6" fill="#d24545"/>
+      <path d="M742 154 C690 117 634 121 585 138" fill="none" stroke="#d24545" stroke-width="3" stroke-dasharray="7 6"/>
+      <path d="M742 154 C690 228 632 241 584 219" fill="none" stroke="#d24545" stroke-width="3" stroke-dasharray="7 6"/>
+      <path d="M659 108 Q620 178 660 241" fill="none" stroke="#3d5a80" stroke-width="4" marker-end="url(#arrowHero)"/>
+
+      <line x1="455" y1="180" x2="525" y2="180" stroke="#3d5a80" stroke-width="5" marker-end="url(#arrowHero)"/>
+      <text x="446" y="155" fill="#3d5a80" font-size="14">표면 그림이 아니라</text>
+      <text x="437" y="205" fill="#3d5a80" font-size="14">실루엣을 벌림</text>
+
+      <text x="64" y="323" fill="#66737a" font-size="14">현재 느낌: 닫힌 머리 위에 입 모양을 얹음</text>
+      <text x="559" y="323" fill="#66737a" font-size="14">목표 느낌: 머리 앞쪽이 진짜 위/아래 턱으로 벌어짐</text>
+    </svg>
+  </section>
+
+  <section class="grid" aria-label="mouth structure comparison">
+    <article class="panel">
+      <h2>A. 표면에 붙인 입</h2>
+      <p>머리 메시는 닫힌 덩어리 그대로이고, 어두운 띠와 입술 띠만 위에 얹혀 있습니다.</p>
+      <svg viewBox="0 0 360 300" role="img" aria-label="surface mouth">
+        <defs>
+          <linearGradient id="fishA" x1="0" x2="1">
+            <stop offset="0" stop-color="#55c6c7"/>
+            <stop offset="1" stop-color="#d9fbf2"/>
+          </linearGradient>
+        </defs>
+        <path d="M312 150 C270 62 116 58 62 123 C18 176 64 236 153 232 C238 228 289 197 312 150 Z" fill="url(#fishA)" stroke="#227e86" stroke-width="3"/>
+        <path d="M70 125 C36 157 35 188 70 212" fill="none" stroke="#227e86" stroke-width="3"/>
+        <ellipse cx="126" cy="117" rx="11" ry="10" fill="#102027"/>
+        <path d="M58 151 C76 139 99 137 124 145 C103 153 78 158 58 151 Z" fill="#1d2326" stroke="#0d1113" stroke-width="2"/>
+        <path d="M59 139 C84 132 107 134 130 143" fill="none" stroke="#26969b" stroke-width="9" stroke-linecap="round"/>
+        <path d="M59 163 C84 166 108 159 130 146" fill="none" stroke="#26969b" stroke-width="9" stroke-linecap="round"/>
+        <path d="M58 151 C76 139 99 137 124 145 C103 153 78 158 58 151 Z" fill="#1d2326"/>
+        <text x="34" y="275" fill="#66737a" font-size="13">문제: 열린 틈이 아니라 표면 문양처럼 읽힘</text>
+      </svg>
+      <div class="caption">
+        <span class="tag"><span class="swatch" style="background:var(--fish)"></span>닫힌 머리</span>
+        <span class="tag"><span class="swatch" style="background:var(--mouth)"></span>어두운 띠</span>
+      </div>
+    </article>
+
+    <article class="panel">
+      <h2>B. 실제 분리 구조</h2>
+      <p>입 앞쪽 머리 표면을 위턱 조각과 아래턱 조각으로 나누고, 가운데에 입속 면을 둡니다.</p>
+      <svg viewBox="0 0 360 300" role="img" aria-label="split jaw structure">
+        <path d="M312 150 C270 62 116 58 62 123 C18 176 64 236 153 232 C238 228 289 197 312 150 Z" fill="#55c6c7" stroke="#227e86" stroke-width="3"/>
+        <path d="M70 125 C36 157 35 188 70 212" fill="none" stroke="#227e86" stroke-width="3"/>
+        <ellipse cx="126" cy="117" rx="11" ry="10" fill="#102027"/>
+
+        <path d="M60 147 C84 130 112 128 142 142 C112 143 85 147 60 147 Z" fill="#75d7d5" stroke="#146d75" stroke-width="3"/>
+        <path d="M60 155 C86 161 113 156 142 143 C118 170 87 178 60 155 Z" fill="#38b7bd" stroke="#146d75" stroke-width="3"/>
+        <path d="M60 147 C86 146 114 144 142 142 L142 146 C114 152 86 157 60 155 Z" fill="#1d2326"/>
+
+        <path d="M145 130 L145 170" stroke="#d24545" stroke-width="3" stroke-dasharray="6 5"/>
+        <circle cx="145" cy="146" r="5" fill="#d24545"/>
+        <path d="M56 148 L145 146" stroke="#d24545" stroke-width="2" stroke-dasharray="4 5"/>
+        <text x="151" y="126" fill="#d24545" font-size="13">절개/힌지선</text>
+        <text x="36" y="275" fill="#66737a" font-size="13">핵심: 표면 장식이 아니라 턱 조각의 경계가 생김</text>
+      </svg>
+      <div class="caption">
+        <span class="tag"><span class="swatch" style="background:var(--upper)"></span>위턱 조각</span>
+        <span class="tag"><span class="swatch" style="background:var(--lower)"></span>아래턱 조각</span>
+      </div>
+    </article>
+
+    <article class="panel">
+      <h2>C. 벌어진 상태</h2>
+      <p>아래턱은 더 크게 내려가고, 위턱은 살짝 들립니다. 사이의 어두운 면이 입속으로 보입니다.</p>
+      <svg viewBox="0 0 360 300" role="img" aria-label="opened split jaw">
+        <path d="M312 150 C270 62 116 58 62 123 C18 176 64 236 153 232 C238 228 289 197 312 150 Z" fill="#55c6c7" stroke="#227e86" stroke-width="3"/>
+        <path d="M70 125 C36 157 35 188 70 212" fill="none" stroke="#227e86" stroke-width="3"/>
+        <ellipse cx="126" cy="117" rx="11" ry="10" fill="#102027"/>
+
+        <path d="M61 142 C86 116 119 113 148 132 C118 135 88 141 61 142 Z" fill="#75d7d5" stroke="#146d75" stroke-width="3"/>
+        <path d="M60 162 C89 194 124 193 151 153 C119 166 88 170 60 162 Z" fill="#38b7bd" stroke="#146d75" stroke-width="3"/>
+        <path d="M60 142 C91 142 121 136 148 132 C154 141 154 148 151 153 C121 165 90 169 60 162 Z" fill="#1d2326"/>
+
+        <circle cx="148" cy="144" r="5" fill="#d24545"/>
+        <path d="M148 144 C118 128 91 129 61 142" fill="none" stroke="#d24545" stroke-width="2" stroke-dasharray="4 5"/>
+        <path d="M148 144 C119 178 91 184 60 162" fill="none" stroke="#d24545" stroke-width="2" stroke-dasharray="4 5"/>
+        <path d="M117 123 Q100 143 116 165" fill="none" stroke="#3d5a80" stroke-width="3" marker-end="url(#arrowC)"/>
+        <defs>
+          <marker id="arrowC" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#3d5a80"/>
+          </marker>
+        </defs>
+        <text x="36" y="275" fill="#66737a" font-size="13">목표: 닫힌 구체 위 장식이 아니라 벌어진 실루엣</text>
+      </svg>
+      <div class="caption">
+        <span class="tag"><span class="swatch" style="background:var(--mouth)"></span>입속 면</span>
+        <span class="tag"><span class="swatch" style="background:var(--cut)"></span>회전 기준</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="notes">
+    <div class="note">
+      <strong>내가 이해한 요청:</strong>
+      지금처럼 입술 띠가 표면을 타고 들리는 정도가 아니라, 주둥이 앞쪽 메시 자체가
+      위/아래 턱으로 나뉘고 그 사이가 실제 열린 공간처럼 보여야 합니다.
+    </div>
+    <div class="note">
+      <strong>추천 구현 방향:</strong>
+      기존 <code>mouth_open</code>은 그대로 쓰고, 새 슬라이더를 늘리지 않습니다.
+      대신 입 주변에 별도 위턱/아래턱/입속 메시를 만들어 머리 표면과 겹치지 않게 배치합니다.
+    </div>
+  </section>
+</main>
+</body>
+</html>
