@@ -1785,15 +1785,14 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	jaw_hinge_local = _lower_jaw_hinge_local(mouth_position, lower_jaw_scale, jaw_hinge_x_off, jaw_hinge_y_off)
 	jaw_hinge_valid = true
 
-	# Dark mouth pocket: a dark funnel receding into the head behind the opening, so the open
-	# mouth reads as a deep recess instead of showing the body-coloured carve roof. Its rim
-	# grows with mouth_open so the dark opening enlarges as the jaw drops. Skipped on a fully
-	# closed mouth so it can never peek out of a shut mouth.
+	# Dark mouth patch: a FLAT dark decal on the head's front surface (no volume), revealed as
+	# the lower jaw drops in front of it, so the open mouth reads as a dark recess instead of
+	# the body-coloured surface. Its height grows with mouth_open. Skipped on a fully closed
+	# mouth so it can never show on a shut mouth.
 	if t > 0.01:
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
-		cavity.mesh = _mouth_pocket_mesh(my, mouth_position, t, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale, PF.UPPER_JAW_CARVE_HALF_WIDTH * 0.85, angle)
-		# Double-sided so the funnel's inner walls render no matter the winding (we look INTO it).
+		cavity.mesh = _mouth_cavity_mesh(my, mouth_position, t, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale, PF.UPPER_JAW_CARVE_HALF_WIDTH * 0.85, mouth_size * 0.06, angle)
 		var cavity_mat := dark_mat.duplicate()
 		if cavity_mat is BaseMaterial3D:
 			cavity_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -1900,38 +1899,37 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 	st.generate_normals()
 	return st.commit()
 
-# Dark mouth pocket: a clean analytic funnel from an elliptical rim at the mouth opening
-# receding back (+x) into the head to a pole, so from the front you look into a dark recess.
-# The rim height grows with gape (gape_t) so the dark opening enlarges as the mouth opens.
-# No head-surface sampling, so no jagged seams or holes; the lip bands/jaw sit in front of it.
-func _mouth_pocket_mesh(center_y: float, origin: Vector3, gape_t: float, carve_depth: float, z_half: float, tilt_deg: float, rings: int = 4, segs: int = 18) -> ArrayMesh:
+# Dark mouth patch: a FLAT dark decal lying on the head's front surface over the mouth, just
+# proud of the skin so it shows. It has no volume (it hugs the analytic silhouette), so it can
+# never read as a protruding blob or horn, and it is sampled from the smooth analytic surface
+# (not nearest head vertices) so it has no jagged seams. Its height grows with gape so the dark
+# area enlarges as the mouth opens (the lower jaw in front of it drops to reveal it).
+func _mouth_cavity_mesh(center_y: float, origin: Vector3, gape_t: float, carve_depth: float, z_half: float, outset: float, tilt_deg: float, rows: int = 6, z_segs: int = 14) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var tilt_r := deg_to_rad(tilt_deg)
-	# Opening: top edge stays near the bite line (fixed upper jaw), bottom drops with gape.
-	var opening_h := lerpf(carve_depth * 0.18, carve_depth * 1.5, clampf(gape_t, 0.0, 1.0))
-	var rim_half_y := opening_h * 0.5
-	var rim_center_y := center_y - rim_half_y
-	var x_front := origin.x + 0.015           # just inside the surface
-	var pole := Vector3(origin.x + maxf(carve_depth, 0.2), rim_center_y, 0.0)
-	if tilt_r != 0.0:
-		pole = _rotate_mouth_point(pole, origin, tilt_r)
-	var rim := []
-	for j in range(segs + 1):
-		var theta := TAU * float(j) / float(segs)
-		var p := Vector3(x_front, rim_center_y + rim_half_y * sin(theta), z_half * cos(theta))
-		if tilt_r != 0.0:
-			p = _rotate_mouth_point(p, origin, tilt_r)
-		rim.append(p)
+	var t := clampf(gape_t, 0.0, 1.0)
+	var top := center_y + carve_depth * 0.1            # a touch above the bite line
+	var bottom := center_y - lerpf(carve_depth * 0.25, carve_depth * 1.4, t)
+	var half_z := z_half * lerpf(0.7, 1.0, t)
 	var grid := []
-	for i in range(rings + 1):
-		var s := float(i) / float(rings)
-		var ring := []
-		for j in range(segs + 1):
-			ring.append((rim[j].lerp(pole, s)) - origin)
-		grid.append(ring)
-	for i in range(rings):
-		for j in range(segs):
+	for i in range(rows + 1):
+		var ay := lerpf(top, bottom, float(i) / float(rows))
+		# Narrow the patch toward the bottom corner so it reads as a mouth, not a rectangle.
+		var row_z := half_z * (1.0 - 0.35 * pow(float(i) / float(rows), 2.0))
+		var line := []
+		for j in range(z_segs + 1):
+			var z := lerpf(-row_z, row_z, float(j) / float(z_segs))
+			var p := Vector3(_head_front_surface_x(ay, z, outset), ay, z)
+			if tilt_r != 0.0:
+				var tx := p.x - origin.x
+				var ty := p.y - origin.y
+				p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
+				p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
+			line.append(p - origin)
+		grid.append(line)
+	for i in range(rows):
+		for j in range(z_segs):
 			var p00: Vector3 = grid[i][j]
 			var p01: Vector3 = grid[i][j + 1]
 			var p10: Vector3 = grid[i + 1][j]
