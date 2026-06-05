@@ -181,11 +181,25 @@ func _ready() -> void:
 	fish.set_parameters(closed)
 	await get_tree().process_frame
 	var closed_gap := _jaw_gap(fish)
+	var closed_upper_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D)
+	var closed_lower_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D)
+	var closed_lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
+	var lower_jaw_extent := _mesh_extent(closed_lower_jaw)
+	assert(lower_jaw_extent.x > 0.35)
+	assert(lower_jaw_extent.y > 0.16)
+	assert(lower_jaw_extent.z > 0.28)
+	var closed_rear_hinge := _node_rear_local_point(closed_lower_jaw)
+	var closed_front_jaw := _node_front_point(closed_lower_jaw)
+	assert(closed_rear_hinge.x > 0.1)
 	var agape: Dictionary = shell_neutral.duplicate(true)
 	agape["mouth_open"] = 1.0
 	fish.set_parameters(agape)
 	await get_tree().process_frame
-	assert(_jaw_gap(fish) > closed_gap + 0.04)
+	assert(_jaw_gap(fish) > closed_gap + 0.01)
+	var open_upper_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D)
+	var open_lower_lip_extent := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D)
+	assert(absf(open_upper_lip_extent.position.y - closed_upper_lip_extent.position.y) < 0.005)
+	assert(open_lower_lip_extent.position.y < closed_lower_lip_extent.position.y - 0.015)
 	var upper_jaw := fish.get_node_or_null("BodyPivot/Head/MouthUpperJaw") as MeshInstance3D
 	var lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
 	var interior := fish.get_node_or_null("BodyPivot/Head/MouthInterior") as MeshInstance3D
@@ -195,6 +209,75 @@ func _ready() -> void:
 	var open_lower_front := _node_front_point(lower_jaw)
 	assert(open_upper_front.y > open_lower_front.y + 0.02)
 	assert(open_lower_front.x > open_upper_front.x - 0.015)
+	assert(open_lower_front.y < closed_front_jaw.y - 0.08)
+
+	# Premaxilla protrusion (Phase 7): a protrusible jaw throws the upper jaw FORWARD (-x)
+	# as the mouth opens, so the head's snout-front vertices advance. With no protrusion the
+	# snout front is stationary when opening (the legacy fixed upper jaw).
+	var protr_closed: Dictionary = shell_neutral.duplicate(true)
+	protr_closed["mouth_type"] = "terminal"
+	protr_closed["jaw_protrusion"] = 0.2
+	protr_closed["mouth_open"] = 0.0
+	fish.set_parameters(protr_closed)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var protr_closed_front := _min_x(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D))
+	var protr_open: Dictionary = protr_closed.duplicate(true)
+	protr_open["mouth_open"] = 1.0
+	fish.set_parameters(protr_open)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var protr_open_front := _min_x(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D))
+	assert(protr_open_front < protr_closed_front - 0.05)
+
+	var noprotr_open: Dictionary = protr_open.duplicate(true)
+	noprotr_open["jaw_protrusion"] = 0.0
+	fish.set_parameters(noprotr_open)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var noprotr_open_front := _min_x(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D))
+	assert(absf(noprotr_open_front - protr_closed_front) < 0.01)
+
+	var small_mouth: Dictionary = shell_neutral.duplicate(true)
+	small_mouth["mouth_open"] = 0.0
+	small_mouth["mouth_size"] = 0.06
+	fish.set_parameters(small_mouth)
+	await get_tree().process_frame
+	var small_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
+	var large_mouth: Dictionary = small_mouth.duplicate(true)
+	large_mouth["mouth_size"] = 0.2
+	fish.set_parameters(large_mouth)
+	await get_tree().process_frame
+	var large_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
+	assert(absf(large_jaw_extent.y - small_jaw_extent.y) < 0.01)
+	assert(large_jaw_extent.z > small_jaw_extent.z * 1.5)
+
+	var shallow_head: Dictionary = shell_neutral.duplicate(true)
+	shallow_head["mouth_open"] = 0.0
+	shallow_head["body_profile"] = _body_profile_with_head_lower(shallow_head, 0.18)
+	fish.set_parameters(shallow_head)
+	await get_tree().process_frame
+	var shallow_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
+	var deep_head: Dictionary = shell_neutral.duplicate(true)
+	deep_head["mouth_open"] = 0.0
+	deep_head["body_profile"] = _body_profile_with_head_lower(deep_head, 0.54)
+	fish.set_parameters(deep_head)
+	await get_tree().process_frame
+	var deep_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
+	assert(deep_jaw_extent.y > shallow_jaw_extent.y * 1.5)
+
+	var flat_belly: Dictionary = shell_neutral.duplicate(true)
+	flat_belly["mouth_open"] = 0.0
+	flat_belly["head_belly_curve"] = -0.8
+	fish.set_parameters(flat_belly)
+	await get_tree().process_frame
+	var flat_belly_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
+	var round_belly: Dictionary = flat_belly.duplicate(true)
+	round_belly["head_belly_curve"] = 0.8
+	fish.set_parameters(round_belly)
+	await get_tree().process_frame
+	var round_belly_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
+	assert(round_belly_jaw_extent.y > flat_belly_jaw_extent.y * 1.3)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
@@ -215,13 +298,71 @@ func _jaw_front_edge_y(fish, node_path: String) -> float:
 		return (xf * verts[16]).y
 
 func _jaw_gap(fish) -> float:
-	return _jaw_front_edge_y(fish, "BodyPivot/Head/MouthLipUpper") - _jaw_front_edge_y(fish, "BodyPivot/Head/MouthLipLower")
+	var upper := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D)
+	var lower := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D)
+	return upper.position.y - lower.end.y
 
 func _node_front_point(node: MeshInstance3D) -> Vector3:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var xf := node.global_transform
-	# The middle of the top edge (y_hi) is at index 16
-	return xf * verts[16]
+	var min_x := INF
+	var point := Vector3.ZERO
+	for v in verts:
+		var w := xf * v
+		if w.x < min_x:
+			min_x = w.x
+			point = w
+	return point
+
+func _node_rear_local_point(node: MeshInstance3D) -> Vector3:
+	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var max_x := -INF
+	var point := Vector3.ZERO
+	for v in verts:
+		if v.x > max_x:
+			max_x = v.x
+			point = v
+	return point
+
+func _mesh_extent(node: MeshInstance3D) -> Vector3:
+	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var min_v := Vector3(INF, INF, INF)
+	var max_v := Vector3(-INF, -INF, -INF)
+	for v in verts:
+		min_v.x = minf(min_v.x, v.x)
+		min_v.y = minf(min_v.y, v.y)
+		min_v.z = minf(min_v.z, v.z)
+		max_v.x = maxf(max_v.x, v.x)
+		max_v.y = maxf(max_v.y, v.y)
+		max_v.z = maxf(max_v.z, v.z)
+	return max_v - min_v
+
+func _world_mesh_extent(node: MeshInstance3D) -> AABB:
+	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var xf := node.global_transform
+	var min_v := Vector3(INF, INF, INF)
+	var max_v := Vector3(-INF, -INF, -INF)
+	for v in verts:
+		var w := xf * v
+		min_v.x = minf(min_v.x, w.x)
+		min_v.y = minf(min_v.y, w.y)
+		min_v.z = minf(min_v.z, w.z)
+		max_v.x = maxf(max_v.x, w.x)
+		max_v.y = maxf(max_v.y, w.y)
+		max_v.z = maxf(max_v.z, w.z)
+	return AABB(min_v, max_v - min_v)
+
+func _body_profile_with_head_lower(parameters: Dictionary, lower_height: float) -> Dictionary:
+	var profile: Dictionary = parameters.get("body_profile", {}).duplicate(true)
+	var rings: Array = profile.get("rings", [])
+	for i in rings.size():
+		if String(rings[i].get("id", "")) == "head":
+			var ring: Dictionary = rings[i].duplicate(true)
+			ring["lower_height"] = lower_height
+			rings[i] = ring
+			break
+	profile["rings"] = rings
+	return profile
 
 func _head_upper_mouth_point(fish) -> Vector3:
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
@@ -269,6 +410,12 @@ func _max_y(verts: PackedVector3Array) -> float:
 	for v in verts:
 		max_y = maxf(max_y, v.y)
 	return max_y
+
+func _min_x(verts: PackedVector3Array) -> float:
+	var min_x := INF
+	for v in verts:
+		min_x = minf(min_x, v.x)
+	return min_x
 
 # Largest forward (-x) displacement among upper vertices between two meshes that
 # share vertex ordering.

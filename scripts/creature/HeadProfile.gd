@@ -150,3 +150,83 @@ static func head_bump_falloff(x: float, theta: float, pos: float, width: float, 
 	# Lower exponent -> rounder top, steeper (more distinct) shoulder.
 	var p := lerpf(2.0, 0.5, clampf(round_amount, 0.0, 1.0))
 	return pow(cap, p) * w_top
+
+# ---- Phase 7: anatomical jaw linkage --------------------------------------
+# A simplified planar abstraction of the teleost feeding mechanism, expressed in
+# head-LOCAL units (head radius 0.5; x = -0.5 snout tip .. +0.5 neck, y up, on the
+# midline z = 0 plane). Real teleosts open the mouth by rotating the lower jaw about
+# the quadrate-articular joint while a coupled four-bar linkage throws the premaxilla
+# (upper jaw) forward; here we collapse that to three landmarks driven by one gape
+# input so the head's upper-jaw carve and the lip/lower-jaw/cheek meshes all read the
+# SAME geometry (the Phase 0 forward/inverse-sync discipline, now for the jaw).
+#
+#   jaw_hinge_x        quadrate-articular joint x. +back = longer jaw lever -> the
+#                      lower jaw tip sweeps a bigger arc (long-jaw predator); forward
+#                      = short crushing jaw.
+#   jaw_hinge_y        joint height relative to the bite line.
+#   jaw_protrusion     max premaxilla forward (-x) slide at full gape (0 = legacy: the
+#                      upper jaw stays fixed). Coupled to gape, so the mouth becomes a
+#                      forward tube as it opens.
+#   lower_upper_ratio  lower:upper jaw length. 1 = terminal (equal), >1 = lower juts
+#                      (superior/underbite), <1 = upper overhangs (inferior/overbite).
+const JAW_DEFAULTS := {
+	"jaw_hinge_x": 0.0,
+	"jaw_hinge_y": 0.0,
+	"jaw_protrusion": 0.0,
+	"lower_upper_ratio": 1.0,
+}
+
+# Max lower-jaw depression the gape input (0..1) maps to. Single source of truth for the
+# carve, lower jaw, lower lip and cheeks (FishRig reads it via jaw_landmarks).
+const JAW_MAX_GAPE_DEG := 75.0
+
+# Snout-front x the jaws reach to at rest (the bite region of the undeformed sphere).
+const JAW_SNOUT_FRONT_X := -0.5
+
+# Nonlinear gape -> protrusion coupling: the premaxilla barely moves at small gape
+# then is thrown forward late in the opening, mimicking the four-bar linkage's output.
+static func jaw_protrusion_coupling(gape: float) -> float:
+	var g := clampf(gape, 0.0, 1.0)
+	return g * g
+
+# Returns the jaw landmarks for the given sculpt params at gape (0 closed .. 1 agape):
+#   hinge       Vector2 quadrate-articular pivot
+#   upper_tip   Vector2 premaxilla tip (protruded when opening)
+#   lower_tip   Vector2 dentary/chin tip (swung down about the hinge)
+#   gape_angle  float    lower-jaw depression (radians)
+#   bite_line_y float    closed-mouth occlusal line
+static func jaw_landmarks(p: Dictionary, gape: float) -> Dictionary:
+	var g := clampf(gape, 0.0, 1.0)
+	var bite_y := float(p.get("mouth_center_y", 0.0))
+	var hinge_x := float(p.get("jaw_hinge_x", JAW_DEFAULTS["jaw_hinge_x"]))
+	var hinge_y := bite_y + float(p.get("jaw_hinge_y", JAW_DEFAULTS["jaw_hinge_y"]))
+	var ratio := maxf(float(p.get("lower_upper_ratio", JAW_DEFAULTS["lower_upper_ratio"])), 0.05)
+	var protr := float(p.get("jaw_protrusion", JAW_DEFAULTS["jaw_protrusion"]))
+
+	# Lever length from the hinge forward to the snout-front bite region.
+	var upper_len := hinge_x - JAW_SNOUT_FRONT_X
+	var lower_len := upper_len * ratio
+
+	# Upper jaw (premaxilla): rest tip at the snout front, then thrown forward + slightly
+	# down as the mouth opens.
+	var protr_amt := protr * jaw_protrusion_coupling(g)
+	var upper_tip := Vector2(hinge_x - upper_len - protr_amt, bite_y - protr_amt * 0.35)
+
+	# Lower jaw: rest tip rotated down about the hinge; it then rides the premaxilla
+	# forward a touch so the two jaw tips stay together at the front of the mouth.
+	var gape_angle := deg_to_rad(JAW_MAX_GAPE_DEG) * g
+	var rest_lower := Vector2(hinge_x - lower_len, bite_y)
+	var lower_tip := _rotate_about(rest_lower, Vector2(hinge_x, hinge_y), gape_angle)
+	lower_tip.x -= protr_amt
+
+	return {
+		"hinge": Vector2(hinge_x, hinge_y),
+		"upper_tip": upper_tip,
+		"lower_tip": lower_tip,
+		"gape_angle": gape_angle,
+		"bite_line_y": bite_y,
+	}
+
+static func _rotate_about(pt: Vector2, pivot: Vector2, ang: float) -> Vector2:
+	var d := pt - pivot
+	return pivot + Vector2(d.x * cos(ang) - d.y * sin(ang), d.x * sin(ang) + d.y * cos(ang))

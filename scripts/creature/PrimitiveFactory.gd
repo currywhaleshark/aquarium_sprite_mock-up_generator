@@ -57,6 +57,13 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	var bump_up := cos(bump_rad)
 	var bump_fwd := sin(bump_rad)
 	var mouth_center_y := float(sculpt.get("mouth_center_y", 0.0))
+	var lower_jaw_scale := clampf(float(sculpt.get("lower_jaw_scale", 1.0)), 0.45, 1.8)
+	# Phase 7: shared jaw linkage. premax_fwd is how far the upper jaw (premaxilla) is
+	# thrown forward at the current gape; 0 with the legacy default (jaw_protrusion 0),
+	# so the carve below is byte-identical unless protrusion is dialled in.
+	var jaw_gape := clampf(float(sculpt.get("mouth_open", 0.0)), 0.0, 1.0)
+	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, jaw_gape)
+	var premax_fwd: float = HeadProfile.JAW_SNOUT_FRONT_X - jaw_lm["upper_tip"].x
 
 	var grid := []
 	for i in range(rings + 1):
@@ -137,12 +144,20 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			# widens it across the mouth's z so it spans the mouth width, not a notch.
 			if shape != "cephalofoil" and x < 0.04:
 				var front_w := smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
-				var lower_edge := mouth_center_y - UPPER_JAW_CARVE_DEPTH
+				var carve_depth := UPPER_JAW_CARVE_DEPTH * lower_jaw_scale
+				var carve_half_width := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0))
+				var lower_edge := mouth_center_y - carve_depth
 				var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, y)
-				var center_w := 1.0 - clampf(absf(z) / UPPER_JAW_CARVE_HALF_WIDTH, 0.0, 1.0)
+				var center_w := 1.0 - clampf(absf(z) / carve_half_width, 0.0, 1.0)
 				var carve_w := front_w * lower_w * center_w
-				x += UPPER_JAW_CARVE_BACK * carve_w
-				y += UPPER_JAW_CARVE_UP * carve_w
+				x += UPPER_JAW_CARVE_BACK * lower_jaw_scale * carve_w
+				y += UPPER_JAW_CARVE_UP * lower_jaw_scale * carve_w
+
+			# 6b. Premaxilla protrusion: as the mouth opens, the upper jaw is thrown
+			# forward (the teleost protrusible-jaw tube). Pushes the snout-front region
+			# (-x) weighted by how close it is to the tip; no-op when jaw_protrusion = 0.
+			if shape != "cephalofoil" and premax_fwd > 0.0 and x < 0.1:
+				x -= premax_fwd * smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
 
 			ring_vertices.append(Vector3(x, y, z))
 		grid.append(ring_vertices)

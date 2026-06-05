@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b7jawlinkage7test"]
+
+[ext_resource type="Script" path="res://scripts/tools/JawLinkageTest.gd" id="1_jaw_linkage"]
+
+[node name="JawLinkageTest" type="Node"]
+script = ExtResource("1_jaw_linkage")

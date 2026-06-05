@@ -33,6 +33,10 @@ const NUMERIC_KEYS := {
 	"jaw_offset": {"min": -0.3, "max": 0.3, "step": 0.005},
 	"mouth_size": {"min": 0.02, "max": 0.24, "step": 0.005},
 	"mouth_open": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"jaw_hinge_x": {"min": -0.3, "max": 0.4, "step": 0.01},
+	"jaw_hinge_y": {"min": -0.15, "max": 0.15, "step": 0.01},
+	"jaw_protrusion": {"min": 0.0, "max": 0.3, "step": 0.01},
+	"lower_upper_ratio": {"min": 0.6, "max": 1.5, "step": 0.01},
 	"head_flattening": {"min": 0.0, "max": 0.65, "step": 0.005},
 	"snout_appendage_length": {"min": 0.05, "max": 0.8, "step": 0.005},
 	"eye_size": {"min": 0.01, "max": 0.16, "step": 0.005},
@@ -73,7 +77,7 @@ const FISH_SECTIONS := [
 	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length"]},
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
 	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},
-	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open"]},
+	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio"]},
 	{"title": "눈", "keys": ["eye_size", "eye_position_x", "eye_position_y", "eye_bulge"]},
 ]
 const RAY_SECTIONS := [
@@ -385,6 +389,8 @@ func _default_numeric(key: String) -> float:
 			return 35.0
 		"head_bump_round":
 			return 0.6
+		"lower_upper_ratio":
+			return 1.0
 	return 0.0
 
 func _emit_and_refresh() -> void:
