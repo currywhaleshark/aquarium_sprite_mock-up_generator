@@ -268,6 +268,15 @@ func _ready() -> void:
 	var high_jaw_y := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).position.y
 	assert(high_jaw_y > low_jaw_y + 0.03)
 
+	# get_jaw_hinge_world exposes the actual lower-jaw pivot (for the editor hinge marker)
+	# and tracks jaw_hinge_y: a higher hinge sits higher in world space.
+	var hinge_high_world := fish.get_jaw_hinge_world()
+	assert(not is_inf(hinge_high_world.x))
+	fish.set_parameters(jaw_low)
+	await get_tree().process_frame
+	var hinge_low_world := fish.get_jaw_hinge_world()
+	assert(hinge_high_world.y > hinge_low_world.y + 0.03)
+
 	var small_mouth: Dictionary = shell_neutral.duplicate(true)
 	small_mouth["mouth_open"] = 0.0
 	small_mouth["mouth_size"] = 0.06

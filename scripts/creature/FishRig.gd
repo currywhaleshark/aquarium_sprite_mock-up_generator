@@ -67,6 +67,10 @@ var pectoral_r_base_position := Vector3.ZERO
 var pectoral_l_base_rotation := Vector3.ZERO
 var pectoral_r_base_rotation := Vector3.ZERO
 var head_node: MeshInstance3D
+# Lower-jaw pivot (quadrate-articular joint) in head-LOCAL space, exposed so the editor
+# can mark where the hinge sits while the jaw_hinge_x/_y sliders are adjusted.
+var jaw_hinge_local := Vector3.ZERO
+var jaw_hinge_valid := false
 var eye_l: MeshInstance3D
 var eye_r: MeshInstance3D
 var eye_stalk_l: MeshInstance3D
@@ -96,6 +100,7 @@ func rebuild() -> void:
 	tail_fin = null
 	tail_fin_base_points = PackedVector3Array()
 	head_node = null
+	jaw_hinge_valid = false
 	eye_l = null
 	eye_r = null
 	eye_stalk_l = null
@@ -1097,6 +1102,20 @@ func get_drag_handles() -> Dictionary:
 		handles["eye_r"] = eye_r.global_position
 	return handles
 
+# Lower-jaw pivot in head-local space. Shared by _mouth_lower_jaw_mesh (which rotates the
+# jaw about it) and the editor hinge marker so the drawn point is the ACTUAL pivot.
+func _lower_jaw_hinge_local(origin: Vector3, jaw_scale: float, hinge_x_off: float, hinge_y_off: float) -> Vector3:
+	var scale := clampf(jaw_scale, 0.45, 1.8)
+	var depth := PF.UPPER_JAW_CARVE_DEPTH * scale * 1.2
+	return Vector3(maxf(0.18, origin.x + 0.42) + hinge_x_off, origin.y + depth * 0.06 + hinge_y_off, 0.0)
+
+# World position of the lower-jaw hinge, or Vector3.INF when there is no jaw (ray heads,
+# or before the first build). Used by DragHandlesOverlay to mark the hinge.
+func get_jaw_hinge_world() -> Vector3:
+	if not jaw_hinge_valid or head_node == null:
+		return Vector3.INF
+	return head_node.global_transform * jaw_hinge_local
+
 func move_eye(delta_x: float, delta_y: float) -> void:
 	parameters["eye_position_x"] = clampf(float(parameters.get("eye_position_x", -0.78)) + delta_x, -1.5, 0.2)
 	parameters["eye_position_y"] = clampf(float(parameters.get("eye_position_y", 0.12)) + delta_y, -0.5, 0.6)
@@ -1758,6 +1777,8 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	lower_jaw.material_override = lip_mat
 	lower_jaw.position = mouth_position
 	head.add_child(lower_jaw)
+	jaw_hinge_local = _lower_jaw_hinge_local(mouth_position, lower_jaw_scale, jaw_hinge_x_off, jaw_hinge_y_off)
+	jaw_hinge_valid = true
 
 	if not MOUTH_DECOR_ENABLED:
 		return
@@ -1866,10 +1887,12 @@ func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, m
 	var depth := PF.UPPER_JAW_CARVE_DEPTH * scale * 1.2
 	var z_radius := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((scale - 0.45) / 1.35, 0.0, 1.0)) * width_scale
 	# hinge_x_off lengthens the jaw (hinge further back -> bigger x_radius); hinge_y_off
-	# raises/lowers the whole jaw with its pivot. Phase 7 jaw_hinge_x/_y controls.
-	var top_y := center_y + depth * 0.06 + hinge_y_off
+	# raises/lowers the whole jaw with its pivot. Phase 7 jaw_hinge_x/_y controls. The pivot
+	# comes from the shared helper so the editor's hinge marker lands on the real pivot.
+	var hinge_pt := _lower_jaw_hinge_local(origin, jaw_scale, hinge_x_off, hinge_y_off)
+	var top_y := hinge_pt.y
 	var front_x := origin.x - 0.045
-	var hinge_x := maxf(0.18, origin.x + 0.42) + hinge_x_off
+	var hinge_x := hinge_pt.x
 	var center_x := (front_x + hinge_x) * 0.5
 	var x_radius := maxf((hinge_x - front_x) * 0.5, 0.18)
 	var hinge := Vector3(hinge_x, top_y, 0.0)

@@ -2,6 +2,9 @@ class_name HeadEditorPanel
 extends VBoxContainer
 
 signal parameters_changed(parameters: Dictionary)
+# Emitted when the user drags a numeric slider (not on programmatic sync), with the key.
+# Lets the preview show context indicators (e.g. the jaw-hinge marker) for the active key.
+signal numeric_slider_changed(key: String)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
@@ -222,6 +225,7 @@ func _add_numeric_row(parent: VBoxContainer, key: String, config: Dictionary) ->
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
 		if not _updating:
+			numeric_slider_changed.emit(key)
 			set_numeric_parameter(key, value)
 	)
 

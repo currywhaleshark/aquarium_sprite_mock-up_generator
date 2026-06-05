@@ -31,6 +31,7 @@ var camera: Camera3D
 var camera_controller: Node
 var fin_drag_controller: Node
 var drag_handles_overlay: Control
+var jaw_hinge_marker_timer: Timer
 var preview_bg: ColorRect
 var world_root: Node3D
 var current_rig: CreatureRig
@@ -135,6 +136,16 @@ func _build_ui() -> void:
 	drag_handles_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	drag_handles_overlay.visible = false
 	preview_stack.add_child(drag_handles_overlay)
+
+	# Auto-hides the jaw-hinge marker a moment after the last hinge-slider adjustment.
+	jaw_hinge_marker_timer = Timer.new()
+	jaw_hinge_marker_timer.one_shot = true
+	jaw_hinge_marker_timer.wait_time = 2.0
+	jaw_hinge_marker_timer.timeout.connect(func() -> void:
+		if drag_handles_overlay:
+			drag_handles_overlay.show_jaw_hinge = false
+	)
+	add_child(jaw_hinge_marker_timer)
 
 	reference_overlay = TextureRect.new()
 	reference_overlay.name = "ReferenceImageOverlay"
@@ -318,6 +329,7 @@ func _build_ui() -> void:
 	head_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
+	head_editor_panel.numeric_slider_changed.connect(_on_head_numeric_slider_changed)
 	editor_panel_stack.add_child(head_editor_panel)
 
 	body_edit_toggle = CheckButton.new()
@@ -1037,8 +1049,20 @@ func _set_head_edit_enabled(enabled: bool) -> void:
 		_select_exclusive_edit_toggle(head_edit_toggle)
 	if drag_handles_overlay:
 		drag_handles_overlay.draw_head = enabled
+		if not enabled:
+			drag_handles_overlay.show_jaw_hinge = false
 		_update_overlay_visibility()
 	_sync_edit_input_state()
+
+# Shows the jaw-hinge marker while the user is adjusting a hinge slider, and hides it once
+# they move to a different slider (or after the auto-hide timer elapses).
+func _on_head_numeric_slider_changed(key: String) -> void:
+	if drag_handles_overlay == null:
+		return
+	var is_hinge := key == "jaw_hinge_x" or key == "jaw_hinge_y"
+	drag_handles_overlay.show_jaw_hinge = is_hinge
+	if is_hinge and jaw_hinge_marker_timer:
+		jaw_hinge_marker_timer.start()
 
 func _set_body_edit_enabled(enabled: bool) -> void:
 	if body_editor_panel:

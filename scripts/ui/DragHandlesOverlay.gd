@@ -9,6 +9,9 @@ var fin_drag_controller: Node
 
 var draw_fins := false
 var draw_head := false
+# When true (set by Main while a jaw-hinge slider is being adjusted), an amber crosshair
+# marks the lower-jaw pivot so the user sees where jaw_hinge_x/_y move it.
+var show_jaw_hinge := false
 
 var hovered_handle := ""
 
@@ -120,6 +123,25 @@ func _draw() -> void:
 			
 			# Draw text
 			draw_string(font, text_pos, label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+
+	# Jaw-hinge marker: a distinct amber crosshair on the lower-jaw pivot, shown only while
+	# the jaw_hinge sliders are being adjusted. Not a draggable handle - just an indicator.
+	if show_jaw_hinge and draw_head and fish.has_method("get_jaw_hinge_world"):
+		var hinge_world: Vector3 = fish.get_jaw_hinge_world()
+		if not is_inf(hinge_world.x):
+			var hp := camera.unproject_position(hinge_world) * scale_factor
+			var amber := Color(1.0, 0.7, 0.1, 0.95)
+			draw_circle(hp, 9.0, Color(1.0, 0.7, 0.1, 0.22))
+			draw_arc(hp, 9.0, 0.0, TAU, 20, amber, 2.0)
+			draw_line(hp - Vector2(13, 0), hp + Vector2(13, 0), amber, 1.5)
+			draw_line(hp - Vector2(0, 13), hp + Vector2(0, 13), amber, 1.5)
+			var label := "턱 경첩"
+			var lsize: Vector2 = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+			var lpos := hp + Vector2(16, 4)
+			var lrect := Rect2(lpos - Vector2(6, 16), lsize + Vector2(12, 6))
+			draw_rect(lrect, Color(0, 0, 0, 0.7), true, 4.0)
+			draw_rect(lrect, amber, false, 1.0, 4.0)
+			draw_string(font, lpos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
 func _get_handle_label(handle_id: String) -> String:
 	match handle_id:
