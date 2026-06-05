@@ -223,6 +223,13 @@ func _ready() -> void:
 	var cavity_extent := _mesh_extent(cavity)
 	var dark_band_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D)
 	assert(cavity_extent.y > dark_band_extent.y * 1.5)
+	# The dark opening grows with mouth_open (it doesn't stay a fixed size).
+	var half_open: Dictionary = agape.duplicate(true)
+	half_open["mouth_open"] = 0.4
+	fish.set_parameters(half_open)
+	await get_tree().process_frame
+	var half_cavity_y := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D).y
+	assert(cavity_extent.y > half_cavity_y + 0.02)
 
 	# Premaxilla protrusion (Phase 7): a protrusible jaw throws the upper jaw FORWARD (-x)
 	# as the mouth opens, so the head's snout-front vertices advance. With no protrusion the
