@@ -164,10 +164,15 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			# grows taller/wider with gape; 0 when closed so the resting head is untouched. The
 			# dark socket lining (FishRig) uses the same HeadProfile.mouth_pit math to stay flush.
 			if shape != "cephalofoil" and jaw_gape > 0.0 and x < 0.1:
-				var pit_half_h := lerpf(0.03, UPPER_JAW_CARVE_DEPTH * 0.4, jaw_gape) * lower_jaw_scale
-				var pit_half_w := UPPER_JAW_CARVE_HALF_WIDTH * lower_jaw_scale * lerpf(0.55, 1.05, jaw_gape)
+				# The socket's TOP edge stays at the bite line (fixed upper jaw); it grows
+				# DOWNWARD with gape (following the dropping lower jaw), so the pit centre sits
+				# below the bite line by half the growing height.
+				var pit_h := lerpf(0.06, UPPER_JAW_CARVE_DEPTH * 1.7, jaw_gape) * lower_jaw_scale
+				var pit_half_h := pit_h * 0.5
+				var pit_center_y := mouth_center_y - pit_half_h
+				var pit_half_w := UPPER_JAW_CARVE_HALF_WIDTH * lower_jaw_scale * lerpf(0.5, 1.05, jaw_gape)
 				var pit_depth := UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale
-				var pit := HeadProfile.mouth_pit_offset(u, y, z, mouth_center_y, pit_half_h, pit_half_w, pit_depth, jaw_gape)
+				var pit := HeadProfile.mouth_pit_offset(u, y, z, pit_center_y, pit_half_h, pit_half_w, pit_depth, jaw_gape)
 				x += pit.x
 				y += pit.y
 				z += pit.z

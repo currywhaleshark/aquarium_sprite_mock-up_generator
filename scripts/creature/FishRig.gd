@@ -1793,12 +1793,16 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		# HeadProfile.mouth_pit math), sitting a hair proud of the dented shell so it shows.
 		# Because it lives inside a true concavity it reads as depth from any angle and never
 		# pokes out of the silhouette. Grows with mouth_open along with the pit.
-		var pit_half_h := lerpf(0.03, PF.UPPER_JAW_CARVE_DEPTH * 0.4, t) * lower_jaw_scale
-		var pit_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lower_jaw_scale * lerpf(0.55, 1.05, t)
+		# Top edge fixed at the bite line, growing DOWNWARD with gape to follow the lower jaw
+		# (must mirror PrimitiveFactory block 6c so the lining sits in the shell's dent).
+		var pit_h := lerpf(0.06, PF.UPPER_JAW_CARVE_DEPTH * 1.7, t) * lower_jaw_scale
+		var pit_half_h := pit_h * 0.5
+		var pit_center_y := my - pit_half_h
+		var pit_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lower_jaw_scale * lerpf(0.5, 1.05, t)
 		var pit_depth := PF.UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
-		cavity.mesh = _mouth_pit_dark_mesh(my, mouth_position, t, pit_half_h, pit_half_w, pit_depth, angle)
+		cavity.mesh = _mouth_pit_dark_mesh(pit_center_y, mouth_position, t, pit_half_h, pit_half_w, pit_depth, angle)
 		var cavity_mat := dark_mat.duplicate()
 		if cavity_mat is BaseMaterial3D:
 			cavity_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
