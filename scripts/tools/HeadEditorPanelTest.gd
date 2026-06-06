@@ -16,10 +16,18 @@ func _ready() -> void:
 		"head_offset": -0.58,
 		"eye_position_y": 0.12,
 		"snout_length": 0.0,
-		"mouth_size": 0.08
+		"mouth_size": 0.08,
+		"lower_jaw_length": 1.0,
+		"lower_jaw_angle": 0.0,
+		"lower_jaw_thickness": 1.0,
+		"lower_jaw_tip": 0.0
 	})
 	assert(not _has_numeric_slider(panel, "forehead_slope"))
 	assert(not _has_numeric_slider(panel, "snout_appendage_length"))
+	assert(_has_numeric_slider(panel, "lower_jaw_length"))
+	assert(_has_numeric_slider(panel, "lower_jaw_angle"))
+	assert(_has_numeric_slider(panel, "lower_jaw_thickness"))
+	assert(_has_numeric_slider(panel, "lower_jaw_tip"))
 	panel.set_head_shape("steep_forehead")
 	assert(_has_numeric_slider(panel, "forehead_slope"))
 	panel.set_mouth_type("inferior")
@@ -30,11 +38,23 @@ func _ready() -> void:
 	panel.set_numeric_parameter("snout_length", 0.24)
 	panel.set_numeric_parameter("head_offset", -0.72)
 	panel.set_numeric_parameter("eye_position_y", 0.2)
+	panel.set_numeric_parameter("lower_jaw_length", 1.4)
+	panel.set_numeric_parameter("lower_jaw_angle", 52.0)
+	panel.set_numeric_parameter("lower_jaw_thickness", 1.45)
+	panel.set_numeric_parameter("lower_jaw_tip", -0.75)
+	panel.set_numeric_parameter("jaw_hinge_x", 0.65)
+	panel.set_numeric_parameter("jaw_hinge_y", -0.26)
 	assert(String(seen[0].get("head_shape", "")) == "steep_forehead")
 	assert(String(seen[0].get("mouth_type", "")) == "inferior")
 	assert(abs(float(seen[0].get("snout_length", 0.0)) - 0.24) < 0.001)
 	assert(abs(float(seen[0].get("head_offset", 0.0)) + 0.72) < 0.001)
 	assert(abs(float(seen[0].get("eye_position_y", 0.0)) - 0.2) < 0.001)
+	assert(abs(float(seen[0].get("lower_jaw_length", 0.0)) - 1.4) < 0.001)
+	assert(abs(float(seen[0].get("lower_jaw_angle", 0.0)) - 52.0) < 0.001)
+	assert(abs(float(seen[0].get("lower_jaw_thickness", 0.0)) - 1.45) < 0.001)
+	assert(abs(float(seen[0].get("lower_jaw_tip", 0.0)) + 0.75) < 0.001)
+	assert(abs(float(seen[0].get("jaw_hinge_x", 0.0)) - 0.65) < 0.001)
+	assert(abs(float(seen[0].get("jaw_hinge_y", 0.0)) + 0.26) < 0.001)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_panel.ok", FileAccess.WRITE)

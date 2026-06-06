@@ -33,7 +33,7 @@ func _ready() -> void:
 	assert(barbels != null)
 	assert(barbels.get_child_count() >= 4)
 	assert(mouth_detail != null)
-	var mouth := fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D
+	var mouth := _mouth_anchor_node(fish)
 	assert(mouth != null)
 	assert(mouth.position.x < -0.48)
 	assert(absf(mouth.position.z) < 0.08)
@@ -97,3 +97,13 @@ func _max_abs_child_local_z(node: Node) -> float:
 		if child is Node3D:
 			max_z = maxf(max_z, absf((child as Node3D).position.z))
 	return max_z
+
+func _mouth_anchor_node(fish: Node) -> Node3D:
+	var mouth := fish.get_node_or_null("BodyPivot/Head/Mouth") as Node3D
+	if mouth != null:
+		return mouth
+	var lip := fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as Node3D
+	if lip != null:
+		return lip
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as Node3D
+	return cavity

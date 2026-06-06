@@ -12,10 +12,9 @@ const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
 const HEAD_U_SPAN := 0.25
 
 # Upper-jaw carve: the head's lower-front is PERMANENTLY cut into an upper-jaw biting
-# plane (the head IS the upper jaw). Sizes are in head-LOCAL units (head radius 0.5),
-# so the cut scales with the head, NOT with mouth_size - the carve is a head-shape
-# feature, while mouth_size/mouth_open drive the separate lower jaw + cheek. The lower
-# jaw fills this carved region when the mouth is closed so the head still reads whole.
+# plane (the head IS the upper jaw). Sizes are in head-LOCAL units (head radius 0.5).
+# mouth_size also scales the carve moderately so larger mouths reshape the upper-jaw
+# rim instead of only widening the dark interior decal.
 const UPPER_JAW_CARVE_DEPTH := 0.22       # how far below the bite line the cut reaches
 const UPPER_JAW_CARVE_BACK := 0.20        # max rearward (+x) push of the carved surface
 const UPPER_JAW_CARVE_UP := 0.13          # max upward (+y) push of the carved surface
@@ -58,6 +57,8 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	var bump_fwd := sin(bump_rad)
 	var mouth_center_y := float(sculpt.get("mouth_center_y", 0.0))
 	var lower_jaw_scale := clampf(float(sculpt.get("lower_jaw_scale", 1.0)), 0.45, 1.8)
+	var mouth_size_scale := clampf(float(sculpt.get("mouth_size", 0.08)) / 0.08, 0.65, 2.2)
+	var upper_carve_size_scale := lerpf(0.75, 1.35, clampf((mouth_size_scale - 0.65) / 1.55, 0.0, 1.0))
 	# Phase 7: shared jaw linkage. premax_fwd is how far the upper jaw (premaxilla) is
 	# thrown forward at the current gape; 0 with the legacy default (jaw_protrusion 0),
 	# so the carve below is byte-identical unless protrusion is dialled in.
@@ -144,14 +145,14 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			# widens it across the mouth's z so it spans the mouth width, not a notch.
 			if shape != "cephalofoil" and x < 0.04:
 				var front_w := smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
-				var carve_depth := UPPER_JAW_CARVE_DEPTH * lower_jaw_scale
-				var carve_half_width := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0))
+				var carve_depth := UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * upper_carve_size_scale
+				var carve_half_width := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * upper_carve_size_scale
 				var lower_edge := mouth_center_y - carve_depth
 				var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, y)
 				var center_w := 1.0 - clampf(absf(z) / carve_half_width, 0.0, 1.0)
 				var carve_w := front_w * lower_w * center_w
-				x += UPPER_JAW_CARVE_BACK * lower_jaw_scale * carve_w
-				y += UPPER_JAW_CARVE_UP * lower_jaw_scale * carve_w
+				x += UPPER_JAW_CARVE_BACK * lower_jaw_scale * upper_carve_size_scale * carve_w
+				y += UPPER_JAW_CARVE_UP * lower_jaw_scale * upper_carve_size_scale * carve_w
 
 			# 6b. Premaxilla protrusion: as the mouth opens, the upper jaw is thrown
 			# forward (the teleost protrusible-jaw tube). Pushes the snout-front region
@@ -164,14 +165,18 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			# grows taller/wider with gape; 0 when closed so the resting head is untouched. The
 			# dark socket lining (FishRig) uses the same HeadProfile.mouth_pit math to stay flush.
 			if shape != "cephalofoil" and jaw_gape > 0.0 and x < 0.1:
-				# The socket's TOP edge stays at the bite line (fixed upper jaw); it grows
-				# DOWNWARD with gape (following the dropping lower jaw), so the pit centre sits
-				# below the bite line by half the growing height.
-				var pit_h := lerpf(0.06, UPPER_JAW_CARVE_DEPTH * 1.7, jaw_gape) * lower_jaw_scale
-				var pit_half_h := pit_h * 0.5
-				var pit_center_y := mouth_center_y - pit_half_h
-				var pit_half_w := UPPER_JAW_CARVE_HALF_WIDTH * lower_jaw_scale * lerpf(0.5, 1.05, jaw_gape)
-				var pit_depth := UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale
+				var mouth_width_scale := mouth_size_scale
+				var mouth_depth_scale := lerpf(0.85, 1.25, clampf((mouth_width_scale - 0.65) / 1.55, 0.0, 1.0))
+				
+				var buffer_y: float = 0.03 * lower_jaw_scale * sqrt(mouth_width_scale)
+				var pit_top: float = (jaw_lm["upper_tip"] as Vector2).y + buffer_y
+				var pit_bottom: float = (jaw_lm["lower_tip"] as Vector2).y - buffer_y
+				var pit_h: float = pit_top - pit_bottom
+				var pit_half_h: float = pit_h * 0.5
+				var pit_center_y: float = (pit_top + pit_bottom) * 0.5
+				var lower_jaw_half_w := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * mouth_width_scale
+				var pit_half_w := lower_jaw_half_w * 0.84
+				var pit_depth := UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale * mouth_depth_scale
 				var pit := HeadProfile.mouth_pit_offset(u, y, z, pit_center_y, pit_half_h, pit_half_w, pit_depth, jaw_gape)
 				x += pit.x
 				y += pit.y

@@ -1766,6 +1766,11 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# enabled) both lip bands so they pivot about one corner.
 	var hinge_x := mouth_size * MOUTH_HINGE_FRAC
 	var lower_jaw_scale := _head_lower_jaw_scale()
+	var lower_jaw_length := clampf(param_float("lower_jaw_length", 1.0), 0.6, 1.6)
+	var lower_jaw_angle := clampf(param_float("lower_jaw_angle", 0.0), -60.0, 60.0)
+	var lower_jaw_thickness := clampf(param_float("lower_jaw_thickness", 1.0), 0.5, 1.8)
+	var lower_jaw_tip := clampf(param_float("lower_jaw_tip", 0.0), -1.0, 1.0)
+	var lower_jaw_open_deg := open_deg - lower_jaw_angle
 
 	# The lower jaw is a wide front face that FILLS the head's carved upper-jaw void when
 	# closed - it samples the analytic, un-carved silhouette (clamp_surface = false) from the
@@ -1777,7 +1782,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# The lower jaw drops the full gape so it clears the dark socket (no teal bar across the
 	# mouth); it is built shallower (see _mouth_lower_jaw_mesh) so the dropped jaw still reads
 	# as a chin/lower lip without swinging far past the round silhouette.
-	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd)
+	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip)
 	lower_jaw.material_override = lip_mat
 	lower_jaw.position = mouth_position
 	head.add_child(lower_jaw)
@@ -1795,14 +1800,21 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		# pokes out of the silhouette. Grows with mouth_open along with the pit.
 		# Top edge fixed at the bite line, growing DOWNWARD with gape to follow the lower jaw
 		# (must mirror PrimitiveFactory block 6c so the lining sits in the shell's dent).
-		var pit_h := lerpf(0.06, PF.UPPER_JAW_CARVE_DEPTH * 1.7, t) * lower_jaw_scale
-		var pit_half_h := pit_h * 0.5
-		var pit_center_y := my - pit_half_h
-		var pit_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lower_jaw_scale * lerpf(0.5, 1.05, t)
-		var pit_depth := PF.UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale
+		var mouth_width_scale := clampf(mouth_size / 0.08, 0.45, 2.2)
+		var mouth_depth_scale := lerpf(0.85, 1.25, clampf((mouth_width_scale - 0.65) / 1.55, 0.0, 1.0))
+		
+		var buffer_y: float = 0.03 * lower_jaw_scale * sqrt(mouth_width_scale)
+		var pit_top: float = (jaw_lm["upper_tip"] as Vector2).y + buffer_y
+		var pit_bottom: float = (jaw_lm["lower_tip"] as Vector2).y - buffer_y
+		var pit_h: float = pit_top - pit_bottom
+		var pit_half_h: float = pit_h * 0.5
+		var pit_center_y: float = (pit_top + pit_bottom) * 0.5
+		var lower_jaw_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * mouth_width_scale
+		var pit_half_w := lower_jaw_half_w * 0.84
+		var pit_depth := PF.UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale * mouth_depth_scale
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
-		cavity.mesh = _mouth_pit_dark_mesh(pit_center_y, mouth_position, t, pit_half_h, pit_half_w, pit_depth, angle)
+		cavity.mesh = _mouth_pit_dark_mesh(pit_center_y, mouth_position, t, pit_half_h, pit_half_w, pit_depth, angle, head_verts)
 		var cavity_mat := dark_mat.duplicate()
 		if cavity_mat is BaseMaterial3D:
 			cavity_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -1810,12 +1822,22 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		cavity.position = mouth_position
 		head.add_child(cavity)
 
+		var upper_interior := MeshInstance3D.new()
+		upper_interior.name = "MouthUpperInterior"
+		upper_interior.mesh = _mouth_upper_interior_mesh(mouth_position, mouth_size, t, lower_jaw_scale, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, head_verts)
+		var upper_interior_mat := dark_mat.duplicate()
+		if upper_interior_mat is BaseMaterial3D:
+			upper_interior_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		upper_interior.material_override = upper_interior_mat
+		upper_interior.position = mouth_position
+		head.add_child(upper_interior)
+
 		# Dark mouth floor: a dark lining over the lower jaw's upper (inner) face that HINGES
 		# down with the jaw (same open angle/hinge), so the mouth interior is dark on the floor
 		# too, not just the roof. A shallower dome nested just above the jaw's inner surface.
 		var floor := MeshInstance3D.new()
 		floor.name = "MouthFloor"
-		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd)
+		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip)
 		var floor_mat := dark_mat.duplicate()
 		if floor_mat is BaseMaterial3D:
 			floor_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -1831,14 +1853,16 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	var lip_h := mouth_size * 0.28
 	var z_half := mouth_size * 0.95
 
-	# Dark interior band: the upper edge stays fixed on the carved upper jaw; only the lower
-	# edge drops with mouth_open so the upper jaw reads as stationary.
-	var mouth := MeshInstance3D.new()
-	mouth.name = "Mouth"
-	mouth.mesh = _mouth_band_mesh(my, mouth_position, -lower_open_y, upper_open_y, z_half, mouth_size * 0.03, 0.0, 0.0, angle, true, head_verts)
-	mouth.material_override = dark_mat
-	mouth.position = mouth_position
-	head.add_child(mouth)
+	# Closed-mouth dark slit. Once the mouth opens, the true concave MouthCavity and
+	# MouthFloor own the interior shadow; keeping this surface decal would darken the upper
+	# jaw face and, on long tapered snouts, read as a torn patch.
+	if t <= 0.01:
+		var mouth := MeshInstance3D.new()
+		mouth.name = "Mouth"
+		mouth.mesh = _mouth_band_mesh(my, mouth_position, -lower_open_y, upper_open_y, z_half, mouth_size * 0.03, 0.0, 0.0, angle, true, head_verts)
+		mouth.material_override = dark_mat
+		mouth.position = mouth_position
+		head.add_child(mouth)
 
 	# Only the upper lip remains as a thin frame on the snout above the mouth; the lower lip is
 	# the separate lower-jaw mesh (a teal band inside the dark socket read as a bar, so it was
@@ -1846,10 +1870,11 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	var jaws := [
 		{"name": "MouthLipUpper", "lo": upper_open_y, "hi": upper_open_y + lip_h, "open": 0.0},
 	]
+	var upper_lip_recess_x := maxf(mouth_size - 0.08, 0.0) * 0.28
 	for jw in jaws:
 		var lip := MeshInstance3D.new()
 		lip.name = String(jw["name"])
-		lip.mesh = _mouth_band_mesh(my, mouth_position, float(jw["lo"]), float(jw["hi"]), z_half * 0.98, mouth_size * 0.06, hinge_x, float(jw["open"]), angle, true, head_verts)
+		lip.mesh = _mouth_band_mesh(my, mouth_position, float(jw["lo"]), float(jw["hi"]), z_half * 0.98, mouth_size * 0.06, hinge_x, float(jw["open"]), angle, true, head_verts, 10, upper_lip_recess_x)
 		lip.material_override = lip_mat
 		lip.position = mouth_position
 		head.add_child(lip)
@@ -1860,7 +1885,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 # behind the mouth) and the mouth-type tilt (`tilt_deg` about the origin) are baked in; when
 # `clamp_surface` is set, each vertex is pulled forward so it never sinks behind the head
 # front surface (the jaw slides along the snout as it gapes instead of burying into it).
-func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float, z_half: float, outset: float, hinge_x: float = 0.0, open_deg: float = 0.0, tilt_deg: float = 0.0, clamp_surface: bool = false, head_verts: PackedVector3Array = PackedVector3Array(), z_segs: int = 10) -> ArrayMesh:
+func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float, z_half: float, outset: float, hinge_x: float = 0.0, open_deg: float = 0.0, tilt_deg: float = 0.0, clamp_surface: bool = false, head_verts: PackedVector3Array = PackedVector3Array(), z_segs: int = 10, recess_x: float = 0.0) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var hinge_world_x := origin.x + hinge_x
@@ -1885,7 +1910,8 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 				p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
 				p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
 			if clamp_surface:
-				p.x = minf(p.x, _head_mesh_front_x(head_verts, p.y, p.z, outset))
+				p.x = _head_mesh_front_x(head_verts, p.y, p.z, outset)
+			p.x += recess_x
 			line.append(p - origin)
 		grid.append(line)
 	for j in range(z_segs):
@@ -1902,18 +1928,60 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 # analytic head front, applies the SAME HeadProfile.mouth_pit dent (a hair shallower so it sits
 # just proud of the dented shell), and emits it dark. Smooth (analytic, no nearest-vertex
 # jaggies), recessed (lives in the pit, never pokes out), and grows with gape.
-func _mouth_pit_dark_mesh(center_y: float, origin: Vector3, gape_t: float, half_h: float, half_w: float, depth: float, tilt_deg: float, rows: int = 8, cols: int = 12) -> ArrayMesh:
+func _mouth_pit_dark_mesh(center_y: float, origin: Vector3, gape_t: float, half_h: float, half_w: float, depth: float, tilt_deg: float, head_verts: PackedVector3Array = PackedVector3Array(), rows: int = 8, cols: int = 12) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var tilt_r := deg_to_rad(tilt_deg)
 	var g := clampf(gape_t, 0.0, 1.0)
 	var top := center_y + half_h
 	var bottom := center_y - half_h
+
+	# Fetch sculpt params and calculate protrusion parameters to match PrimitiveFactory.gd
+	var sculpt := _head_sculpt_params()
+	var lower_jaw_scale: float = sculpt["lower_jaw_scale"]
+	var mouth_center_y: float = sculpt["mouth_center_y"]
+	var mouth_size_scale := clampf(float(sculpt.get("mouth_size", 0.08)) / 0.08, 0.65, 2.2)
+	var upper_carve_size_scale := lerpf(0.75, 1.35, clampf((mouth_size_scale - 0.65) / 1.55, 0.0, 1.0))
+	var shape := String(parameters.get("head_shape", "rounded"))
+
+	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, g)
+	var premax_fwd: float = HeadProfile.JAW_SNOUT_FRONT_X - jaw_lm["upper_tip"].x
+	var shift := _snout_tip_displacement()
+
 	var sample := func(ay: float, az: float) -> Vector3:
-		var base_x := _head_front_surface_x(ay, az, 0.0)
-		var u := base_x + 0.5
-		var off := HeadProfile.mouth_pit_offset(u, ay, az, center_y, half_h, half_w, depth * 0.85, g)
-		var p := Vector3(base_x + off.x - 0.004, ay + off.y, az + off.z)
+		# 1. Unshift y to get the correct base coordinate on the sphere before snout curve/shift
+		var ay_unshifted := ay - shift
+		var base_x := _head_front_surface_x(ay_unshifted, az, 0.0)
+		
+		# 2. Get the base sphere 'u' coordinate (matching PrimitiveFactory.gd line 79)
+		var x_sq := maxf(0.25 - ay_unshifted * ay_unshifted - az * az, 0.0)
+		var x_sphere := -sqrt(x_sq)
+		var u_base := x_sphere + 0.5
+		
+		# 3. Apply Upper-Jaw Carve (mirrors PrimitiveFactory.gd lines 145-154)
+		var cx := base_x
+		var cy := ay
+		if shape != "cephalofoil" and cx < 0.04:
+			var front_w := smoothstep(PF.UPPER_JAW_CARVE_LENGTH, 0.0, u_base)
+			var carve_depth := PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * upper_carve_size_scale
+			var carve_half_width := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * upper_carve_size_scale
+			var lower_edge := mouth_center_y - carve_depth
+			var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, cy)
+			var center_w := 1.0 - clampf(absf(az) / carve_half_width, 0.0, 1.0)
+			var carve_w := front_w * lower_w * center_w
+			cx += PF.UPPER_JAW_CARVE_BACK * lower_jaw_scale * upper_carve_size_scale * carve_w
+			cy += PF.UPPER_JAW_CARVE_UP * lower_jaw_scale * upper_carve_size_scale * carve_w
+			
+		# 4. Apply Premaxilla Protrusion (mirrors PrimitiveFactory.gd lines 159-160)
+		if shape != "cephalofoil" and premax_fwd > 0.0 and cx < 0.1:
+			cx -= premax_fwd * smoothstep(PF.UPPER_JAW_CARVE_LENGTH, 0.0, u_base)
+			
+		# 5. Apply Real Mouth Pit Offset (mirrors PrimitiveFactory.gd lines 166-178)
+		var off := HeadProfile.mouth_pit_offset(u_base, cy, az, center_y, half_h, half_w, depth * 0.85, g)
+		var p := Vector3(cx + off.x - 0.004, cy + off.y, az + off.z)
+		if not head_verts.is_empty():
+			p.x = minf(p.x, _head_mesh_front_x(head_verts, p.y, p.z, 0.006))
+
 		if tilt_r != 0.0:
 			var tx := p.x - origin.x
 			var ty := p.y - origin.y
@@ -1943,12 +2011,62 @@ func _mouth_pit_dark_mesh(center_y: float, origin: Vector3, gape_t: float, half_
 	st.generate_normals()
 	return st.commit()
 
-func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, ring_count: int = 7, segments: int = 18) -> ArrayMesh:
+func _mouth_upper_interior_mesh(origin: Vector3, mouth_size: float, gape_t: float, jaw_scale: float, tilt_deg: float, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, head_verts: PackedVector3Array = PackedVector3Array()) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var g := clampf(gape_t, 0.0, 1.0)
+	var hinge_pt := _lower_jaw_hinge_local(origin, jaw_scale, hinge_x_off, hinge_y_off)
+	var rear_x := hinge_pt.x - 0.025
+	var front_x := origin.x - front_extend * 0.25 + mouth_size * 0.03
+	var length_mul := clampf(length_scale, 0.6, 1.6)
+	rear_x = front_x + (rear_x - front_x) * length_mul
+	rear_x = maxf(rear_x, front_x + mouth_size * 1.35)
+	var top_front_y := origin.y + mouth_size * 0.08
+	var top_rear_y := origin.y + mouth_size * 0.02
+	var bottom_front_y := origin.y - mouth_size * lerpf(0.34, 0.76, g)
+	var bottom_rear_y := origin.y - mouth_size * lerpf(0.22, 0.54, g)
+	var half_z := maxf(mouth_size * 0.18, 0.018)
+	var tilt_r := deg_to_rad(tilt_deg)
+	var rows := 4
+	var cols := 4
+	var grid := []
+	for i in range(rows + 1):
+		var v := float(i) / float(rows)
+		var x := lerpf(front_x, rear_x, v)
+		var top_y := lerpf(top_front_y, top_rear_y, v)
+		var bottom_y := lerpf(bottom_front_y, bottom_rear_y, v)
+		var line := []
+		for j in range(cols + 1):
+			var h := float(j) / float(cols)
+			var y := lerpf(top_y, bottom_y, h)
+			var side := (h - 0.5) * 2.0
+			var z := side * half_z * sin(PI * v)
+			var p := Vector3(x, y, z)
+			if not head_verts.is_empty():
+				p.x = minf(p.x, _head_mesh_front_x(head_verts, p.y, p.z, 0.006))
+			if tilt_r != 0.0:
+				p = _rotate_mouth_point(p, origin, tilt_r)
+			line.append(p - origin)
+		grid.append(line)
+	for i in range(rows):
+		for j in range(cols):
+			var p00: Vector3 = grid[i][j]
+			var p01: Vector3 = grid[i][j + 1]
+			var p10: Vector3 = grid[i + 1][j]
+			var p11: Vector3 = grid[i + 1][j + 1]
+			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
+			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
+	st.generate_normals()
+	return st.commit()
+
+func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, thickness_scale: float = 1.0, tip_shape: float = 0.0, ring_count: int = 7, segments: int = 18) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var scale := clampf(jaw_scale, 0.45, 1.8)
 	var width_scale := clampf(mouth_size / 0.08, 0.45, 2.2)
-	var depth := PF.UPPER_JAW_CARVE_DEPTH * scale * 1.2
+	var thickness := clampf(thickness_scale, 0.5, 1.8)
+	var tip := clampf(tip_shape, -1.0, 1.0)
+	var depth := PF.UPPER_JAW_CARVE_DEPTH * scale * 1.2 * thickness
 	var z_radius := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((scale - 0.45) / 1.35, 0.0, 1.0)) * width_scale
 	# hinge_x_off lengthens the jaw (hinge further back -> bigger x_radius); hinge_y_off
 	# raises/lowers the whole jaw with its pivot. Phase 7 jaw_hinge_x/_y controls. The pivot
@@ -1957,8 +2075,9 @@ func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, m
 	var top_y := hinge_pt.y
 	# front_extend reaches the jaw tip forward (toward the protruded premaxilla) while the
 	# hinge stays fixed, so the lower jaw lengthens into the tube rather than translating.
-	var front_x := origin.x - 0.045 - front_extend
 	var hinge_x := hinge_pt.x
+	var base_front_x := origin.x - 0.045 - front_extend
+	var front_x := hinge_x - (hinge_x - base_front_x) * clampf(length_scale, 0.6, 1.6)
 	var center_x := (front_x + hinge_x) * 0.5
 	var x_radius := maxf((hinge_x - front_x) * 0.5, 0.18)
 	var hinge := Vector3(hinge_x, top_y, 0.0)
@@ -1980,7 +2099,13 @@ func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, m
 		var row := []
 		for j in range(segments + 1):
 			var theta := TAU * float(j) / float(segments)
-			var p := Vector3(center_x + x_radius * row_radius * cos(theta), y, z_radius * row_radius * sin(theta))
+			var base_x_offset := x_radius * row_radius * cos(theta)
+			var front_t := clampf((center_x + base_x_offset - front_x) / maxf(hinge_x - front_x, 0.001), 0.0, 1.0)
+			var pointed_w := lerpf(0.22, 1.0, pow(front_t, 0.65))
+			var blunt_w := lerpf(1.28, 1.0, pow(front_t, 1.8))
+			var tip_w := lerpf(1.0, pointed_w, -tip) if tip < 0.0 else lerpf(1.0, blunt_w, tip)
+			var x_tip_push := (1.0 - front_t) * maxf(tip, 0.0) * x_radius * 0.16
+			var p := Vector3(center_x + base_x_offset + x_tip_push, y, z_radius * row_radius * sin(theta) * tip_w)
 			if open_r != 0.0:
 				var dx := p.x - hinge.x
 				var dy := p.y - hinge.y

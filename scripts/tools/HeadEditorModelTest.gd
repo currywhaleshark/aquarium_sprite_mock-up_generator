@@ -1,6 +1,7 @@
 extends Node
 
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
+const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 
 func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
@@ -15,6 +16,7 @@ func _ready() -> void:
 		"forehead_slope": 0.65,
 		"jaw_offset": -0.09,
 		"mouth_size": 0.12,
+		"mouth_open": 0.0,
 		"head_flattening": 0.1
 	})
 	await get_tree().process_frame
@@ -187,6 +189,7 @@ func _ready() -> void:
 	var closed_lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
 	# A fully closed mouth gets no dark cavity (it could otherwise peek out of a shut mouth).
 	assert(fish.get_node_or_null("BodyPivot/Head/MouthCavity") == null)
+	var closed_dark_band_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D)
 	var lower_jaw_extent := _mesh_extent(closed_lower_jaw)
 	assert(lower_jaw_extent.x > 0.35)
 	assert(lower_jaw_extent.y > 0.16)
@@ -215,9 +218,9 @@ func _ready() -> void:
 	# mouth_size dark band) so the opening reads as a deep recess, not the body-coloured roof.
 	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
 	assert(cavity != null)
+	assert(fish.get_node_or_null("BodyPivot/Head/Mouth") == null)
 	var cavity_extent := _mesh_extent(cavity)
-	var dark_band_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D)
-	assert(cavity_extent.y > dark_band_extent.y * 1.5)
+	assert(cavity_extent.y > closed_dark_band_extent.y * 1.5)
 	# The dark opening grows with mouth_open (it doesn't stay a fixed size).
 	var half_open: Dictionary = agape.duplicate(true)
 	half_open["mouth_open"] = 0.4
@@ -322,6 +325,98 @@ func _ready() -> void:
 	var large_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
 	assert(absf(large_jaw_extent.y - small_jaw_extent.y) < 0.01)
 	assert(large_jaw_extent.z > small_jaw_extent.z * 1.5)
+
+	var small_open_mouth: Dictionary = shell_neutral.duplicate(true)
+	small_open_mouth["mouth_open"] = 1.0
+	small_open_mouth["mouth_size"] = 0.06
+	fish.set_parameters(small_open_mouth)
+	await get_tree().process_frame
+	var small_upper_recess := _upper_jaw_recess_x(fish)
+	var small_upper_lip_x := _upper_lip_center_x(fish)
+	var large_open_mouth: Dictionary = small_open_mouth.duplicate(true)
+	large_open_mouth["mouth_size"] = 0.2
+	fish.set_parameters(large_open_mouth)
+	await get_tree().process_frame
+	var large_upper_recess := _upper_jaw_recess_x(fish)
+	var large_upper_lip_x := _upper_lip_center_x(fish)
+	var large_open_cavity_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D)
+	var large_open_lower_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
+	assert(large_upper_recess > small_upper_recess + 0.03)
+	assert(large_upper_lip_x > small_upper_lip_x + 0.02)
+	assert(large_open_cavity_extent.z < large_open_lower_jaw_extent.z * 0.92)
+
+	# Arowana preset regression: its long, tapered snout makes the real upper-jaw surface
+	# narrower than the old analytic mouth-cavity estimate. The dark cavity must stay within
+	# the actual head silhouette at the same mouth heights, or it bleeds through the upper jaw
+	# and reads as a torn shadow.
+	var arowana_preset := PresetStoreScript.load_preset("res://presets/아로와나.json")
+	assert(not arowana_preset.is_empty())
+	var arowana_params: Dictionary = arowana_preset.get("parameters", {}).duplicate(true)
+	arowana_params["mouth_open"] = 1.0
+	fish.set_parameters(arowana_params)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert(fish.get_node_or_null("BodyPivot/Head/Mouth") == null)
+	assert(_mouth_cavity_head_z_leak(fish) <= 0.015)
+	assert(_mouth_cavity_visible_x_extent(fish) > 0.16)
+	assert(_mouth_cavity_head_x_burial(fish) <= 0.012)
+	var upper_interior := fish.get_node_or_null("BodyPivot/Head/MouthUpperInterior") as MeshInstance3D
+	assert(upper_interior != null)
+	var upper_interior_extent := _mesh_extent(upper_interior)
+	assert(upper_interior_extent.x > 0.28)
+	assert(upper_interior_extent.y > 0.18)
+
+	var short_lower_jaw: Dictionary = shell_neutral.duplicate(true)
+	short_lower_jaw["mouth_open"] = 0.2
+	short_lower_jaw["lower_jaw_length"] = 0.65
+	fish.set_parameters(short_lower_jaw)
+	await get_tree().process_frame
+	var short_lower_jaw_x := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).x
+	var long_lower_jaw: Dictionary = short_lower_jaw.duplicate(true)
+	long_lower_jaw["lower_jaw_length"] = 1.55
+	fish.set_parameters(long_lower_jaw)
+	await get_tree().process_frame
+	var long_lower_jaw_x := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).x
+	assert(long_lower_jaw_x > short_lower_jaw_x * 1.35)
+
+	var jaw_angle_down: Dictionary = shell_neutral.duplicate(true)
+	jaw_angle_down["mouth_open"] = 0.0
+	jaw_angle_down["lower_jaw_angle"] = -25.0
+	fish.set_parameters(jaw_angle_down)
+	await get_tree().process_frame
+	var down_angle_front_y := _node_front_point(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).y
+	var jaw_angle_up: Dictionary = jaw_angle_down.duplicate(true)
+	jaw_angle_up["lower_jaw_angle"] = 25.0
+	fish.set_parameters(jaw_angle_up)
+	await get_tree().process_frame
+	var up_angle_front_y := _node_front_point(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).y
+	assert(up_angle_front_y > down_angle_front_y + 0.12)
+
+	var thin_lower_jaw: Dictionary = shell_neutral.duplicate(true)
+	thin_lower_jaw["mouth_open"] = 0.0
+	thin_lower_jaw["lower_jaw_thickness"] = 0.55
+	fish.set_parameters(thin_lower_jaw)
+	await get_tree().process_frame
+	var thin_lower_jaw_y := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).y
+	var thick_lower_jaw: Dictionary = thin_lower_jaw.duplicate(true)
+	thick_lower_jaw["lower_jaw_thickness"] = 1.7
+	fish.set_parameters(thick_lower_jaw)
+	await get_tree().process_frame
+	var thick_lower_jaw_y := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D).y
+	assert(thick_lower_jaw_y > thin_lower_jaw_y * 1.45)
+
+	var pointed_lower_jaw: Dictionary = shell_neutral.duplicate(true)
+	pointed_lower_jaw["mouth_open"] = 0.0
+	pointed_lower_jaw["lower_jaw_tip"] = -1.0
+	fish.set_parameters(pointed_lower_jaw)
+	await get_tree().process_frame
+	var pointed_tip_z := _lower_jaw_front_z_extent(fish)
+	var blunt_lower_jaw: Dictionary = pointed_lower_jaw.duplicate(true)
+	blunt_lower_jaw["lower_jaw_tip"] = 1.0
+	fish.set_parameters(blunt_lower_jaw)
+	await get_tree().process_frame
+	var blunt_tip_z := _lower_jaw_front_z_extent(fish)
+	assert(blunt_tip_z > pointed_tip_z * 1.6)
 
 	var shallow_head: Dictionary = shell_neutral.duplicate(true)
 	shallow_head["mouth_open"] = 0.0
@@ -452,17 +547,18 @@ func _body_profile_with_head_lower(parameters: Dictionary, lower_height: float) 
 
 func _head_upper_mouth_point(fish) -> Vector3:
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
-	var mouth := fish.get_node_or_null("BodyPivot/Head/Mouth") as MeshInstance3D
+	var mouth_anchor := _mouth_anchor_node(fish)
 	var verts: PackedVector3Array = head.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var xf := head.global_transform
-	var mouth_y := mouth.global_position.y
+	var mouth_y := mouth_anchor.global_position.y
+	var mouth_z := mouth_anchor.global_position.z
 	var min_x := INF
 	var point := Vector3.ZERO
 	for v in verts:
 		var w := xf * v
 		if w.y < mouth_y:
 			continue
-		if absf(w.z - mouth.global_position.z) > head.scale.z * 0.16:
+		if absf(w.z - mouth_z) > head.scale.z * 0.16:
 			continue
 		if w.x < min_x:
 			min_x = w.x
@@ -472,6 +568,133 @@ func _head_upper_mouth_point(fish) -> Vector3:
 func _head_vertices(head: MeshInstance3D) -> PackedVector3Array:
 	var arr_mesh := head.mesh as ArrayMesh
 	return arr_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+
+func _upper_jaw_recess_x(fish) -> float:
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var mouth_anchor := _mouth_anchor_node(fish)
+	var verts := _head_vertices(head)
+	var to_head := head.global_transform.affine_inverse() * mouth_anchor.global_transform
+	var mouth_y := to_head.origin.y
+	var max_x := -INF
+	for v in verts:
+		if v.x > 0.08:
+			continue
+		if absf(v.z) > 0.055:
+			continue
+		if v.y < mouth_y - 0.12 or v.y > mouth_y + 0.08:
+			continue
+		max_x = maxf(max_x, v.x)
+	assert(max_x > -INF)
+	return max_x
+
+func _mouth_anchor_node(fish) -> Node3D:
+	var mouth := fish.get_node_or_null("BodyPivot/Head/Mouth") as Node3D
+	if mouth != null:
+		return mouth
+	var lip := fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as Node3D
+	if lip != null:
+		return lip
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as Node3D
+	assert(cavity != null)
+	return cavity
+
+func _upper_lip_center_x(fish) -> float:
+	var head := fish.get_node_or_null("BodyPivot/Head") as Node3D
+	var lip := fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D
+	var verts: PackedVector3Array = lip.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var to_head := head.global_transform.affine_inverse() * lip.global_transform
+	var total := 0.0
+	var count := 0
+	for v in verts:
+		if absf(v.z) > 0.015:
+			continue
+		total += (to_head * v).x
+		count += 1
+	assert(count > 0)
+	return total / float(count)
+
+func _lower_jaw_front_z_extent(fish) -> float:
+	var jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
+	var verts: PackedVector3Array = jaw.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var min_x := INF
+	for v in verts:
+		min_x = minf(min_x, v.x)
+	var min_z := INF
+	var max_z := -INF
+	for v in verts:
+		if absf(v.x - min_x) > 0.025:
+			continue
+		min_z = minf(min_z, v.z)
+		max_z = maxf(max_z, v.z)
+	return max_z - min_z
+
+func _mouth_cavity_head_z_leak(fish) -> float:
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	assert(head != null)
+	assert(cavity != null)
+	var head_verts := _head_vertices(head)
+	var cavity_verts: PackedVector3Array = cavity.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var to_head := head.global_transform.affine_inverse() * cavity.global_transform
+	var max_leak := 0.0
+	for cv in cavity_verts:
+		var p: Vector3 = to_head * cv
+		var head_z := 0.0
+		for hv in head_verts:
+			if hv.x > 0.12:
+				continue
+			if absf(hv.y - p.y) > 0.045:
+				continue
+			head_z = maxf(head_z, absf(hv.z))
+		if head_z <= 0.0:
+			continue
+		max_leak = maxf(max_leak, absf(p.z) - head_z)
+	return max_leak
+
+func _mouth_cavity_visible_x_extent(fish) -> float:
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	assert(head != null)
+	assert(cavity != null)
+	var verts: PackedVector3Array = cavity.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var to_head := head.global_transform.affine_inverse() * cavity.global_transform
+	var min_x := INF
+	var max_x := -INF
+	for v in verts:
+		var p: Vector3 = to_head * v
+		if absf(p.z) > 0.035:
+			continue
+		min_x = minf(min_x, p.x)
+		max_x = maxf(max_x, p.x)
+	assert(min_x < INF)
+	return max_x - min_x
+
+func _mouth_cavity_head_x_burial(fish) -> float:
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	assert(head != null)
+	assert(cavity != null)
+	var head_verts := _head_vertices(head)
+	var cavity_verts: PackedVector3Array = cavity.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var to_head := head.global_transform.affine_inverse() * cavity.global_transform
+	var max_burial := 0.0
+	for cv in cavity_verts:
+		var p: Vector3 = to_head * cv
+		var best_d := INF
+		var front_x := INF
+		for hv in head_verts:
+			if hv.x > 0.18:
+				continue
+			var dy := hv.y - p.y
+			var dz := hv.z - p.z
+			var d := dy * dy + dz * dz
+			if d < best_d:
+				best_d = d
+				front_x = hv.x
+		if front_x == INF:
+			continue
+		max_burial = maxf(max_burial, p.x - front_x)
+	return max_burial
 
 func _front_tip_min_y(verts: PackedVector3Array) -> float:
 	var min_y := INF
