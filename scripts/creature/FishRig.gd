@@ -1810,6 +1810,19 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		cavity.position = mouth_position
 		head.add_child(cavity)
 
+		# Dark mouth floor: a dark lining over the lower jaw's upper (inner) face that HINGES
+		# down with the jaw (same open angle/hinge), so the mouth interior is dark on the floor
+		# too, not just the roof. A shallower dome nested just above the jaw's inner surface.
+		var floor := MeshInstance3D.new()
+		floor.name = "MouthFloor"
+		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd)
+		var floor_mat := dark_mat.duplicate()
+		if floor_mat is BaseMaterial3D:
+			floor_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		floor.material_override = floor_mat
+		floor.position = mouth_position + Vector3(0.0, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * 0.06, 0.0)
+		head.add_child(floor)
+
 	if not MOUTH_DECOR_ENABLED:
 		return
 
