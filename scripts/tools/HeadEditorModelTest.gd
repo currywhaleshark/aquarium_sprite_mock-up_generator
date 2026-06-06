@@ -365,6 +365,12 @@ func _ready() -> void:
 	var upper_interior_extent := _mesh_extent(upper_interior)
 	assert(upper_interior_extent.x > 0.28)
 	assert(upper_interior_extent.y > 0.18)
+	var side_aperture := fish.get_node_or_null("BodyPivot/Head/MouthSideAperture") as MeshInstance3D
+	assert(side_aperture != null)
+	var side_aperture_extent := _mesh_extent(side_aperture)
+	assert(side_aperture_extent.x > 0.12)
+	assert(side_aperture_extent.x < 0.24)
+	assert(side_aperture_extent.y > 0.14)
 
 	var short_lower_jaw: Dictionary = shell_neutral.duplicate(true)
 	short_lower_jaw["mouth_open"] = 0.2
