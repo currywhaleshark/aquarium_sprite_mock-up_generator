@@ -177,8 +177,9 @@ const JAW_DEFAULTS := {
 }
 
 # Max lower-jaw depression the gape input (0..1) maps to. Single source of truth for the
-# carve, lower jaw, lower lip and cheeks (FishRig reads it via jaw_landmarks).
-const JAW_MAX_GAPE_DEG := 75.0
+# carve, lower jaw, lower lip and cheeks (FishRig reads it via jaw_landmarks). Kept modest so
+# the dropped jaw stays within the round head silhouette instead of swinging out as a blade.
+const JAW_MAX_GAPE_DEG := 45.0
 
 # Snout-front x the jaws reach to at rest (the bite region of the undeformed sphere).
 const JAW_SNOUT_FRONT_X := -0.5

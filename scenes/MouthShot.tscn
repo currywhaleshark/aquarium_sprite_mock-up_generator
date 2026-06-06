@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://df1gkvltlb3l2"]
+
+[ext_resource type="Script" path="res://scripts/tools/MouthShot.gd" id="1_mouth_shot"]
+
+[node name="MouthShot" type="Node"]
+script = ExtResource("1_mouth_shot")

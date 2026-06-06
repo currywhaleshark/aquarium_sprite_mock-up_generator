@@ -208,9 +208,8 @@ func _ready() -> void:
 	assert(open_lower_lip_extent.position.y < closed_lower_lip_extent.position.y - 0.015)
 	var upper_jaw := fish.get_node_or_null("BodyPivot/Head/MouthUpperJaw") as MeshInstance3D
 	var lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
-	var interior := fish.get_node_or_null("BodyPivot/Head/MouthInterior") as MeshInstance3D
 	assert(upper_jaw == null)
-	assert(lower_jaw != null and interior != null)
+	assert(lower_jaw != null)
 	var open_upper_front := _head_upper_mouth_point(fish)
 	var open_lower_front := _node_front_point(lower_jaw)
 	assert(open_upper_front.y > open_lower_front.y + 0.02)
@@ -374,8 +373,10 @@ func _jaw_front_edge_y(fish, node_path: String) -> float:
 		return (xf * verts[16]).y
 
 func _jaw_gap(fish) -> float:
-	var upper := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D)
-	var lower := _world_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D)
+	# Head-local so the rig's idle animation phase doesn't add noise to the gap measurement.
+	var head := fish.get_node_or_null("BodyPivot/Head") as Node3D
+	var upper := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D, head)
+	var lower := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D, head)
 	return upper.position.y - lower.end.y
 
 func _node_front_point(node: MeshInstance3D) -> Vector3:

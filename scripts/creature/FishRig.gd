@@ -1738,14 +1738,11 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	var angle := _mouth_angle_for_type(mouth_type)
 	var my := mouth_position.y
 
-	# Phase 7: drive the gape from the shared jaw linkage so the lower jaw, lower lip and
-	# cheeks all rotate by the SAME depression the carve/landmarks use. open_deg is the
-	# lower-jaw depression in degrees; buccal_expand widens the mouth floor/cheeks as the
-	# gape opens (the suction-feeding cavity expansion), 1.0 when closed.
+	# Phase 7: drive the gape from the shared jaw linkage so the lower jaw and lower lip rotate
+	# by the SAME depression the carve/landmarks use. open_deg is the lower-jaw depression.
 	var sculpt := _head_sculpt_params()
 	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, t)
 	var open_deg: float = rad_to_deg(jaw_lm["gape_angle"])
-	var buccal_expand := lerpf(1.0, 1.22, t)
 	# Hinge controls (resolved value = mouth_type seed + user override). Applied as offsets
 	# to the lower jaw / cheek hinges so the jaw visibly lengthens (hinge back) or the pivot
 	# rides up/down. 0 reproduces the legacy jaw position.
@@ -1775,7 +1772,6 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# bite line down to the carve depth, so it sits where the head surface was before the
 	# carve. As mouth_open rises it hinges down about the shared hinge, exposing the dark
 	# interior. Its width matches the carve so head + jaw read as one closed shape.
-	var jaw_half_w: float = PF.UPPER_JAW_CARVE_HALF_WIDTH * 0.85
 	var lower_jaw := MeshInstance3D.new()
 	lower_jaw.name = "MouthLowerJaw"
 	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd)
@@ -1790,6 +1786,9 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# the body-coloured surface. Its height grows with mouth_open. Skipped on a fully closed
 	# mouth so it can never show on a shut mouth.
 	if t > 0.01:
+		# Dark open-mouth: a flat dark ellipse lying flush on the head's front surface, growing
+		# with mouth_open. No volume (hugs the analytic silhouette) so it never pokes out; reads
+		# as a dark open mouth from the front/three-quarter view.
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
 		cavity.mesh = _mouth_cavity_mesh(my, mouth_position, t, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale, PF.UPPER_JAW_CARVE_HALF_WIDTH * 0.85, mouth_size * 0.06, angle)
@@ -1817,14 +1816,6 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	mouth.position = mouth_position
 	head.add_child(mouth)
 
-	var jaw_meshes := _mouth_split_jaw_meshes(my, mouth_position, mouth_size, z_half, t, angle)
-	var interior := MeshInstance3D.new()
-	interior.name = "MouthInterior"
-	interior.mesh = jaw_meshes["interior"]
-	interior.material_override = dark_mat
-	interior.position = mouth_position
-	head.add_child(interior)
-
 	# The upper lip stays fixed to the carved upper jaw. Only the lower lip hinges down with
 	# mouth_open, matching the separate lower-jaw mass.
 	var jaws := [
@@ -1838,22 +1829,6 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		lip.material_override = lip_mat
 		lip.position = mouth_position
 		head.add_child(lip)
-
-	# Cheeks (뺨) 좌우 대칭 생성
-	var cheek_mat := lip_mat.duplicate()
-	cheek_mat.albedo_color = cheek_mat.albedo_color.darkened(0.2)
-	
-	for side in [-1.0, 1.0]:
-		var cheek := MeshInstance3D.new()
-		cheek.name = "MouthCheek%s" % ("L" if side < 0.0 else "R")
-		# The cheek fills the gap behind the jaw corner, so it only follows the hinge BACK
-		# when the jaw lengthens (positive offset). A forward hinge would jut the cheek
-		# triangle out in front of the mouth as two thin spikes, so clamp the offset to >= 0.
-		var cheek_hinge_x := hinge_x + maxf(jaw_hinge_x_off, 0.0)
-		cheek.mesh = _mouth_cheek_mesh(my, mouth_position, side, jaw_half_w * buccal_expand, mouth_size * 0.02, cheek_hinge_x, open_deg, angle, mouth_size, head_verts)
-		cheek.material_override = cheek_mat
-		cheek.position = mouth_position
-		head.add_child(cheek)
 
 # Builds a thin ribbon that follows the head's front silhouette across the mouth width, so
 # the mouth curves around the snout instead of sitting flat. Coordinates are local to
@@ -1899,43 +1874,32 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 	st.generate_normals()
 	return st.commit()
 
-# Dark mouth patch: a FLAT dark decal lying on the head's front surface over the mouth, just
-# proud of the skin so it shows. It has no volume (it hugs the analytic silhouette), so it can
-# never read as a protruding blob or horn, and it is sampled from the smooth analytic surface
-# (not nearest head vertices) so it has no jagged seams. Its height grows with gape so the dark
-# area enlarges as the mouth opens (the lower jaw in front of it drops to reveal it).
-func _mouth_cavity_mesh(center_y: float, origin: Vector3, gape_t: float, carve_depth: float, z_half: float, outset: float, tilt_deg: float, rows: int = 6, z_segs: int = 14) -> ArrayMesh:
+# Dark open-mouth ellipse: a flat dark disc whose vertices lie on the smooth analytic head
+# silhouette (no jagged seams, no volume - it can't read as a blob/horn), kept a contained
+# oval. Its size grows with gape so the dark mouth enlarges as the jaw opens.
+func _mouth_cavity_mesh(center_y: float, origin: Vector3, gape_t: float, carve_depth: float, z_half: float, outset: float, tilt_deg: float, segs: int = 24) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var tilt_r := deg_to_rad(tilt_deg)
 	var t := clampf(gape_t, 0.0, 1.0)
-	var top := center_y + carve_depth * 0.1            # a touch above the bite line
-	var bottom := center_y - lerpf(carve_depth * 0.25, carve_depth * 1.4, t)
-	var half_z := z_half * lerpf(0.7, 1.0, t)
-	var grid := []
-	for i in range(rows + 1):
-		var ay := lerpf(top, bottom, float(i) / float(rows))
-		# Narrow the patch toward the bottom corner so it reads as a mouth, not a rectangle.
-		var row_z := half_z * (1.0 - 0.35 * pow(float(i) / float(rows), 2.0))
-		var line := []
-		for j in range(z_segs + 1):
-			var z := lerpf(-row_z, row_z, float(j) / float(z_segs))
-			var p := Vector3(_head_front_surface_x(ay, z, outset), ay, z)
-			if tilt_r != 0.0:
-				var tx := p.x - origin.x
-				var ty := p.y - origin.y
-				p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
-				p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
-			line.append(p - origin)
-		grid.append(line)
-	for i in range(rows):
-		for j in range(z_segs):
-			var p00: Vector3 = grid[i][j]
-			var p01: Vector3 = grid[i][j + 1]
-			var p10: Vector3 = grid[i + 1][j]
-			var p11: Vector3 = grid[i + 1][j + 1]
-			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
-			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
+	var ry := lerpf(carve_depth * 0.16, carve_depth * 0.78, t)
+	var rz := z_half * lerpf(0.55, 0.92, t)
+	var cy := center_y - ry * 0.35
+	var fan := func(ly: float, lz: float) -> Vector3:
+		var p := Vector3(_head_front_surface_x(ly, lz, outset), ly, lz)
+		if tilt_r != 0.0:
+			var tx := p.x - origin.x
+			var ty := p.y - origin.y
+			p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
+			p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
+		return p - origin
+	var center: Vector3 = fan.call(cy, 0.0)
+	for j in range(segs):
+		var a0 := TAU * float(j) / float(segs)
+		var a1 := TAU * float(j + 1) / float(segs)
+		var p0: Vector3 = fan.call(cy + ry * sin(a0), rz * cos(a0))
+		var p1: Vector3 = fan.call(cy + ry * sin(a1), rz * cos(a1))
+		st.add_vertex(center); st.add_vertex(p0); st.add_vertex(p1)
 	st.generate_normals()
 	return st.commit()
 
