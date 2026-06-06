@@ -159,6 +159,19 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			if shape != "cephalofoil" and premax_fwd > 0.0 and x < 0.1:
 				x -= premax_fwd * smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
 
+			# 6c. Real mouth pit: as the mouth opens the lower-front shell is dented INWARD into
+			# a concave socket (a true silhouette concavity visible from the side). The socket
+			# grows taller/wider with gape; 0 when closed so the resting head is untouched. The
+			# dark socket lining (FishRig) uses the same HeadProfile.mouth_pit math to stay flush.
+			if shape != "cephalofoil" and jaw_gape > 0.0 and x < 0.1:
+				var pit_half_h := lerpf(0.03, UPPER_JAW_CARVE_DEPTH * 0.4, jaw_gape) * lower_jaw_scale
+				var pit_half_w := UPPER_JAW_CARVE_HALF_WIDTH * lower_jaw_scale * lerpf(0.55, 1.05, jaw_gape)
+				var pit_depth := UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale
+				var pit := HeadProfile.mouth_pit_offset(u, y, z, mouth_center_y, pit_half_h, pit_half_w, pit_depth, jaw_gape)
+				x += pit.x
+				y += pit.y
+				z += pit.z
+
 			ring_vertices.append(Vector3(x, y, z))
 		grid.append(ring_vertices)
 		

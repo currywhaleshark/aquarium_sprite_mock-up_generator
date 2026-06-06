@@ -231,3 +231,35 @@ static func jaw_landmarks(p: Dictionary, gape: float) -> Dictionary:
 static func _rotate_about(pt: Vector2, pivot: Vector2, ang: float) -> Vector2:
 	var d := pt - pivot
 	return pivot + Vector2(d.x * cos(ang) - d.y * sin(ang), d.x * sin(ang) + d.y * cos(ang))
+
+# ---- Real mouth pit (open-mouth depth) -----------------------------------
+# When the mouth opens, the lower-front of the head shell is actually dented INWARD (+x,
+# toward the head centre) to form a real concave socket - a true silhouette concavity that
+# reads as depth from any angle, not an overlay that can poke out. The SAME function shapes
+# the head shell (PrimitiveFactory) and the dark socket lining (FishRig), so they stay flush.
+# Weight is 1 at the mouth centre and falls to 0 at the region edges; 0 outside it, and 0 when
+# the mouth is closed so the resting head shape is untouched.
+const MOUTH_PIT_LEN := 0.2         # how far back along the snout (u) the socket reaches
+
+static func mouth_pit_weight(u: float, y: float, z: float, bite_y: float, half_h: float, half_w: float) -> float:
+	var fw := smoothstep(MOUTH_PIT_LEN, 0.0, u)        # 1 at the snout tip, 0 by the region back
+	if fw <= 0.0:
+		return 0.0
+	var yw := clampf(1.0 - absf(y - bite_y) / maxf(half_h, 0.001), 0.0, 1.0)
+	var zw := clampf(1.0 - absf(z) / maxf(half_w, 0.001), 0.0, 1.0)
+	# Smooth (cosine) falloff so the socket rim eases into the face instead of a hard edge.
+	return fw * smoothstep(0.0, 1.0, yw) * smoothstep(0.0, 1.0, zw)
+
+# Inward displacement (head-local) that dents a mouth-region vertex into the socket. `depth`
+# is the full socket depth at the centre at full gape; `gape` scales it (0 = no pit).
+static func mouth_pit_offset(u: float, y: float, z: float, bite_y: float, half_h: float, half_w: float, depth: float, gape: float) -> Vector3:
+	var g := clampf(gape, 0.0, 1.0)
+	if g <= 0.0 or depth <= 0.0:
+		return Vector3.ZERO
+	var w := mouth_pit_weight(u, y, z, bite_y, half_h, half_w)
+	if w <= 0.0:
+		return Vector3.ZERO
+	var amt := depth * g * w
+	# Push back into the head (+x) and gently funnel toward the socket centre so it reads as a
+	# rounded pocket rather than a flat shove.
+	return Vector3(amt, (bite_y - y) * 0.3 * w * g, -z * 0.3 * w * g)

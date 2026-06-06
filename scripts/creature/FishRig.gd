@@ -1786,12 +1786,16 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# the body-coloured surface. Its height grows with mouth_open. Skipped on a fully closed
 	# mouth so it can never show on a shut mouth.
 	if t > 0.01:
-		# Dark open-mouth: a flat dark ellipse lying flush on the head's front surface, growing
-		# with mouth_open. No volume (hugs the analytic silhouette) so it never pokes out; reads
-		# as a dark open mouth from the front/three-quarter view.
+		# Dark socket lining: fills the real mouth pit the head shell is dented into (same
+		# HeadProfile.mouth_pit math), sitting a hair proud of the dented shell so it shows.
+		# Because it lives inside a true concavity it reads as depth from any angle and never
+		# pokes out of the silhouette. Grows with mouth_open along with the pit.
+		var pit_half_h := lerpf(0.03, PF.UPPER_JAW_CARVE_DEPTH * 0.4, t) * lower_jaw_scale
+		var pit_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lower_jaw_scale * lerpf(0.55, 1.05, t)
+		var pit_depth := PF.UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
-		cavity.mesh = _mouth_cavity_mesh(my, mouth_position, t, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale, PF.UPPER_JAW_CARVE_HALF_WIDTH * 0.85, mouth_size * 0.06, angle)
+		cavity.mesh = _mouth_pit_dark_mesh(my, mouth_position, t, pit_half_h, pit_half_w, pit_depth, angle)
 		var cavity_mat := dark_mat.duplicate()
 		if cavity_mat is BaseMaterial3D:
 			cavity_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -1874,32 +1878,44 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 	st.generate_normals()
 	return st.commit()
 
-# Dark open-mouth ellipse: a flat dark disc whose vertices lie on the smooth analytic head
-# silhouette (no jagged seams, no volume - it can't read as a blob/horn), kept a contained
-# oval. Its size grows with gape so the dark mouth enlarges as the jaw opens.
-func _mouth_cavity_mesh(center_y: float, origin: Vector3, gape_t: float, carve_depth: float, z_half: float, outset: float, tilt_deg: float, segs: int = 24) -> ArrayMesh:
+# Dark socket lining for the real mouth pit. Samples a fine grid over the mouth region on the
+# analytic head front, applies the SAME HeadProfile.mouth_pit dent (a hair shallower so it sits
+# just proud of the dented shell), and emits it dark. Smooth (analytic, no nearest-vertex
+# jaggies), recessed (lives in the pit, never pokes out), and grows with gape.
+func _mouth_pit_dark_mesh(center_y: float, origin: Vector3, gape_t: float, half_h: float, half_w: float, depth: float, tilt_deg: float, rows: int = 8, cols: int = 12) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var tilt_r := deg_to_rad(tilt_deg)
-	var t := clampf(gape_t, 0.0, 1.0)
-	var ry := lerpf(carve_depth * 0.16, carve_depth * 0.78, t)
-	var rz := z_half * lerpf(0.55, 0.92, t)
-	var cy := center_y - ry * 0.35
-	var fan := func(ly: float, lz: float) -> Vector3:
-		var p := Vector3(_head_front_surface_x(ly, lz, outset), ly, lz)
+	var g := clampf(gape_t, 0.0, 1.0)
+	var top := center_y + half_h
+	var bottom := center_y - half_h
+	var sample := func(ay: float, az: float) -> Vector3:
+		var base_x := _head_front_surface_x(ay, az, 0.0)
+		var u := base_x + 0.5
+		var off := HeadProfile.mouth_pit_offset(u, ay, az, center_y, half_h, half_w, depth * 0.85, g)
+		var p := Vector3(base_x + off.x - 0.004, ay + off.y, az + off.z)
 		if tilt_r != 0.0:
 			var tx := p.x - origin.x
 			var ty := p.y - origin.y
 			p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
 			p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
 		return p - origin
-	var center: Vector3 = fan.call(cy, 0.0)
-	for j in range(segs):
-		var a0 := TAU * float(j) / float(segs)
-		var a1 := TAU * float(j + 1) / float(segs)
-		var p0: Vector3 = fan.call(cy + ry * sin(a0), rz * cos(a0))
-		var p1: Vector3 = fan.call(cy + ry * sin(a1), rz * cos(a1))
-		st.add_vertex(center); st.add_vertex(p0); st.add_vertex(p1)
+	var grid := []
+	for i in range(rows + 1):
+		var ay := lerpf(top, bottom, float(i) / float(rows))
+		var line := []
+		for j in range(cols + 1):
+			var az := lerpf(-half_w, half_w, float(j) / float(cols))
+			line.append(sample.call(ay, az))
+		grid.append(line)
+	for i in range(rows):
+		for j in range(cols):
+			var p00: Vector3 = grid[i][j]
+			var p01: Vector3 = grid[i][j + 1]
+			var p10: Vector3 = grid[i + 1][j]
+			var p11: Vector3 = grid[i + 1][j + 1]
+			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
+			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
 	st.generate_normals()
 	return st.commit()
 
