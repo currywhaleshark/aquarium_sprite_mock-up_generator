@@ -1774,6 +1774,9 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# interior. Its width matches the carve so head + jaw read as one closed shape.
 	var lower_jaw := MeshInstance3D.new()
 	lower_jaw.name = "MouthLowerJaw"
+	# The lower jaw drops the full gape so it clears the dark socket (no teal bar across the
+	# mouth); it is built shallower (see _mouth_lower_jaw_mesh) so the dropped jaw still reads
+	# as a chin/lower lip without swinging far past the round silhouette.
 	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd)
 	lower_jaw.material_override = lip_mat
 	lower_jaw.position = mouth_position
@@ -1820,11 +1823,11 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	mouth.position = mouth_position
 	head.add_child(mouth)
 
-	# The upper lip stays fixed to the carved upper jaw. Only the lower lip hinges down with
-	# mouth_open, matching the separate lower-jaw mass.
+	# Only the upper lip remains as a thin frame on the snout above the mouth; the lower lip is
+	# the separate lower-jaw mesh (a teal band inside the dark socket read as a bar, so it was
+	# dropped in favour of the jaw + dark pit).
 	var jaws := [
 		{"name": "MouthLipUpper", "lo": upper_open_y, "hi": upper_open_y + lip_h, "open": 0.0},
-		{"name": "MouthLipLower", "lo": mouth_size * 0.01, "hi": mouth_size * 0.06, "open": open_deg},
 	]
 	for jw in jaws:
 		var lip := MeshInstance3D.new()
@@ -1903,9 +1906,13 @@ func _mouth_pit_dark_mesh(center_y: float, origin: Vector3, gape_t: float, half_
 	var grid := []
 	for i in range(rows + 1):
 		var ay := lerpf(top, bottom, float(i) / float(rows))
+		# Taper the width toward the top/bottom rows so the socket reads as a rounded oval
+		# instead of a hard-edged rectangle.
+		var ev := (ay - center_y) / maxf(half_h, 0.001)
+		var row_w := half_w * sqrt(maxf(1.0 - ev * ev, 0.0))
 		var line := []
 		for j in range(cols + 1):
-			var az := lerpf(-half_w, half_w, float(j) / float(cols))
+			var az := lerpf(-row_w, row_w, float(j) / float(cols))
 			line.append(sample.call(ay, az))
 		grid.append(line)
 	for i in range(rows):
@@ -1978,101 +1985,6 @@ func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, m
 			var p11: Vector3 = grid[i + 1][j + 1]
 			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
 			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
-	st.generate_normals()
-	return st.commit()
-
-func _mouth_cheek_mesh(center_y: float, origin: Vector3, z_sign: float, z_half: float, outset: float, hinge_x: float, open_deg: float, tilt_deg: float, mouth_size: float, head_verts: PackedVector3Array) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	
-	var hinge_local_x := hinge_x
-	var hinge_local_y := 0.0
-	
-	var y_hi := mouth_size * 0.05
-	var raw_x := _head_front_surface_x(center_y + y_hi, z_sign * z_half, outset)
-	var corner_local_x := raw_x - origin.x
-	var corner_local_y := y_hi
-	
-	var open_r := deg_to_rad(open_deg)
-	var dx := corner_local_x - hinge_local_x
-	var dy := corner_local_y - hinge_local_y
-	var rotated_corner_x := hinge_local_x + dx * cos(open_r) - dy * sin(open_r)
-	var rotated_corner_y := hinge_local_y + dx * sin(open_r) + dy * cos(open_r)
-	
-	var p_hinge := Vector3(hinge_local_x, hinge_local_y, z_sign * z_half)
-	var p_upper := Vector3(corner_local_x, corner_local_y, z_sign * z_half)
-	var p_lower := Vector3(rotated_corner_x, rotated_corner_y, z_sign * z_half)
-	
-	var tilt_r := deg_to_rad(tilt_deg)
-	if tilt_r != 0.0:
-		p_hinge = _rotate_local_point(p_hinge, tilt_r)
-		p_upper = _rotate_local_point(p_upper, tilt_r)
-		p_lower = _rotate_local_point(p_lower, tilt_r)
-		
-	st.add_vertex(p_hinge)
-	st.add_vertex(p_upper)
-	st.add_vertex(p_lower)
-	
-	st.add_vertex(p_hinge)
-	st.add_vertex(p_lower)
-	st.add_vertex(p_upper)
-	
-	st.generate_normals()
-	return st.commit()
-
-func _rotate_local_point(p: Vector3, tilt_r: float) -> Vector3:
-	var rx := p.x * cos(tilt_r) - p.y * sin(tilt_r)
-	var ry := p.x * sin(tilt_r) + p.y * cos(tilt_r)
-	return Vector3(rx, ry, p.z)
-
-func _mouth_split_jaw_meshes(center_y: float, origin: Vector3, mouth_size: float, z_half: float, t: float, tilt_deg: float = 0.0) -> Dictionary:
-	var hinge_x := origin.x + mouth_size * MOUTH_HINGE_FRAC
-	var front_x := origin.x - mouth_size * lerpf(0.12, 0.72, t)
-	var lower_front_x := origin.x + mouth_size * lerpf(0.0, 0.04, t)
-	var slit_y := mouth_size * 0.04
-	var upper_front_y := center_y + mouth_size * 0.08
-	var lower_front_y := center_y - mouth_size * lerpf(0.08, 2.45, t)
-	var upper_back_y := center_y + slit_y
-	var lower_back_y := center_y - slit_y
-	var half_w := z_half * 0.88
-	var tilt_r := deg_to_rad(tilt_deg)
-	var lower_outline := [
-		Vector2(hinge_x, center_y - slit_y * 0.35),
-		Vector2(lower_front_x + mouth_size * 0.12, center_y - mouth_size * 0.12),
-		Vector2(lower_front_x, lower_front_y),
-		Vector2(hinge_x, lower_back_y),
-	]
-	var interior_outline := [
-		Vector2(hinge_x + mouth_size * 0.02, upper_back_y),
-		Vector2(front_x + mouth_size * 0.03, upper_front_y - mouth_size * 0.04),
-		Vector2(front_x + mouth_size * 0.03, lower_front_y + mouth_size * 0.04),
-		Vector2(hinge_x + mouth_size * 0.02, lower_back_y),
-	]
-	return {
-		"lower": _extruded_side_mouth_mesh(lower_outline, origin, half_w, tilt_r),
-		"interior": _extruded_side_mouth_mesh(interior_outline, origin, half_w * 0.92, tilt_r),
-	}
-
-func _extruded_side_mouth_mesh(outline: Array, origin: Vector3, half_w: float, tilt_r: float = 0.0) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var front: Array[Vector3] = []
-	var back: Array[Vector3] = []
-	for p2 in outline:
-		var p := Vector3(float(p2.x), float(p2.y), half_w)
-		var q := Vector3(float(p2.x), float(p2.y), -half_w)
-		if tilt_r != 0.0:
-			p = _rotate_mouth_point(p, origin, tilt_r)
-			q = _rotate_mouth_point(q, origin, tilt_r)
-		front.append(p - origin)
-		back.append(q - origin)
-	for i in range(1, outline.size() - 1):
-		st.add_vertex(front[0]); st.add_vertex(front[i]); st.add_vertex(front[i + 1])
-		st.add_vertex(back[0]); st.add_vertex(back[i + 1]); st.add_vertex(back[i])
-	for i in range(outline.size()):
-		var j := (i + 1) % outline.size()
-		st.add_vertex(front[i]); st.add_vertex(back[i]); st.add_vertex(front[j])
-		st.add_vertex(front[j]); st.add_vertex(back[i]); st.add_vertex(back[j])
 	st.generate_normals()
 	return st.commit()
 

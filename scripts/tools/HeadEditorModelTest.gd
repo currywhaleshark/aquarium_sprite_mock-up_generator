@@ -30,8 +30,7 @@ func _ready() -> void:
 	# snout (so it reads as a real mouth hugging the surface, not a flat coin). The opening
 	# band's x must recede toward its z edges (it wraps the snout), not stay flat.
 	var lip_upper := fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D
-	var lip_lower := fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D
-	assert(lip_upper != null and lip_lower != null)
+	assert(lip_upper != null)
 	var mouth_verts: PackedVector3Array = mouth.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var center_x := INF
 	var edge_x := -INF
@@ -185,7 +184,6 @@ func _ready() -> void:
 	# add frame-phase noise to these tight stability comparisons.
 	var closed_head := fish.get_node_or_null("BodyPivot/Head") as Node3D
 	var closed_upper_lip_extent := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D, closed_head)
-	var closed_lower_lip_extent := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D, closed_head)
 	var closed_lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
 	# A fully closed mouth gets no dark cavity (it could otherwise peek out of a shut mouth).
 	assert(fish.get_node_or_null("BodyPivot/Head/MouthCavity") == null)
@@ -203,9 +201,7 @@ func _ready() -> void:
 	assert(_jaw_gap(fish) > closed_gap + 0.01)
 	var open_head := fish.get_node_or_null("BodyPivot/Head") as Node3D
 	var open_upper_lip_extent := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D, open_head)
-	var open_lower_lip_extent := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D, open_head)
 	assert(absf(open_upper_lip_extent.position.y - closed_upper_lip_extent.position.y) < 0.005)
-	assert(open_lower_lip_extent.position.y < closed_lower_lip_extent.position.y - 0.015)
 	var upper_jaw := fish.get_node_or_null("BodyPivot/Head/MouthUpperJaw") as MeshInstance3D
 	var lower_jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
 	assert(upper_jaw == null)
@@ -373,11 +369,13 @@ func _jaw_front_edge_y(fish, node_path: String) -> float:
 		return (xf * verts[16]).y
 
 func _jaw_gap(fish) -> float:
-	# Head-local so the rig's idle animation phase doesn't add noise to the gap measurement.
+	# Gap between the fixed upper lip and the top of the (dropping) lower jaw, head-local so the
+	# rig's idle animation phase doesn't add noise. Grows as the mouth opens.
 	var head := fish.get_node_or_null("BodyPivot/Head") as Node3D
 	var upper := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipUpper") as MeshInstance3D, head)
-	var lower := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLipLower") as MeshInstance3D, head)
-	return upper.position.y - lower.end.y
+	var lower := _head_local_mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D, head)
+	# Lower jaw hinges about its back, so its bottom (min y) drops as the mouth opens.
+	return upper.position.y - lower.position.y
 
 func _node_front_point(node: MeshInstance3D) -> Vector3:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
