@@ -40,6 +40,8 @@ uniform float iridescence_frequency : hint_range(0.1, 10.0) = 2.0;
 
 // Wet mucus layer: a smooth clearcoat lobe over the toon body. Defaults off.
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
+uniform int scale_type = 0;
+uniform bool is_head = false;
 uniform float scale_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float scale_size : hint_range(4.0, 64.0) = 16.0;
 uniform float lateral_line_strength : hint_range(0.0, 1.0) = 0.0;
@@ -268,18 +270,216 @@ void fragment() {
 	if (count > 6) { apply_marking_layer(col, marking_type_6, marking_color_6, marking_rect_6, marking_params_6, v_long, up); }
 	if (count > 7) { apply_marking_layer(col, marking_type_7, marking_color_7, marking_rect_7, marking_params_7, v_long, up); }
 
-	// 2c. Species surface readability. These are stylized and UV-locked, giving
-	// small sprites a hint of scales without needing texture maps or lighting.
-	float scale_columns = max(scale_size, 1.0);
-	float scale_rows = max(scale_size * 0.55, 1.0);
-	float scale_grid = max(abs(sin(v_long * scale_columns * TAU)), abs(sin(v_circ * scale_rows * TAU)));
-	float scale_edge = smoothstep(0.93, 0.995, scale_grid);
-	col = mix(col, col * 0.78, scale_edge * scale_strength * 0.28);
-	float pearl_cell = pnoise(vec2(v_long * scale_columns, v_circ * scale_rows), scale_rows);
-	float pearl = smoothstep(0.58, 0.9, pearl_cell) * pearlscale_strength;
-	col += vec3(1.0, 0.94, 0.78) * pearl * 0.18;
+	// 2c. Imbricated fish scales. Real cycloid/ctenoid scales overlap like roof
+	// shingles in half-staggered rows, and only each scale's rounded trailing (posterior)
+	// margin is exposed. So instead of a square sine lattice we tessellate the surface into
+	// rounded scale cells (a regular Voronoi over a half-offset grid) and shade just the
+	// tail-side arc of every cell with a soft shadow, plus a faint leading-face sheen. The
+	// row count is forced even so the cells wrap seamlessly around the girth (v_circ).
+	float scale_density = max(scale_size, 2.0) * 0.75;
+	float scale_columns = scale_density;
+	float scale_rows = max(2.0 * floor(scale_size * 0.5 + 0.5), 2.0);
+	vec2 scale_p = vec2(UV2.x * scale_density, UV2.y * scale_density * 2.0);
+	
+	float scale_strength_local = is_head ? 0.0 : scale_strength;
+	
+	float scale_r = 0.75;
+	vec2 scale_aniso = vec2(1.0, 0.5);   // aspect ratio correction for vertical 2x density
+	float scale_owner_x = 1e9;           // leftmost (anterior) disc covering this fragment
+	for (int sy = -1; sy <= 1; sy++) {
+		for (int sx = -1; sx <= 1; sx++) {
+			vec2 cell = floor(scale_p) + vec2(float(sx), float(sy));
+			vec2 center = vec2(cell.x + 0.5 + mod(cell.y, 2.0) * 0.5, cell.y + 0.5);
+			
+			bool is_inside = false;
+			float dx = scale_p.x - center.x;
+			float dy = scale_p.y - center.y;
+			
+			if (scale_type == 2) { // Ganoid
+				is_inside = (abs(dx) + 0.5 * abs(dy)) < 0.5;
+			} else if (scale_type == 3) { // Placoid
+				float w = mix(0.1, 0.35, smoothstep(0.35, -0.35, dx));
+				is_inside = dx > -0.35 && dx < 0.35 && (abs(dy) * scale_aniso.y) < w;
+			} else { // Cycloid, Ctenoid, Pearlscale
+				is_inside = length((scale_p - center) * scale_aniso) < scale_r;
+			}
+			
+			if (is_inside) {
+				scale_owner_x = min(scale_owner_x, center.x);
+			}
+		}
+	}
+	
+	float scale_line = 0.0;
+	float scale_crescent = 0.0;
+	float circuli_contrib = 0.0;
+	float ctenii_contrib = 0.0;
+	float ganoid_bevel = 0.0;
+	float ganoid_dist = 0.0;
+	vec3 ganoid_normal = vec3(0.0, 0.0, 1.0);
+	float placoid_ridges = 0.0;
+	float placoid_spine_mask = 0.0;
+	float pearlscale_dome = 0.0;
+	float pearlscale_dist = 0.0;
+	vec3 pearlscale_normal = vec3(0.0, 0.0, 1.0);
+	vec3 scale_surface_normal = vec3(0.0, 0.0, 1.0); // for metallic specular shading
+	bool has_owner = false;
+	
+	for (int sy = -1; sy <= 1; sy++) {
+		for (int sx = -1; sx <= 1; sx++) {
+			vec2 cell = floor(scale_p) + vec2(float(sx), float(sy));
+			vec2 center = vec2(cell.x + 0.5 + mod(cell.y, 2.0) * 0.5, cell.y + 0.5);
+			
+			bool is_inside = false;
+			float dx = scale_p.x - center.x;
+			float dy = scale_p.y - center.y;
+			float dist = 0.0;
+			
+			if (scale_type == 2) { // Ganoid
+				dist = abs(dx) + 0.5 * abs(dy);
+				is_inside = dist < 0.5;
+			} else if (scale_type == 3) { // Placoid
+				float w = mix(0.1, 0.35, smoothstep(0.35, -0.35, dx));
+				is_inside = dx > -0.35 && dx < 0.35 && (abs(dy) * scale_aniso.y) < w;
+				dist = (abs(dy) * scale_aniso.y) / max(0.001, w);
+			} else { // Cycloid, Ctenoid, Pearlscale
+				dist = length((scale_p - center) * scale_aniso);
+				is_inside = dist < scale_r;
+			}
+			
+			if (!is_inside) { continue; }
+			if (center.x > scale_owner_x + 0.001) { continue; }
+			
+			has_owner = true;
+			
+			if (scale_type == 0) { // Cycloid
+				scale_line = 1.0 - smoothstep(0.03, 0.09, abs(dist - scale_r));
+				scale_crescent = smoothstep(scale_r - 0.30, scale_r, dist);
+				
+				// Growth rings (circuli)
+				float circuli_mask = smoothstep(0.12, 0.32, dist) * smoothstep(scale_r, scale_r - 0.05, dist);
+				circuli_contrib = (sin(dist * 64.0) * 0.5 + 0.5) * circuli_mask;
+				
+				// Tilt normal for metallic specular
+				vec2 tilt = (scale_p - center) * scale_aniso * 0.3;
+				scale_surface_normal = normalize(vec3(tilt, 1.0));
+			}
+			else if (scale_type == 1) { // Ctenoid
+				scale_line = 1.0 - smoothstep(0.03, 0.09, abs(dist - scale_r));
+				scale_crescent = smoothstep(scale_r - 0.30, scale_r, dist);
+				
+				// Radial comb-like teeth (ctenii)
+				float angle = atan(dy, dx);
+				float radial_stripes = sin(angle * 32.0) * 0.5 + 0.5;
+				float ctenii_mask = smoothstep(scale_r - 0.18, scale_r, dist) * smoothstep(-0.1, 0.1, dx);
+				ctenii_contrib = radial_stripes * ctenii_mask;
+				
+				// Tilt normal for metallic specular
+				vec2 tilt = (scale_p - center) * scale_aniso * 0.3;
+				scale_surface_normal = normalize(vec3(tilt, 1.0));
+			}
+			else if (scale_type == 2) { // Ganoid
+				ganoid_dist = dist;
+				float bevel_dist = dist / 0.5;
+				ganoid_bevel = 1.0 - smoothstep(0.82, 0.96, bevel_dist);
+				
+				// Bevel normal mapping
+				vec2 dir = sign(scale_p - center) * vec2(1.0, 0.5);
+				ganoid_normal = normalize(vec3(dir * (1.0 - ganoid_bevel), 1.0));
+				scale_surface_normal = ganoid_normal;
+			}
+			else if (scale_type == 3) { // Placoid
+				placoid_spine_mask = 1.0;
+				// Ridges running along the spine
+				float ridge_pattern = sin(dy * scale_aniso.y * 36.0) * 0.5 + 0.5;
+				float ridge_mask = smoothstep(0.95, 0.2, dist);
+				placoid_ridges = ridge_pattern * ridge_mask;
+				
+				// Spine normal (rounded front to sharp tail)
+				vec2 tilt = vec2(dx * 1.5, dy * 2.0);
+				scale_surface_normal = normalize(vec3(tilt, 1.0));
+			}
+			else if (scale_type == 4) { // Pearlscale
+				scale_line = 1.0 - smoothstep(0.03, 0.09, abs(dist - scale_r));
+				scale_crescent = smoothstep(scale_r - 0.30, scale_r, dist);
+				
+				// Central pearl dome
+				pearlscale_dist = dist;
+				float dome_r = 0.38;
+				pearlscale_dome = smoothstep(dome_r, dome_r - 0.06, dist);
+				float h = sqrt(max(0.0, dome_r * dome_r - dist * dist));
+				pearlscale_normal = normalize(vec3((scale_p - center) * scale_aniso * 1.2, h));
+				
+				vec2 tilt = (scale_p - center) * scale_aniso * 0.3;
+				scale_surface_normal = normalize(vec3(tilt, 1.0));
+			}
+		}
+	}
+	
+	if (has_owner && scale_strength_local > 0.0) {
+		if (scale_type == 0) { // Cycloid
+			col = mix(col, col * 0.64, scale_crescent * scale_strength_local * 0.4);
+			col = mix(col, col * 0.52, scale_line * scale_strength_local * 0.6);
+			col = mix(col, col * 0.88, circuli_contrib * scale_strength_local * 0.25);
+		}
+		else if (scale_type == 1) { // Ctenoid
+			col = mix(col, col * 0.64, scale_crescent * scale_strength_local * 0.4);
+			col = mix(col, col * 0.52, scale_line * scale_strength_local * 0.6);
+			col = mix(col, col * 0.82, ctenii_contrib * scale_strength_local * 0.35);
+		}
+		else if (scale_type == 2) { // Ganoid
+			vec3 L = normalize(vec3(0.3, 0.5, 0.8));
+			float diffuse = max(0.0, dot(ganoid_normal, L));
+			vec3 bevel_shading = col * (0.5 + 0.5 * diffuse);
+			vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+			float spec = pow(max(0.0, dot(ganoid_normal, H)), 8.0);
+			bevel_shading += vec3(1.0, 0.95, 0.85) * spec * 0.15;
+			
+			col = mix(bevel_shading, col, ganoid_bevel * (1.0 - scale_strength_local * 0.3));
+			float gap = smoothstep(0.94, 0.98, ganoid_dist);
+			col = mix(col, col * 0.35, gap * scale_strength_local * 0.85);
+		}
+		else if (scale_type == 3) { // Placoid
+			vec3 spine_col = mix(col * 0.85, col * 1.15, placoid_ridges * 0.3);
+			vec3 L = normalize(vec3(0.4, 0.4, 0.8));
+			float diffuse = max(0.05, dot(scale_surface_normal, L));
+			spine_col *= (0.7 + 0.35 * diffuse);
+			
+			col = mix(col, spine_col, placoid_spine_mask * scale_strength_local * 0.8);
+		}
+		else if (scale_type == 4) { // Pearlscale
+			col = mix(col, col * 0.64, scale_crescent * scale_strength_local * 0.4);
+			col = mix(col, col * 0.52, scale_line * scale_strength_local * 0.6);
+			
+			vec3 L = normalize(vec3(0.4, 0.5, 0.77));
+			float diffuse = max(0.0, dot(pearlscale_normal, L));
+			vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+			float specular = pow(max(0.0, dot(pearlscale_normal, H)), 24.0);
+			
+			vec3 pearl_base = vec3(0.96, 0.94, 0.88);
+			vec3 dome_shading = pearl_base * (0.55 + 0.45 * diffuse) + vec3(0.95) * specular * 0.35;
+			
+			col = mix(col, dome_shading, pearlscale_dome * scale_strength_local * pearlscale_strength * 0.9);
+		}
+		
+		if (metallic_scale_strength > 0.0) {
+			vec3 L = normalize(vec3(0.3, 0.5, 0.8));
+			vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+			float spec = pow(max(0.0, dot(scale_surface_normal, H)), 12.0);
+			vec3 metallic_glow = vec3(1.0, 0.88, 0.62) * spec * metallic_scale_strength * 0.35;
+			col += metallic_glow * scale_strength_local;
+		}
+	}
+	
+	if (scale_type != 4 && pearlscale_strength > 0.0) {
+		float pearl_cell = pnoise(scale_p, scale_rows);
+		float pearl = smoothstep(0.58, 0.9, pearl_cell) * pearlscale_strength;
+		col += vec3(1.0, 0.94, 0.78) * pearl * 0.18 * scale_strength_local;
+	}
+	
 	float metallic_band = 0.5 + 0.5 * sin((v_long * scale_columns * 0.5 + up * 0.35) * TAU);
-	col += vec3(1.0, 0.88, 0.52) * metallic_band * metallic_scale_strength * 0.14;
+	col += vec3(1.0, 0.88, 0.52) * metallic_band * metallic_scale_strength * 0.14 * (1.0 - scale_strength_local * 0.5);
+	
 	float lateral = 1.0 - smoothstep(0.035, 0.09, abs(up - 0.08));
 	col += vec3(0.68, 0.9, 1.0) * lateral * lateral_line_strength * 0.26;
 

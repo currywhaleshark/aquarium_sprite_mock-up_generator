@@ -144,7 +144,12 @@ const OPTION_LABELS := {
 	"spots": "점무늬",
 	"zebra": "얼룩말무늬",
 	"marbled": "대리석무늬",
-	"reticulated": "망상무늬"
+	"reticulated": "망상무늬",
+	"cycloid": "원형비늘 (Cycloid)",
+	"ctenoid": "빗비늘 (Ctenoid)",
+	"ganoid": "굳비늘 (Ganoid)",
+	"placoid": "방패비늘 (Placoid)",
+	"pearlscale": "진주비늘 (Pearlscale)"
 }
 
 const PARAMETER_LABELS := {
@@ -192,6 +197,8 @@ const PARAMETER_LABELS := {
 	"eye_position_x": "눈 X 위치",
 	"eye_position_y": "눈 Y 위치",
 	"eye_bulge": "눈 돌출",
+	"eye_pupil_scale": "동공 크기",
+	"eye_iris_color": "홍채 색",
 	"tail_length": "꼬리 길이",
 	"tail_height": "꼬리 높이",
 	"tail_fin_size": "꼬리지느러미 크기",
@@ -257,6 +264,13 @@ const PARAMETER_LABELS := {
 	"iridescence_color": "무지개빛 색",
 	"iridescence_frequency": "무지개빛 빈도",
 	"wetness": "젖은 광택",
+	"scale_type": "비늘 종류",
+	"scale_strength": "비늘 선명도",
+	"scale_size": "비늘 크기",
+	"pearlscale_strength": "진주비늘 볼록함",
+	"metallic_scale_strength": "금속 광택 강도",
+	"lateral_line_strength": "측선 선명도",
+	"emissive_marking_strength": "발광 무늬 강도",
 	"pattern_type": "무늬 종류",
 	"pattern_color": "무늬 색",
 	"pattern_scale_x": "무늬 가로 크기",
@@ -302,6 +316,7 @@ const SECTION_LABELS := {
 	"Motion Settings": "움직임 설정",
 	"Color Settings": "색상 설정",
 	"Pattern Settings": "무늬 설정",
+	"Scale Settings": "비늘 설정",
 	"Visual Settings": "시각 설정",
 	"Global Settings": "전체 설정",
 	"Export": "출력",

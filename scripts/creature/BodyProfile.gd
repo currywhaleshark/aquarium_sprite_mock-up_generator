@@ -138,6 +138,7 @@ const UNUSED_PARAMETER_KEYS := [
 ]
 
 const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated"]
+const SCALE_TYPE_NAMES := ["cycloid", "ctenoid", "ganoid", "placoid", "pearlscale"]
 const VISUAL_PATTERN_DEFAULTS := {
 	"pattern_type": "none",
 	"pattern_color": "#1f5560",
@@ -150,12 +151,15 @@ const VISUAL_PATTERN_DEFAULTS := {
 	"iridescence_color": "#bfe9ff",
 	"iridescence_frequency": 2.0,
 	"wetness": 0.0,
+	"scale_type": "cycloid",
 	"scale_strength": 0.0,
 	"scale_size": 16.0,
 	"lateral_line_strength": 0.0,
 	"pearlscale_strength": 0.0,
 	"metallic_scale_strength": 0.0,
-	"emissive_marking_strength": 0.0
+	"emissive_marking_strength": 0.0,
+	"eye_iris_color": "#d8b24a",
+	"eye_pupil_scale": 0.6
 }
 
 static func swim_mode_names() -> Array[String]:
@@ -169,6 +173,15 @@ static func pattern_type_names() -> Array[String]:
 
 static func pattern_type_index(pattern_type: String) -> int:
 	return maxi(PATTERN_TYPE_NAMES.find(pattern_type), 0)
+
+static func scale_type_names() -> Array[String]:
+	var names: Array[String] = []
+	for name in SCALE_TYPE_NAMES:
+		names.append(String(name))
+	return names
+
+static func scale_type_index(scale_type: String) -> int:
+	return maxi(SCALE_TYPE_NAMES.find(scale_type), 0)
 
 # Injects defaults for the back/belly gradient and procedural pattern controls so
 # every preset (including ones saved before this feature) exposes them in the UI.
@@ -396,8 +409,9 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
 		"pattern_intensity", "belly_height", "belly_slope",
 		"iridescence_strength", "iridescence_color", "iridescence_frequency",
-		"wetness", "scale_strength", "scale_size", "lateral_line_strength",
-		"pearlscale_strength", "metallic_scale_strength", "emissive_marking_strength"
+		"wetness", "scale_type", "scale_strength", "scale_size", "lateral_line_strength",
+		"pearlscale_strength", "metallic_scale_strength", "emissive_marking_strength",
+		"eye_iris_color", "eye_pupil_scale"
 	])
 	for key in ["archetype_id", "archetype_strength", "variant_seed", "marking_layers"]:
 		if parameters.has(key):

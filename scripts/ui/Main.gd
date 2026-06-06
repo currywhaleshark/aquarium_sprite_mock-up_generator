@@ -294,10 +294,66 @@ func _build_ui() -> void:
 	edit_section_label.add_theme_font_size_override("font_size", 15)
 	shape_tab.add_child(edit_section_label)
 
+	var toggle_container := HBoxContainer.new()
+	toggle_container.name = "EditToggleContainer"
+	toggle_container.add_theme_constant_override("separation", 6)
+	shape_tab.add_child(toggle_container)
+
+	body_edit_toggle = CheckButton.new()
+	body_edit_toggle.text = "몸통"
+	body_edit_toggle.toggled.connect(_set_body_edit_enabled)
+	toggle_container.add_child(body_edit_toggle)
+
 	fin_edit_toggle = CheckButton.new()
-	fin_edit_toggle.text = "지느러미 편집"
+	fin_edit_toggle.text = "지느러미"
 	fin_edit_toggle.toggled.connect(_set_fin_edit_enabled)
-	shape_tab.add_child(fin_edit_toggle)
+	toggle_container.add_child(fin_edit_toggle)
+
+	head_edit_toggle = CheckButton.new()
+	head_edit_toggle.text = "머리"
+	head_edit_toggle.toggled.connect(_set_head_edit_enabled)
+	toggle_container.add_child(head_edit_toggle)
+
+	# Apply premium segmented button styling
+	var empty_tex := PlaceholderTexture2D.new()
+	empty_tex.size = Vector2(0, 0)
+	
+	for toggle in [body_edit_toggle, fin_edit_toggle, head_edit_toggle]:
+		toggle.add_theme_icon_override("checked", empty_tex)
+		toggle.add_theme_icon_override("unchecked", empty_tex)
+		toggle.add_theme_icon_override("checked_disabled", empty_tex)
+		toggle.add_theme_icon_override("unchecked_disabled", empty_tex)
+		toggle.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		
+		var style_normal := StyleBoxFlat.new()
+		style_normal.bg_color = Color(0.14, 0.16, 0.19)
+		style_normal.content_margin_top = 8
+		style_normal.content_margin_bottom = 8
+		style_normal.corner_radius_top_left = 6
+		style_normal.corner_radius_bottom_left = 6
+		style_normal.corner_radius_top_right = 6
+		style_normal.corner_radius_bottom_right = 6
+		
+		var style_hover := style_normal.duplicate() as StyleBoxFlat
+		style_hover.bg_color = Color(0.2, 0.23, 0.27)
+		
+		var style_pressed := style_normal.duplicate() as StyleBoxFlat
+		style_pressed.bg_color = Color(0.27, 0.77, 0.81) # Cyan highlight for active mode
+		
+		var style_disabled := style_normal.duplicate() as StyleBoxFlat
+		style_disabled.bg_color = Color(0.1, 0.11, 0.12)
+		
+		toggle.add_theme_stylebox_override("normal", style_normal)
+		toggle.add_theme_stylebox_override("hover", style_hover)
+		toggle.add_theme_stylebox_override("pressed", style_pressed)
+		toggle.add_theme_stylebox_override("disabled", style_disabled)
+		toggle.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		
+		toggle.add_theme_color_override("font_color", Color(0.8, 0.82, 0.85))
+		toggle.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+		toggle.add_theme_color_override("font_pressed_color", Color(0.08, 0.09, 0.11)) # Dark font on light bg
+		toggle.add_theme_color_override("font_disabled_color", Color(0.4, 0.42, 0.45))
 
 	editor_panel_scroll = ScrollContainer.new()
 	editor_panel_scroll.name = "EditorPanelScroll"
@@ -319,11 +375,6 @@ func _build_ui() -> void:
 	)
 	editor_panel_stack.add_child(fin_editor_panel)
 
-	head_edit_toggle = CheckButton.new()
-	head_edit_toggle.text = "머리 편집"
-	head_edit_toggle.toggled.connect(_set_head_edit_enabled)
-	shape_tab.add_child(head_edit_toggle)
-
 	head_editor_panel = HeadEditorPanelScript.new()
 	head_editor_panel.visible = false
 	head_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
@@ -331,11 +382,6 @@ func _build_ui() -> void:
 	)
 	head_editor_panel.numeric_slider_changed.connect(_on_head_numeric_slider_changed)
 	editor_panel_stack.add_child(head_editor_panel)
-
-	body_edit_toggle = CheckButton.new()
-	body_edit_toggle.text = "몸통 편집"
-	body_edit_toggle.toggled.connect(_set_body_edit_enabled)
-	shape_tab.add_child(body_edit_toggle)
 
 	body_editor_panel = BodyEditorPanelScript.new()
 	body_editor_panel.visible = false
@@ -1085,11 +1131,14 @@ func _select_exclusive_edit_toggle(active_toggle: CheckButton) -> void:
 func _update_editor_panel_scroll_visibility() -> void:
 	if editor_panel_scroll == null:
 		return
-	editor_panel_scroll.visible = (
+	var editing_active := (
 		(fin_editor_panel != null and fin_editor_panel.visible)
 		or (head_editor_panel != null and head_editor_panel.visible)
 		or (body_editor_panel != null and body_editor_panel.visible)
 	)
+	editor_panel_scroll.visible = editing_active
+	if parameter_panel:
+		parameter_panel.visible = not editing_active
 
 func _is_fish() -> bool:
 	return String(current_preset.get("creature_type", "fish")) == "fish"

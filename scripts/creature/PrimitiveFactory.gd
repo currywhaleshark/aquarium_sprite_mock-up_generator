@@ -201,18 +201,24 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 
 			# Triangle 1
 			st.set_uv(Vector2(u0, v0))
+			st.set_uv2(Vector2(u0, v0))
 			st.add_vertex(p00)
 			st.set_uv(Vector2(u1, v0))
+			st.set_uv2(Vector2(u1, v0))
 			st.add_vertex(p10)
 			st.set_uv(Vector2(u0, v1))
+			st.set_uv2(Vector2(u0, v1))
 			st.add_vertex(p01)
 
 			# Triangle 2
 			st.set_uv(Vector2(u0, v1))
+			st.set_uv2(Vector2(u0, v1))
 			st.add_vertex(p01)
 			st.set_uv(Vector2(u1, v0))
+			st.set_uv2(Vector2(u1, v0))
 			st.add_vertex(p10)
 			st.set_uv(Vector2(u1, v1))
+			st.set_uv2(Vector2(u1, v1))
 			st.add_vertex(p11)
 
 	st.generate_normals()
@@ -320,6 +326,20 @@ static func cylinder(name: String, radius: float, height: float, material: Mater
 	node.mesh = mesh
 	node.material_override = material
 	return node
+
+static func tapered_cylinder(name: String, bottom_radius: float, top_radius: float, height: float, material: Material) -> MeshInstance3D:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = top_radius
+	mesh.bottom_radius = bottom_radius
+	mesh.height = height
+	mesh.radial_segments = 12
+	mesh.rings = 1
+	var node := MeshInstance3D.new()
+	node.name = name
+	node.mesh = mesh
+	node.material_override = material
+	return node
+
 
 static func tapered_segment(name: String, length: float, height: float, width: float, material: Material) -> MeshInstance3D:
 	var mesh := SphereMesh.new()
@@ -772,6 +792,7 @@ static func build_fish_outer_shell_mesh(
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
+	var uvs2 := PackedVector2Array()
 	var indices := PackedInt32Array()
 	# A duplicate seam column (segment == segments) carries V == 1.0 so cylindrical
 	# patterns wrap continuously instead of snapping back to V == 0.0 on the last face.
@@ -806,6 +827,9 @@ static func build_fish_outer_shell_mesh(
 			var local_normal := Vector3(0.0, sin_a / maxf(r_y, 0.001), z / maxf(point.z, 0.001)).normalized()
 			normals.append((ring_basis * local_normal).normalized())
 			uvs.append(Vector2(u, float(segment) / float(segments)))
+			var circumference := TAU * (point.y + point.z) * 0.5
+			var physical_v := (float(segment) / float(segments)) * circumference
+			uvs2.append(Vector2(point.x, physical_v))
 	for ring_index in profile.size() - 1:
 		for segment in segments:
 			var a := ring_index * verts_per_ring + segment
@@ -819,6 +843,7 @@ static func build_fish_outer_shell_mesh(
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = uvs2
 	arrays[Mesh.ARRAY_INDEX] = indices
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh

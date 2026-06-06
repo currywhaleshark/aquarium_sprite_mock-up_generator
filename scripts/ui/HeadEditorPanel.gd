@@ -49,7 +49,8 @@ const NUMERIC_KEYS := {
 	"eye_size": {"min": 0.01, "max": 0.16, "step": 0.005},
 	"eye_position_x": {"min": -1.5, "max": 0.2, "step": 0.005},
 	"eye_position_y": {"min": -0.5, "max": 0.6, "step": 0.005},
-	"eye_bulge": {"min": 0.0, "max": 1.0, "step": 0.01}
+	"eye_bulge": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"eye_pupil_scale": {"min": 0.2, "max": 0.95, "step": 0.01}
 }
 
 const RAY_HEAD_KEYS := {
@@ -85,7 +86,7 @@ const FISH_SECTIONS := [
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
 	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},
 	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio"]},
-	{"title": "눈", "keys": ["eye_size", "eye_position_x", "eye_position_y", "eye_bulge"]},
+	{"title": "눈", "keys": ["eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]},
 ]
 const RAY_SECTIONS := [
 	{"title": "머리", "keys": ["snout_length", "eye_size", "eye_spacing"]},
@@ -300,13 +301,62 @@ func _sync_numeric_controls(is_ray: bool) -> void:
 func _add_section(title: String, keys: Array[String], source: Dictionary) -> void:
 	var header := Button.new()
 	header.toggle_mode = true
-	header.flat = true
 	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	header.add_theme_font_size_override("font_size", 13)
-	header.button_pressed = bool(section_expanded.get(title, true))
+	
+	# Default to collapsed except "머리 본체" or "머리"
+	var default_expanded := title == "머리 본체" or title == "머리"
+	header.button_pressed = bool(section_expanded.get(title, default_expanded))
+	
+	# Modern visual style for premium accordion look
+	var style_normal := StyleBoxFlat.new()
+	style_normal.bg_color = Color(0.14, 0.16, 0.19)
+	style_normal.border_width_left = 4
+	style_normal.border_color = Color(0.27, 0.77, 0.81) # Cyan border accent
+	style_normal.content_margin_left = 12
+	style_normal.content_margin_top = 6
+	style_normal.content_margin_bottom = 6
+	style_normal.corner_radius_top_left = 4
+	style_normal.corner_radius_bottom_left = 4
+	style_normal.corner_radius_top_right = 4
+	style_normal.corner_radius_bottom_right = 4
+
+	var style_hover := style_normal.duplicate() as StyleBoxFlat
+	style_hover.bg_color = Color(0.2, 0.23, 0.27)
+
+	var style_pressed := style_normal.duplicate() as StyleBoxFlat
+	style_pressed.bg_color = Color(0.11, 0.13, 0.15)
+	style_pressed.border_color = Color(0.27, 0.77, 0.81)
+
+	header.add_theme_stylebox_override("normal", style_normal)
+	header.add_theme_stylebox_override("hover", style_hover)
+	header.add_theme_stylebox_override("pressed", style_pressed)
+	header.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	
+	header.add_theme_color_override("font_color", Color(0.85, 0.88, 0.92))
+	header.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+	header.add_theme_color_override("font_pressed_color", Color(0.27, 0.77, 0.81))
+	header.add_theme_font_size_override("font_size", 12)
+	
 	slider_container.add_child(header)
 
 	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 6)
+	
+	# Draw premium background container for active settings
+	body.draw.connect(func() -> void:
+		if not body.visible or body.get_child_count() == 0:
+			return
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.08, 0.09, 0.11, 0.6)
+		style.corner_radius_bottom_left = 6
+		style.corner_radius_bottom_right = 6
+		style.content_margin_left = 8
+		style.content_margin_right = 8
+		style.content_margin_top = 8
+		style.content_margin_bottom = 8
+		body.draw_style_box(style, Rect2(Vector2.ZERO, body.size))
+	)
+	
 	slider_container.add_child(body)
 	for key in keys:
 		_add_numeric_row(body, key, source[key])
@@ -315,7 +365,7 @@ func _add_section(title: String, keys: Array[String], source: Dictionary) -> voi
 	var apply := func(expanded: bool) -> void:
 		section_expanded[title] = expanded
 		body.visible = expanded
-		header.text = ("▾ " if expanded else "▸ ") + title
+		header.text = ("  ▼  " if expanded else "  ▶  ") + title
 	apply.call(header.button_pressed)
 	header.toggled.connect(func(pressed: bool) -> void: apply.call(pressed))
 
@@ -383,6 +433,8 @@ func _default_numeric(key: String) -> float:
 			return -0.78
 		"eye_position_y":
 			return 0.12
+		"eye_pupil_scale":
+			return 0.6
 		"snout_appendage_length":
 			return 0.4
 		"eye_spacing":

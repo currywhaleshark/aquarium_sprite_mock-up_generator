@@ -59,6 +59,7 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"eye_position_x": true,
 	"eye_position_y": true,
 	"eye_bulge": true,
+	"eye_pupil_scale": true,
 	"dorsal_fin_size": true,
 	"anal_fin_size": true,
 	"pectoral_fin_size": true,
@@ -156,7 +157,10 @@ func _build_controls() -> void:
 			continue
 		var section_body := _ensure_section(category)
 		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
-			_add_number_row(section_body, String(key), float(value))
+			if _is_boolean_parameter(String(key)):
+				_add_boolean_row(section_body, String(key), float(value) > 0.5)
+			else:
+				_add_number_row(section_body, String(key), float(value))
 		elif _is_color_value(value):
 			_add_color_row(section_body, String(key), _color_from_value(value))
 		elif typeof(value) == TYPE_STRING and _is_option_parameter(String(key)):
@@ -167,11 +171,16 @@ func _update_control_values() -> void:
 	for key in parameters.keys():
 		var value: Variant = parameters[key]
 		if sliders.has(key):
-			var slider := sliders[key] as HSlider
-			slider.value = float(value)
-			var label := labels[key] as Label
-			if label:
-				label.text = "%.2f" % float(value)
+			var widget = sliders[key]
+			if widget is HSlider:
+				var slider := widget as HSlider
+				slider.value = float(value)
+				var label := labels[key] as Label
+				if label:
+					label.text = "%.2f" % float(value)
+			elif widget is CheckBox:
+				var check := widget as CheckBox
+				check.button_pressed = float(value) > 0.5
 		elif color_pickers.has(key):
 			var picker := color_pickers[key] as ColorPickerButton
 			picker.color = _color_from_value(value)
@@ -194,6 +203,7 @@ func set_section_collapsed(section_name: String, collapsed: bool) -> void:
 	if section:
 		var header := section.get_node_or_null("Header") as Button
 		if header:
+			header.button_pressed = not collapsed
 			header.text = _header_text(section_name, not collapsed)
 
 func _ensure_section(section_name: String) -> VBoxContainer:
@@ -201,19 +211,70 @@ func _ensure_section(section_name: String) -> VBoxContainer:
 		return section_bodies[section_name]
 	var section := VBoxContainer.new()
 	section.name = section_name.replace(" ", "") + "Section"
-	section.add_theme_constant_override("separation", 2)
+	section.add_theme_constant_override("separation", 6)
+	
 	var header := Button.new()
 	header.name = "Header"
 	header.toggle_mode = true
-	header.button_pressed = not bool(collapsed_sections.get(section_name, false))
+	# Default to collapsed (true) if not specified
+	header.button_pressed = not bool(collapsed_sections.get(section_name, true))
 	header.text = _header_text(section_name, header.button_pressed)
 	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	
+	# Modern visual style for premium accordion look
+	var style_normal := StyleBoxFlat.new()
+	style_normal.bg_color = Color(0.14, 0.16, 0.19)
+	style_normal.border_width_left = 4
+	style_normal.border_color = Color(0.27, 0.77, 0.81) # Cyan border accent
+	style_normal.content_margin_left = 12
+	style_normal.content_margin_top = 8
+	style_normal.content_margin_bottom = 8
+	style_normal.corner_radius_top_left = 4
+	style_normal.corner_radius_bottom_left = 4
+	style_normal.corner_radius_top_right = 4
+	style_normal.corner_radius_bottom_right = 4
+
+	var style_hover := style_normal.duplicate() as StyleBoxFlat
+	style_hover.bg_color = Color(0.2, 0.23, 0.27)
+
+	var style_pressed := style_normal.duplicate() as StyleBoxFlat
+	style_pressed.bg_color = Color(0.11, 0.13, 0.15)
+	style_pressed.border_color = Color(0.27, 0.77, 0.81)
+
+	header.add_theme_stylebox_override("normal", style_normal)
+	header.add_theme_stylebox_override("hover", style_hover)
+	header.add_theme_stylebox_override("pressed", style_pressed)
+	header.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	
+	header.add_theme_color_override("font_color", Color(0.85, 0.88, 0.92))
+	header.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+	header.add_theme_color_override("font_pressed_color", Color(0.27, 0.77, 0.81))
+	header.add_theme_font_size_override("font_size", 12)
+	
 	section.add_child(header)
+	
 	var body := VBoxContainer.new()
 	body.name = "Body"
 	body.visible = header.button_pressed
-	body.add_theme_constant_override("separation", 1)
+	body.add_theme_constant_override("separation", 6)
+	
+	# Draw premium background container for active settings
+	body.draw.connect(func() -> void:
+		if not body.visible or body.get_child_count() == 0:
+			return
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.08, 0.09, 0.11, 0.6)
+		style.corner_radius_bottom_left = 6
+		style.corner_radius_bottom_right = 6
+		style.content_margin_left = 8
+		style.content_margin_right = 8
+		style.content_margin_top = 8
+		style.content_margin_bottom = 8
+		body.draw_style_box(style, Rect2(Vector2.ZERO, body.size))
+	)
+	
 	section.add_child(body)
+	
 	header.toggled.connect(func(opened: bool) -> void:
 		collapsed_sections[section_name] = not opened
 		body.visible = opened
@@ -224,7 +285,34 @@ func _ensure_section(section_name: String) -> VBoxContainer:
 	return body
 
 func _header_text(section_name: String, opened: bool) -> String:
-	return ("%s %s" % ["v" if opened else ">", UiText.section(section_name)])
+	return ("  %s  %s" % ["▼" if opened else "▶", UiText.section(section_name)])
+
+func _is_boolean_parameter(key: String) -> bool:
+	return key.ends_with("_enabled") or key == "ray_dorsal_tail_fins" or key.begins_with("show_")
+
+func _add_boolean_row(parent: VBoxContainer, key: String, checked: bool) -> void:
+	var row := HBoxContainer.new()
+	row.custom_minimum_size = Vector2(0, 30)
+	var label := Label.new()
+	label.text = UiText.parameter(key)
+	label.custom_minimum_size = Vector2(150, 0)
+	label.clip_text = true
+	row.add_child(label)
+	
+	var check := CheckBox.new()
+	check.button_pressed = checked
+	check.text = ""
+	row.add_child(check)
+	
+	sliders[key] = check
+	
+	check.toggled.connect(func(new_value: bool) -> void:
+		if _updating_values:
+			return
+		parameters[key] = 1.0 if new_value else 0.0
+		parameters_changed.emit(parameters.duplicate(true))
+	)
+	parent.add_child(row)
 
 func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
 	var max_value := _max_for_key(key, value)
@@ -302,6 +390,8 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	parent.add_child(row)
 
 func _min_for_key(key: String, value: float) -> float:
+	if key == "scale_size":
+		return 4.0
 	if key == "wave_ripples":
 		return 0.5
 	if key.begins_with("pattern_") or key == "belly_height" or key == "belly_slope":
@@ -311,6 +401,8 @@ func _min_for_key(key: String, value: float) -> float:
 	return 0.0
 
 func _max_for_key(key: String, value: float) -> float:
+	if key == "scale_size":
+		return 64.0
 	if key == "disc_thickness":
 		return 0.3
 	if key == "tail_thickness":
@@ -339,6 +431,8 @@ func _is_signed_parameter(key: String) -> bool:
 	return key.contains("offset") or key.contains("position") or key.ends_with("_x") or key.ends_with("_y") or key.ends_with("_z")
 
 func _category_for_key(key: String) -> String:
+	if key.contains("scale") or key == "lateral_line_strength":
+		return "Scale Settings"
 	if key.begins_with("pattern"):
 		return "Pattern Settings"
 	if key == "belly_height" or key == "belly_slope" or key == "wetness" or key.begins_with("iridescence"):
@@ -388,13 +482,15 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "swim_mode" or key == "pattern_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style"
+	return key == "swim_mode" or key == "pattern_type" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style"
 
 func _options_for_key(key: String) -> Array[String]:
 	if key == "swim_mode":
 		return BodyProfileScript.swim_mode_names()
 	if key == "pattern_type":
 		return BodyProfileScript.pattern_type_names()
+	if key == "scale_type":
+		return BodyProfileScript.scale_type_names()
 	if key == "pectoral_flap_sync":
 		return ["alternating", "synchronous"] as Array[String]
 	if key == "cephalic_horns":

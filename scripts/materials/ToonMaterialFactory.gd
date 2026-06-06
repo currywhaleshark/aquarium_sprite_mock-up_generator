@@ -26,6 +26,7 @@ static func make_body_material(parameters: Dictionary) -> ShaderMaterial:
 	material.set_shader_parameter("iridescence_color", _as_color(parameters.get("iridescence_color", "#bfe9ff")))
 	material.set_shader_parameter("iridescence_frequency", clampf(float(parameters.get("iridescence_frequency", 2.0)), 0.1, 10.0))
 	material.set_shader_parameter("wetness", clampf(float(parameters.get("wetness", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("scale_type", BodyProfile.scale_type_index(String(parameters.get("scale_type", "cycloid"))))
 	material.set_shader_parameter("scale_strength", clampf(float(parameters.get("scale_strength", 0.0)), 0.0, 1.0))
 	material.set_shader_parameter("scale_size", clampf(float(parameters.get("scale_size", 16.0)), 4.0, 64.0))
 	material.set_shader_parameter("lateral_line_strength", clampf(float(parameters.get("lateral_line_strength", 0.0)), 0.0, 1.0))

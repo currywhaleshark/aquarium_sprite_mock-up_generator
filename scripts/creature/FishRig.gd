@@ -146,7 +146,11 @@ func rebuild() -> void:
 	var head_shape := String(parameters.get("head_shape", "rounded"))
 	var snout_len := param_float("snout_length", 0.0)
 	var forehead_slope := param_float("forehead_slope", 0.35)
-	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, body_mat, _head_sculpt_params())
+	
+	var head_mat := body_mat.duplicate() as ShaderMaterial
+	head_mat.set_shader_parameter("is_head", true)
+	
+	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, head_mat, _head_sculpt_params())
 	head_node.position = Vector3(head_offset, _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
@@ -721,21 +725,45 @@ func _apply_animated_eyes(yaw: float) -> void:
 	var layout := _eye_layout()
 	var anchor: Vector3 = layout["anchor"]
 	var eye_center_z := float(layout["eye_center_z"])
-	var dynamic_head_center := head_node.position
-	var local_anchor := anchor - eye_head_center
-	eye_l.position = dynamic_head_center + basis * (local_anchor + Vector3(0.0, 0.0, -eye_center_z))
-	eye_r.position = dynamic_head_center + basis * (local_anchor + Vector3(0.0, 0.0, eye_center_z))
 	var stalk_inner := float(layout["stalk_inner"])
 	var stalk_length := float(layout["stalk_length"])
+	var eye_style := String(parameters.get("eye_style", "bead"))
+	
+	var theta := 0.0
+	if eye_style == "celestial":
+		theta = deg_to_rad(55.0)
+		
+	var dynamic_head_center := head_node.position
+	var local_anchor := anchor - eye_head_center
+	
+	for side in [-1.0, 1.0]:
+		var eye := eye_l if side < 0.0 else eye_r
+		var v: Vector3 = Vector3(0.0, sin(theta), side * cos(theta))
+		var rot_x: float = side * (90.0 - rad_to_deg(theta))
+		
+		var local_offset := local_anchor + v * eye_center_z
+		eye.position = dynamic_head_center + basis * local_offset
+		eye.rotation_degrees = Vector3(rot_x, yaw, 0.0)
+		
 	for stalk_side in [eye_stalk_l, eye_stalk_r]:
 		if stalk_side == null:
 			continue
+		var side := -1.0 if stalk_side == eye_stalk_l else 1.0
+		var v: Vector3 = Vector3(0.0, sin(theta), side * cos(theta))
+		var rot_x: float = side * (90.0 - rad_to_deg(theta))
+		
 		var stalk_mesh := stalk_side.mesh as CylinderMesh
 		if stalk_mesh:
 			stalk_mesh.height = stalk_length
-		var stalk_sign := -1.0 if stalk_side == eye_stalk_l else 1.0
-		stalk_side.position = dynamic_head_center + basis * (local_anchor + Vector3(0.0, 0.0, stalk_sign * (stalk_inner + stalk_length * 0.5)))
-		stalk_side.rotation_degrees = Vector3(90.0, yaw, 0.0)
+			var is_thick_stalk := eye_style == "telescope" or eye_style == "celestial"
+			var r_bottom := eye_radius * 0.6 if is_thick_stalk else eye_radius * 0.34
+			var r_top := eye_radius * 0.8 if is_thick_stalk else eye_radius * 0.34
+			stalk_mesh.bottom_radius = r_bottom
+			stalk_mesh.top_radius = r_top
+			
+		var local_offset := local_anchor + v * (stalk_inner + stalk_length * 0.5)
+		stalk_side.position = dynamic_head_center + basis * local_offset
+		stalk_side.rotation_degrees = Vector3(rot_x, yaw, 0.0)
 
 func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	if dorsal_fin:
@@ -1602,25 +1630,75 @@ func _add_eyes(eye_mat: Material, stalk_mat: Material, head_center: Vector3, hea
 	var layout := _eye_layout()
 	var anchor: Vector3 = layout["anchor"]
 	var eye_center_z := float(layout["eye_center_z"])
+	var stalk_inner := float(layout["stalk_inner"])
+	var stalk_length := float(layout["stalk_length"])
+	
+	var z_scale_mult := 1.0
+	match eye_style:
+		"large", "bead":
+			z_scale_mult = 0.55
+		"tiny_puffer":
+			z_scale_mult = 0.70
+		"telescope", "celestial":
+			z_scale_mult = 1.0
+			
+	var theta := 0.0
+	if eye_style == "celestial":
+		theta = deg_to_rad(55.0)
+
+	# Real teleost eyes read as a bright metallic iris ring (guanine iridophores)
+	# around a fixed round pupil that the spherical lens bulges through, topped by a
+	# wet catchlight — not the flat black bead we used to draw. eye_mat now colors the
+	# pupil; the iris ellipsoid carries the metallic ring colour underneath it.
+	var iris_mat := TMF.make_dark(String(parameters.get("eye_iris_color", "#d8b24a")))
+	var catchlight_mat := TMF.make_dark("#f2fbff")
+	var pupil_scale := clampf(param_float("eye_pupil_scale", 0.6), 0.2, 0.95)
+
 	for side in [-1.0, 1.0]:
 		var suffix := "L" if side < 0.0 else "R"
-		var eye := PF.ellipsoid("Eye%s" % suffix, Vector3(eye_size, eye_size, eye_size), eye_mat)
-		eye.position = anchor + Vector3(0.0, 0.0, side * eye_center_z)
+		var v: Vector3 = Vector3(0.0, sin(theta), side * cos(theta))
+		var rot_x: float = side * (90.0 - rad_to_deg(theta))
+
+		var eye := PF.ellipsoid("Eye%s" % suffix, Vector3(eye_size, eye_size * z_scale_mult, eye_size), iris_mat)
+		eye.position = anchor + v * eye_center_z
+		eye.rotation_degrees = Vector3(rot_x, 0.0, 0.0)
 		body_pivot.add_child(eye)
+		_add_eye_details(eye, eye_mat, catchlight_mat, side, pupil_scale)
 		if side < 0.0:
 			eye_l = eye
 		else:
 			eye_r = eye
 		if bool(layout["has_stalk"]):
-			var stalk_length := float(layout["stalk_length"])
-			var stalk := PF.cylinder("EyeStalk%s" % suffix, eye_size * 0.34, stalk_length, stalk_mat)
-			stalk.rotation_degrees = Vector3(90.0, 0.0, 0.0)
-			stalk.position = anchor + Vector3(0.0, 0.0, side * (float(layout["stalk_inner"]) + stalk_length * 0.5))
+			var is_thick_stalk := eye_style == "telescope" or eye_style == "celestial"
+			var r_bottom := eye_size * 0.6 if is_thick_stalk else eye_size * 0.34
+			var r_top := eye_size * 0.8 if is_thick_stalk else eye_size * 0.34
+			
+			var stalk := PF.tapered_cylinder("EyeStalk%s" % suffix, r_bottom, r_top, stalk_length, stalk_mat)
+			stalk.rotation_degrees = Vector3(rot_x, 0.0, 0.0)
+			stalk.position = anchor + v * (stalk_inner + stalk_length * 0.5)
 			body_pivot.add_child(stalk)
 			if side < 0.0:
 				eye_stalk_l = stalk
 			else:
 				eye_stalk_r = stalk
+
+# Builds the fish-eye detail stack on top of the iris ellipsoid: a round dark pupil
+# the spherical lens bulges through, plus a small specular catchlight on that lens.
+# Children inherit the eye's (flattened, side-facing) transform so they ride along
+# with every reposition/animation pass without extra bookkeeping.
+func _add_eye_details(eye: MeshInstance3D, pupil_mat: Material, catchlight_mat: Material, side: float, pupil_scale: float) -> void:
+	# Local +Y is the eye's outward pole (the squashed axis faces sideways), so the
+	# pupil rides out along +Y and bulges past the iris surface like a real lens.
+	var pupil := PF.ellipsoid("Pupil", Vector3(pupil_scale, pupil_scale, pupil_scale), pupil_mat)
+	pupil.position = Vector3(0.0, 0.30, 0.0)
+	eye.add_child(pupil)
+	# Catchlight is a flat specular spot painted onto the pupil's outer face toward the
+	# upper-front (eye-local: world-up maps to -side*Z, snout/world -X maps to -X). It is
+	# squashed flat along the outward axis (Y) and sat just on the lens surface so it
+	# reads as a glint flush with the eye, not a 3D bead stuck on top of the pupil.
+	var catchlight := PF.ellipsoid("Catchlight", Vector3(0.30, 0.04, 0.30), catchlight_mat)
+	catchlight.position = Vector3(-0.20, 0.43, -side * 0.20)
+	pupil.add_child(catchlight)
 
 # Projects the requested eye spot onto the head ellipsoid, clamped inside the
 # silhouette so the eye sits on the head instead of floating past the snout.
@@ -1629,13 +1707,15 @@ func _eye_layout() -> Dictionary:
 	var half := eye_head_scale * 0.5
 	var eye_x := param_float("eye_position_x", -0.78)
 	var eye_y := param_float("eye_position_y", 0.12)
-	var eye_bulge := clampf(param_float("eye_bulge", 0.0), 0.0, 1.0)
 	var eye_style := String(parameters.get("eye_style", "bead"))
+	var default_bulge := 0.0
 	if eye_style == "telescope":
-		eye_bulge = maxf(eye_bulge, 0.85)
+		default_bulge = 0.85
 	elif eye_style == "celestial":
+		default_bulge = 0.45
+	var eye_bulge := clampf(float(parameters.get("eye_bulge", default_bulge)), 0.0, 1.0)
+	if eye_style == "celestial":
 		eye_y += eye_head_scale.y * 0.12
-		eye_bulge = maxf(eye_bulge, 0.45)
 	var ux := (eye_x - eye_head_center.x) / maxf(half.x, 0.001)
 	var uy := eye_y / maxf(half.y, 0.001)
 	var planar_radius := sqrt(ux * ux + uy * uy)
@@ -1683,18 +1763,39 @@ func _reposition_eyes() -> void:
 	var layout := _eye_layout()
 	var anchor: Vector3 = layout["anchor"]
 	var eye_center_z := float(layout["eye_center_z"])
-	eye_l.position = anchor + Vector3(0.0, 0.0, -eye_center_z)
-	eye_r.position = anchor + Vector3(0.0, 0.0, eye_center_z)
 	var stalk_inner := float(layout["stalk_inner"])
 	var stalk_length := float(layout["stalk_length"])
+	var eye_style := String(parameters.get("eye_style", "bead"))
+	
+	var theta := 0.0
+	if eye_style == "celestial":
+		theta = deg_to_rad(55.0)
+		
+	for side in [-1.0, 1.0]:
+		var eye := eye_l if side < 0.0 else eye_r
+		var v: Vector3 = Vector3(0.0, sin(theta), side * cos(theta))
+		var rot_x: float = side * (90.0 - rad_to_deg(theta))
+		eye.position = anchor + v * eye_center_z
+		eye.rotation_degrees = Vector3(rot_x, 0.0, 0.0)
+		
 	for stalk_side in [eye_stalk_l, eye_stalk_r]:
 		if stalk_side == null:
 			continue
+		var side := -1.0 if stalk_side == eye_stalk_l else 1.0
+		var v: Vector3 = Vector3(0.0, sin(theta), side * cos(theta))
+		var rot_x: float = side * (90.0 - rad_to_deg(theta))
+		
 		var stalk_mesh := stalk_side.mesh as CylinderMesh
 		if stalk_mesh:
 			stalk_mesh.height = stalk_length
-		var stalk_sign := -1.0 if stalk_side == eye_stalk_l else 1.0
-		stalk_side.position = anchor + Vector3(0.0, 0.0, stalk_sign * (stalk_inner + stalk_length * 0.5))
+			var is_thick_stalk := eye_style == "telescope" or eye_style == "celestial"
+			var r_bottom := eye_radius * 0.6 if is_thick_stalk else eye_radius * 0.34
+			var r_top := eye_radius * 0.8 if is_thick_stalk else eye_radius * 0.34
+			stalk_mesh.bottom_radius = r_bottom
+			stalk_mesh.top_radius = r_top
+			
+		stalk_side.position = anchor + v * (stalk_inner + stalk_length * 0.5)
+		stalk_side.rotation_degrees = Vector3(rot_x, 0.0, 0.0)
 
 func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	var dark_mat := TMF.make_dark("#15191b")

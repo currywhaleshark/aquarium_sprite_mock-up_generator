@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://jxm0ah2dv4vs"]
+
+[ext_resource type="Script" path="res://scripts/tools/ScaleShot.gd" id="1_scaleshot"]
+
+[node name="ScaleShot" type="Node"]
+script = ExtResource("1_scaleshot")

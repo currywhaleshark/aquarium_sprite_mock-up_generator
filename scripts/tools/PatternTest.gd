@@ -73,6 +73,7 @@ func _test_shader_compiles_and_uniforms() -> void:
 		"iridescence_color": "#ccddee",
 		"iridescence_frequency": 3.5,
 		"wetness": 0.8,
+		"scale_type": "ganoid",
 		"scale_strength": 0.36,
 		"scale_size": 18.0,
 		"lateral_line_strength": 0.41,
@@ -93,6 +94,7 @@ func _test_shader_compiles_and_uniforms() -> void:
 	assert(material.get_shader_parameter("iridescence_color") is Color)
 	assert(abs(float(material.get_shader_parameter("iridescence_frequency")) - 3.5) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("wetness")) - 0.8) < 0.0001)
+	assert(int(material.get_shader_parameter("scale_type")) == 2)
 	assert(abs(float(material.get_shader_parameter("scale_strength")) - 0.36) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("scale_size")) - 18.0) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("lateral_line_strength")) - 0.41) < 0.0001)
@@ -109,6 +111,13 @@ func _test_shader_compiles_and_uniforms() -> void:
 	assert(BodyProfileScript.pattern_type_index("reticulated") == 6)
 	assert(BodyProfileScript.pattern_type_index("not_a_pattern") == 0)
 	assert(BodyProfileScript.pattern_type_names().size() == 7)
+
+	assert(BodyProfileScript.scale_type_index("cycloid") == 0)
+	assert(BodyProfileScript.scale_type_index("ctenoid") == 1)
+	assert(BodyProfileScript.scale_type_index("ganoid") == 2)
+	assert(BodyProfileScript.scale_type_index("placoid") == 3)
+	assert(BodyProfileScript.scale_type_index("pearlscale") == 4)
+	assert(BodyProfileScript.scale_type_names().size() == 5)
 
 func _test_preset_round_trip() -> void:
 	var params := {
@@ -127,6 +136,7 @@ func _test_preset_round_trip() -> void:
 		"iridescence_color": "#aabbcc",
 		"iridescence_frequency": 4.0,
 		"wetness": 0.65,
+		"scale_type": "ctenoid",
 		"scale_strength": 0.3,
 		"scale_size": 15.0,
 		"lateral_line_strength": 0.25,
@@ -147,6 +157,7 @@ func _test_preset_round_trip() -> void:
 	assert(String(visual.get("iridescence_color", "")) == "#aabbcc")
 	assert(abs(float(visual.get("iridescence_frequency", 0.0)) - 4.0) < 0.0001)
 	assert(abs(float(visual.get("wetness", 0.0)) - 0.65) < 0.0001)
+	assert(String(visual.get("scale_type", "")) == "ctenoid")
 	assert(abs(float(visual.get("scale_strength", 0.0)) - 0.3) < 0.0001)
 	assert(abs(float(visual.get("scale_size", 0.0)) - 15.0) < 0.0001)
 	assert(abs(float(visual.get("lateral_line_strength", 0.0)) - 0.25) < 0.0001)
@@ -160,6 +171,7 @@ func _test_preset_round_trip() -> void:
 	assert(abs(float(rebuilt.get("belly_height", 0.0)) - 0.35) < 0.0001)
 	assert(abs(float(rebuilt.get("belly_slope", 0.0)) - 0.18) < 0.0001)
 	assert(abs(float(rebuilt.get("iridescence_strength", 0.0)) - 0.55) < 0.0001)
+	assert(String(rebuilt.get("scale_type", "")) == "ctenoid")
 	assert(abs(float(rebuilt.get("scale_strength", 0.0)) - 0.3) < 0.0001)
 	assert(abs(float(rebuilt.get("metallic_scale_strength", 0.0)) - 0.4) < 0.0001)
 
@@ -181,6 +193,7 @@ func _test_visual_defaults_injected() -> void:
 	assert(legacy.has("iridescence_color"))
 	assert(legacy.has("iridescence_frequency"))
 	assert(legacy.has("wetness"))
+	assert(legacy.has("scale_type"))
 	assert(legacy.has("scale_strength"))
 	assert(legacy.has("scale_size"))
 	assert(legacy.has("lateral_line_strength"))
