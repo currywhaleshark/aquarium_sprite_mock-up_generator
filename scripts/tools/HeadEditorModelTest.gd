@@ -467,151 +467,48 @@ func _ready() -> void:
 	fish.set_parameters(operculum_base)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var operculum_root := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") as Node3D
-	var operculum_head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
-	assert(operculum_root != null)
-	assert(operculum_head != null)
-	var opercle_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
-	var opercle_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleR") as MeshInstance3D
-	var pre_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/PreopercleSeamL") as MeshInstance3D
-	var pre_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/PreopercleSeamR") as MeshInstance3D
-	var slit_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitL") as MeshInstance3D
-	var slit_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitR") as MeshInstance3D
-	var sub_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/SubopercleSeamL") as MeshInstance3D
-	var sub_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/SubopercleSeamR") as MeshInstance3D
-	var rim_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleRimL") as MeshInstance3D
-	var rim_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleRimR") as MeshInstance3D
-	assert(opercle_l != null)
-	assert(opercle_r != null)
-	assert(pre_l != null)
-	assert(pre_r != null)
-	assert(slit_l != null)
-	assert(slit_r != null)
-	assert(sub_l != null)
-	assert(sub_r != null)
-	assert(rim_l == null)
-	assert(rim_r == null)
-	var opercle_l_extent := _mesh_extent(opercle_l)
-	assert(opercle_l_extent.x > 0.30)
-	assert(opercle_l_extent.y > 0.46)
-	assert(opercle_l_extent.z > 0.01)
-	assert(_mesh_rear_edge_average_x(opercle_l) > 0.37)
-	assert(_mesh_average_x(slit_l) > _mesh_average_x(opercle_l) + 0.08)
-	assert(_mesh_max_x(pre_l) - _mesh_min_x(pre_l) > 0.06)
-	assert(_mesh_average_z(opercle_l) < -0.05)
-	assert(_mesh_average_z(opercle_r) > 0.05)
-	assert(absf(_mesh_average_z(opercle_l) + _mesh_average_z(opercle_r)) < 0.025)
-	assert(_mesh_average_normal_z(opercle_l) < -0.2)
-	assert(_mesh_average_normal_z(opercle_r) > 0.2)
-	assert(_mesh_average_side_margin(opercle_l, operculum_head, -1.0) > 0.05)
-	assert(_mesh_average_side_margin(opercle_r, operculum_head, 1.0) > 0.05)
-	assert(absf(_mesh_max_z(slit_r) - _mesh_rear_edge_max_abs_z(opercle_r)) < 0.03)
-	assert(_mesh_rear_edge_max_abs_z(opercle_r) > 0.18)
-	var small_operculum := operculum_base.duplicate(true)
-	small_operculum["operculum_size"] = 0.55
-	fish.set_parameters(small_operculum)
-	await get_tree().process_frame
-	var small_plate_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D)
-	var small_plate := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
-	var small_front_x := _mesh_front_edge_average_x(small_plate)
-	var small_rear_x := _mesh_rear_edge_average_x(small_plate)
+	var head_mat := _head_shader_material(fish)
+	assert(head_mat.get_shader_parameter("operculum_enabled") == true)
+	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
+	var base_u: Vector2 = head_mat.get_shader_parameter("operculum_u")
 
 	var large_operculum := operculum_base.duplicate(true)
 	large_operculum["operculum_size"] = 1.45
 	fish.set_parameters(large_operculum)
 	await get_tree().process_frame
-	var large_plate := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
-	var large_plate_extent := _mesh_extent(large_plate)
-	assert(large_plate_extent.x > small_plate_extent.x + 0.20)
-	assert(_mesh_front_edge_average_x(large_plate) < small_front_x - 0.20)
-	assert(absf(_mesh_rear_edge_average_x(large_plate) - small_rear_x) < 0.035)
-
-	var short_operculum := operculum_base.duplicate(true)
-	short_operculum["operculum_height"] = 0.55
-	fish.set_parameters(short_operculum)
-	await get_tree().process_frame
-	var short_plate_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D)
+	head_mat = _head_shader_material(fish)
+	var big_u: Vector2 = head_mat.get_shader_parameter("operculum_u")
+	assert(big_u.x < base_u.x - 0.02)
+	assert(absf(big_u.y - base_u.y) < 0.001)
 
 	var tall_operculum := operculum_base.duplicate(true)
 	tall_operculum["operculum_height"] = 1.45
 	fish.set_parameters(tall_operculum)
 	await get_tree().process_frame
-	var tall_plate_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D)
-	assert(tall_plate_extent.y > short_plate_extent.y + 0.30)
-
-	var closed_operculum := operculum_base.duplicate(true)
-	closed_operculum["operculum_open"] = 0.0
-	fish.set_parameters(closed_operculum)
-	await get_tree().process_frame
-	var closed_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
-	var closed_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleR") as MeshInstance3D
-	var closed_l_rear_z := _mesh_rear_edge_average_z(closed_l)
-	var closed_r_rear_z := _mesh_rear_edge_average_z(closed_r)
-	var closed_l_front_abs_z := _mesh_front_edge_abs_z(closed_l)
-	var closed_l_rear_x := _mesh_rear_edge_average_x(closed_l)
-	var closed_l_front_x := _mesh_front_edge_average_x(closed_l)
+	head_mat = _head_shader_material(fish)
+	var tall_up: Vector2 = head_mat.get_shader_parameter("operculum_up")
+	assert(tall_up.y > 0.45 * 1.2)
 
 	var open_operculum := operculum_base.duplicate(true)
 	open_operculum["operculum_open"] = 1.0
 	fish.set_parameters(open_operculum)
 	await get_tree().process_frame
-	var open_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
-	var open_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleR") as MeshInstance3D
-	var open_slit_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitL") as MeshInstance3D
-	var open_slit_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitR") as MeshInstance3D
-	assert(_mesh_rear_edge_average_z(open_l) < closed_l_rear_z - 0.025)
-	assert(_mesh_rear_edge_average_z(open_r) > closed_r_rear_z + 0.025)
-	assert(absf(_mesh_front_edge_abs_z(open_l) - closed_l_front_abs_z) < 0.014)
-	assert(_mesh_rear_edge_average_x(open_l) > closed_l_rear_x + 0.03)
-	assert(absf(_mesh_front_edge_average_x(open_l) - closed_l_front_x) < 0.012)
-	assert(open_slit_l != null)
-	assert(open_slit_r != null)
-	assert(absf(absf(_mesh_min_z(open_slit_l)) - _mesh_rear_edge_max_abs_z(open_l)) < 0.03)
-	assert(absf(_mesh_max_z(open_slit_r) - _mesh_rear_edge_max_abs_z(open_r)) < 0.03)
-
-	var low_ridge := operculum_base.duplicate(true)
-	low_ridge["operculum_ridge"] = 0.0
-	fish.set_parameters(low_ridge)
-	await get_tree().process_frame
-	var low_slit_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitL") as MeshInstance3D)
-	var low_plate_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D)
+	head_mat = _head_shader_material(fish)
+	assert(float(head_mat.get_shader_parameter("operculum_open")) > 0.99)
 
 	var high_ridge := operculum_base.duplicate(true)
 	high_ridge["operculum_ridge"] = 1.0
 	fish.set_parameters(high_ridge)
 	await get_tree().process_frame
-	var high_slit_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitL") as MeshInstance3D)
-	var high_slit := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitL") as MeshInstance3D
-	var high_preopercle := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/PreopercleSeamL") as MeshInstance3D
-	var high_plate := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
-	var high_plate_extent := _mesh_extent(high_plate)
-	assert(high_slit != null)
-	assert(high_preopercle != null)
-	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleRimL") == null)
-	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleRimR") == null)
-	assert(_mesh_average_x(high_slit) > _mesh_average_x(high_plate) + 0.08)
-	var high_plate_mat := high_plate.material_override as BaseMaterial3D
-	var high_slit_mat := high_slit.material_override as BaseMaterial3D
-	var high_preopercle_mat := high_preopercle.material_override as BaseMaterial3D
-	assert(high_plate_mat != null)
-	assert(high_slit_mat != null)
-	assert(high_preopercle_mat != null)
-	var high_plate_luma := _color_luma(high_plate_mat.albedo_color)
-	var high_slit_luma := _color_luma(high_slit_mat.albedo_color)
-	var high_preopercle_luma := _color_luma(high_preopercle_mat.albedo_color)
-	var base_luma := _color_luma(Color.html("#46c6cf"))
-	assert(high_plate_luma < base_luma - 0.10)
-	assert(high_plate_luma > base_luma - 0.22)
-	assert(high_preopercle_luma < base_luma - 0.06)
-	assert(high_preopercle_luma > high_slit_luma + 0.18)
-	assert(high_slit_extent.x > low_slit_extent.x + 0.010)
-	assert(high_slit_extent.x > 0.055)
-	assert(absf(high_plate_extent.x - low_plate_extent.x) < 0.012)
-	assert(absf(high_plate_extent.y - low_plate_extent.y) < 0.012)
+	head_mat = _head_shader_material(fish)
+	assert(float(head_mat.get_shader_parameter("operculum_ridge")) > 0.99)
+
 	var line_params := operculum_base.duplicate(true)
 	line_params["gill_mark"] = "line"
 	fish.set_parameters(line_params)
 	await get_tree().process_frame
+	head_mat = _head_shader_material(fish)
+	assert(head_mat.get_shader_parameter("operculum_enabled") == false)
 	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
 	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_line") != null)
 
@@ -623,6 +520,8 @@ func _ready() -> void:
 	legacy_no_operculum_keys.erase("operculum_ridge")
 	fish.set_parameters(legacy_no_operculum_keys)
 	await get_tree().process_frame
+	head_mat = _head_shader_material(fish)
+	assert(head_mat.get_shader_parameter("operculum_enabled") == false)
 	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
@@ -687,147 +586,12 @@ func _mesh_extent(node: MeshInstance3D) -> Vector3:
 		max_v.z = maxf(max_v.z, v.z)
 	return max_v - min_v
 
-func _mesh_average_z(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var total := 0.0
-	for v in verts:
-		total += v.z
-	return total / float(maxi(verts.size(), 1))
-
-func _mesh_average_x(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var total := 0.0
-	for v in verts:
-		total += v.x
-	return total / float(maxi(verts.size(), 1))
-
-func _mesh_average_normal_z(node: MeshInstance3D) -> float:
-	var normals: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_NORMAL]
-	var total := 0.0
-	for normal in normals:
-		total += normal.z
-	return total / float(maxi(normals.size(), 1))
-
-func _mesh_average_side_margin(node: MeshInstance3D, head: MeshInstance3D, side: float) -> float:
-	var plate_verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var head_verts: PackedVector3Array = head.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var total := 0.0
-	var count := 0
-	for p in plate_verts:
-		var best_d := INF
-		var best_z := 0.0
-		for h in head_verts:
-			if side > 0.0 and h.z < 0.0:
-				continue
-			if side < 0.0 and h.z > 0.0:
-				continue
-			var dx := h.x - p.x
-			var dy := h.y - p.y
-			var d := dx * dx + dy * dy
-			if d < best_d:
-				best_d = d
-				best_z = h.z
-		if best_d == INF:
-			continue
-		total += (p.z - best_z) * side
-		count += 1
-	assert(count > 0)
-	return total / float(count)
-
-func _mesh_rear_edge_average_z(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var max_x := -INF
-	for v in verts:
-		max_x = maxf(max_x, v.x)
-	var total := 0.0
-	var count := 0
-	for v in verts:
-		if v.x >= max_x - 0.018:
-			total += v.z
-			count += 1
-	assert(count > 0)
-	return total / float(count)
-
-func _mesh_rear_edge_average_x(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var max_x := -INF
-	for v in verts:
-		max_x = maxf(max_x, v.x)
-	var total := 0.0
-	var count := 0
-	for v in verts:
-		if v.x >= max_x - 0.018:
-			total += v.x
-			count += 1
-	assert(count > 0)
-	return total / float(count)
-
-func _mesh_rear_edge_max_abs_z(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var max_x := -INF
-	for v in verts:
-		max_x = maxf(max_x, v.x)
-	var best := -INF
-	for v in verts:
-		if v.x >= max_x - 0.02:
-			best = maxf(best, absf(v.z))
-	return best
-
-func _mesh_front_edge_average_x(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var min_x := INF
-	for v in verts:
-		min_x = minf(min_x, v.x)
-	var total := 0.0
-	var count := 0
-	for v in verts:
-		if v.x <= min_x + 0.018:
-			total += v.x
-			count += 1
-	assert(count > 0)
-	return total / float(count)
-
-func _mesh_min_x(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var min_x := INF
-	for v in verts:
-		min_x = minf(min_x, v.x)
-	return min_x
-
-func _mesh_max_x(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var max_x := -INF
-	for v in verts:
-		max_x = maxf(max_x, v.x)
-	return max_x
-
-func _mesh_min_z(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var min_z := INF
-	for v in verts:
-		min_z = minf(min_z, v.z)
-	return min_z
-
-func _mesh_max_z(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var max_z := -INF
-	for v in verts:
-		max_z = maxf(max_z, v.z)
-	return max_z
-
-func _mesh_front_edge_abs_z(node: MeshInstance3D) -> float:
-	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var min_x := INF
-	for v in verts:
-		min_x = minf(min_x, v.x)
-	var max_abs_z := 0.0
-	for v in verts:
-		if v.x <= min_x + 0.018:
-			max_abs_z = maxf(max_abs_z, absf(v.z))
-	return max_abs_z
-
-func _color_luma(color: Color) -> float:
-	return color.r * 0.299 + color.g * 0.587 + color.b * 0.114
+func _head_shader_material(fish: Node) -> ShaderMaterial:
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	assert(head != null)
+	var head_mat := head.material_override as ShaderMaterial
+	assert(head_mat != null)
+	return head_mat
 
 func _world_mesh_extent(node: MeshInstance3D) -> AABB:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]

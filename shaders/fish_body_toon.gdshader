@@ -48,6 +48,12 @@ uniform float lateral_line_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float pearlscale_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float metallic_scale_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float emissive_marking_strength : hint_range(0.0, 1.0) = 0.0;
+uniform bool operculum_enabled = false;
+uniform vec2 operculum_u = vec2(0.139, 0.224);
+uniform vec2 operculum_up = vec2(0.0, 0.45);
+uniform float operculum_open : hint_range(0.0, 1.0) = 0.0;
+uniform float operculum_ridge : hint_range(0.0, 1.0) = 0.45;
+uniform vec4 operculum_line_color : source_color = vec4(0.08, 0.10, 0.11, 1.0);
 
 // Species marking layers. Fixed slots keep the material contract explicit and
 // deterministic for Godot 4 shader parameters.
@@ -270,7 +276,44 @@ void fragment() {
 	if (count > 6) { apply_marking_layer(col, marking_type_6, marking_color_6, marking_rect_6, marking_params_6, v_long, up); }
 	if (count > 7) { apply_marking_layer(col, marking_type_7, marking_color_7, marking_rect_7, marking_params_7, v_long, up); }
 
-	// 2c. Imbricated fish scales. Real cycloid/ctenoid scales overlap like roof
+	// 2c. Operculum (gill cover). Painted in UV on the visible front body/head
+	// surface, so it cannot float, wing out in front view, or fight shell depth.
+	// The rear dark arc is the free gill opening; open is a shader pose that
+	// widens/darkens that rear margin.
+	if (operculum_enabled) {
+		float au = operculum_u.x;
+		float pu = operculum_u.y;
+		float cup = operculum_up.x;
+		float half_up = max(operculum_up.y, 0.001);
+		float soft = 0.02;
+
+		float ut = clamp((v_long - au) / max(pu - au, 0.001), 0.0, 1.0);
+		float env = mix(0.62, 1.0, sin(ut * PI));
+		float top = cup + half_up * env;
+		float bot = cup - half_up * env;
+
+		float u_mask = band_range(v_long, au, pu, soft);
+		float v_mask = smoothstep(top + soft, top - soft, up) * smoothstep(bot - soft, bot + soft, up);
+		float plate = u_mask * v_mask;
+
+		col = mix(col, col * mix(0.80, 0.58, operculum_ridge), plate);
+
+		float seam_x = au + 0.006;
+		float seam_w = 0.010 + 0.010 * operculum_ridge;
+		float seam = v_mask * (1.0 - smoothstep(0.0, seam_w, abs(v_long - seam_x)));
+		col = mix(col, operculum_line_color.rgb, seam * mix(0.18, 0.45, operculum_ridge));
+
+		float slit_x = pu + operculum_open * 0.010;
+		float slit_w = (0.006 + 0.016 * operculum_ridge) * (1.0 + 0.8 * operculum_open);
+		float slit = v_mask * (1.0 - smoothstep(0.0, slit_w, abs(v_long - slit_x)));
+		col = mix(col, operculum_line_color.rgb, slit * mix(0.5, 0.85, operculum_ridge));
+
+		float rim_x = slit_x - slit_w * 1.8;
+		float rim = v_mask * (1.0 - smoothstep(0.0, slit_w * 0.8, abs(v_long - rim_x))) * operculum_open;
+		col = mix(col, min(col * 1.6 + 0.10, vec3(1.0)), rim * 0.4);
+	}
+
+	// 2d. Imbricated fish scales. Real cycloid/ctenoid scales overlap like roof
 	// shingles in half-staggered rows, and only each scale's rounded trailing (posterior)
 	// margin is exposed. So instead of a square sine lattice we tessellate the surface into
 	// rounded scale cells (a regular Voronoi over a half-offset grid) and shade just the

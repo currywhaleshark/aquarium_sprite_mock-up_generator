@@ -36,6 +36,19 @@ static func make_body_material(parameters: Dictionary) -> ShaderMaterial:
 	var marking_uniforms := SpeciesMarkingLayerScript.encode_uniforms(parameters.get("marking_layers", []))
 	for key in marking_uniforms.keys():
 		material.set_shader_parameter(String(key), marking_uniforms[key])
+	var gill_mark := String(parameters.get("gill_mark", "none"))
+	var op_on := gill_mark == "operculum"
+	material.set_shader_parameter("operculum_enabled", op_on)
+	if op_on:
+		var op_size := clampf(float(parameters.get("operculum_size", 1.0)), 0.5, 1.5)
+		var op_height := clampf(float(parameters.get("operculum_height", 1.0)), 0.5, 1.5)
+		var posterior_u := 0.224
+		var anterior_u := posterior_u - 0.085 * op_size
+		material.set_shader_parameter("operculum_u", Vector2(anterior_u, posterior_u))
+		material.set_shader_parameter("operculum_up", Vector2(0.0, 0.45 * op_height))
+		material.set_shader_parameter("operculum_open", clampf(float(parameters.get("operculum_open", 0.0)), 0.0, 1.0))
+		material.set_shader_parameter("operculum_ridge", clampf(float(parameters.get("operculum_ridge", 0.45)), 0.0, 1.0))
+		material.set_shader_parameter("operculum_line_color", Color.html("#15191b"))
 	return material
 
 static func make_surface(color_value: Variant, shadow_strength: float = 0.35, highlight_strength: float = 0.35) -> StandardMaterial3D:
