@@ -1809,7 +1809,9 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	var plate_darken := lerpf(0.08, 0.46, operculum_ridge)
 	var opercle_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
 	opercle_mat.albedo_color = opercle_mat.albedo_color.darkened(plate_darken)
-	_add_gill_mark(head, String(parameters.get("gill_mark", "none")), dark_mat, opercle_mat, head_verts)
+	var opercle_seam_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
+	opercle_seam_mat.albedo_color = opercle_seam_mat.albedo_color.darkened(lerpf(0.28, 0.58, operculum_ridge))
+	_add_gill_mark(head, String(parameters.get("gill_mark", "none")), dark_mat, opercle_mat, opercle_seam_mat, head_verts)
 	
 	# Snout Appendage Socket
 	var snout_app_type := String(parameters.get("snout_appendage", "none"))
@@ -2412,10 +2414,10 @@ func _operculum_params() -> Dictionary:
 		"posterior_x": center_x + half_len,
 		"top_y": 0.16 * height,
 		"bottom_y": -0.18 * height,
-		"seam_width": lerpf(0.004, 0.014, ridge),
-		"slit_width": lerpf(0.008, 0.024, ridge),
+		"seam_width": lerpf(0.003, 0.009, ridge),
+		"slit_width": lerpf(0.010, 0.040, ridge),
 		"subopercle_width": lerpf(0.003, 0.010, ridge),
-		"rim_width": lerpf(0.006, 0.018, ridge)
+		"rim_width": lerpf(0.006, 0.022, ridge)
 	}
 
 func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dictionary, rows: int = 6, cols: int = 6) -> ArrayMesh:
@@ -2433,7 +2435,7 @@ func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dic
 			var open_weight := smoothstep(0.35, 1.0, u_t)
 			var z := _head_mesh_side_z(head_verts, x, y, side, 0.072, 0.42)
 			z += side * float(cfg["open"]) * 0.035 * open_weight
-			x += float(cfg["open"]) * 0.015 * open_weight
+			x += float(cfg["open"]) * 0.045 * open_weight
 			st.add_vertex(Vector3(x, y, z))
 	for row in range(rows):
 		for col in range(cols):
@@ -2478,7 +2480,7 @@ func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points:
 			var open_weight: float = smoothstep(0.35, 1.0, local_u) if apply_open else 0.0
 			var z: float = _head_mesh_side_z(head_verts, x, y, side, 0.088, 0.42)
 			z += side * float(cfg["open"]) * 0.035 * open_weight
-			x += float(cfg["open"]) * 0.015 * open_weight
+			x += float(cfg["open"]) * 0.045 * open_weight
 			st.add_vertex(Vector3(x, y, z))
 	for i in range(points.size() - 1):
 		var a := i * 2
@@ -2494,7 +2496,7 @@ func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points:
 	st.generate_normals()
 	return st.commit()
 
-func _add_operculum_side(root: Node3D, side: float, seam_mat: Material, opercle_mat: Material, head_verts: PackedVector3Array) -> void:
+func _add_operculum_side(root: Node3D, side: float, soft_seam_mat: Material, dark_mat: Material, opercle_mat: Material, head_verts: PackedVector3Array) -> void:
 	var suffix := "L" if side < 0.0 else "R"
 	var cfg := _operculum_params()
 	var opercle := MeshInstance3D.new()
@@ -2516,31 +2518,29 @@ func _add_operculum_side(root: Node3D, side: float, seam_mat: Material, opercle_
 		Vector2(anterior_x, -0.02 * float(cfg["height"])),
 		Vector2(anterior_x + 0.024, bottom_y * 0.86)
 	]), float(cfg["seam_width"]), cfg, false)
-	preopercle.material_override = seam_mat
+	preopercle.material_override = soft_seam_mat
 	root.add_child(preopercle)
 
 	var rim := MeshInstance3D.new()
 	rim.name = "OpercleRim%s" % suffix
 	rim.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
-		Vector2(anterior_x + 0.048, top_y * 0.94),
-		Vector2((anterior_x + posterior_x) * 0.55, top_y * 0.98),
-		Vector2(posterior_x - 0.004, top_y * 0.78),
-		Vector2(posterior_x + 0.018, 0.0),
-		Vector2(posterior_x - 0.008, bottom_y * 0.72),
-		Vector2((anterior_x + posterior_x) * 0.55, bottom_y * 0.96),
-		Vector2(anterior_x + 0.052, bottom_y * 0.88)
+		Vector2(posterior_x - 0.018, top_y * 0.82),
+		Vector2(posterior_x + 0.018, top_y * 0.46),
+		Vector2(posterior_x + 0.030, 0.0),
+		Vector2(posterior_x + 0.020, bottom_y * 0.42),
+		Vector2(posterior_x - 0.016, bottom_y * 0.76)
 	]), float(cfg["rim_width"]), cfg, true)
-	rim.material_override = seam_mat
+	rim.material_override = dark_mat
 	root.add_child(rim)
 
 	var slit := MeshInstance3D.new()
 	slit.name = "GillSlit%s" % suffix
 	slit.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
-		Vector2(posterior_x - 0.006, top_y * 0.72),
-		Vector2(posterior_x + 0.012, 0.0),
-		Vector2(posterior_x - 0.004, bottom_y * 0.62)
+		Vector2(posterior_x + 0.002, top_y * 0.72),
+		Vector2(posterior_x + 0.060, 0.0),
+		Vector2(posterior_x + 0.004, bottom_y * 0.62)
 	]), float(cfg["slit_width"]), cfg, true)
-	slit.material_override = seam_mat
+	slit.material_override = dark_mat
 	root.add_child(slit)
 
 	var subopercle := MeshInstance3D.new()
@@ -2550,10 +2550,10 @@ func _add_operculum_side(root: Node3D, side: float, seam_mat: Material, opercle_
 		Vector2((anterior_x + posterior_x) * 0.52, bottom_y + 0.030),
 		Vector2(posterior_x - 0.040, bottom_y + 0.085)
 	]), float(cfg["subopercle_width"]), cfg, true)
-	subopercle.material_override = seam_mat
+	subopercle.material_override = soft_seam_mat
 	root.add_child(subopercle)
 
-func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material, opercle_mat: Material, head_verts: PackedVector3Array) -> void:
+func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material, opercle_mat: Material, opercle_seam_mat: Material, head_verts: PackedVector3Array) -> void:
 	if mark == "none" or mark == "":
 		return
 	var root := Node3D.new()
@@ -2586,7 +2586,7 @@ func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material, oper
 				root.add_child(plate)
 		"operculum":
 			for side in [-1.0, 1.0]:
-				_add_operculum_side(root, side, seam_mat, opercle_mat, head_verts)
+				_add_operculum_side(root, side, opercle_seam_mat, seam_mat, opercle_mat, head_verts)
 
 func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material, snout_length: float) -> void:
 	if style == "none" or style == "":
