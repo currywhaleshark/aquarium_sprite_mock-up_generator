@@ -1810,8 +1810,10 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	var opercle_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
 	opercle_mat.albedo_color = opercle_mat.albedo_color.darkened(plate_darken)
 	var opercle_seam_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
-	opercle_seam_mat.albedo_color = opercle_seam_mat.albedo_color.darkened(lerpf(0.01, 0.06, operculum_ridge))
-	_add_gill_mark(head, String(parameters.get("gill_mark", "none")), dark_mat, opercle_mat, opercle_seam_mat, head_verts)
+	opercle_seam_mat.albedo_color = opercle_seam_mat.albedo_color.darkened(lerpf(0.14, 0.30, operculum_ridge))
+	var head_scale_z := maxf(head.scale.z, 0.05)
+	var shell_clear := clampf(param_float("shell_expand", 0.08) * 0.95 / head_scale_z, 0.18, 0.46)
+	_add_gill_mark(head, String(parameters.get("gill_mark", "none")), dark_mat, opercle_mat, opercle_seam_mat, head_verts, shell_clear)
 	
 	# Snout Appendage Socket
 	var snout_app_type := String(parameters.get("snout_appendage", "none"))
@@ -2398,51 +2400,59 @@ func _add_head_ornament(head: MeshInstance3D, ornament: String, material: Materi
 				pad.position = Vector3(pad_x, pad_y, side * _head_side_surface_z(pad_x, pad_y, 0.03))
 				root.add_child(pad)
 
-func _operculum_params() -> Dictionary:
+func _operculum_params(shell_clear: float) -> Dictionary:
 	var size := clampf(param_float("operculum_size", 1.0), 0.5, 1.5)
 	var height := clampf(param_float("operculum_height", 1.0), 0.5, 1.5)
 	var open := clampf(param_float("operculum_open", 0.0), 0.0, 1.0)
 	var ridge := clampf(param_float("operculum_ridge", 0.45), 0.0, 1.0)
-	var center_x := 0.18
-	var half_len := 0.11 * size
+	var posterior_x := 0.40
+	var cover_length := 0.34 * size
 	return {
 		"size": size,
 		"height": height,
 		"open": open,
 		"ridge": ridge,
-		"anterior_x": center_x - half_len,
-		"posterior_x": center_x + half_len,
-		"top_y": 0.16 * height,
-		"bottom_y": -0.18 * height,
-		"seam_width": lerpf(0.003, 0.009, ridge),
-		"slit_width": lerpf(0.010, 0.052, ridge),
-		"subopercle_width": lerpf(0.003, 0.010, ridge),
-		"rim_width": lerpf(0.006, 0.026, ridge)
+		"anterior_x": posterior_x - cover_length,
+		"posterior_x": posterior_x,
+		"top_y_base": 0.30 * height,
+		"bottom_y_base": -0.28 * height,
+		"seam_width": lerpf(0.004, 0.012, ridge),
+		"slit_width": lerpf(0.012, 0.055, ridge),
+		"subopercle_width": lerpf(0.003, 0.011, ridge),
+		"shell_clear": shell_clear
 	}
+
+func _operculum_envelope(u: float, v0: float, v_mid: float, v1: float) -> float:
+	if u <= 0.5:
+		return lerpf(v0, v_mid, smoothstep(0.0, 1.0, u / 0.5))
+	return lerpf(v_mid, v1, smoothstep(0.0, 1.0, (u - 0.5) / 0.5))
+
+func _operculum_outset(cfg: Dictionary, u: float) -> float:
+	return float(cfg["shell_clear"]) * lerpf(0.86, 1.28, clampf(u, 0.0, 1.0)) + 0.02
 
 func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dictionary, rows: int = 6, cols: int = 6) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for row in range(rows + 1):
-		var v_t := float(row) / float(rows)
-		var edge_t := absf(v_t * 2.0 - 1.0)
-		var anterior_x := float(cfg["anterior_x"]) + 0.035 * edge_t
-		var posterior_x := float(cfg["posterior_x"]) - 0.015 * edge_t
-		var y := lerpf(float(cfg["top_y"]), float(cfg["bottom_y"]), v_t)
-		for col in range(cols + 1):
-			var u_t := float(col) / float(cols)
-			var x := lerpf(anterior_x, posterior_x, u_t)
-			var open_weight := smoothstep(0.35, 1.0, u_t)
-			var z := _head_mesh_side_z(head_verts, x, y, side, 0.072, 0.42)
+	for col in range(cols + 1):
+		var u_t := float(col) / float(cols)
+		var x_col := lerpf(float(cfg["anterior_x"]), float(cfg["posterior_x"]), u_t)
+		var top_y := float(cfg["top_y_base"]) * _operculum_envelope(u_t, 0.40, 1.00, 0.66)
+		var bottom_y := float(cfg["bottom_y_base"]) * _operculum_envelope(u_t, 0.36, 1.00, 0.78)
+		var open_weight := smoothstep(0.35, 1.0, u_t)
+		for row in range(rows + 1):
+			var v_t := float(row) / float(rows)
+			var y := lerpf(top_y, bottom_y, v_t)
+			var x := x_col
+			var z := _head_mesh_side_z(head_verts, x, y, side, _operculum_outset(cfg, u_t), 0.48)
 			z += side * float(cfg["open"]) * 0.035 * open_weight
 			x += float(cfg["open"]) * 0.045 * open_weight
 			st.add_vertex(Vector3(x, y, z))
-	for row in range(rows):
-		for col in range(cols):
-			var a := row * (cols + 1) + col
-			var b := a + 1
-			var c := a + (cols + 1)
-			var d := c + 1
+	for col in range(cols):
+		for row in range(rows):
+			var a := col * (rows + 1) + row
+			var b := (col + 1) * (rows + 1) + row
+			var c := a + 1
+			var d := b + 1
 			if side > 0.0:
 				st.add_index(a)
 				st.add_index(b)
@@ -2460,7 +2470,7 @@ func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dic
 	st.generate_normals()
 	return st.commit()
 
-func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points: PackedVector2Array, width: float, cfg: Dictionary, apply_open: bool, surface_outset: float = 0.088) -> ArrayMesh:
+func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points: PackedVector2Array, width: float, cfg: Dictionary, apply_open: bool) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var half_width := width * 0.5
@@ -2478,7 +2488,7 @@ func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points:
 			var y: float = points[i].y + normal.y * sign
 			var local_u: float = clampf((x - float(cfg["anterior_x"])) / maxf(float(cfg["posterior_x"]) - float(cfg["anterior_x"]), 0.001), 0.0, 1.0)
 			var open_weight: float = smoothstep(0.35, 1.0, local_u) if apply_open else 0.0
-			var z: float = _head_mesh_side_z(head_verts, x, y, side, surface_outset, 0.42)
+			var z: float = _head_mesh_side_z(head_verts, x, y, side, _operculum_outset(cfg, local_u), 0.48)
 			z += side * float(cfg["open"]) * 0.035 * open_weight
 			x += float(cfg["open"]) * 0.045 * open_weight
 			st.add_vertex(Vector3(x, y, z))
@@ -2496,9 +2506,9 @@ func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points:
 	st.generate_normals()
 	return st.commit()
 
-func _add_operculum_side(root: Node3D, side: float, soft_seam_mat: Material, dark_mat: Material, opercle_mat: Material, head_verts: PackedVector3Array) -> void:
+func _add_operculum_side(root: Node3D, side: float, soft_seam_mat: Material, dark_mat: Material, opercle_mat: Material, head_verts: PackedVector3Array, shell_clear: float) -> void:
 	var suffix := "L" if side < 0.0 else "R"
-	var cfg := _operculum_params()
+	var cfg := _operculum_params(shell_clear)
 	var opercle := MeshInstance3D.new()
 	opercle.name = "Opercle%s" % suffix
 	opercle.mesh = _operculum_plate_mesh(side, head_verts, cfg)
@@ -2507,53 +2517,44 @@ func _add_operculum_side(root: Node3D, side: float, soft_seam_mat: Material, dar
 
 	var anterior_x := float(cfg["anterior_x"])
 	var posterior_x := float(cfg["posterior_x"])
-	var top_y := float(cfg["top_y"])
-	var bottom_y := float(cfg["bottom_y"])
+	var top_y := float(cfg["top_y_base"])
+	var bottom_y := float(cfg["bottom_y_base"])
 
 	var preopercle := MeshInstance3D.new()
 	preopercle.name = "PreopercleSeam%s" % suffix
 	preopercle.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
-		Vector2(anterior_x + 0.032, top_y * 0.92),
-		Vector2(anterior_x + 0.006, top_y * 0.35),
-		Vector2(anterior_x, -0.02 * float(cfg["height"])),
-		Vector2(anterior_x + 0.024, bottom_y * 0.86)
+		Vector2(anterior_x + 0.030, top_y * 0.82),
+		Vector2(anterior_x + 0.006, top_y * 0.30),
+		Vector2(anterior_x, bottom_y * 0.10),
+		Vector2(anterior_x + 0.022, bottom_y * 0.55),
+		Vector2(anterior_x + 0.075, bottom_y * 0.92)
 	]), float(cfg["seam_width"]), cfg, false)
 	preopercle.material_override = soft_seam_mat
 	root.add_child(preopercle)
 
-	var rim := MeshInstance3D.new()
-	rim.name = "OpercleRim%s" % suffix
-	rim.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
-		Vector2(posterior_x - 0.090, top_y * 0.82),
-		Vector2(posterior_x - 0.066, top_y * 0.46),
-		Vector2(posterior_x - 0.058, 0.0),
-		Vector2(posterior_x - 0.064, bottom_y * 0.42),
-		Vector2(posterior_x - 0.086, bottom_y * 0.76)
-	]), float(cfg["rim_width"]), cfg, true, 0.17)
-	rim.material_override = dark_mat
-	root.add_child(rim)
-
 	var slit := MeshInstance3D.new()
 	slit.name = "GillSlit%s" % suffix
+	var rear_top_y := top_y * _operculum_envelope(1.0, 0.40, 1.00, 0.66)
+	var rear_bottom_y := bottom_y * _operculum_envelope(1.0, 0.36, 1.00, 0.78)
 	slit.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
-		Vector2(posterior_x - 0.074, top_y * 0.72),
-		Vector2(posterior_x - 0.052, 0.0),
-		Vector2(posterior_x - 0.074, bottom_y * 0.62)
-	]), float(cfg["slit_width"]), cfg, true, 0.17)
+		Vector2(posterior_x, rear_top_y),
+		Vector2(posterior_x, 0.0),
+		Vector2(posterior_x, rear_bottom_y)
+	]), float(cfg["slit_width"]), cfg, true)
 	slit.material_override = dark_mat
 	root.add_child(slit)
 
 	var subopercle := MeshInstance3D.new()
 	subopercle.name = "SubopercleSeam%s" % suffix
 	subopercle.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
-		Vector2(anterior_x + 0.060, bottom_y + 0.060),
-		Vector2((anterior_x + posterior_x) * 0.52, bottom_y + 0.030),
-		Vector2(posterior_x - 0.040, bottom_y + 0.085)
+		Vector2(anterior_x + 0.090, bottom_y * 0.70),
+		Vector2((anterior_x + posterior_x) * 0.5, bottom_y * 0.92),
+		Vector2(posterior_x - 0.080, bottom_y * 0.70)
 	]), float(cfg["subopercle_width"]), cfg, true)
 	subopercle.material_override = soft_seam_mat
 	root.add_child(subopercle)
 
-func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material, opercle_mat: Material, opercle_seam_mat: Material, head_verts: PackedVector3Array) -> void:
+func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material, opercle_mat: Material, opercle_seam_mat: Material, head_verts: PackedVector3Array, shell_clear: float) -> void:
 	if mark == "none" or mark == "":
 		return
 	var root := Node3D.new()
@@ -2586,7 +2587,7 @@ func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material, oper
 				root.add_child(plate)
 		"operculum":
 			for side in [-1.0, 1.0]:
-				_add_operculum_side(root, side, opercle_seam_mat, seam_mat, opercle_mat, head_verts)
+				_add_operculum_side(root, side, opercle_seam_mat, seam_mat, opercle_mat, head_verts, shell_clear)
 
 func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material, snout_length: float) -> void:
 	if style == "none" or style == "":
