@@ -550,7 +550,18 @@ func _ready() -> void:
 	fish.set_parameters(high_ridge)
 	await get_tree().process_frame
 	var high_slit_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitL") as MeshInstance3D)
-	var high_plate_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D)
+	var high_plate := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
+	var high_plate_extent := _mesh_extent(high_plate)
+	var high_rim_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleRimL") as MeshInstance3D
+	var high_rim_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleRimR") as MeshInstance3D
+	assert(high_rim_l != null)
+	assert(high_rim_r != null)
+	var high_rim_extent := _mesh_extent(high_rim_l)
+	assert(high_rim_extent.x > 0.15)
+	assert(high_rim_extent.y > 0.24)
+	var high_plate_mat := high_plate.material_override as BaseMaterial3D
+	assert(high_plate_mat != null)
+	assert(_color_luma(high_plate_mat.albedo_color) < _color_luma(Color.html("#46c6cf")) - 0.18)
 	assert(high_slit_extent.x > low_slit_extent.x + 0.010)
 	assert(absf(high_plate_extent.x - low_plate_extent.x) < 0.012)
 	assert(absf(high_plate_extent.y - low_plate_extent.y) < 0.012)
@@ -654,6 +665,9 @@ func _mesh_front_edge_abs_z(node: MeshInstance3D) -> float:
 		if v.x <= min_x + 0.018:
 			max_abs_z = maxf(max_abs_z, absf(v.z))
 	return max_abs_z
+
+func _color_luma(color: Color) -> float:
+	return color.r * 0.299 + color.g * 0.587 + color.b * 0.114
 
 func _world_mesh_extent(node: MeshInstance3D) -> AABB:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]

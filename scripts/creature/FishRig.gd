@@ -1806,7 +1806,7 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	_add_head_ornament(head, String(parameters.get("head_ornament", "none")), material)
 	var head_verts: PackedVector3Array = head.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var operculum_ridge := clampf(param_float("operculum_ridge", 0.45), 0.0, 1.0)
-	var plate_darken := lerpf(0.04, 0.18, operculum_ridge)
+	var plate_darken := lerpf(0.06, 0.34, operculum_ridge)
 	var opercle_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
 	opercle_mat.albedo_color = opercle_mat.albedo_color.darkened(plate_darken)
 	_add_gill_mark(head, String(parameters.get("gill_mark", "none")), dark_mat, opercle_mat, head_verts)
@@ -2414,7 +2414,8 @@ func _operculum_params() -> Dictionary:
 		"bottom_y": -0.18 * height,
 		"seam_width": lerpf(0.004, 0.014, ridge),
 		"slit_width": lerpf(0.008, 0.024, ridge),
-		"subopercle_width": lerpf(0.003, 0.010, ridge)
+		"subopercle_width": lerpf(0.003, 0.010, ridge),
+		"rim_width": lerpf(0.006, 0.018, ridge)
 	}
 
 func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dictionary, rows: int = 6, cols: int = 6) -> ArrayMesh:
@@ -2509,6 +2510,20 @@ func _add_operculum_side(root: Node3D, side: float, seam_mat: Material, opercle_
 	]), float(cfg["seam_width"]), cfg, false)
 	preopercle.material_override = seam_mat
 	root.add_child(preopercle)
+
+	var rim := MeshInstance3D.new()
+	rim.name = "OpercleRim%s" % suffix
+	rim.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
+		Vector2(anterior_x + 0.048, top_y * 0.94),
+		Vector2((anterior_x + posterior_x) * 0.55, top_y * 0.98),
+		Vector2(posterior_x - 0.004, top_y * 0.78),
+		Vector2(posterior_x + 0.018, 0.0),
+		Vector2(posterior_x - 0.008, bottom_y * 0.72),
+		Vector2((anterior_x + posterior_x) * 0.55, bottom_y * 0.96),
+		Vector2(anterior_x + 0.052, bottom_y * 0.88)
+	]), float(cfg["rim_width"]), cfg, true)
+	rim.material_override = seam_mat
+	root.add_child(rim)
 
 	var slit := MeshInstance3D.new()
 	slit.name = "GillSlit%s" % suffix
