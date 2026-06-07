@@ -12,7 +12,7 @@ const UiRows := preload("res://scripts/ui/UiRows.gd")
 const HEAD_SHAPES := ["rounded", "tapered", "pointed", "blunt", "broad", "flattened", "hump", "steep_forehead", "cephalofoil"]
 const MOUTH_TYPES := ["terminal", "superior", "inferior", "subterminal", "protrusible"]
 const HEAD_ORNAMENTS := ["none", "wen", "nuchal_hump", "cheek_pad", "forehead_bump"]
-const GILL_MARKS := ["none", "line", "crescent", "plate"]
+const GILL_MARKS := ["none", "line", "crescent", "plate", "operculum"]
 const BARBEL_STYLES := ["none", "cory", "loach", "koi"]
 const EYE_STYLES := ["bead", "large", "telescope", "celestial", "tiny_puffer"]
 const MOUTH_DETAILS := ["dot", "lip", "beak", "sucker", "downturned"]
@@ -44,6 +44,10 @@ const NUMERIC_KEYS := {
 	"jaw_hinge_y": {"min": -0.3, "max": 0.3, "step": 0.01},
 	"jaw_protrusion": {"min": 0.0, "max": 0.3, "step": 0.01},
 	"lower_upper_ratio": {"min": 0.6, "max": 1.5, "step": 0.01},
+	"operculum_size": {"min": 0.5, "max": 1.5, "step": 0.01},
+	"operculum_height": {"min": 0.5, "max": 1.5, "step": 0.01},
+	"operculum_open": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"operculum_ridge": {"min": 0.0, "max": 1.0, "step": 0.01},
 	"head_flattening": {"min": 0.0, "max": 0.65, "step": 0.005},
 	"snout_appendage_length": {"min": 0.05, "max": 0.8, "step": 0.005},
 	"eye_size": {"min": 0.01, "max": 0.16, "step": 0.005},
@@ -86,6 +90,7 @@ const FISH_SECTIONS := [
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
 	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},
 	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio"]},
+	{"title": "아가미", "keys": ["operculum_size", "operculum_height", "operculum_open", "operculum_ridge"]},
 	{"title": "눈", "keys": ["eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]},
 ]
 const RAY_SECTIONS := [
@@ -392,6 +397,8 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 		return absf(float(parameters.get("head_top_curve", 0.0))) > 0.001
 	if key == "head_bump_pos" or key == "head_bump_width" or key == "head_bump_angle" or key == "head_bump_round":
 		return float(parameters.get("head_bump_height", 0.0)) > 0.001
+	if key.begins_with("operculum_"):
+		return String(parameters.get("gill_mark", "none")) == "operculum"
 	return true
 
 func _same_key_list(left: Array[String], right: Array[String]) -> bool:
@@ -427,6 +434,14 @@ func _default_numeric(key: String) -> float:
 			return 1.0
 		"lower_jaw_tip":
 			return 0.0
+		"operculum_size":
+			return 1.0
+		"operculum_height":
+			return 1.0
+		"operculum_open":
+			return 0.0
+		"operculum_ridge":
+			return 0.45
 		"eye_size":
 			return 0.055
 		"eye_position_x":

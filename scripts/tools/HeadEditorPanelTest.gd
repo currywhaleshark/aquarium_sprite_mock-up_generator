@@ -13,6 +13,7 @@ func _ready() -> void:
 		"head_shape": "rounded",
 		"mouth_type": "terminal",
 		"snout_appendage": "none",
+		"gill_mark": "none",
 		"head_offset": -0.58,
 		"eye_position_y": 0.12,
 		"snout_length": 0.0,
@@ -28,6 +29,28 @@ func _ready() -> void:
 	assert(_has_numeric_slider(panel, "lower_jaw_angle"))
 	assert(_has_numeric_slider(panel, "lower_jaw_thickness"))
 	assert(_has_numeric_slider(panel, "lower_jaw_tip"))
+	assert(not _has_numeric_slider(panel, "operculum_size"))
+	assert(not _has_numeric_slider(panel, "operculum_height"))
+	assert(not _has_numeric_slider(panel, "operculum_open"))
+	assert(not _has_numeric_slider(panel, "operculum_ridge"))
+	panel.set_option_parameter("gill_mark", "operculum")
+	assert(_has_numeric_slider(panel, "operculum_size"))
+	assert(_has_numeric_slider(panel, "operculum_height"))
+	assert(_has_numeric_slider(panel, "operculum_open"))
+	assert(_has_numeric_slider(panel, "operculum_ridge"))
+	panel.set_numeric_parameter("operculum_size", 1.25)
+	panel.set_numeric_parameter("operculum_height", 1.35)
+	panel.set_numeric_parameter("operculum_open", 0.6)
+	panel.set_numeric_parameter("operculum_ridge", 0.8)
+	assert(abs(float(seen[0].get("operculum_size", 0.0)) - 1.25) < 0.001)
+	assert(abs(float(seen[0].get("operculum_height", 0.0)) - 1.35) < 0.001)
+	assert(abs(float(seen[0].get("operculum_open", 0.0)) - 0.6) < 0.001)
+	assert(abs(float(seen[0].get("operculum_ridge", 0.0)) - 0.8) < 0.001)
+	panel.set_option_parameter("gill_mark", "line")
+	assert(not _has_numeric_slider(panel, "operculum_size"))
+	assert(not _has_numeric_slider(panel, "operculum_height"))
+	assert(not _has_numeric_slider(panel, "operculum_open"))
+	assert(not _has_numeric_slider(panel, "operculum_ridge"))
 	panel.set_head_shape("steep_forehead")
 	assert(_has_numeric_slider(panel, "forehead_slope"))
 	panel.set_mouth_type("inferior")

@@ -119,6 +119,26 @@ func _ready() -> void:
 	assert(String(goldfish_parameters.get("swim_mode", "")) == "puffer")
 	assert(goldfish_parameters.has("median_fin_flap_amount"))
 
+	var operculum_split := BodyProfileScript.split_parameters_into_profiles({
+		"gill_mark": "operculum",
+		"operculum_size": 1.25,
+		"operculum_height": 1.35,
+		"operculum_open": 0.6,
+		"operculum_ridge": 0.8
+	}, {"name": "operculum_roundtrip", "type": "fish"})
+	var operculum_fin_profile: Dictionary = operculum_split.get("fin_profile", {})
+	assert(String(operculum_fin_profile.get("gill_mark", "")) == "operculum")
+	assert(abs(float(operculum_fin_profile.get("operculum_size", 0.0)) - 1.25) < 0.001)
+	assert(abs(float(operculum_fin_profile.get("operculum_height", 0.0)) - 1.35) < 0.001)
+	assert(abs(float(operculum_fin_profile.get("operculum_open", 0.0)) - 0.6) < 0.001)
+	assert(abs(float(operculum_fin_profile.get("operculum_ridge", 0.0)) - 0.8) < 0.001)
+	var rebuilt_operculum := BodyProfileScript.make_parameters_from_structured_preset(operculum_split)
+	assert(String(rebuilt_operculum.get("gill_mark", "")) == "operculum")
+	assert(abs(float(rebuilt_operculum.get("operculum_size", 0.0)) - 1.25) < 0.001)
+	assert(abs(float(rebuilt_operculum.get("operculum_height", 0.0)) - 1.35) < 0.001)
+	assert(abs(float(rebuilt_operculum.get("operculum_open", 0.0)) - 0.6) < 0.001)
+	assert(abs(float(rebuilt_operculum.get("operculum_ridge", 0.0)) - 0.8) < 0.001)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/preset_normalization.ok", FileAccess.WRITE)
 	file.store_string("legacy motion parameters normalized")
