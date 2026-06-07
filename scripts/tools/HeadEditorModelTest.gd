@@ -451,6 +451,54 @@ func _ready() -> void:
 	var round_belly_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
 	assert(round_belly_jaw_extent.y > flat_belly_jaw_extent.y * 1.3)
 
+	var operculum_base := {
+		"shell_enabled": 1.0,
+		"base_color": "#46c6cf",
+		"secondary_color": "#d6fbff",
+		"head_shape": "rounded",
+		"mouth_type": "terminal",
+		"snout_length": 0.0,
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"operculum_height": 1.0,
+		"operculum_open": 0.0,
+		"operculum_ridge": 0.45
+	}
+	fish.set_parameters(operculum_base)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var operculum_root := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") as Node3D
+	assert(operculum_root != null)
+	var opercle_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
+	var opercle_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleR") as MeshInstance3D
+	var pre_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/PreopercleSeamL") as MeshInstance3D
+	var pre_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/PreopercleSeamR") as MeshInstance3D
+	var slit_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitL") as MeshInstance3D
+	var slit_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitR") as MeshInstance3D
+	var sub_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/SubopercleSeamL") as MeshInstance3D
+	var sub_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/SubopercleSeamR") as MeshInstance3D
+	assert(opercle_l != null)
+	assert(opercle_r != null)
+	assert(pre_l != null)
+	assert(pre_r != null)
+	assert(slit_l != null)
+	assert(slit_r != null)
+	assert(sub_l != null)
+	assert(sub_r != null)
+	var opercle_l_extent := _mesh_extent(opercle_l)
+	assert(opercle_l_extent.x > 0.16)
+	assert(opercle_l_extent.y > 0.24)
+	assert(opercle_l_extent.z > 0.01)
+	assert(_mesh_average_z(opercle_l) < -0.05)
+	assert(_mesh_average_z(opercle_r) > 0.05)
+	assert(absf(_mesh_average_z(opercle_l) + _mesh_average_z(opercle_r)) < 0.025)
+	var line_params := operculum_base.duplicate(true)
+	line_params["gill_mark"] = "line"
+	fish.set_parameters(line_params)
+	await get_tree().process_frame
+	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
+	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_line") != null)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
 	file.store_string("head editor model applied")
@@ -512,6 +560,13 @@ func _mesh_extent(node: MeshInstance3D) -> Vector3:
 		max_v.y = maxf(max_v.y, v.y)
 		max_v.z = maxf(max_v.z, v.z)
 	return max_v - min_v
+
+func _mesh_average_z(node: MeshInstance3D) -> float:
+	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var total := 0.0
+	for v in verts:
+		total += v.z
+	return total / float(maxi(verts.size(), 1))
 
 func _world_mesh_extent(node: MeshInstance3D) -> AABB:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
