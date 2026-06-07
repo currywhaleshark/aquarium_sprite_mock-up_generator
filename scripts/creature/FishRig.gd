@@ -1806,11 +1806,11 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	_add_head_ornament(head, String(parameters.get("head_ornament", "none")), material)
 	var head_verts: PackedVector3Array = head.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var operculum_ridge := clampf(param_float("operculum_ridge", 0.45), 0.0, 1.0)
-	var plate_darken := lerpf(0.08, 0.46, operculum_ridge)
+	var plate_darken := lerpf(0.06, 0.30, operculum_ridge)
 	var opercle_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
 	opercle_mat.albedo_color = opercle_mat.albedo_color.darkened(plate_darken)
 	var opercle_seam_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
-	opercle_seam_mat.albedo_color = opercle_seam_mat.albedo_color.darkened(lerpf(0.28, 0.58, operculum_ridge))
+	opercle_seam_mat.albedo_color = opercle_seam_mat.albedo_color.darkened(lerpf(0.01, 0.06, operculum_ridge))
 	_add_gill_mark(head, String(parameters.get("gill_mark", "none")), dark_mat, opercle_mat, opercle_seam_mat, head_verts)
 	
 	# Snout Appendage Socket
@@ -2415,9 +2415,9 @@ func _operculum_params() -> Dictionary:
 		"top_y": 0.16 * height,
 		"bottom_y": -0.18 * height,
 		"seam_width": lerpf(0.003, 0.009, ridge),
-		"slit_width": lerpf(0.010, 0.040, ridge),
+		"slit_width": lerpf(0.010, 0.052, ridge),
 		"subopercle_width": lerpf(0.003, 0.010, ridge),
-		"rim_width": lerpf(0.006, 0.022, ridge)
+		"rim_width": lerpf(0.006, 0.026, ridge)
 	}
 
 func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dictionary, rows: int = 6, cols: int = 6) -> ArrayMesh:
@@ -2460,7 +2460,7 @@ func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dic
 	st.generate_normals()
 	return st.commit()
 
-func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points: PackedVector2Array, width: float, cfg: Dictionary, apply_open: bool) -> ArrayMesh:
+func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points: PackedVector2Array, width: float, cfg: Dictionary, apply_open: bool, surface_outset: float = 0.088) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var half_width := width * 0.5
@@ -2478,7 +2478,7 @@ func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points:
 			var y: float = points[i].y + normal.y * sign
 			var local_u: float = clampf((x - float(cfg["anterior_x"])) / maxf(float(cfg["posterior_x"]) - float(cfg["anterior_x"]), 0.001), 0.0, 1.0)
 			var open_weight: float = smoothstep(0.35, 1.0, local_u) if apply_open else 0.0
-			var z: float = _head_mesh_side_z(head_verts, x, y, side, 0.088, 0.42)
+			var z: float = _head_mesh_side_z(head_verts, x, y, side, surface_outset, 0.42)
 			z += side * float(cfg["open"]) * 0.035 * open_weight
 			x += float(cfg["open"]) * 0.045 * open_weight
 			st.add_vertex(Vector3(x, y, z))
@@ -2524,22 +2524,22 @@ func _add_operculum_side(root: Node3D, side: float, soft_seam_mat: Material, dar
 	var rim := MeshInstance3D.new()
 	rim.name = "OpercleRim%s" % suffix
 	rim.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
-		Vector2(posterior_x - 0.018, top_y * 0.82),
-		Vector2(posterior_x + 0.018, top_y * 0.46),
-		Vector2(posterior_x + 0.030, 0.0),
-		Vector2(posterior_x + 0.020, bottom_y * 0.42),
-		Vector2(posterior_x - 0.016, bottom_y * 0.76)
-	]), float(cfg["rim_width"]), cfg, true)
+		Vector2(posterior_x - 0.090, top_y * 0.82),
+		Vector2(posterior_x - 0.066, top_y * 0.46),
+		Vector2(posterior_x - 0.058, 0.0),
+		Vector2(posterior_x - 0.064, bottom_y * 0.42),
+		Vector2(posterior_x - 0.086, bottom_y * 0.76)
+	]), float(cfg["rim_width"]), cfg, true, 0.17)
 	rim.material_override = dark_mat
 	root.add_child(rim)
 
 	var slit := MeshInstance3D.new()
 	slit.name = "GillSlit%s" % suffix
 	slit.mesh = _operculum_ribbon_mesh(side, head_verts, PackedVector2Array([
-		Vector2(posterior_x + 0.002, top_y * 0.72),
-		Vector2(posterior_x + 0.060, 0.0),
-		Vector2(posterior_x + 0.004, bottom_y * 0.62)
-	]), float(cfg["slit_width"]), cfg, true)
+		Vector2(posterior_x - 0.074, top_y * 0.72),
+		Vector2(posterior_x - 0.052, 0.0),
+		Vector2(posterior_x - 0.074, bottom_y * 0.62)
+	]), float(cfg["slit_width"]), cfg, true, 0.17)
 	slit.material_override = dark_mat
 	root.add_child(slit)
 

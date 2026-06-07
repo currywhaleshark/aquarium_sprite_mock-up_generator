@@ -542,11 +542,21 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var open_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
 	var open_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleR") as MeshInstance3D
+	var open_slit_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitL") as MeshInstance3D
+	var open_slit_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/GillSlitR") as MeshInstance3D
+	var open_operculum_head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
 	assert(_mesh_rear_edge_average_z(open_l) < closed_l_rear_z - 0.025)
 	assert(_mesh_rear_edge_average_z(open_r) > closed_r_rear_z + 0.025)
 	assert(absf(_mesh_front_edge_abs_z(open_l) - closed_l_front_abs_z) < 0.014)
 	assert(_mesh_rear_edge_average_x(open_l) > closed_l_rear_x + 0.03)
 	assert(absf(_mesh_front_edge_average_x(open_l) - closed_l_front_x) < 0.012)
+	assert(open_operculum_head != null)
+	assert(open_slit_l != null)
+	assert(open_slit_r != null)
+	assert(_mesh_average_side_margin(open_slit_l, open_operculum_head, -1.0) > _mesh_average_side_margin(open_l, open_operculum_head, -1.0) + 0.09)
+	assert(_mesh_average_side_margin(open_slit_r, open_operculum_head, 1.0) > _mesh_average_side_margin(open_r, open_operculum_head, 1.0) + 0.09)
+	assert(_mesh_max_x(open_slit_l) < _mesh_max_x(open_l) + 0.055)
+	assert(_mesh_max_x(open_slit_r) < _mesh_max_x(open_r) + 0.055)
 
 	var low_ridge := operculum_base.duplicate(true)
 	low_ridge["operculum_ridge"] = 0.0
@@ -573,17 +583,24 @@ func _ready() -> void:
 	var high_rim_extent := _mesh_extent(high_rim_l)
 	assert(high_rim_extent.x > 0.035)
 	assert(high_rim_extent.y > 0.22)
-	assert(_mesh_min_x(high_rim_l) > _mesh_front_edge_average_x(high_plate) + high_plate_extent.x * 0.55)
+	assert(_mesh_min_x(high_rim_l) > _mesh_front_edge_average_x(high_plate) + high_plate_extent.x * 0.45)
 	var high_plate_mat := high_plate.material_override as BaseMaterial3D
 	var high_slit_mat := high_slit.material_override as BaseMaterial3D
 	var high_preopercle_mat := high_preopercle.material_override as BaseMaterial3D
 	assert(high_plate_mat != null)
 	assert(high_slit_mat != null)
 	assert(high_preopercle_mat != null)
-	assert(_color_luma(high_plate_mat.albedo_color) < _color_luma(Color.html("#46c6cf")) - 0.18)
-	assert(_color_luma(high_preopercle_mat.albedo_color) > _color_luma(high_slit_mat.albedo_color) + 0.08)
+	var high_plate_luma := _color_luma(high_plate_mat.albedo_color)
+	var high_slit_luma := _color_luma(high_slit_mat.albedo_color)
+	var high_preopercle_luma := _color_luma(high_preopercle_mat.albedo_color)
+	var base_luma := _color_luma(Color.html("#46c6cf"))
+	assert(high_plate_luma < base_luma - 0.10)
+	assert(high_plate_luma > base_luma - 0.22)
+	assert(high_preopercle_luma > base_luma - 0.08)
+	assert(high_preopercle_luma > high_plate_luma + 0.08)
+	assert(high_preopercle_luma > high_slit_luma + 0.18)
 	assert(high_slit_extent.x > low_slit_extent.x + 0.010)
-	assert(high_slit_extent.x > 0.075)
+	assert(high_slit_extent.x > 0.055)
 	assert(absf(high_plate_extent.x - low_plate_extent.x) < 0.012)
 	assert(absf(high_plate_extent.y - low_plate_extent.y) < 0.012)
 	var line_params := operculum_base.duplicate(true)
@@ -753,6 +770,13 @@ func _mesh_min_x(node: MeshInstance3D) -> float:
 	for v in verts:
 		min_x = minf(min_x, v.x)
 	return min_x
+
+func _mesh_max_x(node: MeshInstance3D) -> float:
+	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var max_x := -INF
+	for v in verts:
+		max_x = maxf(max_x, v.x)
+	return max_x
 
 func _mesh_front_edge_abs_z(node: MeshInstance3D) -> float:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
