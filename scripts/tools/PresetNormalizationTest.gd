@@ -138,6 +138,15 @@ func _ready() -> void:
 	assert(abs(float(rebuilt_operculum.get("operculum_height", 0.0)) - 1.35) < 0.001)
 	assert(abs(float(rebuilt_operculum.get("operculum_open", 0.0)) - 0.6) < 0.001)
 	assert(abs(float(rebuilt_operculum.get("operculum_ridge", 0.0)) - 0.8) < 0.001)
+	var legacy_no_operculum_split := BodyProfileScript.split_parameters_into_profiles({
+		"gill_mark": "none"
+	}, {"name": "legacy_no_operculum_keys", "type": "fish"})
+	var legacy_no_operculum := BodyProfileScript.make_parameters_from_structured_preset(legacy_no_operculum_split)
+	assert(String(legacy_no_operculum.get("gill_mark", "")) == "none")
+	assert(not legacy_no_operculum.has("operculum_size"))
+	assert(not legacy_no_operculum.has("operculum_height"))
+	assert(not legacy_no_operculum.has("operculum_open"))
+	assert(not legacy_no_operculum.has("operculum_ridge"))
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/preset_normalization.ok", FileAccess.WRITE)

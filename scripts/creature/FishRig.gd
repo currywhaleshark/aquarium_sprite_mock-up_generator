@@ -2441,12 +2441,20 @@ func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dic
 			var b := a + 1
 			var c := a + (cols + 1)
 			var d := c + 1
-			st.add_index(a)
-			st.add_index(c)
-			st.add_index(b)
-			st.add_index(b)
-			st.add_index(c)
-			st.add_index(d)
+			if side > 0.0:
+				st.add_index(a)
+				st.add_index(b)
+				st.add_index(c)
+				st.add_index(b)
+				st.add_index(d)
+				st.add_index(c)
+			else:
+				st.add_index(a)
+				st.add_index(c)
+				st.add_index(b)
+				st.add_index(b)
+				st.add_index(c)
+				st.add_index(d)
 	st.generate_normals()
 	return st.commit()
 
@@ -2577,13 +2585,8 @@ func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material, oper
 				plate.position = Vector3(plate_x, plate_y, side * _head_side_surface_z(plate_x, plate_y, 0.04))
 				root.add_child(plate)
 		"operculum":
-			var ribbon_mat: Material = seam_mat
-			if seam_mat is BaseMaterial3D:
-				var mat_copy := seam_mat.duplicate() as BaseMaterial3D
-				mat_copy.cull_mode = BaseMaterial3D.CULL_DISABLED
-				ribbon_mat = mat_copy
 			for side in [-1.0, 1.0]:
-				_add_operculum_side(root, side, ribbon_mat, opercle_mat, head_verts)
+				_add_operculum_side(root, side, seam_mat, opercle_mat, head_verts)
 
 func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material, snout_length: float) -> void:
 	if style == "none" or style == "":

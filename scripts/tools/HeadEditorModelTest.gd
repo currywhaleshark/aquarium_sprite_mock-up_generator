@@ -492,6 +492,8 @@ func _ready() -> void:
 	assert(_mesh_average_z(opercle_l) < -0.05)
 	assert(_mesh_average_z(opercle_r) > 0.05)
 	assert(absf(_mesh_average_z(opercle_l) + _mesh_average_z(opercle_r)) < 0.025)
+	assert(_mesh_average_normal_z(opercle_l) < -0.2)
+	assert(_mesh_average_normal_z(opercle_r) > 0.2)
 	var small_operculum := operculum_base.duplicate(true)
 	small_operculum["operculum_size"] = 0.55
 	fish.set_parameters(small_operculum)
@@ -572,6 +574,16 @@ func _ready() -> void:
 	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
 	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_line") != null)
 
+	var legacy_no_operculum_keys := operculum_base.duplicate(true)
+	legacy_no_operculum_keys.erase("gill_mark")
+	legacy_no_operculum_keys.erase("operculum_size")
+	legacy_no_operculum_keys.erase("operculum_height")
+	legacy_no_operculum_keys.erase("operculum_open")
+	legacy_no_operculum_keys.erase("operculum_ridge")
+	fish.set_parameters(legacy_no_operculum_keys)
+	await get_tree().process_frame
+	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)
 	file.store_string("head editor model applied")
@@ -640,6 +652,13 @@ func _mesh_average_z(node: MeshInstance3D) -> float:
 	for v in verts:
 		total += v.z
 	return total / float(maxi(verts.size(), 1))
+
+func _mesh_average_normal_z(node: MeshInstance3D) -> float:
+	var normals: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_NORMAL]
+	var total := 0.0
+	for normal in normals:
+		total += normal.z
+	return total / float(maxi(normals.size(), 1))
 
 func _mesh_rear_edge_average_z(node: MeshInstance3D) -> float:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
