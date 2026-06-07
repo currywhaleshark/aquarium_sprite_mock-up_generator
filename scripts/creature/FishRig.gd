@@ -1806,7 +1806,7 @@ func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	_add_head_ornament(head, String(parameters.get("head_ornament", "none")), material)
 	var head_verts: PackedVector3Array = head.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var operculum_ridge := clampf(param_float("operculum_ridge", 0.45), 0.0, 1.0)
-	var plate_darken := lerpf(0.06, 0.34, operculum_ridge)
+	var plate_darken := lerpf(0.08, 0.46, operculum_ridge)
 	var opercle_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
 	opercle_mat.albedo_color = opercle_mat.albedo_color.darkened(plate_darken)
 	_add_gill_mark(head, String(parameters.get("gill_mark", "none")), dark_mat, opercle_mat, head_verts)
@@ -2431,7 +2431,7 @@ func _operculum_plate_mesh(side: float, head_verts: PackedVector3Array, cfg: Dic
 			var u_t := float(col) / float(cols)
 			var x := lerpf(anterior_x, posterior_x, u_t)
 			var open_weight := smoothstep(0.35, 1.0, u_t)
-			var z := _head_mesh_side_z(head_verts, x, y, side, 0.026, 0.42)
+			var z := _head_mesh_side_z(head_verts, x, y, side, 0.072, 0.42)
 			z += side * float(cfg["open"]) * 0.035 * open_weight
 			x += float(cfg["open"]) * 0.015 * open_weight
 			st.add_vertex(Vector3(x, y, z))
@@ -2476,7 +2476,7 @@ func _operculum_ribbon_mesh(side: float, head_verts: PackedVector3Array, points:
 			var y: float = points[i].y + normal.y * sign
 			var local_u: float = clampf((x - float(cfg["anterior_x"])) / maxf(float(cfg["posterior_x"]) - float(cfg["anterior_x"]), 0.001), 0.0, 1.0)
 			var open_weight: float = smoothstep(0.35, 1.0, local_u) if apply_open else 0.0
-			var z: float = _head_mesh_side_z(head_verts, x, y, side, 0.036, 0.42)
+			var z: float = _head_mesh_side_z(head_verts, x, y, side, 0.088, 0.42)
 			z += side * float(cfg["open"]) * 0.035 * open_weight
 			x += float(cfg["open"]) * 0.015 * open_weight
 			st.add_vertex(Vector3(x, y, z))

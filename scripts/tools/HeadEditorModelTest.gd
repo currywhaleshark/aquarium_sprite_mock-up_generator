@@ -468,7 +468,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var operculum_root := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") as Node3D
+	var operculum_head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
 	assert(operculum_root != null)
+	assert(operculum_head != null)
 	var opercle_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleL") as MeshInstance3D
 	var opercle_r := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/OpercleR") as MeshInstance3D
 	var pre_l := fish.get_node_or_null("BodyPivot/Head/GillMark_operculum/PreopercleSeamL") as MeshInstance3D
@@ -494,6 +496,8 @@ func _ready() -> void:
 	assert(absf(_mesh_average_z(opercle_l) + _mesh_average_z(opercle_r)) < 0.025)
 	assert(_mesh_average_normal_z(opercle_l) < -0.2)
 	assert(_mesh_average_normal_z(opercle_r) > 0.2)
+	assert(_mesh_average_side_margin(opercle_l, operculum_head, -1.0) > 0.05)
+	assert(_mesh_average_side_margin(opercle_r, operculum_head, 1.0) > 0.05)
 	var small_operculum := operculum_base.duplicate(true)
 	small_operculum["operculum_size"] = 0.55
 	fish.set_parameters(small_operculum)
@@ -659,6 +663,32 @@ func _mesh_average_normal_z(node: MeshInstance3D) -> float:
 	for normal in normals:
 		total += normal.z
 	return total / float(maxi(normals.size(), 1))
+
+func _mesh_average_side_margin(node: MeshInstance3D, head: MeshInstance3D, side: float) -> float:
+	var plate_verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var head_verts: PackedVector3Array = head.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var total := 0.0
+	var count := 0
+	for p in plate_verts:
+		var best_d := INF
+		var best_z := 0.0
+		for h in head_verts:
+			if side > 0.0 and h.z < 0.0:
+				continue
+			if side < 0.0 and h.z > 0.0:
+				continue
+			var dx := h.x - p.x
+			var dy := h.y - p.y
+			var d := dx * dx + dy * dy
+			if d < best_d:
+				best_d = d
+				best_z = h.z
+		if best_d == INF:
+			continue
+		total += (p.z - best_z) * side
+		count += 1
+	assert(count > 0)
+	return total / float(count)
 
 func _mesh_rear_edge_average_z(node: MeshInstance3D) -> float:
 	var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
