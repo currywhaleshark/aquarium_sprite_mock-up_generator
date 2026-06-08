@@ -397,6 +397,10 @@ func _min_for_key(key: String, value: float) -> float:
 		return 4.0
 	if key == "wave_ripples":
 		return 0.5
+	if key == "adipose_fin_position":
+		return 0.0
+	if key == "fin_ray_root_bias" or key == "finlet_pitch":
+		return -1.0
 	if key.begins_with("pattern_") or key == "belly_height" or key == "belly_slope":
 		return 0.0
 	if _is_signed_parameter(key):
@@ -412,6 +416,16 @@ func _max_for_key(key: String, value: float) -> float:
 		return 0.2
 	if key == "wave_ripples":
 		return 3.0
+	if key == "fin_ray_count":
+		return 48.0
+	if key == "fin_spine_count" or key == "finlet_dorsal_count" or key == "finlet_ventral_count":
+		return 12.0
+	if key == "fin_ray_root_bias" or key == "finlet_pitch":
+		return 1.0
+	if key == "adipose_fin_position":
+		return 1.0
+	if key.begins_with("fin_ray_") or key.begins_with("adipose_fin_") or key.begins_with("finlet_") or key == "fin_spine_strength":
+		return 1.0
 	if key == "pattern_intensity" or key == "pattern_invert" or key == "pattern_size_lock" or key == "belly_height" or key == "belly_slope" or key == "wetness" or key == "shell_roundness":
 		return 1.0
 	if key == "pattern_seed":
@@ -489,7 +503,7 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "swim_mode" or key == "pattern_type" or key == "palette_scheme" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style"
+	return key == "swim_mode" or key == "pattern_type" or key == "palette_scheme" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style" or key == "fin_ray_style"
 
 func _options_for_key(key: String) -> Array[String]:
 	if key == "swim_mode":
@@ -512,4 +526,6 @@ func _options_for_key(key: String) -> Array[String]:
 		return ["diamond", "round", "manta", "skate", "electric"] as Array[String]
 	if key == "ray_tail_style":
 		return ["whip", "manta_thread", "stout_skate", "short_round"] as Array[String]
+	if key == "fin_ray_style":
+		return BodyProfileScript.fin_ray_style_names()
 	return []
