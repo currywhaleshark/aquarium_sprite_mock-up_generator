@@ -50,10 +50,14 @@ uniform float metallic_scale_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float emissive_marking_strength : hint_range(0.0, 1.0) = 0.0;
 uniform bool operculum_enabled = false;
 uniform vec2 operculum_u = vec2(0.139, 0.224);
-uniform vec2 operculum_up = vec2(0.0, 0.45);
+uniform vec2 operculum_up = vec2(0.0, 0.38);
 uniform float operculum_open : hint_range(0.0, 1.0) = 0.0;
-uniform float operculum_ridge : hint_range(0.0, 1.0) = 0.45;
+uniform float operculum_ridge : hint_range(0.0, 1.0) = 0.25;
 uniform vec4 operculum_line_color : source_color = vec4(0.08, 0.10, 0.11, 1.0);
+// Occiput / neck seam where the head separates from the trunk. Kept independent
+// of the operculum plate so the gill cover reads continuous with the head while
+// the head-body break is its own thin crease. 0 disables it.
+uniform float operculum_neck : hint_range(0.0, 1.0) = 0.4;
 
 // Species marking layers. Fixed slots keep the material contract explicit and
 // deterministic for Godot 4 shader parameters.
@@ -276,10 +280,12 @@ void fragment() {
 	if (count > 6) { apply_marking_layer(col, marking_type_6, marking_color_6, marking_rect_6, marking_params_6, v_long, up); }
 	if (count > 7) { apply_marking_layer(col, marking_type_7, marking_color_7, marking_rect_7, marking_params_7, v_long, up); }
 
-	// 2c. Operculum (gill cover). Painted in UV on the visible front body/head
-	// surface, so it cannot float, wing out in front view, or fight shell depth.
-	// The rear dark arc is the free gill opening; open is a shader pose that
-	// widens/darkens that rear margin.
+	// 2c. Operculum (gill cover). Painted in UV on the body shell's front region
+	// (operculum_u sits in the whole-fish [0,1] UV, ~14-22% back), which is the
+	// visible surface over the gill area -- the separate head cap mesh does not
+	// show here, so this is intentionally NOT gated on is_head. Painting in UV
+	// means it cannot float, wing out in front view, or fight shell depth. The
+	// rear dark arc is the free gill opening; open widens/darkens that margin.
 	if (operculum_enabled) {
 		float au = operculum_u.x;
 		float pu = operculum_u.y;
@@ -296,12 +302,14 @@ void fragment() {
 		float v_mask = smoothstep(top + soft, top - soft, up) * smoothstep(bot - soft, bot + soft, up);
 		float plate = u_mask * v_mask;
 
-		col = mix(col, col * mix(0.80, 0.58, operculum_ridge), plate);
+		col = mix(col, col * mix(0.96, 0.84, operculum_ridge), plate);
 
-		float seam_x = au + 0.006;
+		float seam_curve = (up - cup) / half_up;
+		float j_factor = seam_curve < 0.0 ? 0.03 : 0.01;
+		float seam_x = au + 0.006 + (seam_curve * seam_curve) * j_factor;
 		float seam_w = 0.010 + 0.010 * operculum_ridge;
 		float seam = v_mask * (1.0 - smoothstep(0.0, seam_w, abs(v_long - seam_x)));
-		col = mix(col, operculum_line_color.rgb, seam * mix(0.18, 0.45, operculum_ridge));
+		col = mix(col, operculum_line_color.rgb, seam * mix(0.10, 0.28, operculum_ridge));
 
 		float slit_x = pu + operculum_open * 0.010;
 		float slit_w = (0.006 + 0.016 * operculum_ridge) * (1.0 + 0.8 * operculum_open);
@@ -311,6 +319,24 @@ void fragment() {
 		float rim_x = slit_x - slit_w * 1.8;
 		float rim = v_mask * (1.0 - smoothstep(0.0, slit_w * 0.8, abs(v_long - rim_x))) * operculum_open;
 		col = mix(col, min(col * 1.6 + 0.10, vec3(1.0)), rim * 0.4);
+	}
+
+	// 2c-2. Neck / occiput seam. The head + operculum read as one continuous
+	// surface, but the head breaks from the trunk at the occipital junction,
+	// which sits *behind* the gill opening. Drawn as its own thin vertical
+	// occlusion (not a wide soft field) so it never smears the rear slit. Sits
+	// at neck_x just past the head cap's neck (HEAD_U_SPAN=0.25), so it only
+	// lands on the body shell -- same surface as the operculum above.
+	if (operculum_enabled && operculum_neck > 0.0) {
+		// Anchor a short, fixed distance behind the posterior margin so the
+		// crease never collides with the slit at operculum_u.y.
+		float neck_x = operculum_u.y + 0.035 + operculum_open * 0.01;
+		float neck_w = 0.012;
+		float neck = 1.0 - smoothstep(0.0, neck_w, abs(v_long - neck_x));
+		// Full flank, but fade out near the dorsal/ventral silhouette edges
+		// (|up| -> 1) so it stays a crease rather than a hard ring.
+		float neck_v = smoothstep(1.0, 0.7, abs(up));
+		col = mix(col, col * 0.8, neck * neck_v * operculum_neck);
 	}
 
 	// 2d. Imbricated fish scales. Real cycloid/ctenoid scales overlap like roof

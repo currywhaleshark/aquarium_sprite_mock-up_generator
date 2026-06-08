@@ -3,6 +3,11 @@ extends RefCounted
 
 const MIN_RING_COUNT := 3
 const RING_KEYS := ["x", "y_offset", "upper_height", "lower_height", "width", "roundness", "sway_weight"]
+# Default operculum (gill cover) silhouette as a closed outline in normalized
+# side-view space: x 0 (front/preopercle hinge) .. 1 (rear free edge),
+# y -1 (ventral) .. 1 (dorsal). Shared by the head editor (display default) and
+# FishRig._build_operculum_flap (mesh fallback) so the two never drift.
+const DEFAULT_OPERCULUM_POINTS := [0.0, -0.55, 0.0, 0.55, 0.5, 0.95, 1.0, 0.7, 1.0, -0.7, 0.5, -0.95]
 const SWIM_MODE_PRESETS := {
 	"eel": {
 		"body_wave_amount": 0.90,
@@ -382,6 +387,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"forehead_slope", "jaw_offset", "mouth_size", "lower_jaw_length", "lower_jaw_angle",
 		"lower_jaw_thickness", "lower_jaw_tip", "head_flattening",
 		"head_ornament", "gill_mark", "operculum_size", "operculum_height", "operculum_open", "operculum_ridge",
+		"operculum_custom_points",
 		"barbel_style", "eye_style", "mouth_detail",
 		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",
 		"fin_ray_strength", "fin_tip_color", "fin_gradient_color",

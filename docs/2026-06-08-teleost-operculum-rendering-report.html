@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>경골어류 아가미덮개 형태와 렌더링 보고서</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172126;
+      --muted: #607078;
+      --paper: #ffffff;
+      --soft: #f5f8f7;
+      --line: #d7e0dc;
+      --head: #78c4bb;
+      --body: #6da7d8;
+      --shadow: #253238;
+      --warm: #d89048;
+      --green: #5f9462;
+      --violet: #7963a8;
+      --danger: #b84a4a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.68 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 58px;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.22;
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 880px;
+      font-size: clamp(28px, 4vw, 42px);
+    }
+
+    h2 {
+      margin-top: 44px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      font-size: 24px;
+    }
+
+    h3 {
+      margin-top: 22px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    a {
+      color: #24748b;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+    }
+
+    ul, ol {
+      padding-left: 22px;
+      margin: 10px 0 0;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      padding: 0 4px;
+      border: 1px solid #dbe5e1;
+      border-radius: 4px;
+      background: #f3f7f5;
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .lead {
+      max-width: 920px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fbfcfb;
+      color: #425058;
+      font-size: 13px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+      padding: 16px;
+    }
+
+    .panel h3:first-child {
+      margin-top: 0;
+    }
+
+    .span-4 {
+      grid-column: span 4;
+    }
+
+    .span-5 {
+      grid-column: span 5;
+    }
+
+    .span-6 {
+      grid-column: span 6;
+    }
+
+    .span-7 {
+      grid-column: span 7;
+    }
+
+    .span-8 {
+      grid-column: span 8;
+    }
+
+    .span-12 {
+      grid-column: span 12;
+    }
+
+    .callout {
+      margin-top: 18px;
+      border-left: 4px solid var(--warm);
+      background: #fff8ef;
+      padding: 14px 16px;
+    }
+
+    .decision {
+      border-left-color: var(--green);
+      background: #f1f8f2;
+    }
+
+    .warning {
+      border-left-color: var(--danger);
+      background: #fff5f5;
+    }
+
+    .diagram {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdfc;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      display: inline-block;
+      margin-right: 5px;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      vertical-align: -1px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 11px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eef4f2;
+      font-weight: 700;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: #fbfcfb;
+    }
+
+    .source-list li {
+      margin-top: 8px;
+    }
+
+    .compact td {
+      padding: 8px 9px;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        padding: 24px 16px 44px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .span-4,
+      .span-5,
+      .span-6,
+      .span-7,
+      .span-8,
+      .span-12 {
+        grid-column: 1;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>경골어류 아가미덮개 형태와 렌더링 보고서</h1>
+    <p class="lead">
+      현재 구현의 문제는 “아가미덮개가 너무 튄다”가 맞다. 실제 경골어류에서는 덮개가
+      머리 표면과 같은 조직 위에 얹힌 얕은 판처럼 이어지고, 몸통과는 후두부/목 경계에서
+      분리되어 읽힌다. 따라서 별도 색의 배지처럼 보이면 해부학적으로도, 렌더링 관습으로도 어색하다.
+    </p>
+    <div class="meta">
+      <span class="pill">작성일: 2026-06-08</span>
+      <span class="pill">범위: 경골어류/진골어류 중심</span>
+      <span class="pill">제외: 상어류의 다중 외부 아가미틈</span>
+      <span class="pill">대상 파일: <code>fish_body_toon.gdshader</code></span>
+    </div>
+  </header>
+
+  <section>
+    <h2>요약 판단</h2>
+    <div class="grid">
+      <article class="panel span-4">
+        <h3>형태</h3>
+        <p>
+          아가미덮개는 독립 장식이 아니라 머리 뒤쪽 측면의 얕은 골판 구조다. 앞쪽은
+          프리오퍼클 경계로 머리와 이어지고, 뒤쪽/아래쪽 자유연만 어두운 배출구로 읽힌다.
+        </p>
+      </article>
+      <article class="panel span-4">
+        <h3>렌더링</h3>
+        <p>
+          실시간/스타일라이즈드 렌더링에서는 실루엣을 크게 바꾸지 않는 한 표면에 칠한다.
+          알베도 어둡힘, 얇은 선, 노멀/범프 힌트를 쓰고, 별도 돌출 메시지는 근접 컷신용에 가깝다.
+        </p>
+      </article>
+      <article class="panel span-4">
+        <h3>현재 수정 방향</h3>
+        <p>
+          판 전체를 어둡게 강조하기보다 머리색과 섞고, 후방 슬릿만 가장 또렷하게 둔다.
+          몸과 머리의 분리는 아가미덮개 내부가 아니라 목/몸통 연결부에서 별도 처리한다.
+        </p>
+      </article>
+    </div>
+    <div class="callout decision">
+      <strong>권장 기본값:</strong>
+      <code>operculum_ridge</code> 기본 시각 강도는 현재보다 낮추고, 판 다크닝은 “색 변경”이 아니라
+      “현지 표면색의 5-12% 음영” 정도로 제한한다. 시선은 전방 J자 선보다 후방 출구에 조금 더 모이게 한다.
+    </div>
+  </section>
+
+  <section>
+    <h2>실제 구조: 머리와 이어진 판, 뒤쪽만 열리는 출구</h2>
+    <div class="grid">
+      <div class="span-7">
+        <svg class="diagram" viewBox="0 0 860 470" role="img" aria-label="경골어류 머리 측면 아가미덮개 구조 도식: 머리와 한 표면으로 이어진 오퍼클 판, 뒤쪽 자유연의 아가미 출구, 목에서 분리되는 몸통">
+          <defs>
+            <linearGradient id="headFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#cdeee6"/>
+              <stop offset="1" stop-color="#a7dcd1"/>
+            </linearGradient>
+            <linearGradient id="bodyFill" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#9fc8e6"/>
+              <stop offset="1" stop-color="#8ec79a"/>
+            </linearGradient>
+            <clipPath id="fishClip">
+              <path d="M72 250 C95 195 150 158 250 142 C340 130 430 132 540 140 C630 148 695 156 720 168 L720 340 C660 352 580 360 500 360 C380 360 260 352 175 332 C130 320 95 292 72 250 Z"/>
+            </clipPath>
+          </defs>
+
+          <rect x="0" y="0" width="860" height="470" fill="#fbfdfc"/>
+
+          <!-- 머리+몸통이 하나의 표면 실루엣 -->
+          <path d="M72 250 C95 195 150 158 250 142 C340 130 430 132 540 140 C630 148 695 156 720 168 L720 340 C660 352 580 360 500 360 C380 360 260 352 175 332 C130 320 95 292 72 250 Z"
+                fill="url(#headFill)" stroke="#38545a" stroke-width="2.5"/>
+
+          <g clip-path="url(#fishClip)">
+            <!-- 목 뒤부터 몸통 색: 분리는 여기서만 일어난다 -->
+            <rect x="488" y="120" width="260" height="260" fill="url(#bodyFill)" opacity="0.9"/>
+            <!-- 오퍼클 판: 별도 색이 아니라 머리 표면의 아주 약한 음영 -->
+            <path d="M268 172 C355 165 410 182 426 228 C412 285 352 312 282 304 C300 250 300 215 268 172 Z"
+                  fill="#4f8076" opacity="0.13"/>
+          </g>
+
+          <!-- 목/몸통 분리 seam (덮개 바깥, 뒤쪽) -->
+          <path d="M490 138 C478 230 478 270 484 356" fill="none" stroke="#253238" stroke-width="2.5" stroke-dasharray="3 7" opacity="0.5"/>
+
+          <!-- 프리오퍼클: 머리에 묻히는 얇고 부드러운 J 선 -->
+          <path d="M268 172 C300 215 300 252 282 304" fill="none" stroke="#253238" stroke-width="3" stroke-linecap="round" opacity="0.32"/>
+
+          <!-- 후방 아가미 출구: 가장 또렷한 신호 (좁고 진한 호) -->
+          <path d="M427 190 C448 230 448 268 426 306" fill="none" stroke="#101a1f" stroke-width="7" stroke-linecap="round" opacity="0.8"/>
+          <!-- 출구 바로 뒤의 얇은 밝은 rim -->
+          <path d="M434 197 C452 232 452 266 433 301" fill="none" stroke="#f4fbf8" stroke-width="2.5" stroke-linecap="round" opacity="0.45"/>
+
+          <!-- 눈 -->
+          <circle cx="172" cy="222" r="21" fill="#f6f4df" stroke="#253238" stroke-width="3"/>
+          <circle cx="178" cy="223" r="8" fill="#101a1f"/>
+          <!-- 콧구멍 -->
+          <circle cx="120" cy="205" r="3.5" fill="#253238" opacity="0.5"/>
+          <!-- 입 -->
+          <path d="M78 256 C112 270 150 272 188 264" fill="none" stroke="#253238" stroke-width="3" stroke-linecap="round" opacity="0.65"/>
+
+          <!-- 라벨 -->
+          <g font-size="15" font-weight="700" fill="#172126">
+            <line x1="208" y1="100" x2="280" y2="198" stroke="#172126" stroke-width="1.3"/>
+            <text x="60" y="92">프리오퍼클 경계 · 앞 힌지</text>
+
+            <line x1="392" y1="80" x2="352" y2="206" stroke="#172126" stroke-width="1.3"/>
+            <text x="316" y="66">오퍼클 판 · 머리와 같은 표면</text>
+
+            <line x1="640" y1="106" x2="448" y2="250" stroke="#172126" stroke-width="1.3"/>
+            <text x="582" y="92">후방 아가미 출구 · 가장 또렷</text>
+
+            <line x1="556" y1="424" x2="486" y2="336" stroke="#172126" stroke-width="1.3"/>
+            <text x="516" y="442">여기서 몸통 분리 · 목 경계</text>
+          </g>
+        </svg>
+        <div class="legend">
+          <span><span class="swatch" style="background: #b9e3da"></span>머리 표면 (덮개와 같은 톤)</span>
+          <span><span class="swatch" style="background: #9bc7d8"></span>몸통 (목에서 분리)</span>
+          <span><span class="swatch" style="background: rgba(79,128,118,.28)"></span>오퍼클 판 음영</span>
+          <span><span class="swatch" style="background: rgba(37,50,56,.4)"></span>프리오퍼클 J 경계</span>
+          <span><span class="swatch" style="background: #101a1f"></span>후방 아가미 출구</span>
+        </div>
+      </div>
+      <div class="span-5">
+        <h3>해부학적 읽기</h3>
+        <p>
+          경골어류의 겉보기 아가미 구조는 여러 개의 외부 틈이 아니라, 아가미방을 덮는
+          골성 덮개다. 보이는 구성은 대체로 프리오퍼클, 오퍼클, 서브오퍼클, 인터오퍼클의
+          opercular series로 이해하면 된다.
+        </p>
+        <p>
+          프리오퍼클은 앞쪽 경계와 감각관을 품는 chevron/J자형 뼈로 읽히고, 오퍼클은
+          덮개 대부분을 지지하는 얇고 넓은 판이다. 뒤쪽 가장자리는 열릴 수 있는 자유연이고,
+          실제 물 배출은 후방/복측 opercular opening을 통해 보인다.
+        </p>
+        <p>
+          그래서 옆모습에서 가장 자연스러운 표현은 “머리색과 거의 같은 넓은 판 + 약한 전방 J자
+          경계 + 더 어두운 후방 출구 + 선택적인 하단 보조선”이다.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>연결 방식: 힌지는 앞쪽, 숨구멍은 뒤쪽</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>구조</th>
+          <th>실제 역할</th>
+          <th>렌더링에서 보이는 신호</th>
+          <th>현재 셰이더에 주는 의미</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>프리오퍼클</td>
+          <td>앞쪽 경계. hyomandibular/quadrate 주변과 연결되며 감각관/공을 가질 수 있다.</td>
+          <td>눈 뒤-볼 뒤쪽을 따라 내려가는 완만한 J자 또는 초승달 선.</td>
+          <td>가장 진한 선이면 안 된다. 얇고 부드럽게, 머리 표면에 묻혀야 한다.</td>
+        </tr>
+        <tr>
+          <td>오퍼클</td>
+          <td>덮개 대부분을 이루는 넓고 얇은 판.</td>
+          <td>별도 색 면이 아니라 같은 머리색에서 살짝 낮은 명도/거친 하이라이트.</td>
+          <td>고정 색으로 칠하지 말고 <code>col * shade</code>처럼 현지 표면색을 조절한다.</td>
+        </tr>
+        <tr>
+          <td>서브오퍼클/인터오퍼클</td>
+          <td>하단 덮개와 막 지지.</td>
+          <td>작은 스프라이트에서는 생략 가능. 크게 보일 때만 하단의 짧은 보조선.</td>
+          <td>기본값에서는 거의 안 보이게 두고, 큰 어종/근접 뷰에서만 활성화한다.</td>
+        </tr>
+        <tr>
+          <td>후방 자유연</td>
+          <td>호흡 시 열리며 물이 빠져나가는 출구.</td>
+          <td>덮개 뒤쪽의 좁고 어두운 곡선. 열림 값이 크면 폭/명암이 조금 증가.</td>
+          <td>가장 또렷한 실루엣 신호. 다만 몸통 경계선과 합쳐지지 않게 위치를 살짝 앞에 둔다.</td>
+        </tr>
+        <tr>
+          <td>몸통-머리 경계</td>
+          <td>두개골/후두부와 몸통 쉘이 만나는 영역.</td>
+          <td>아가미덮개 내부가 아니라 목 뒤쪽의 별도 완만한 분리선/그림자.</td>
+          <td>아가미덮개 셰이더와 별도 파라미터로 관리하는 편이 안전하다.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>왜 지금 튀어 보이는가</h2>
+    <div class="grid">
+      <article class="panel span-6">
+        <h3>1. 판과 선의 대비가 같은 층에 있다</h3>
+        <p>
+          실제 덮개는 넓은 판보다 뒤쪽 출구가 더 잘 읽힌다. 현재처럼 판 전체 어둡힘,
+          전방 seam, 후방 slit이 모두 강하면 장식 패널처럼 보인다. 특히 작은 스프라이트에서는
+          “아가미덮개”가 아니라 “검은 무늬”가 먼저 보인다.
+        </p>
+      </article>
+      <article class="panel span-6">
+        <h3>2. 머리 전용 게이트가 약하다</h3>
+        <p>
+          최근 스펙은 <code>is_head &amp;&amp; operculum_enabled</code>를 의도했지만, 현재 셰이더의
+          조건은 <code>operculum_enabled</code>만 사용한다. 몸통 재질에도 같은 uniform이 켜지면
+          아가미덮개 마스크가 몸통 앞부분까지 읽혀 “머리와 몸통이 둘 다 칠해진” 인상을 만들 수 있다.
+        </p>
+      </article>
+      <article class="panel span-6">
+        <h3>3. 몸과의 분리가 아가미덮개에 떠넘겨졌다</h3>
+        <p>
+          사용자가 원하는 핵심은 “머리+아가미덮개는 자연스럽게 연결, 몸과는 분리”다.
+          그러면 아가미덮개 판 내부를 강하게 그리는 대신, 목 경계/후두부 접합부에 별도 약한
+          occlusion 또는 좁은 neck seam을 주는 편이 맞다.
+        </p>
+      </article>
+      <article class="panel span-6">
+        <h3>4. 위치가 너무 중앙 장식처럼 보일 수 있다</h3>
+        <p>
+          덮개는 눈 바로 뒤 장식이 아니라 볼 뒤쪽에서 목 앞까지 이어지는 구조다.
+          전방 경계는 눈을 침범하지 않고, 후방 출구는 몸통 시작선보다 살짝 앞에 있어야 한다.
+        </p>
+      </article>
+    </div>
+    <div class="callout warning">
+      <strong>주의:</strong>
+      상어처럼 여러 개의 외부 아가미틈을 그리는 접근은 이번 범위에서 제외한다. 경골어류에서는 한쪽에
+      여러 줄의 검은 틈을 만들수록 실제 구조에서 멀어진다.
+    </div>
+  </section>
+
+  <section>
+    <h2>실무 렌더링 관습</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>방식</th>
+          <th>언제 쓰나</th>
+          <th>장점</th>
+          <th>아가미덮개 적용</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>알베도/버텍스컬러/UV 셰이더 마킹</td>
+          <td>스타일라이즈드, 모바일, 스프라이트용 3D 프리뷰, 중거리 뷰.</td>
+          <td>표면에 붙어 움직여서 부유감과 z-fighting이 없다.</td>
+          <td>이 프로젝트의 기본값. 판은 현지 색을 어둡게, 선은 soft mask로 처리.</td>
+        </tr>
+        <tr>
+          <td>노멀/범프 힌트</td>
+          <td>조명 반응이 필요한 근접 뷰 또는 PBR 계열.</td>
+          <td>폴리곤을 늘리지 않고 얕은 홈/단차가 빛에 반응한다.</td>
+          <td>Godot 셰이더에서 노멀 조작을 추가할 때만. 현재는 색/명암으로도 충분하다.</td>
+        </tr>
+        <tr>
+          <td>베이스 메시 토폴로지</td>
+          <td>진짜 실루엣, 큰 호흡 애니메이션, 근접 카메라.</td>
+          <td>가장 입체적이고 자연스럽다.</td>
+          <td>후방 자유연을 실제로 열어야 할 때만 고려. 지금 단계에서는 과하다.</td>
+        </tr>
+        <tr>
+          <td>별도 덮개 메시/데칼</td>
+          <td>고정 카메라 컷신, 아주 의도적인 레이어드 스타일.</td>
+          <td>분리 애니메이션은 쉽다.</td>
+          <td>이번 문제의 원인에 가까움. 머리 표면에서 뜨거나 몸과 싸우기 쉽다.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout decision">
+      <strong>이 프로젝트의 실무 결론:</strong>
+      지금은 UV 기반 셰이더 마킹이 맞다. 다만 “덮개 자체를 보여준다”보다 “덮개가 있는 머리 표면을
+      읽히게 한다”가 목표다. 선을 줄이고, 색을 머리에 붙이고, 몸통 분리선을 따로 둔다.
+    </div>
+  </section>
+
+  <section>
+    <h2>권장 셰이더 디자인</h2>
+    <div class="grid">
+      <div class="span-6">
+        <h3>레이어 우선순위</h3>
+        <ol>
+          <li>머리/몸통 기본색과 countershading.</li>
+          <li>어종 고유 패턴. 단, 눈 뒤 아가미덮개 영역에서는 너무 강한 무늬를 살짝 눌러도 된다.</li>
+          <li>아가미덮개 판: 현지 색을 아주 약하게 어둡게 하거나 채도를 낮춘다.</li>
+          <li>프리오퍼클 경계: 얇고 낮은 알파의 J자 soft line.</li>
+          <li>후방 opercular opening: 가장 선명하지만 폭은 좁은 dark arc.</li>
+          <li>목/몸통 분리: 별도 seam 또는 occlusion, 아가미덮개와 겹치지 않게 뒤쪽에 배치.</li>
+        </ol>
+      </div>
+      <div class="span-6">
+        <h3>구현 메모</h3>
+        <ul>
+          <li>조건은 <code>if (is_head &amp;&amp; operculum_enabled)</code>로 제한한다.</li>
+          <li><code>operculum_ridge</code>는 seam 폭보다 대비를 먼저 조절하게 한다.</li>
+          <li>판 darken은 기본 <code>0.92-0.88</code>, 강한 프리셋도 <code>0.82</code> 아래로 잘 내려가지 않게 한다.</li>
+          <li>후방 slit은 <code>pu</code>보다 너무 뒤로 가지 않게 한다. 몸통 seam과 합쳐지면 상처처럼 보인다.</li>
+          <li>전방 seam은 <code>au</code>에서 단순 수직선이 아니라 위/아래가 살짝 뒤로 말리는 J자 곡률이 좋다.</li>
+          <li>열림 값은 실제 판 전체 색을 키우는 값이 아니라 뒤쪽 arc 폭, 안쪽 어둠, 아주 얇은 rim에만 영향을 준다.</li>
+        </ul>
+      </div>
+    </div>
+
+    <table class="compact">
+      <thead>
+        <tr>
+          <th>현재/스펙 값</th>
+          <th>보고서 권장 해석</th>
+          <th>튜닝 방향</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>operculum_up = vec2(0.0, 0.45)</code></td>
+          <td>측면 중앙에 넓게 걸친다.</td>
+          <td>기본은 <code>0.34-0.40</code>부터 보고, 큰 머리/납작한 어종에서만 키운다.</td>
+        </tr>
+        <tr>
+          <td><code>col * mix(0.80, 0.58, ridge)</code></td>
+          <td>ridge가 높을수록 판 전체가 너무 어두워진다.</td>
+          <td><code>mix(0.96, 0.84, ridge)</code> 근처가 더 자연스럽다.</td>
+        </tr>
+        <tr>
+          <td>전방 seam 알파 <code>0.18-0.45</code></td>
+          <td>작은 화면에서는 과하게 읽힐 수 있다.</td>
+          <td><code>0.10-0.28</code> 정도로 낮추고, 후방 slit보다 약하게 둔다.</td>
+        </tr>
+        <tr>
+          <td>후방 slit 알파 <code>0.5-0.85</code></td>
+          <td>방향은 맞다. 다만 폭이 커지면 상어 틈처럼 보일 수 있다.</td>
+          <td>알파는 유지하되 폭을 좁게, 열림 값에서만 폭 증가.</td>
+        </tr>
+        <tr>
+          <td>아가미덮개와 몸 분리 동시 처리</td>
+          <td>개념이 섞이면 덮개가 스티커처럼 튄다.</td>
+          <td>목 seam/ambient occlusion을 별도 블록으로 분리.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>어종 간 형상차이를 구분하는 파라미터</h2>
+    <p>
+      연구 문헌에서 중요한 점은 “오퍼클 shape가 어종/생태와 함께 많이 변한다”는 것이다. 하지만
+      스프라이트 생성기에서는 실제 골격 전체를 재현하기보다, 사용자가 식별할 수 있는 5-6개 축으로
+      줄이는 편이 낫다.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>축</th>
+          <th>시각 효과</th>
+          <th>어종/체형 힌트</th>
+          <th>추천 파라미터</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>길이</td>
+          <td>덮개가 볼 뒤에서 목 앞까지 얼마나 길게 닿는가.</td>
+          <td>일반적인 방추형 어류는 중간. 큰 머리/흡입섭식형은 상대적으로 넓게.</td>
+          <td><code>operculum_length</code> 또는 현재 <code>operculum_size</code></td>
+        </tr>
+        <tr>
+          <td>높이</td>
+          <td>덮개가 등-배 방향으로 얼마나 큰가.</td>
+          <td>측편된 체형, 높은 체고의 어종은 높게. 길쭉한 어종은 낮고 길게.</td>
+          <td><code>operculum_height</code></td>
+        </tr>
+        <tr>
+          <td>전방 경계 곡률</td>
+          <td>프리오퍼클이 곧은 선인지 J자/초승달인지.</td>
+          <td>농어류/시클리드류처럼 얼굴 구조가 또렷한 어종은 J자감이 강함.</td>
+          <td><code>preopercle_curve</code></td>
+        </tr>
+        <tr>
+          <td>후방 출구 각도</td>
+          <td>slit이 수직인지 뒤로 기울었는지.</td>
+          <td>깊은 체형은 더 수직, 길쭉한 체형은 뒤로 누운 호가 자연스럽다.</td>
+          <td><code>opercular_slit_slant</code></td>
+        </tr>
+        <tr>
+          <td>하단 막/branchiostegal 암시</td>
+          <td>아래쪽에 짧은 막 선이나 부드러운 그림자를 둔다.</td>
+          <td>큰 머리, 바닥성 어류, 근접 뷰에서 유용. 기본 스프라이트에서는 억제.</td>
+          <td><code>branchiostegal_hint</code></td>
+        </tr>
+        <tr>
+          <td>가장자리 톱니/가시</td>
+          <td>프리오퍼클/오퍼클 가장자리에 미세한 톱니나 포인트.</td>
+          <td>일부 농어형/다람쥐고기류 등. 모든 어종에 일반화하면 지저분하다.</td>
+          <td><code>opercle_serration</code>, 기본 0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>프리셋 방향</h3>
+    <table class="compact">
+      <thead>
+        <tr>
+          <th>아키타입</th>
+          <th>형상</th>
+          <th>추천 값 감각</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>범용 방추형</td>
+          <td>중간 길이, 중간 높이, 후방 출구만 또렷함.</td>
+          <td>length 1.0, height 0.9, ridge 0.25, slit alpha 중간.</td>
+        </tr>
+        <tr>
+          <td>시클리드/농어형</td>
+          <td>볼과 프리오퍼클 라인이 읽히며 덮개가 비교적 높다.</td>
+          <td>length 1.05, height 1.1, curve 0.7, ridge 0.35.</td>
+        </tr>
+        <tr>
+          <td>잉어/금붕어형</td>
+          <td>둥근 머리와 넓은 덮개. 선은 부드럽고 색 차이는 약함.</td>
+          <td>length 1.1, height 1.15, ridge 0.20, plate darken 낮음.</td>
+        </tr>
+        <tr>
+          <td>길쭉한 포식어형</td>
+          <td>낮고 긴 판. 후방 출구가 약간 뒤로 누움.</td>
+          <td>length 1.2, height 0.75, slit slant 0.4, ridge 0.25.</td>
+        </tr>
+        <tr>
+          <td>소형 테트라/댄니오형</td>
+          <td>작고 거의 색 변화만 있는 덮개. 선은 최소.</td>
+          <td>length 0.85, height 0.75, ridge 0.10-0.18.</td>
+        </tr>
+        <tr>
+          <td>메기류</td>
+          <td>머리 폭과 피부/판 느낌이 다르므로 단순 일반화 주의.</td>
+          <td>별도 head archetype과 결합. serration/spine은 기본값에서 끈다.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>실행 가능한 다음 단계</h2>
+    <ol>
+      <li>
+        <strong>즉시 완화:</strong>
+        <code>fish_body_toon.gdshader</code>의 조건을 <code>is_head &amp;&amp; operculum_enabled</code>로 바꾸고,
+        plate darken과 전방 seam 알파를 낮춘다.
+      </li>
+      <li>
+        <strong>목 경계 분리:</strong>
+        아가미덮개 내부가 아니라 head/body 접합부에 얇은 neck occlusion을 별도 마스크로 추가한다.
+      </li>
+      <li>
+        <strong>J자 경계:</strong>
+        전방 seam을 단순 세로선에서 위/아래가 뒤로 말리는 곡선 함수로 바꾼다.
+      </li>
+      <li>
+        <strong>프리셋 축 정리:</strong>
+        현재 <code>operculum_size</code>, <code>height</code>, <code>open</code>, <code>ridge</code>는 유지하되,
+        나중에 <code>preopercle_curve</code>와 <code>slit_slant</code>만 추가하면 어종 차이가 훨씬 잘 난다.
+      </li>
+      <li>
+        <strong>렌더 검증:</strong>
+        side, 3/4, front, small sprite scale에서 확인한다. 정면에서는 덮개가 거의 사라지고,
+        측면/3/4에서만 자연스럽게 읽히는 것이 정상이다.
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>참고 자료</h2>
+    <ul class="source-list">
+      <li>
+        Kimmel, Small, Knope. <a href="https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0188888">A rich diversity of opercle bone shape among teleost fishes</a>.
+        PLOS ONE, 2017. 110개 과 수준에서 teleost opercle shape 다양성을 다룬 핵심 논문.
+      </li>
+      <li>
+        Bishop Museum. <a href="https://hbs.bishopmuseum.org/frc/types.html">Fish Remains Guide: Bones of the opercular series</a>.
+        프리오퍼클, 오퍼클의 형태와 연결부 설명.
+      </li>
+      <li>
+        Necropsy Manual. <a href="https://www.necropsymanual.net/en/teleosts-anatomy/respiratory-system/">Teleosts: Respiratory system</a>.
+        경골어류 아가미방, opercular cavity, opercular opening, 호흡 펌프 설명.
+      </li>
+      <li>
+        Wilson et al. <a href="https://www.nature.com/articles/srep16909">Evolution of opercle shape in cichlid fishes from Lake Tanganyika</a>.
+        시클리드 operculum shape와 생태/섭식 관련성, hyomandibula 연결 설명.
+      </li>
+      <li>
+        Godot Engine Docs. <a href="https://docs.godotengine.org/en/4.6/tutorials/shaders/shader_reference/spatial_shader.html">Spatial shaders</a>.
+        fragment shader의 <code>UV</code>, material property 출력, spatial shader 구조 참고.
+      </li>
+      <li>
+        Blender Manual. <a href="https://docs.blender.org/manual/en/3.0/sculpt_paint/texture_paint/index.html">Texture Paint</a>.
+        표면에 직접 색/마킹을 칠하는 제작 흐름 참고.
+      </li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

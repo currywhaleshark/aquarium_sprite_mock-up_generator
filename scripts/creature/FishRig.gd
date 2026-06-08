@@ -2394,6 +2394,11 @@ func _add_head_ornament(head: MeshInstance3D, ornament: String, material: Materi
 func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material) -> void:
 	if mark == "none" or mark == "":
 		return
+	# Operculum is a real flap anchored to the body shell surface (not the head
+	# sphere), so it lives under body_pivot, not the head node. Handled separately.
+	if mark == "operculum":
+		_add_operculum_flaps(head.material_override, seam_mat)
+		return
 	if not ["line", "crescent", "plate"].has(mark):
 		return
 	var root := Node3D.new()
@@ -2424,6 +2429,258 @@ func _add_gill_mark(head: MeshInstance3D, mark: String, seam_mat: Material) -> v
 				var plate := PF.ellipsoid("GillPlate%s" % ("L" if side < 0.0 else "R"), Vector3(0.045, 0.17, 0.018), seam_mat)
 				plate.position = Vector3(plate_x, plate_y, side * _head_side_surface_z(plate_x, plate_y, 0.04))
 				root.add_child(plate)
+
+# Operculum (gill cover) as a real flap, built in body_pivot space hugging the
+# outer shell's egg cross-section at the gill region (~14-24% back). The front
+# (preopercle hinge) sits just proud of the shell and the rear free margin lifts
+# further off it, so the trailing edge reads as a true silhouette step with a
+# dark gill opening tucked underneath. Anchoring to the shell (not the head
+# sphere) keeps it from being buried, since the shell is the widest surface here.
+func _add_operculum_flaps(body_material: Material, dark_material: Material) -> void:
+	if body_pivot == null:
+		return
+	var root := Node3D.new()
+	root.name = "GillMark_operculum"
+	body_pivot.add_child(root)
+	var op_len := clampf(float(parameters.get("operculum_size", 1.0)), 0.5, 1.5)
+	var op_h := clampf(float(parameters.get("operculum_height", 1.0)), 0.5, 1.5)
+	var op_open := clampf(float(parameters.get("operculum_open", 0.0)), 0.0, 1.0)
+	var op_ridge := clampf(float(parameters.get("operculum_ridge", 0.45)), 0.0, 1.0)
+	var lift := 0.012 + 0.03 * op_open
+	for side in [-1.0, 1.0]:
+		root.add_child(_build_operculum_flap(
+			"OperculumFlap%s" % ("L" if side < 0.0 else "R"),
+			side, op_len, op_h, lift, op_ridge, body_material, dark_material))
+
+func _build_operculum_flap(flap_name: String, side: float, length: float, height: float, lift: float, ridge: float, body_material: Material, dark_material: Material) -> MeshInstance3D:
+	var center_t := 0.19
+	var half_t := 0.05 * length
+	var t_front := maxf(center_t - half_t, 0.02)
+	var t_rear := center_t + half_t
+	var vfrac_max := 0.62 * height
+	var sgn := -1.0 if side < 0.0 else 1.0
+
+	# Optional hand-drawn silhouette (normalized side-view outline). When present,
+	# the flap follows the polygon's top/bottom edge per column (smooth, not a
+	# blocky grid mask) and size/height still scale it. No points -> parametric band.
+	var raw_points: Array = parameters.get("operculum_custom_points", [])
+	var poly := PackedVector2Array()
+	for k in range(0, raw_points.size() - 1, 2):
+		poly.append(Vector2(float(raw_points[k]), float(raw_points[k + 1])))
+	var use_outline := poly.size() >= 3
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	if use_outline:
+		# Row sweep: at each height v the flap spans the polygon's longitudinal
+		# extent [u_min(v), u_max(v)]. The rear edge u_max(v) is the SAME scan the
+		# gill-opening uses, so flap and opening always agree (incl. concave edits).
+		# Fine nv -> smooth front/rear curves; nu cols carry the rear lift gradient.
+		var v_lo := INF
+		var v_hi := -INF
+		for p in poly:
+			v_lo = minf(v_lo, p.y)
+			v_hi = maxf(v_hi, p.y)
+		var nv := 48
+		var nu := 12
+		var valid := []
+		var rverts := []
+		var ruvs := []
+		for r in range(nv + 1):
+			var v := lerpf(v_lo, v_hi, float(r) / float(nv))
+			var uspan := _operculum_poly_u_span(poly, v)
+			if uspan.y < uspan.x:
+				valid.append(false)
+				rverts.append([])
+				ruvs.append([])
+				continue
+			var f := clampf(v * vfrac_max, -0.985, 0.985)
+			var uvy := asin(f) / TAU
+			if uvy < 0.0:
+				uvy += 1.0
+			var verts := []
+			var uvs := []
+			for c in range(nu + 1):
+				var u := lerpf(uspan.x, uspan.y, float(c) / float(nu))
+				# Front hinge flush on the shell; only the rear free margin lifts off (no float).
+				var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+				verts.append(_op_shell_point(u, f, t_front, t_rear, sgn, out))
+				uvs.append(Vector2(lerpf(t_front, t_rear, u), uvy))
+			valid.append(true)
+			rverts.append(verts)
+			ruvs.append(uvs)
+		for r in nv:
+			if valid[r] and valid[r + 1]:
+				for c in nu:
+					_op_quad(st, [rverts[r], rverts[r + 1]], [ruvs[r], ruvs[r + 1]], 0, c, 1)
+	else:
+		var ns := 12
+		var nt := 10
+		var grid := []
+		var ugrid := []
+		for i in range(ns + 1):
+			var u := float(i) / float(ns)
+			var at_t := lerpf(t_front, t_rear, u)
+			var env := lerpf(0.82, 1.0, smoothstep(0.0, 0.6, u))
+			# Front hinge sits flush on the shell (tiny epsilon avoids z-fighting);
+			# only the rear free margin lifts off, so it never floats in front/rear view.
+			var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+			var sample := _sample_shell_profile(at_t)
+			var cy := _sample_shell_center_y(at_t)
+			var prow := []
+			var urow := []
+			for j in range(nt + 1):
+				var tv := lerpf(-1.0, 1.0, float(j) / float(nt))
+				var f := clampf(tv * env * vfrac_max, -0.985, 0.985)
+				var y := cy + f * sample.y
+				var zfrac := sqrt(maxf(1.0 - f * f, 0.0))
+				prow.append(Vector3(sample.x, y, (sample.z * zfrac + out) * sgn))
+				var uvy := asin(f) / TAU
+				if uvy < 0.0:
+					uvy += 1.0
+				urow.append(Vector2(at_t, uvy))
+			grid.append(prow)
+			ugrid.append(urow)
+		for i in ns:
+			for j in nt:
+				_op_quad(st, grid, ugrid, i, j)
+	st.generate_normals()
+
+	var node := MeshInstance3D.new()
+	node.name = flap_name
+	node.mesh = st.commit()
+	node.material_override = body_material
+	if use_outline:
+		node.add_child(_build_operculum_opening_outline("%s_Opening" % flap_name, side, poly, t_front, t_rear, vfrac_max, dark_material))
+	else:
+		node.add_child(_build_operculum_opening("%s_Opening" % flap_name, side, t_rear, ridge, vfrac_max, dark_material))
+	return node
+
+# U-extent [u_min, u_max] of the outline polygon at vertical v (horizontal scan).
+# u_max is the rear (trailing) edge. Returns y<x sentinel when v is outside.
+func _operculum_poly_u_span(poly: PackedVector2Array, v: float) -> Vector2:
+	var n := poly.size()
+	var umin := INF
+	var umax := -INF
+	var hits := 0
+	for k in n:
+		var a := poly[k]
+		var b := poly[(k + 1) % n]
+		if (a.y <= v) != (b.y <= v):
+			var x := a.x + (v - a.y) / (b.y - a.y) * (b.x - a.x)
+			umin = minf(umin, x)
+			umax = maxf(umax, x)
+			hits += 1
+	if hits < 2:
+		return Vector2(1.0, -1.0)
+	return Vector2(umin, umax)
+
+func _op_shell_point(u: float, f: float, t_front: float, t_rear: float, sgn: float, outset: float) -> Vector3:
+	var at_t := lerpf(t_front, t_rear, u)
+	var sample := _sample_shell_profile(at_t)
+	var cy := _sample_shell_center_y(at_t)
+	var zfrac := sqrt(maxf(1.0 - f * f, 0.0))
+	return Vector3(sample.x, cy + f * sample.y, (sample.z * zfrac + outset) * sgn)
+
+# Dark gill opening that traces the silhouette's trailing (rear) edge top-to-bottom:
+# for each height v across the outline's full vertical extent we find the rear-most
+# x and lay a thin dark strip just behind it. So it spans the whole free margin and
+# reshapes with the silhouette instead of collapsing to a narrow rear column.
+func _build_operculum_opening_outline(open_name: String, side: float, poly: PackedVector2Array, t_front: float, t_rear: float, vfrac_max: float, dark_material: Material) -> MeshInstance3D:
+	var sgn := -1.0 if side < 0.0 else 1.0
+	var v_lo := INF
+	var v_hi := -INF
+	for p in poly:
+		v_lo = minf(v_lo, p.y)
+		v_hi = maxf(v_hi, p.y)
+	var nt := 16
+	var valid := []
+	var inner := []
+	var outer := []
+	for r in range(nt + 1):
+		var v := lerpf(v_lo, v_hi, float(r) / float(nt))
+		var uspan := _operculum_poly_u_span(poly, v)
+		if uspan.y < uspan.x:
+			valid.append(false)
+			inner.append(Vector3.ZERO)
+			outer.append(Vector3.ZERO)
+			continue
+		var f := clampf(v * vfrac_max, -0.985, 0.985)
+		var u_edge: float = uspan.y
+		inner.append(_op_shell_point(clampf(u_edge - 0.03, 0.0, 1.5), f, t_front, t_rear, sgn, 0.010))
+		outer.append(_op_shell_point(u_edge + 0.05, f, t_front, t_rear, sgn, 0.010))
+		valid.append(true)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for r in nt:
+		if valid[r] and valid[r + 1]:
+			_op_quad(st, [[inner[r], inner[r + 1]], [outer[r], outer[r + 1]]], [], 0, 0, 1)
+	st.generate_normals()
+
+	var node := MeshInstance3D.new()
+	node.name = open_name
+	node.mesh = st.commit()
+	node.material_override = dark_material
+	return node
+
+# Thin dark strip on the shell surface just under the lifted free edge, reading
+# as the gill opening.
+func _build_operculum_opening(open_name: String, side: float, t_rear: float, ridge: float, vfrac_max: float, dark_material: Material) -> MeshInstance3D:
+	var nt := 10
+	var sgn := -1.0 if side < 0.0 else 1.0
+	var cols := [t_rear - (0.02 + 0.02 * ridge), t_rear + 0.006]
+	var grid := []
+	for c in range(2):
+		var at_t: float = cols[c]
+		var sample := _sample_shell_profile(at_t)
+		var cy := _sample_shell_center_y(at_t)
+		var col := []
+		for j in range(nt + 1):
+			var tv := lerpf(-1.0, 1.0, float(j) / float(nt))
+			var f := clampf(tv * vfrac_max, -0.985, 0.985)
+			var y := cy + f * sample.y
+			var zfrac := sqrt(maxf(1.0 - f * f, 0.0))
+			col.append(Vector3(sample.x, y, (sample.z * zfrac + 0.010) * sgn))
+		grid.append(col)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in nt:
+		_op_quad(st, grid, [], 0, j, 1)
+	st.generate_normals()
+
+	var node := MeshInstance3D.new()
+	node.name = open_name
+	node.mesh = st.commit()
+	node.material_override = dark_material
+	return node
+
+# Emits one grid quad as 4 triangles (double-sided) so winding/backface culling
+# can never hide the flap. UVs are optional (pass empty ugrid + col_a/col_b for a
+# 2-column strip). Body shading is flat/unshaded so averaged normals are fine.
+func _op_quad(st: SurfaceTool, grid: Array, ugrid: Array, i: int, j: int, i_next: int = -1) -> void:
+	var ib := i + 1 if i_next < 0 else i_next
+	var p00: Vector3 = grid[i][j]
+	var p01: Vector3 = grid[i][j + 1]
+	var p10: Vector3 = grid[ib][j]
+	var p11: Vector3 = grid[ib][j + 1]
+	var has_uv := not ugrid.is_empty()
+	var u00: Vector2 = ugrid[i][j] if has_uv else Vector2.ZERO
+	var u01: Vector2 = ugrid[i][j + 1] if has_uv else Vector2.ZERO
+	var u10: Vector2 = ugrid[ib][j] if has_uv else Vector2.ZERO
+	var u11: Vector2 = ugrid[ib][j + 1] if has_uv else Vector2.ZERO
+	# front
+	_op_v(st, u00, p00); _op_v(st, u10, p10); _op_v(st, u01, p01)
+	_op_v(st, u10, p10); _op_v(st, u11, p11); _op_v(st, u01, p01)
+	# back
+	_op_v(st, u00, p00); _op_v(st, u01, p01); _op_v(st, u10, p10)
+	_op_v(st, u10, p10); _op_v(st, u01, p01); _op_v(st, u11, p11)
+
+func _op_v(st: SurfaceTool, uv: Vector2, p: Vector3) -> void:
+	st.set_uv(uv)
+	st.set_uv2(uv)
+	st.add_vertex(p)
 
 func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material, snout_length: float) -> void:
 	if style == "none" or style == "":

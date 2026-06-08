@@ -1189,6 +1189,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_R:
 			_reset_preview_direction()
 			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_D:
+			_toggle_part_debug()
+			get_viewport().set_input_as_handled()
 		elif event.keycode >= KEY_1 and event.keycode <= KEY_3:
 			var index: int = int(event.keycode) - int(KEY_1)
 			match index:
@@ -1202,3 +1205,78 @@ func _unhandled_input(event: InputEvent) -> void:
 					if head_edit_toggle and not head_edit_toggle.disabled:
 						head_edit_toggle.button_pressed = not head_edit_toggle.button_pressed
 			get_viewport().set_input_as_handled()
+
+# --- Part debug coloring (press D) -----------------------------------------
+# Recolors every mesh of the active rig by part so overlapping surfaces can be
+# told apart. The outer shell turns semi-transparent and the operculum flap /
+# gill opening draw with no depth test (x-ray), so a flap buried inside the
+# shell is still visible. Press D again to restore the real materials.
+var _part_debug := false
+var _part_debug_saved := {}
+var _part_debug_mats := {}
+
+func _toggle_part_debug() -> void:
+	_part_debug = not _part_debug
+	if current_rig == null:
+		return
+	if _part_debug:
+		_part_debug_saved.clear()
+		for mi in _all_mesh_instances(current_rig, []):
+			_part_debug_saved[mi] = mi.material_override
+			mi.material_override = _debug_material_for(mi.name)
+		print("[part-debug] ON — shell=cyan(translucent) head=orange operculum=magenta(xray) opening=black(xray) fin=green eye=white jaw=yellow")
+	else:
+		for mi in _part_debug_saved.keys():
+			if is_instance_valid(mi):
+				mi.material_override = _part_debug_saved[mi]
+		_part_debug_saved.clear()
+		print("[part-debug] OFF")
+
+func _all_mesh_instances(node: Node, out: Array) -> Array:
+	for c in node.get_children():
+		if c is MeshInstance3D:
+			out.append(c)
+		_all_mesh_instances(c, out)
+	return out
+
+func _debug_material_for(node_name: String) -> StandardMaterial3D:
+	var key := "default"
+	var xray := false
+	if node_name.contains("Opening"):
+		key = "opening"
+		xray = true
+	elif node_name.begins_with("OperculumFlap"):
+		key = "operculum"
+		xray = true
+	elif node_name == "OuterShell":
+		key = "shell"
+	elif node_name == "Head":
+		key = "head"
+	elif node_name.contains("Fin"):
+		key = "fin"
+	elif node_name.contains("Eye"):
+		key = "eye"
+	elif node_name.contains("Jaw") or node_name.contains("Mouth"):
+		key = "jaw"
+	if _part_debug_mats.has(key):
+		return _part_debug_mats[key]
+	var colors := {
+		"shell": Color(0.2, 0.8, 1.0, 0.22),
+		"head": Color(1.0, 0.55, 0.1),
+		"operculum": Color(1.0, 0.1, 0.8),
+		"opening": Color(0.04, 0.04, 0.05),
+		"fin": Color(0.3, 0.9, 0.35),
+		"eye": Color(1.0, 1.0, 1.0),
+		"jaw": Color(1.0, 0.85, 0.2),
+		"default": Color(0.6, 0.6, 0.62),
+	}
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = colors[key]
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if key == "shell":
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	if xray:
+		mat.no_depth_test = true
+	_part_debug_mats[key] = mat
+	return mat

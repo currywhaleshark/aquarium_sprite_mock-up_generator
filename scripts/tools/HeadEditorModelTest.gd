@@ -467,41 +467,49 @@ func _ready() -> void:
 	fish.set_parameters(operculum_base)
 	await get_tree().process_frame
 	await get_tree().process_frame
+	# Operculum is now a real flap mesh, not a flat shader mark: the shader
+	# operculum stays disabled and a GillMark_operculum node with L/R flaps appears.
 	var head_mat := _head_shader_material(fish)
-	assert(head_mat.get_shader_parameter("operculum_enabled") == true)
-	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
-	var base_u: Vector2 = head_mat.get_shader_parameter("operculum_u")
+	assert(head_mat.get_shader_parameter("operculum_enabled") == false)
+	# The flap is anchored to the body shell, so it lives under BodyPivot, not Head.
+	var op_root := fish.get_node_or_null("BodyPivot/GillMark_operculum")
+	assert(op_root != null)
+	var base_flap := op_root.get_node_or_null("OperculumFlapR") as MeshInstance3D
+	assert(base_flap != null)
+	assert(op_root.get_node_or_null("OperculumFlapL") != null)
+	var base_extent := _mesh_extent(base_flap)
 
 	var large_operculum := operculum_base.duplicate(true)
 	large_operculum["operculum_size"] = 1.45
 	fish.set_parameters(large_operculum)
 	await get_tree().process_frame
-	head_mat = _head_shader_material(fish)
-	var big_u: Vector2 = head_mat.get_shader_parameter("operculum_u")
-	assert(big_u.x < base_u.x - 0.02)
-	assert(absf(big_u.y - base_u.y) < 0.001)
+	var big_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/GillMark_operculum/OperculumFlapR") as MeshInstance3D)
+	assert(big_extent.x > base_extent.x * 1.2)
 
 	var tall_operculum := operculum_base.duplicate(true)
 	tall_operculum["operculum_height"] = 1.45
 	fish.set_parameters(tall_operculum)
 	await get_tree().process_frame
-	head_mat = _head_shader_material(fish)
-	var tall_up: Vector2 = head_mat.get_shader_parameter("operculum_up")
-	assert(tall_up.y > 0.45 * 1.2)
+	var tall_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/GillMark_operculum/OperculumFlapR") as MeshInstance3D)
+	assert(tall_extent.y > base_extent.y * 1.2)
 
 	var open_operculum := operculum_base.duplicate(true)
 	open_operculum["operculum_open"] = 1.0
 	fish.set_parameters(open_operculum)
 	await get_tree().process_frame
-	head_mat = _head_shader_material(fish)
-	assert(float(head_mat.get_shader_parameter("operculum_open")) > 0.99)
+	# A more-open operculum lifts the rear free edge further off the shell, so the
+	# flap's lateral (z) span grows.
+	var open_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/GillMark_operculum/OperculumFlapR") as MeshInstance3D)
+	assert(open_extent.z > base_extent.z + 0.01)
 
-	var high_ridge := operculum_base.duplicate(true)
-	high_ridge["operculum_ridge"] = 1.0
-	fish.set_parameters(high_ridge)
+	# A hand-drawn outline masks the flap area: a short (low-y) silhouette yields a
+	# flap whose vertical span is smaller than the default parametric band.
+	var custom_operculum := operculum_base.duplicate(true)
+	custom_operculum["operculum_custom_points"] = [0.0, -0.2, 0.0, 0.2, 1.0, 0.2, 1.0, -0.2]
+	fish.set_parameters(custom_operculum)
 	await get_tree().process_frame
-	head_mat = _head_shader_material(fish)
-	assert(float(head_mat.get_shader_parameter("operculum_ridge")) > 0.99)
+	var custom_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/GillMark_operculum/OperculumFlapR") as MeshInstance3D)
+	assert(custom_extent.y < base_extent.y)
 
 	var line_params := operculum_base.duplicate(true)
 	line_params["gill_mark"] = "line"
@@ -509,7 +517,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	head_mat = _head_shader_material(fish)
 	assert(head_mat.get_shader_parameter("operculum_enabled") == false)
-	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
+	assert(fish.get_node_or_null("BodyPivot/GillMark_operculum") == null)
 	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_line") != null)
 
 	var legacy_no_operculum_keys := operculum_base.duplicate(true)
@@ -522,7 +530,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	head_mat = _head_shader_material(fish)
 	assert(head_mat.get_shader_parameter("operculum_enabled") == false)
-	assert(fish.get_node_or_null("BodyPivot/Head/GillMark_operculum") == null)
+	assert(fish.get_node_or_null("BodyPivot/GillMark_operculum") == null)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_model.ok", FileAccess.WRITE)

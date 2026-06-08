@@ -8,6 +8,8 @@ signal numeric_slider_changed(key: String)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
+const FinVectorEditorScript := preload("res://scripts/ui/FinVectorEditor.gd")
+const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 const HEAD_SHAPES := ["rounded", "tapered", "pointed", "blunt", "broad", "flattened", "hump", "steep_forehead", "cephalofoil"]
 const MOUTH_TYPES := ["terminal", "superior", "inferior", "subterminal", "protrusible"]
@@ -80,6 +82,7 @@ var ray_head_shape_option: OptionButton
 
 var numeric_sliders := {}
 var current_numeric_keys: Array[String] = []
+var operculum_editor: Control
 var _updating := false
 
 # Collapsible groupings for the (many) fish head sliders. Keys not listed in any
@@ -111,6 +114,18 @@ func _ready() -> void:
 
 	slider_container = VBoxContainer.new()
 	add_child(slider_container)
+
+	# Operculum silhouette editor (shown only when gill_mark == "operculum").
+	# Mirrors the fin vector editor: drag/add/delete points -> custom outline.
+	operculum_editor = FinVectorEditorScript.new()
+	operculum_editor.visible = false
+	operculum_editor.points_changed.connect(func(pts: Array) -> void:
+		if _updating:
+			return
+		parameters["operculum_custom_points"] = pts
+		parameters_changed.emit(parameters.duplicate(true))
+	)
+	add_child(operculum_editor)
 
 	_refresh_controls()
 
@@ -268,12 +283,34 @@ func _refresh_controls() -> void:
 		var value := float(parameters.get(key, _default_numeric(key)))
 		slider.value = value
 		label.text = "%.2f" % value
+	_position_operculum_editor()
 	_updating = false
+
+# The operculum silhouette editor lives inside the "아가미" section body (added in
+# _add_section). It is a persistent node, so we detach it before a slider rebuild
+# frees that body, and re-parent it on rebuild. Here we only sync its content/visibility.
+func _position_operculum_editor() -> void:
+	if operculum_editor == null:
+		return
+	var is_op := String(parameters.get("creature_type", "fish")) != "ray" \
+		and String(parameters.get("gill_mark", "none")) == "operculum"
+	operculum_editor.visible = is_op
+	if is_op:
+		operculum_editor.slot = "operculum"
+		operculum_editor.points = parameters.get("operculum_custom_points", BodyProfileScript.DEFAULT_OPERCULUM_POINTS)
 
 func _sync_numeric_controls(is_ray: bool) -> void:
 	var visible_keys := _visible_numeric_keys(is_ray)
 	if _same_key_list(current_numeric_keys, visible_keys):
 		return
+	# Park the persistent operculum editor back on the panel root so it survives the
+	# body queue_free below (and isn't orphaned); _add_section re-homes it if needed.
+	if operculum_editor != null:
+		var prev_parent := operculum_editor.get_parent()
+		if prev_parent != self:
+			if prev_parent != null:
+				prev_parent.remove_child(operculum_editor)
+			add_child(operculum_editor)
 	for child in slider_container.get_children():
 		child.queue_free()
 	numeric_sliders.clear()
@@ -365,6 +402,11 @@ func _add_section(title: String, keys: Array[String], source: Dictionary) -> voi
 	slider_container.add_child(body)
 	for key in keys:
 		_add_numeric_row(body, key, source[key])
+	# Embed the operculum silhouette editor at the bottom of the gill section.
+	if title == "아가미" and operculum_editor != null and String(parameters.get("gill_mark", "none")) == "operculum":
+		if operculum_editor.get_parent() != null:
+			operculum_editor.get_parent().remove_child(operculum_editor)
+		body.add_child(operculum_editor)
 	section_bodies[title] = body
 
 	var apply := func(expanded: bool) -> void:

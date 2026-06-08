@@ -109,7 +109,7 @@ func _gui_input(event: InputEvent) -> void:
 			var norm_pos := _to_norm(mouse_pos)
 			
 			# Clamp based on slots
-			if slot == "caudal":
+			if slot == "caudal" or slot == "operculum":
 				norm_pos.x = clampf(norm_pos.x, 0.0, 1.0)
 				norm_pos.y = clampf(norm_pos.y, -1.0, 1.0)
 			elif slot == "pectoral" or slot == "pelvic":
@@ -125,13 +125,16 @@ func _gui_input(event: InputEvent) -> void:
 			queue_redraw()
 
 func _is_root_locked(idx: int) -> bool:
+	# Operculum is a free closed silhouette with no attachment anchor to pin.
+	if slot == "operculum":
+		return false
 	# Root points (first and last vertex) are locked to maintain attachment anchor
 	return idx == 0 or idx == (points.size() / 2 - 1)
 
 func _to_pixel(norm: Vector2) -> Vector2:
 	var w := size.x - PADDING * 2
 	var h := size.y - PADDING * 2
-	if slot == "caudal":
+	if slot == "caudal" or slot == "operculum":
 		# X: [0.0, 1.0] -> [PADDING, PADDING + w]
 		# Y: [-1.0, 1.0] -> [PADDING + h, PADDING] (y-flip)
 		var px := PADDING + norm.x * w
@@ -153,7 +156,7 @@ func _to_pixel(norm: Vector2) -> Vector2:
 func _to_norm(pix: Vector2) -> Vector2:
 	var w := size.x - PADDING * 2
 	var h := size.y - PADDING * 2
-	if slot == "caudal":
+	if slot == "caudal" or slot == "operculum":
 		var nx := (pix.x - PADDING) / maxf(w, 1.0)
 		var ny := (1.0 - (pix.y - PADDING) / maxf(h, 1.0)) * 2.0 - 1.0
 		return Vector2(nx, ny)
@@ -190,8 +193,9 @@ func _draw() -> void:
 		draw_line(Vector2(PADDING, y_pos), Vector2(PADDING + w, y_pos), grid_color, 1.0)
 		
 	# Draw baseline / attachment line
-	if slot == "caudal" or slot == "pectoral" or slot == "pelvic":
-		# Root is x = 0 (caudal) or x = -0.5 (pectoral/pelvic), both map to the left edge of the grid
+	if slot == "caudal" or slot == "pectoral" or slot == "pelvic" or slot == "operculum":
+		# Root is x = 0 (caudal/operculum front hinge) or x = -0.5 (pectoral/pelvic);
+		# all map to the left edge of the grid.
 		var root_x := PADDING
 		draw_line(Vector2(root_x, PADDING), Vector2(root_x, PADDING + h), axis_color, 2.0)
 	else:

@@ -38,7 +38,10 @@ static func make_body_material(parameters: Dictionary) -> ShaderMaterial:
 		material.set_shader_parameter(String(key), marking_uniforms[key])
 	var gill_mark := String(parameters.get("gill_mark", "none"))
 	var op_on := gill_mark == "operculum"
-	material.set_shader_parameter("operculum_enabled", op_on)
+	# Operculum is now a real flap mesh (FishRig._add_gill_mark), so the flat
+	# shader-painted plate/seam/slit is disabled to avoid doubling. The uniforms
+	# below are still plumbed (dormant) in case the painted form is reused.
+	material.set_shader_parameter("operculum_enabled", false)
 	if op_on:
 		var op_size := clampf(float(parameters.get("operculum_size", 1.0)), 0.5, 1.5)
 		var op_height := clampf(float(parameters.get("operculum_height", 1.0)), 0.5, 1.5)
