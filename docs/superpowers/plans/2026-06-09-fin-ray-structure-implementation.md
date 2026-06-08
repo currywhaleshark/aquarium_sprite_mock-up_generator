@@ -14,12 +14,12 @@
 
 - Modify `scripts/creature/BodyProfile.gd`: add fin-ray, adipose, and finlet defaults; add option-name helpers; preserve all fields through `fin_profile`.
 - Modify `scripts/materials/ToonMaterialFactory.gd`: bind new shader uniforms; add rayless/adipose/finlet material helpers using per-slot overrides.
-- Modify `shaders/fish_fin_toon.gdshader`: add style, spread, spine, branching, segmentation, irregularity, and color-blend uniforms; keep legacy parallel rays when style is `none`.
+- Modify `shaders/fish_fin_toon.gdshader`: add style, spread, spine, branching, segmentation, irregularity, body-color, and color-blend uniforms; keep legacy parallel rays when style is `none`.
 - Modify `scripts/ui/ParameterPanel.gd`: expose `fin_ray_style` as an option and set exact ranges for new numeric controls.
 - Modify `scripts/ui/UiText.gd`: add Korean labels for new parameters and fin-ray style options.
 - Modify `scripts/creature/FishRig.gd`: add adipose and finlet slots, dedicated materials, sampled placement, and per-frame animated anchor updates.
 - Modify `data/species_archetypes/betta.json` and `data/species_archetypes/guppy.json`: add required fan/threaded ray defaults.
-- Modify or add tuna/mackerel/salmonid archetype data: use existing archetypes if present; otherwise add compact `tuna.json`, `mackerel.json`, and `trout.json`.
+- Modify or add tuna/mackerel/salmonid archetype data: use existing archetypes if present; otherwise add complete `tuna.json`, `mackerel.json`, and `trout.json` files with profile sections and non-empty `marking_layers`.
 - Modify `scripts/tools/FinMaterialTest.gd`: cover new uniforms, rayless material overrides, and legacy fallback.
 - Modify `scripts/tools/ParameterPanelRangeTest.gd`: cover option and slider ranges.
 - Modify `scripts/tools/SpeciesArchetypeVisualSmokeTest.gd`: cover archetype defaults and node presence.
@@ -229,11 +229,15 @@ func _test_fin_material_exposes_ray_structure_uniforms() -> void:
 		"fin_spine_strength": 0.7,
 		"fin_ray_branching": 0.45,
 		"fin_ray_segmentation": 0.35,
-		"fin_ray_irregularity": 0.2
+		"fin_ray_irregularity": 0.2,
+		"base_color": "#225566",
+		"fin_color_blend": 0.4
 	})
 	assert(abs(float(material.get_shader_parameter("fin_ray_style_id")) - 3.0) < 0.001)
 	assert(abs(float(material.get_shader_parameter("fin_ray_count")) - 44.0) < 0.001)
 	assert(abs(float(material.get_shader_parameter("fin_spine_count")) - 4.0) < 0.001)
+	assert(material.get_shader_parameter("fin_body_color") is Color)
+	assert(abs(float(material.get_shader_parameter("fin_color_blend")) - 0.4) < 0.001)
 
 func _test_rayless_material_overrides_global_rays() -> void:
 	var material := ToonMaterialFactoryScript.make_rayless_fin_material({
@@ -313,6 +317,7 @@ Use `effective` for all parameter reads in `make_fin_material()`, expand `fin_ra
 	material.set_shader_parameter("fin_ray_branching", clampf(float(effective.get("fin_ray_branching", 0.0)), 0.0, 1.0))
 	material.set_shader_parameter("fin_ray_segmentation", clampf(float(effective.get("fin_ray_segmentation", 0.0)), 0.0, 1.0))
 	material.set_shader_parameter("fin_ray_irregularity", clampf(float(effective.get("fin_ray_irregularity", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_body_color", _as_color(effective.get("fin_body_color", effective.get("base_color", "#7ee1e8"))))
 	material.set_shader_parameter("fin_color_blend", clampf(float(effective.get("fin_color_blend", 0.0)), 0.0, 1.0))
 ```
 
@@ -341,13 +346,19 @@ static func make_finlet_material(parameters: Dictionary) -> ShaderMaterial:
 	})
 ```
 
-- [ ] **Step 4: Add shader uniforms and masks**
+- [ ] **Step 4: Replace shader uniform ranges and add masks**
 
-In `fish_fin_toon.gdshader`, add uniforms:
+In `fish_fin_toon.gdshader`, replace the existing `fin_ray_count` uniform line:
+
+```glsl
+uniform float fin_ray_count : hint_range(0.0, 48.0) = 0.0;
+```
+
+Do not add a second `fin_ray_count` declaration; the existing `fin_ray_strength`
+uniform remains in place. Then add these new uniforms near the fin-ray uniforms:
 
 ```glsl
 uniform float fin_ray_style_id : hint_range(0.0, 5.0) = 0.0;
-uniform float fin_ray_count : hint_range(0.0, 48.0) = 0.0;
 uniform float fin_ray_root_bias : hint_range(-1.0, 1.0) = 0.0;
 uniform float fin_ray_spread : hint_range(0.0, 1.0) = 0.75;
 uniform float fin_spine_count : hint_range(0.0, 12.0) = 0.0;
@@ -355,10 +366,18 @@ uniform float fin_spine_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float fin_ray_branching : hint_range(0.0, 1.0) = 0.0;
 uniform float fin_ray_segmentation : hint_range(0.0, 1.0) = 0.0;
 uniform float fin_ray_irregularity : hint_range(0.0, 1.0) = 0.0;
+uniform vec4 fin_body_color : source_color = vec4(0.49, 0.88, 0.91, 1.0);
 uniform float fin_color_blend : hint_range(0.0, 1.0) = 0.0;
 ```
 
-Replace the current ray block with helper functions and this fragment block:
+After the existing base color mix at the start of `fragment()`, apply the body/fin
+blend required by finlets:
+
+```glsl
+	col = mix(col, fin_body_color.rgb, fin_color_blend * fin_body_color.a);
+```
+
+Then replace the current ray block with helper functions and this fragment block:
 
 ```glsl
 float hash11(float value) {
@@ -462,6 +481,7 @@ Add assertions:
 	var fin_ray_count_slider := _find_slider_for_label(panel, UiText.parameter("fin_ray_count"))
 	var fin_root_bias_slider := _find_slider_for_label(panel, UiText.parameter("fin_ray_root_bias"))
 	var fin_spine_count_slider := _find_slider_for_label(panel, UiText.parameter("fin_spine_count"))
+	var adipose_position_slider := _find_slider_for_label(panel, UiText.parameter("adipose_fin_position"))
 	var finlet_pitch_slider := _find_slider_for_label(panel, UiText.parameter("finlet_pitch"))
 	assert(fin_ray_count_slider != null)
 	assert(absf(fin_ray_count_slider.max_value - 48.0) < 0.0001)
@@ -470,6 +490,9 @@ Add assertions:
 	assert(fin_root_bias_slider.max_value >= 1.0)
 	assert(fin_spine_count_slider != null)
 	assert(absf(fin_spine_count_slider.max_value - 12.0) < 0.0001)
+	assert(adipose_position_slider != null)
+	assert(absf(adipose_position_slider.min_value - 0.0) < 0.0001)
+	assert(absf(adipose_position_slider.max_value - 1.0) < 0.0001)
 	assert(finlet_pitch_slider != null)
 	assert(finlet_pitch_slider.min_value <= -1.0)
 	assert(finlet_pitch_slider.max_value >= 1.0)
@@ -503,11 +526,15 @@ Extend `_options_for_key()`:
 Extend `_min_for_key()` before `_is_signed_parameter()`:
 
 ```gdscript
+	if key == "adipose_fin_position":
+		return 0.0
 	if key == "fin_ray_root_bias" or key == "finlet_pitch":
 		return -1.0
 ```
 
-Extend `_max_for_key()` before generic string matching:
+Extend `_max_for_key()` before `_is_signed_parameter()` and before generic string
+matching. This order is required because `adipose_fin_position` contains
+`position` and would otherwise be treated as a signed slider:
 
 ```gdscript
 	if key == "fin_ray_count":
@@ -516,17 +543,24 @@ Extend `_max_for_key()` before generic string matching:
 		return 12.0
 	if key == "fin_ray_root_bias" or key == "finlet_pitch":
 		return 1.0
+	if key == "adipose_fin_position":
+		return 1.0
 	if key.begins_with("fin_ray_") or key.begins_with("adipose_fin_") or key.begins_with("finlet_") or key == "fin_spine_strength":
 		return 1.0
 ```
 
 - [ ] **Step 4: Add labels**
 
-In `UiText.gd`, add option labels:
+In `UiText.gd`, ensure `OPTION_LABELS` contains all six fin-ray style labels. Keep
+existing entries such as `none`, `spiny`, or `fan` if they already exist; add only
+the missing keys:
 
 ```gdscript
+	"none": "없음",
 	"soft": "연조형",
+	"spiny": "가시형",
 	"mixed": "혼합형",
+	"fan": "부채형",
 	"threaded": "실지느러미형",
 ```
 
@@ -895,7 +929,6 @@ git commit -m "Add animated finlet arrays"
 **Files:**
 - Modify: `data/species_archetypes/betta.json`
 - Modify: `data/species_archetypes/guppy.json`
-- Modify: `data/species_archetypes/corydoras.json`
 - Create or Modify: `data/species_archetypes/trout.json`
 - Create or Modify: `data/species_archetypes/tuna.json`
 - Create or Modify: `data/species_archetypes/mackerel.json`
@@ -921,10 +954,12 @@ Extend `_check_signature_nodes()`:
 			assert(bool(applied.get("adipose_fin_enabled", false)) == true)
 			assert(fish.get_node_or_null("BodyPivot/AdiposeFin") != null)
 		"tuna":
+			assert(String(applied.get("caudal_shape", "")) == "lunate")
 			assert(bool(applied.get("finlet_enabled", false)) == true)
 			assert(fish.get_node_or_null("BodyPivot/FinletDorsal_0") != null)
 			assert(fish.get_node_or_null("BodyPivot/FinletVentral_0") != null)
 		"mackerel":
+			assert(String(applied.get("caudal_shape", "")) == "lunate")
 			assert(bool(applied.get("finlet_enabled", false)) == true)
 			assert(fish.get_node_or_null("BodyPivot/FinletDorsal_0") != null)
 			assert(fish.get_node_or_null("BodyPivot/FinletVentral_0") != null)
@@ -938,9 +973,11 @@ powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter S
 
 Expected: FAIL because the required defaults and possibly archetype files are not present.
 
-- [ ] **Step 3: Add betta and guppy ray defaults**
+- [ ] **Step 3: Add betta and guppy ray defaults in `fin_profile`**
 
-In betta visual parameters, add:
+In `data/species_archetypes/betta.json`, update the existing `profile_overrides.fin_profile`
+entries in place. Replace the current `fin_ray_count` and `fin_ray_strength`
+values, and add the new ray keys in the same `fin_profile` dictionary:
 
 ```json
 "fin_ray_style": "fan",
@@ -952,7 +989,9 @@ In betta visual parameters, add:
 "fin_ray_irregularity": 0.12
 ```
 
-In guppy visual parameters, add:
+In `data/species_archetypes/guppy.json`, update the existing `profile_overrides.fin_profile`
+entries in place. Replace the current `fin_ray_count` and `fin_ray_strength`
+values, and add the new ray keys in the same `fin_profile` dictionary:
 
 ```json
 "fin_ray_style": "threaded",
@@ -964,36 +1003,261 @@ In guppy visual parameters, add:
 "fin_ray_irregularity": 0.18
 ```
 
-- [ ] **Step 4: Add salmonid and scombrid archetype defaults**
+- [ ] **Step 4: Add complete salmonid and scombrid archetype files**
 
-For trout-like archetype parameters, include:
+Create `data/species_archetypes/trout.json` with a complete archetype, including
+non-empty `marking_layers`:
 
 ```json
-"swim_mode": "general",
-"caudal_shape": "forked_shallow",
-"fin_ray_style": "soft",
-"fin_ray_count": 10,
-"fin_ray_strength": 0.22,
-"adipose_fin_enabled": true,
-"adipose_fin_size": 0.24,
-"adipose_fin_position": 0.82,
-"adipose_fin_rayed": 0
+{
+	"id": "trout",
+	"label": "Trout",
+	"creature_type": "fish",
+	"readability_priority": ["salmonid profile", "small adipose fin", "speckled body"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.48,
+			"body_height": 0.42,
+			"body_width": 0.26,
+			"head_size": 0.38,
+			"head_offset": -0.52,
+			"eye_size": 0.045
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.34,
+			"tail_fin_size": 0.36,
+			"caudal_shape": "forked_shallow",
+			"caudal_height_scale": 0.72
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "single",
+			"dorsal_1_length": 0.28,
+			"dorsal_1_height": 0.16,
+			"anal_shape": "single",
+			"anal_length": 0.24,
+			"anal_height": 0.12,
+			"fin_ray_style": "soft",
+			"fin_ray_count": 10,
+			"fin_ray_strength": 0.22,
+			"adipose_fin_enabled": true,
+			"adipose_fin_size": 0.24,
+			"adipose_fin_position": 0.82,
+			"adipose_fin_height": 0.18,
+			"adipose_fin_roundness": 0.8,
+			"adipose_fin_opacity": 0.72,
+			"adipose_fin_rayed": 0,
+			"fin_softness": 0.35,
+			"fin_rigidity": 0.25
+		},
+		"visual_profile": {
+			"base_color": "#6b7f55",
+			"belly_color": "#e7e0c4",
+			"fin_color": "#c78f53",
+			"outline_color": "#1f2933",
+			"pattern_type": "spots",
+			"pattern_color": "#2b1f18",
+			"pattern_intensity": 0.55,
+			"wetness": 0.24
+		},
+		"motion_profile": {
+			"swim_mode": "general",
+			"global_sway_amount": 8.0,
+			"tail_sway_multiplier": 1.1
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "spots",
+			"zone": "body",
+			"color": "#2b1f18",
+			"x_start": 0.12,
+			"x_end": 0.88,
+			"y": 0.12,
+			"thickness": 0.06,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"color_jitter": 0.1,
+		"spot_density_variation": 0.2
+	}
+}
 ```
 
-For tuna and mackerel-like archetype parameters, include:
+Create `data/species_archetypes/tuna.json` with a complete archetype. `lunate` is
+supported by `PrimitiveFactory.caudal_fin_points()`, so use it directly:
 
 ```json
-"swim_mode": "tuna",
-"caudal_shape": "lunate",
-"fin_ray_style": "soft",
-"fin_ray_count": 8,
-"fin_ray_strength": 0.18,
-"finlet_enabled": true,
-"finlet_dorsal_count": 9,
-"finlet_ventral_count": 9,
-"finlet_size": 0.22,
-"finlet_taper": 0.35,
-"finlet_pitch": 0.25
+{
+	"id": "tuna",
+	"label": "Tuna",
+	"creature_type": "fish",
+	"readability_priority": ["torpedo body", "lunate tail", "posterior finlets"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.78,
+			"body_height": 0.38,
+			"body_width": 0.3,
+			"head_size": 0.36,
+			"head_offset": -0.54,
+			"eye_size": 0.038
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.42,
+			"tail_fin_size": 0.5,
+			"caudal_shape": "lunate",
+			"caudal_height_scale": 1.0
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "trigger",
+			"dorsal_1_length": 0.22,
+			"dorsal_1_height": 0.13,
+			"dorsal_2_enabled": true,
+			"dorsal_2_attach_t": 0.66,
+			"dorsal_2_shape": "single",
+			"dorsal_2_length": 0.18,
+			"dorsal_2_height": 0.09,
+			"anal_shape": "single",
+			"anal_length": 0.2,
+			"anal_height": 0.09,
+			"fin_ray_style": "soft",
+			"fin_ray_count": 8,
+			"fin_ray_strength": 0.18,
+			"finlet_enabled": true,
+			"finlet_dorsal_count": 9,
+			"finlet_ventral_count": 9,
+			"finlet_size": 0.22,
+			"finlet_taper": 0.35,
+			"finlet_spacing": 0.72,
+			"finlet_pitch": 0.25,
+			"finlet_color_blend": 0.55,
+			"fin_softness": 0.18,
+			"fin_rigidity": 0.6
+		},
+		"visual_profile": {
+			"base_color": "#1d4f73",
+			"belly_color": "#d9e6ef",
+			"fin_color": "#f0c453",
+			"outline_color": "#101923",
+			"metallic_scale_strength": 0.25,
+			"wetness": 0.35
+		},
+		"motion_profile": {
+			"swim_mode": "tuna",
+			"global_sway_amount": 4.0,
+			"tail_sway_multiplier": 1.55
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "countershade_band",
+			"zone": "body",
+			"color": "#0f2f47",
+			"x_start": 0.0,
+			"x_end": 1.0,
+			"y": 0.24,
+			"thickness": 0.16,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"body_length_variation": 0.08,
+		"metallic_variation": 0.12
+	}
+}
+```
+
+Create `data/species_archetypes/mackerel.json` with a complete archetype:
+
+```json
+{
+	"id": "mackerel",
+	"label": "Mackerel",
+	"creature_type": "fish",
+	"readability_priority": ["striped fast swimmer", "forked/lunate tail", "posterior finlets"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.58,
+			"body_height": 0.36,
+			"body_width": 0.25,
+			"head_size": 0.34,
+			"head_offset": -0.52,
+			"eye_size": 0.04
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.36,
+			"tail_fin_size": 0.42,
+			"caudal_shape": "lunate",
+			"caudal_height_scale": 0.88
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "single",
+			"dorsal_1_length": 0.24,
+			"dorsal_1_height": 0.13,
+			"dorsal_2_enabled": true,
+			"dorsal_2_attach_t": 0.64,
+			"dorsal_2_shape": "single",
+			"dorsal_2_length": 0.16,
+			"dorsal_2_height": 0.08,
+			"anal_shape": "single",
+			"anal_length": 0.18,
+			"anal_height": 0.08,
+			"fin_ray_style": "soft",
+			"fin_ray_count": 8,
+			"fin_ray_strength": 0.16,
+			"finlet_enabled": true,
+			"finlet_dorsal_count": 7,
+			"finlet_ventral_count": 7,
+			"finlet_size": 0.18,
+			"finlet_taper": 0.4,
+			"finlet_spacing": 0.72,
+			"finlet_pitch": 0.22,
+			"finlet_color_blend": 0.6,
+			"fin_softness": 0.2,
+			"fin_rigidity": 0.55
+		},
+		"visual_profile": {
+			"base_color": "#315f7d",
+			"belly_color": "#e5edf2",
+			"fin_color": "#b7c6c9",
+			"outline_color": "#111827",
+			"pattern_type": "horizontal_stripes",
+			"pattern_color": "#102a3a",
+			"pattern_intensity": 0.65,
+			"wetness": 0.3
+		},
+		"motion_profile": {
+			"swim_mode": "mackerel",
+			"global_sway_amount": 5.5,
+			"tail_sway_multiplier": 1.4
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "horizontal_stripes",
+			"zone": "body",
+			"color": "#102a3a",
+			"x_start": 0.06,
+			"x_end": 0.9,
+			"y": 0.2,
+			"thickness": 0.08,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"stripe_variation": 0.18,
+		"color_jitter": 0.08
+	}
+}
 ```
 
 - [ ] **Step 5: Run archetype smoke**
@@ -1058,6 +1322,6 @@ Expected: branch is available on origin for review.
 
 ## Self-Review
 
-- Spec coverage: the plan covers defaults, shader AA/legacy behavior, UI ranges/options/labels, dedicated materials, adipose placement, finlet animated anchors, archetype tuning, and focused/full tests.
+- Spec coverage: the plan covers defaults, shader AA/legacy behavior, `adipose_fin_position` slider bounds, UI ranges/options/labels, dedicated materials, body/fin color blending for finlets, adipose placement, finlet animated anchors, complete archetype files, and focused/full tests.
 - Scope: this is one feature branch with three connected surfaces: ordinary fin rays, adipose special slot, and finlet special slots. They share material/default/archetype plumbing, so one plan is acceptable.
-- Ambiguity resolved: adipose and finlets use dedicated rayless materials by default; finlets use sampled animated shell anchors from v1; legacy `style == "none"` keeps parallel rays.
+- Ambiguity resolved: adipose and finlets use dedicated rayless materials by default; finlets use sampled animated shell anchors from v1; legacy `style == "none"` keeps parallel rays; new trout/tuna/mackerel archetypes must be complete JSON files with non-empty `marking_layers`.
