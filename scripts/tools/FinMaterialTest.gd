@@ -12,6 +12,9 @@ func _ready() -> void:
 	_test_fin_detail_parameters_round_trip_through_fin_profile()
 	_test_fin_ray_defaults_are_injected()
 	_test_new_fin_fields_round_trip_through_fin_profile()
+	_test_fin_material_exposes_ray_structure_uniforms()
+	_test_rayless_material_overrides_global_rays()
+	_test_legacy_parallel_ray_fallback_contract()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/fin_material.ok", FileAccess.WRITE)
@@ -159,6 +162,50 @@ func _test_new_fin_fields_round_trip_through_fin_profile() -> void:
 	assert(String(rebuilt.get("fin_ray_style", "")) == "fan")
 	assert(bool(rebuilt.get("adipose_fin_enabled", false)) == true)
 	assert(abs(float(rebuilt.get("finlet_ventral_count", 0.0)) - 8.0) < 0.001)
+
+func _test_fin_material_exposes_ray_structure_uniforms() -> void:
+	var material := ToonMaterialFactoryScript.make_fin_material({
+		"fin_ray_style": "mixed",
+		"fin_ray_count": 44.0,
+		"fin_ray_strength": 0.8,
+		"fin_ray_root_bias": -0.15,
+		"fin_ray_spread": 0.9,
+		"fin_spine_count": 4.0,
+		"fin_spine_strength": 0.7,
+		"fin_ray_branching": 0.45,
+		"fin_ray_segmentation": 0.35,
+		"fin_ray_irregularity": 0.2,
+		"base_color": "#225566",
+		"fin_color_blend": 0.4
+	})
+	assert(abs(float(material.get_shader_parameter("fin_ray_style_id")) - 3.0) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_ray_count")) - 44.0) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_spine_count")) - 4.0) < 0.001)
+	assert(material.get_shader_parameter("fin_body_color") is Color)
+	assert(abs(float(material.get_shader_parameter("fin_color_blend")) - 0.4) < 0.001)
+
+func _test_rayless_material_overrides_global_rays() -> void:
+	var material := ToonMaterialFactoryScript.make_rayless_fin_material({
+		"fin_ray_style": "mixed",
+		"fin_ray_count": 20.0,
+		"fin_ray_strength": 0.9,
+		"fin_spine_count": 6.0,
+		"fin_spine_strength": 0.8
+	})
+	assert(abs(float(material.get_shader_parameter("fin_ray_count")) - 0.0) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_ray_strength")) - 0.0) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_spine_count")) - 0.0) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_spine_strength")) - 0.0) < 0.001)
+
+func _test_legacy_parallel_ray_fallback_contract() -> void:
+	var material := ToonMaterialFactoryScript.make_fin_material({
+		"fin_ray_style": "none",
+		"fin_ray_count": 9.0,
+		"fin_ray_strength": 0.5
+	})
+	assert(abs(float(material.get_shader_parameter("fin_ray_style_id")) - 0.0) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_ray_count")) - 9.0) < 0.001)
+	assert(abs(float(material.get_shader_parameter("fin_ray_strength")) - 0.5) < 0.001)
 
 func _assert_mesh_has_uvs(mesh: Mesh) -> void:
 	assert(mesh != null)

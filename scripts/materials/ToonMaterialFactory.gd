@@ -77,21 +77,74 @@ static func make_surface(color_value: Variant, shadow_strength: float = 0.35, hi
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return material
 
-static func make_fin_material(parameters: Dictionary) -> ShaderMaterial:
+static func _fin_ray_style_id(style: String) -> float:
+	match style:
+		"soft":
+			return 1.0
+		"spiny":
+			return 2.0
+		"mixed":
+			return 3.0
+		"fan":
+			return 4.0
+		"threaded":
+			return 5.0
+		_:
+			return 0.0
+
+static func _with_overrides(parameters: Dictionary, overrides: Dictionary) -> Dictionary:
+	var merged := parameters.duplicate(true)
+	for key in overrides.keys():
+		merged[key] = overrides[key]
+	return merged
+
+static func make_fin_material(parameters: Dictionary, overrides: Dictionary = {}) -> ShaderMaterial:
+	var effective := _with_overrides(parameters, overrides)
 	var material := ShaderMaterial.new()
 	material.shader = load(FIN_SHADER_PATH)
-	material.set_shader_parameter("fin_color", _as_color(parameters.get("fin_color", "#7ee1e8")))
-	material.set_shader_parameter("fin_edge_color", _as_color(parameters.get("fin_edge_color", parameters.get("outline_color", "#162126"))))
-	material.set_shader_parameter("fin_tip_color", _as_color(parameters.get("fin_tip_color", parameters.get("fin_color", "#d8fbff"))))
-	material.set_shader_parameter("fin_gradient_color", _as_color(parameters.get("fin_gradient_color", parameters.get("fin_color", "#7ee1e8"))))
-	material.set_shader_parameter("fin_opacity", clampf(float(parameters.get("fin_opacity", 1.0)), 0.0, 1.0))
-	material.set_shader_parameter("fin_edge_width", clampf(float(parameters.get("fin_edge_width", 0.035)), 0.0, 0.25))
-	material.set_shader_parameter("fin_ray_count", clampf(float(parameters.get("fin_ray_count", 0.0)), 0.0, 32.0))
-	material.set_shader_parameter("fin_ray_strength", clampf(float(parameters.get("fin_ray_strength", 0.0)), 0.0, 1.0))
-	material.set_shader_parameter("fin_translucency_strength", clampf(float(parameters.get("fin_translucency_strength", parameters.get("fin_translucency", 0.0))), 0.0, 1.0))
-	material.set_shader_parameter("fin_tornness", clampf(float(parameters.get("fin_tornness", 0.0)), 0.0, 1.0))
-	material.set_shader_parameter("fin_trailing_threads", clampf(float(parameters.get("fin_trailing_threads", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_color", _as_color(effective.get("fin_color", "#7ee1e8")))
+	material.set_shader_parameter("fin_edge_color", _as_color(effective.get("fin_edge_color", effective.get("outline_color", "#162126"))))
+	material.set_shader_parameter("fin_tip_color", _as_color(effective.get("fin_tip_color", effective.get("fin_color", "#d8fbff"))))
+	material.set_shader_parameter("fin_gradient_color", _as_color(effective.get("fin_gradient_color", effective.get("fin_color", "#7ee1e8"))))
+	material.set_shader_parameter("fin_opacity", clampf(float(effective.get("fin_opacity", 1.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_edge_width", clampf(float(effective.get("fin_edge_width", 0.035)), 0.0, 0.25))
+	material.set_shader_parameter("fin_ray_style_id", _fin_ray_style_id(String(effective.get("fin_ray_style", "none"))))
+	material.set_shader_parameter("fin_ray_count", clampf(float(effective.get("fin_ray_count", 0.0)), 0.0, 48.0))
+	material.set_shader_parameter("fin_ray_strength", clampf(float(effective.get("fin_ray_strength", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_ray_root_bias", clampf(float(effective.get("fin_ray_root_bias", 0.0)), -1.0, 1.0))
+	material.set_shader_parameter("fin_ray_spread", clampf(float(effective.get("fin_ray_spread", 0.75)), 0.0, 1.0))
+	material.set_shader_parameter("fin_spine_count", clampf(float(effective.get("fin_spine_count", 0.0)), 0.0, 12.0))
+	material.set_shader_parameter("fin_spine_strength", clampf(float(effective.get("fin_spine_strength", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_ray_branching", clampf(float(effective.get("fin_ray_branching", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_ray_segmentation", clampf(float(effective.get("fin_ray_segmentation", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_ray_irregularity", clampf(float(effective.get("fin_ray_irregularity", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_body_color", _as_color(effective.get("fin_body_color", effective.get("base_color", "#7ee1e8"))))
+	material.set_shader_parameter("fin_color_blend", clampf(float(effective.get("fin_color_blend", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_translucency_strength", clampf(float(effective.get("fin_translucency_strength", effective.get("fin_translucency", 0.0))), 0.0, 1.0))
+	material.set_shader_parameter("fin_tornness", clampf(float(effective.get("fin_tornness", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("fin_trailing_threads", clampf(float(effective.get("fin_trailing_threads", 0.0)), 0.0, 1.0))
 	return material
+
+static func make_rayless_fin_material(parameters: Dictionary, overrides: Dictionary = {}) -> ShaderMaterial:
+	var rayless := {
+		"fin_ray_style": "none",
+		"fin_ray_count": 0.0,
+		"fin_ray_strength": 0.0,
+		"fin_spine_count": 0.0,
+		"fin_spine_strength": 0.0,
+		"fin_ray_branching": 0.0,
+		"fin_ray_segmentation": 0.0,
+		"fin_ray_irregularity": 0.0,
+		"fin_trailing_threads": 0.0
+	}
+	for key in overrides.keys():
+		rayless[key] = overrides[key]
+	return make_fin_material(parameters, rayless)
+
+static func make_finlet_material(parameters: Dictionary) -> ShaderMaterial:
+	return make_rayless_fin_material(parameters, {
+		"fin_color_blend": clampf(float(parameters.get("finlet_color_blend", 0.5)), 0.0, 1.0)
+	})
 
 static func make_dark(color_value: Variant) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
