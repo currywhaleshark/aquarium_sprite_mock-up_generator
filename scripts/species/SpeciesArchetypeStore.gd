@@ -65,6 +65,7 @@ static func apply_archetype(parameters: Dictionary, archetype: Dictionary, stren
 	result["marking_layers"] = (normalized.get("marking_layers", []) as Array).duplicate(true)
 	BodyProfileScript.normalize_motion_parameters(result)
 	BodyProfileScript.ensure_visual_parameters(result)
+	BodyProfileScript.apply_visual_generation_defaults(result, overrides.get("visual_profile", {}))
 	return result
 
 static func _apply_section(target: Dictionary, section: Dictionary, strength: float) -> void:

@@ -31,6 +31,8 @@ uniform int pattern_type = 0;
 uniform float pattern_scale_x = 6.0;
 uniform float pattern_scale_y = 4.0;
 uniform float pattern_intensity : hint_range(0.0, 1.0) = 0.7;
+uniform float pattern_invert : hint_range(0.0, 1.0) = 0.0;
+uniform float pattern_seed = 0.0;
 
 // Iridescence (iridophores): a view-angle driven oil-slick sheen. Defaults off.
 uniform float iridescence_strength : hint_range(0.0, 1.0) = 0.0;
@@ -164,38 +166,51 @@ float pvoronoi_edge(vec2 p, float per) {
 float pattern_mask(int kind, float u, float v) {
 	float sx = max(pattern_scale_x, 0.0001);
 	float per = max(1.0, floor(pattern_scale_y + 0.5));
+	float seed = pattern_seed * 0.137;
+	float su = u + seed;
 	if (kind == 1) {
 		// Vertical stripes, wobbled for organic waviness.
-		float wob = (pnoise(vec2(u * sx * 0.5, v * per), per) - 0.5) * 0.5;
-		float s = 0.5 + 0.5 * sin((u * sx + wob) * TAU);
+		float wob = (pnoise(vec2(su * sx * 0.5, v * per), per) - 0.5) * 0.5;
+		float s = 0.5 + 0.5 * sin((su * sx + wob) * TAU);
 		return smoothstep(0.45, 0.55, s);
 	}
 	if (kind == 2) {
 		// Horizontal stripes, periodic in V.
-		float s = 0.5 + 0.5 * sin(v * per * TAU);
+		float s = 0.5 + 0.5 * sin((v * per + seed) * TAU);
 		return smoothstep(0.45, 0.55, s);
 	}
 	if (kind == 3) {
 		// Spots.
-		float n = pnoise(vec2(u * sx, v * per), per);
+		float n = pnoise(vec2(su * sx, v * per), per);
 		return smoothstep(0.62, 0.74, n);
 	}
 	if (kind == 4) {
 		// Zebra: noise-warped hard stripes.
-		float warp = (pfbm(vec2(u * sx * 0.3, v * per), per) - 0.5) * 1.2;
-		float s = sin((u * sx + warp) * TAU);
+		float warp = (pfbm(vec2(su * sx * 0.3, v * per), per) - 0.5) * 1.2;
+		float s = sin((su * sx + warp) * TAU);
 		return smoothstep(-0.05, 0.05, s);
 	}
 	if (kind == 5) {
 		// Marbled turbulence.
-		float n = pfbm(vec2(u * sx, v * per), per);
-		float m = 0.5 + 0.5 * sin((u * sx * 0.5 + n * 3.0) * TAU);
+		float n = pfbm(vec2(su * sx, v * per), per);
+		float m = 0.5 + 0.5 * sin((su * sx * 0.5 + n * 3.0) * TAU);
 		return smoothstep(0.4, 0.6, m);
 	}
 	if (kind == 6) {
 		// Reticulated net (e.g. moray / pufferfish): Voronoi cell borders.
-		float edge = pvoronoi_edge(vec2(u * sx, v * per), per);
+		float edge = pvoronoi_edge(vec2(su * sx, v * per), per);
 		return 1.0 - smoothstep(0.0, 0.12, edge);
+	}
+	if (kind == 7) {
+		// Whale-shark grid: a soft orthogonal lattice with cell-center speckles.
+		float gx = abs(sin(su * sx * TAU));
+		float gy = abs(sin((v * per + seed) * TAU));
+		float grid = max(smoothstep(0.92, 0.985, gx), smoothstep(0.92, 0.985, gy));
+		vec2 cell = vec2(su * sx, v * per);
+		vec2 local = fract(cell) - vec2(0.5);
+		float dot_mask = 1.0 - smoothstep(0.10, 0.22, length(local));
+		float jitter = smoothstep(0.35, 0.75, pnoise(floor(cell) + vec2(seed * 13.0, seed * 7.0), per));
+		return clamp(grid * 0.72 + dot_mask * jitter, 0.0, 1.0);
 	}
 	return 0.0;
 }
@@ -266,6 +281,9 @@ void fragment() {
 
 	// 2. Pattern overlay.
 	float mask = pattern_mask(pattern_type, v_long, v_circ);
+	if (pattern_type != 0) {
+		mask = mix(mask, 1.0 - mask, pattern_invert);
+	}
 	col = mix(col, pattern_color.rgb, mask * pattern_intensity);
 
 	// 2b. Species markings. These are localized, high-readability marks such as

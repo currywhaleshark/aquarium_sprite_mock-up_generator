@@ -74,6 +74,8 @@ var turn_preview_elapsed := 0.0
 var turn_preview_from_index := 0
 var turn_preview_target_index := 0
 var turn_preview_step := 0
+var _pending_editor_parameters: Dictionary = {}
+var _editor_parameter_apply_pending := false
 
 func _ready() -> void:
 	_build_ui()
@@ -86,6 +88,7 @@ func _ready() -> void:
 	_reload_presets()
 
 func _process(delta: float) -> void:
+	_flush_editor_parameter_apply()
 	_update_preview_turn(delta)
 
 func _build_ui() -> void:
@@ -373,6 +376,13 @@ func _build_ui() -> void:
 	fin_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
+	fin_editor_panel.vector_edit_target_changed.connect(func(slot: String) -> void:
+		if slot == "" or not fin_editor_panel.visible:
+			_set_vector_edit_marker_slot("")
+	)
+	fin_editor_panel.vector_edit_preview_changed.connect(func(slot: String, active: bool, norm_position: Vector2, ghost: bool) -> void:
+		_set_vector_edit_preview_marker(slot, active and fin_editor_panel.visible, norm_position, ghost)
+	)
 	editor_panel_stack.add_child(fin_editor_panel)
 
 	head_editor_panel = HeadEditorPanelScript.new()
@@ -381,6 +391,13 @@ func _build_ui() -> void:
 		_apply_parameters_from_editor(parameters)
 	)
 	head_editor_panel.numeric_slider_changed.connect(_on_head_numeric_slider_changed)
+	head_editor_panel.vector_edit_target_changed.connect(func(slot: String) -> void:
+		if slot == "" or not head_editor_panel.visible:
+			_set_vector_edit_marker_slot("")
+	)
+	head_editor_panel.vector_edit_preview_changed.connect(func(slot: String, active: bool, norm_position: Vector2, ghost: bool) -> void:
+		_set_vector_edit_preview_marker(slot, active and head_editor_panel.visible, norm_position, ghost)
+	)
 	editor_panel_stack.add_child(head_editor_panel)
 
 	body_editor_panel = BodyEditorPanelScript.new()
@@ -673,6 +690,7 @@ func _apply_archetype_parameters(parameters: Dictionary) -> void:
 func _load_preset(index: int) -> void:
 	if index < 0 or index >= presets.size():
 		return
+	_clear_pending_editor_apply()
 	current_preset = presets[index].duplicate(true)
 	_discard_current_rig()
 	var creature_type := String(current_preset.get("creature_type", "fish"))
@@ -770,6 +788,17 @@ func _apply_parameters_from_editor(parameters: Dictionary) -> void:
 	var synced_parameters := parameters.duplicate(true)
 	current_preset["parameters"] = synced_parameters
 	current_preset = BodyProfileScript.split_parameters_into_profiles(synced_parameters, current_preset)
+	_pending_editor_parameters = synced_parameters
+	_editor_parameter_apply_pending = true
+
+func _flush_editor_parameter_apply() -> void:
+	if not _editor_parameter_apply_pending:
+		return
+	_editor_parameter_apply_pending = false
+	if _pending_editor_parameters.is_empty():
+		return
+	var synced_parameters := _pending_editor_parameters.duplicate(true)
+	_pending_editor_parameters.clear()
 	if current_rig:
 		current_rig.set_parameters(synced_parameters)
 		if playback_toggle:
@@ -777,6 +806,10 @@ func _apply_parameters_from_editor(parameters: Dictionary) -> void:
 		if current_rig.has_method("set_ring_editor_enabled"):
 			current_rig.call("set_ring_editor_enabled", body_edit_toggle != null and body_edit_toggle.button_pressed)
 	_sync_parameter_editors(synced_parameters)
+
+func _clear_pending_editor_apply() -> void:
+	_pending_editor_parameters.clear()
+	_editor_parameter_apply_pending = false
 
 func _sync_parameter_editors(parameters: Dictionary) -> void:
 	if parameter_panel:
@@ -1082,6 +1115,8 @@ func _set_fin_edit_enabled(enabled: bool) -> void:
 		_select_exclusive_edit_toggle(fin_edit_toggle)
 	if drag_handles_overlay:
 		drag_handles_overlay.draw_fins = enabled
+		if not enabled and String(drag_handles_overlay.vector_edit_slot) != "operculum":
+			_set_vector_edit_marker_slot("")
 		_update_overlay_visibility()
 	_sync_edit_input_state()
 
@@ -1097,8 +1132,28 @@ func _set_head_edit_enabled(enabled: bool) -> void:
 		drag_handles_overlay.draw_head = enabled
 		if not enabled:
 			drag_handles_overlay.show_jaw_hinge = false
+			if String(drag_handles_overlay.vector_edit_slot) == "operculum":
+				_set_vector_edit_marker_slot("")
 		_update_overlay_visibility()
 	_sync_edit_input_state()
+
+func _set_vector_edit_marker_slot(slot: String) -> void:
+	if drag_handles_overlay == null:
+		return
+	drag_handles_overlay.vector_edit_slot = slot
+	drag_handles_overlay.vector_edit_marker_active = false
+	drag_handles_overlay.vector_edit_marker_norm = Vector2.ZERO
+	drag_handles_overlay.vector_edit_marker_ghost = false
+	_update_overlay_visibility()
+
+func _set_vector_edit_preview_marker(slot: String, active: bool, norm_position: Vector2, ghost: bool) -> void:
+	if drag_handles_overlay == null:
+		return
+	drag_handles_overlay.vector_edit_slot = slot if active else ""
+	drag_handles_overlay.vector_edit_marker_active = active
+	drag_handles_overlay.vector_edit_marker_norm = norm_position
+	drag_handles_overlay.vector_edit_marker_ghost = ghost
+	_update_overlay_visibility()
 
 # Shows the jaw-hinge marker while the user is adjusting a hinge slider, and hides it once
 # they move to a different slider (or after the auto-hide timer elapses).
@@ -1178,7 +1233,7 @@ func _sync_edit_input_state() -> void:
 
 func _update_overlay_visibility() -> void:
 	if drag_handles_overlay:
-		drag_handles_overlay.visible = _is_fish() and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head)
+		drag_handles_overlay.visible = _is_fish() and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head or drag_handles_overlay.vector_edit_marker_active)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:

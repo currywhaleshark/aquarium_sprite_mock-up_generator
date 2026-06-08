@@ -19,7 +19,11 @@ func _ready() -> void:
 		"eye_position_y": 0.1,
 		"eye_bulge": 0.0,
 		"pectoral_attach_t": 0.32,
-		"anal_attach_t": 0.64
+		"anal_attach_t": 0.64,
+		"dorsal_1_shape": "custom",
+		"dorsal_1_custom_points": [-0.5, 0.0, 0.0, 0.7, 0.5, 0.0],
+		"gill_mark": "operculum",
+		"operculum_custom_points": [0.0, -0.5, 0.0, 0.5, 1.0, 0.0]
 	})
 	await get_tree().process_frame
 
@@ -29,6 +33,11 @@ func _ready() -> void:
 	assert(handles.has("eye_r"))
 	assert(handles.has("pectoral"))
 	assert(handles.has("anal"))
+	var dorsal_marker: Vector3 = fish.get_vector_edit_marker_world("dorsal_1", Vector2(0.0, 0.7))
+	assert(not is_inf(dorsal_marker.x))
+	var operculum_marker: Vector3 = fish.get_vector_edit_marker_world("operculum", Vector2(1.0, 0.0))
+	assert(not is_inf(operculum_marker.x))
+	assert(operculum_marker.z > 0.0)
 
 	var controller: FishFinDragController = FinDragControllerScript.new()
 	add_child(controller)

@@ -3,11 +3,14 @@ extends Node
 const PrimitiveFactoryScript := preload("res://scripts/creature/PrimitiveFactory.gd")
 const ToonMaterialFactoryScript := preload("res://scripts/materials/ToonMaterialFactory.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const SpeciesArchetypeStoreScript := preload("res://scripts/species/SpeciesArchetypeStore.gd")
 
 func _ready() -> void:
 	_test_body_shell_uvs()
 	_test_head_uvs()
 	_test_shader_compiles_and_uniforms()
+	_test_pattern_generation_helpers()
+	_test_archetype_visual_defaults()
 	_test_preset_round_trip()
 	_test_visual_defaults_injected()
 
@@ -67,6 +70,9 @@ func _test_shader_compiles_and_uniforms() -> void:
 		"pattern_scale_x": 7.0,
 		"pattern_scale_y": 5.0,
 		"pattern_intensity": 0.5,
+		"pattern_invert": 1.0,
+		"pattern_seed": 3.0,
+		"pattern_size_lock": 1.0,
 		"belly_height": 0.3,
 		"belly_slope": 0.4,
 		"iridescence_strength": 0.6,
@@ -81,13 +87,16 @@ func _test_shader_compiles_and_uniforms() -> void:
 		"metallic_scale_strength": 0.33,
 		"emissive_marking_strength": 0.44,
 		"body_height": 0.6,
-		"body_length": 1.3
+		"body_length": 2.9
 	})
 	assert(material is ShaderMaterial)
 	assert(material.shader is Shader)
 	assert(int(material.get_shader_parameter("pattern_type")) == 3)
-	assert(abs(float(material.get_shader_parameter("pattern_scale_x")) - 7.0) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("pattern_scale_x")) - 14.0) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("pattern_scale_y")) - 10.0) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("pattern_intensity")) - 0.5) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("pattern_invert")) - 1.0) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("pattern_seed")) - 3.0) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("belly_height")) - 0.3) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("belly_slope")) - 0.4) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("iridescence_strength")) - 0.6) < 0.0001)
@@ -105,12 +114,25 @@ func _test_shader_compiles_and_uniforms() -> void:
 	assert(material.get_shader_parameter("belly_color") is Color)
 	assert(material.get_shader_parameter("pattern_color") is Color)
 
+	var unlocked := ToonMaterialFactoryScript.make_body_material({
+		"pattern_scale_x": 7.0,
+		"pattern_scale_y": 5.0,
+		"pattern_size_lock": 0.0,
+		"body_length": 2.9
+	})
+	assert(abs(float(unlocked.get_shader_parameter("pattern_scale_x")) - 7.0) < 0.0001)
+	assert(abs(float(unlocked.get_shader_parameter("pattern_scale_y")) - 5.0) < 0.0001)
+
+	var whale := ToonMaterialFactoryScript.make_body_material({"pattern_type": "whale_grid"})
+	assert(int(whale.get_shader_parameter("pattern_type")) == 7)
+
 	# pattern_type names map to stable indices for the shader.
 	assert(BodyProfileScript.pattern_type_index("none") == 0)
 	assert(BodyProfileScript.pattern_type_index("marbled") == 5)
 	assert(BodyProfileScript.pattern_type_index("reticulated") == 6)
+	assert(BodyProfileScript.pattern_type_index("whale_grid") == 7)
 	assert(BodyProfileScript.pattern_type_index("not_a_pattern") == 0)
-	assert(BodyProfileScript.pattern_type_names().size() == 7)
+	assert(BodyProfileScript.pattern_type_names().size() == 8)
 
 	assert(BodyProfileScript.scale_type_index("cycloid") == 0)
 	assert(BodyProfileScript.scale_type_index("ctenoid") == 1)
@@ -118,6 +140,46 @@ func _test_shader_compiles_and_uniforms() -> void:
 	assert(BodyProfileScript.scale_type_index("placoid") == 3)
 	assert(BodyProfileScript.scale_type_index("pearlscale") == 4)
 	assert(BodyProfileScript.scale_type_names().size() == 5)
+
+func _test_pattern_generation_helpers() -> void:
+	assert(BodyProfileScript.suggest_pattern(2.4, 0.45) == "horizontal_stripes")
+	assert(BodyProfileScript.suggest_pattern(1.6, 1.2) == "spots")
+	assert(BodyProfileScript.suggest_pattern(1.3, 0.55) == "stripes")
+
+	var countershade := BodyProfileScript.derive_palette(Color.html("#336699"), "countershade")
+	assert(countershade.has("belly_color"))
+	assert(countershade.has("pattern_color"))
+	assert(_luma(countershade["belly_color"]) > _luma(Color.html("#336699")))
+	assert(_luma(countershade["pattern_color"]) < _luma(Color.html("#336699")))
+
+	var complementary := BodyProfileScript.derive_palette(Color.html("#336699"), "complementary")
+	assert(complementary.has("pattern_color"))
+	assert(absf(_hue_delta(complementary["pattern_color"], Color.html("#336699")) - 0.5) < 0.08)
+
+	var manual := BodyProfileScript.derive_palette(Color.html("#336699"), "manual")
+	assert(manual.is_empty())
+
+func _test_archetype_visual_defaults() -> void:
+	var applied := SpeciesArchetypeStoreScript.apply_archetype({
+		"body_length": 2.4,
+		"body_height": 0.45,
+		"base_color": "#336699"
+	}, {
+		"id": "test_palette",
+		"profile_overrides": {
+			"visual_profile": {
+				"base_color": "#336699",
+				"palette_scheme": "countershade",
+				"pattern_type": "auto"
+			}
+		}
+	})
+	assert(String(applied.get("palette_scheme", "")) == "countershade")
+	assert(String(applied.get("pattern_type", "")) == "horizontal_stripes")
+	assert(String(applied.get("belly_color", "")) != "")
+	assert(String(applied.get("pattern_color", "")) != "")
+	assert(String(applied.get("belly_color", "")) != "#d6fbff")
+	assert(String(applied.get("pattern_color", "")) != "#1f5560")
 
 func _test_preset_round_trip() -> void:
 	var params := {
@@ -130,6 +192,10 @@ func _test_preset_round_trip() -> void:
 		"pattern_scale_x": 9.0,
 		"pattern_scale_y": 5.0,
 		"pattern_intensity": 0.42,
+		"pattern_invert": 1.0,
+		"pattern_seed": 12.0,
+		"pattern_size_lock": 1.0,
+		"palette_scheme": "analogous",
 		"belly_height": 0.35,
 		"belly_slope": 0.18,
 		"iridescence_strength": 0.55,
@@ -151,6 +217,10 @@ func _test_preset_round_trip() -> void:
 	assert(abs(float(visual.get("pattern_scale_x", 0.0)) - 9.0) < 0.0001)
 	assert(abs(float(visual.get("pattern_scale_y", 0.0)) - 5.0) < 0.0001)
 	assert(abs(float(visual.get("pattern_intensity", 0.0)) - 0.42) < 0.0001)
+	assert(abs(float(visual.get("pattern_invert", 0.0)) - 1.0) < 0.0001)
+	assert(abs(float(visual.get("pattern_seed", 0.0)) - 12.0) < 0.0001)
+	assert(abs(float(visual.get("pattern_size_lock", 0.0)) - 1.0) < 0.0001)
+	assert(String(visual.get("palette_scheme", "")) == "analogous")
 	assert(abs(float(visual.get("belly_height", 0.0)) - 0.35) < 0.0001)
 	assert(abs(float(visual.get("belly_slope", 0.0)) - 0.18) < 0.0001)
 	assert(abs(float(visual.get("iridescence_strength", 0.0)) - 0.55) < 0.0001)
@@ -168,6 +238,10 @@ func _test_preset_round_trip() -> void:
 	var rebuilt := BodyProfileScript.make_parameters_from_structured_preset(split)
 	assert(String(rebuilt.get("pattern_type", "")) == "zebra")
 	assert(abs(float(rebuilt.get("pattern_scale_x", 0.0)) - 9.0) < 0.0001)
+	assert(abs(float(rebuilt.get("pattern_invert", 0.0)) - 1.0) < 0.0001)
+	assert(abs(float(rebuilt.get("pattern_seed", 0.0)) - 12.0) < 0.0001)
+	assert(abs(float(rebuilt.get("pattern_size_lock", 0.0)) - 1.0) < 0.0001)
+	assert(String(rebuilt.get("palette_scheme", "")) == "analogous")
 	assert(abs(float(rebuilt.get("belly_height", 0.0)) - 0.35) < 0.0001)
 	assert(abs(float(rebuilt.get("belly_slope", 0.0)) - 0.18) < 0.0001)
 	assert(abs(float(rebuilt.get("iridescence_strength", 0.0)) - 0.55) < 0.0001)
@@ -187,6 +261,10 @@ func _test_visual_defaults_injected() -> void:
 	assert(legacy.has("pattern_color"))
 	assert(legacy.has("pattern_scale_x"))
 	assert(legacy.has("pattern_intensity"))
+	assert(legacy.has("pattern_invert"))
+	assert(legacy.has("pattern_seed"))
+	assert(legacy.has("pattern_size_lock"))
+	assert(legacy.has("palette_scheme"))
 	assert(legacy.has("belly_height"))
 	assert(legacy.has("belly_slope"))
 	assert(legacy.has("iridescence_strength"))
@@ -200,3 +278,10 @@ func _test_visual_defaults_injected() -> void:
 	assert(legacy.has("pearlscale_strength"))
 	assert(legacy.has("metallic_scale_strength"))
 	assert(legacy.has("emissive_marking_strength"))
+
+func _luma(color: Color) -> float:
+	return color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722
+
+func _hue_delta(a: Color, b: Color) -> float:
+	var delta := absf(a.h - b.h)
+	return minf(delta, 1.0 - delta)

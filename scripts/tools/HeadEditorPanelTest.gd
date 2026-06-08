@@ -6,8 +6,12 @@ func _ready() -> void:
 	var panel := HeadEditorPanelScript.new()
 	add_child(panel)
 	var seen := [{}]
+	var seen_vector_slot := [""]
 	panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		seen[0] = parameters
+	)
+	panel.vector_edit_target_changed.connect(func(slot: String) -> void:
+		seen_vector_slot[0] = slot
 	)
 	panel.set_parameters({
 		"head_shape": "rounded",
@@ -34,6 +38,7 @@ func _ready() -> void:
 	assert(not _has_numeric_slider(panel, "operculum_open"))
 	assert(not _has_numeric_slider(panel, "operculum_ridge"))
 	panel.set_option_parameter("gill_mark", "operculum")
+	assert(seen_vector_slot[0] == "operculum")
 	assert(_has_numeric_slider(panel, "operculum_size"))
 	assert(_has_numeric_slider(panel, "operculum_height"))
 	assert(_has_numeric_slider(panel, "operculum_open"))
@@ -47,6 +52,7 @@ func _ready() -> void:
 	assert(abs(float(seen[0].get("operculum_open", 0.0)) - 0.6) < 0.001)
 	assert(abs(float(seen[0].get("operculum_ridge", 0.0)) - 0.8) < 0.001)
 	panel.set_option_parameter("gill_mark", "line")
+	assert(seen_vector_slot[0] == "")
 	assert(not _has_numeric_slider(panel, "operculum_size"))
 	assert(not _has_numeric_slider(panel, "operculum_height"))
 	assert(not _has_numeric_slider(panel, "operculum_open"))

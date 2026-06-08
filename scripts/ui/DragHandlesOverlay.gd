@@ -12,6 +12,10 @@ var draw_head := false
 # When true (set by Main while a jaw-hinge slider is being adjusted), an amber crosshair
 # marks the lower-jaw pivot so the user sees where jaw_hinge_x/_y move it.
 var show_jaw_hinge := false
+var vector_edit_slot := ""
+var vector_edit_marker_active := false
+var vector_edit_marker_norm := Vector2.ZERO
+var vector_edit_marker_ghost := false
 
 var hovered_handle := ""
 
@@ -28,7 +32,7 @@ func _process(_delta: float) -> void:
 
 func _update_hovered_handle() -> void:
 	hovered_handle = ""
-	if camera == null or fish == null or not (draw_fins or draw_head):
+	if camera == null or fish == null or not (draw_fins or draw_head or vector_edit_marker_active):
 		return
 		
 	var mouse_pos := get_local_mouse_position()
@@ -59,7 +63,7 @@ func _should_draw_handle(handle_id: String) -> bool:
 		return draw_fins
 
 func _draw() -> void:
-	if camera == null or fish == null or not (draw_fins or draw_head):
+	if camera == null or fish == null or not (draw_fins or draw_head or vector_edit_marker_active):
 		return
 		
 	var font := get_theme_font("font")
@@ -123,6 +127,16 @@ func _draw() -> void:
 			
 			# Draw text
 			draw_string(font, text_pos, label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+
+	if vector_edit_marker_active and vector_edit_slot != "" and fish.has_method("get_vector_edit_marker_world"):
+		var world_pos: Vector3 = fish.call("get_vector_edit_marker_world", vector_edit_slot, vector_edit_marker_norm)
+		if not is_inf(world_pos.x):
+			var screen_pos := camera.unproject_position(world_pos) * scale_factor
+			var marker_color := Color(0.15, 0.9, 0.4, 0.95) if vector_edit_marker_ghost else Color(0.72, 0.35, 1.0, 0.95)
+			draw_circle(screen_pos, 8.0, Color(marker_color.r, marker_color.g, marker_color.b, 0.22))
+			draw_arc(screen_pos, 8.0, 0.0, TAU, 18, marker_color, 1.5)
+			draw_circle(screen_pos, 3.0, marker_color)
+			draw_circle(screen_pos, 1.2, Color.WHITE)
 
 	# Jaw-hinge marker: a distinct amber crosshair on the lower-jaw pivot, shown only while
 	# the jaw_hinge sliders are being adjusted. Not a draggable handle - just an indicator.

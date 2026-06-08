@@ -6,8 +6,12 @@ func _ready() -> void:
 	var panel := FinEditorPanelScript.new()
 	add_child(panel)
 	var seen_parameters := [{}]
+	var seen_vector_slot := [""]
 	panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		seen_parameters[0] = parameters
+	)
+	panel.vector_edit_target_changed.connect(func(slot: String) -> void:
+		seen_vector_slot[0] = slot
 	)
 	panel.set_parameters({
 		"dorsal_2_enabled": 0.0,
@@ -27,6 +31,10 @@ func _ready() -> void:
 	panel.set_numeric_parameter("pectoral_rigidity", 0.6)
 	panel.set("selected_slot", "dorsal_1")
 	panel.set_numeric_parameter("dorsal_1_height", 0.33)
+	panel.set_slot_shape("dorsal_1", "custom")
+	assert(seen_vector_slot[0] == "dorsal_1")
+	panel.set_slot_shape("dorsal_1", "single")
+	assert(seen_vector_slot[0] == "")
 
 	assert(float(seen_parameters[0].get("dorsal_2_enabled", 0.0)) == 1.0)
 	assert(abs(float(seen_parameters[0].get("dorsal_2_attach_t", 0.0)) - 0.78) < 0.001)

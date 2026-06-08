@@ -142,14 +142,19 @@ const UNUSED_PARAMETER_KEYS := [
 	"rim_light_strength"
 ]
 
-const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated"]
+const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated", "whale_grid"]
 const SCALE_TYPE_NAMES := ["cycloid", "ctenoid", "ganoid", "placoid", "pearlscale"]
+const PALETTE_SCHEME_NAMES := ["manual", "countershade", "complementary", "analogous", "muted"]
 const VISUAL_PATTERN_DEFAULTS := {
 	"pattern_type": "none",
 	"pattern_color": "#1f5560",
 	"pattern_scale_x": 6.0,
 	"pattern_scale_y": 4.0,
 	"pattern_intensity": 0.7,
+	"pattern_invert": 0.0,
+	"pattern_seed": 0.0,
+	"pattern_size_lock": 0.0,
+	"palette_scheme": "manual",
 	"belly_height": 0.5,
 	"belly_slope": 0.22,
 	"iridescence_strength": 0.0,
@@ -188,6 +193,12 @@ static func scale_type_names() -> Array[String]:
 static func scale_type_index(scale_type: String) -> int:
 	return maxi(SCALE_TYPE_NAMES.find(scale_type), 0)
 
+static func palette_scheme_names() -> Array[String]:
+	var names: Array[String] = []
+	for name in PALETTE_SCHEME_NAMES:
+		names.append(String(name))
+	return names
+
 # Injects defaults for the back/belly gradient and procedural pattern controls so
 # every preset (including ones saved before this feature) exposes them in the UI.
 static func ensure_visual_parameters(parameters: Dictionary) -> void:
@@ -198,6 +209,58 @@ static func ensure_visual_parameters(parameters: Dictionary) -> void:
 		parameters["shell_roundness"] = 1.0
 	if not parameters.has("cephalic_horns"):
 		parameters["cephalic_horns"] = "none"
+
+static func suggest_pattern(body_length: float, body_height: float) -> String:
+	var ratio := body_length / maxf(body_height, 0.001)
+	if ratio >= 3.2:
+		return "horizontal_stripes"
+	if ratio <= 1.7:
+		return "spots"
+	return "stripes"
+
+static func derive_palette(base_color: Color, scheme: String) -> Dictionary:
+	match scheme:
+		"countershade":
+			return {
+				"belly_color": _shift_color(base_color, -0.02, 0.34, 1.42),
+				"pattern_color": _shift_color(base_color, 0.02, 1.18, 0.48)
+			}
+		"complementary":
+			return {
+				"belly_color": _shift_color(base_color, 0.0, 0.32, 1.35),
+				"pattern_color": _shift_color(base_color, 0.5, 1.05, 0.82)
+			}
+		"analogous":
+			return {
+				"belly_color": _shift_color(base_color, -0.05, 0.45, 1.32),
+				"pattern_color": _shift_color(base_color, 0.08, 1.0, 0.72)
+			}
+		"muted":
+			return {
+				"belly_color": _shift_color(base_color, 0.0, 0.22, 1.22),
+				"pattern_color": _shift_color(base_color, 0.03, 0.42, 0.62)
+			}
+	return {}
+
+static func apply_visual_generation_defaults(parameters: Dictionary, explicit_visual: Dictionary = {}) -> void:
+	var explicit_pattern := explicit_visual.has("pattern_type")
+	var pattern_value := String(parameters.get("pattern_type", ""))
+	if (explicit_pattern and pattern_value == "auto") or (not explicit_pattern and (pattern_value == "" or pattern_value == "none" or pattern_value == "auto")):
+		parameters["pattern_type"] = suggest_pattern(
+			float(parameters.get("body_length", 1.28)),
+			float(parameters.get("body_height", 0.5))
+		)
+
+	var scheme := String(parameters.get("palette_scheme", "manual"))
+	if scheme == "" or scheme == "manual":
+		return
+	var palette := derive_palette(_as_color(parameters.get("base_color", "#46c6cf")), scheme)
+	if palette.is_empty():
+		return
+	if palette.has("belly_color") and not explicit_visual.has("belly_color"):
+		parameters["belly_color"] = _color_to_html(palette["belly_color"])
+	if palette.has("pattern_color") and not explicit_visual.has("pattern_color"):
+		parameters["pattern_color"] = _color_to_html(palette["pattern_color"])
 
 static func valid_swim_mode(swim_mode: String) -> String:
 	if SWIM_MODE_PRESETS.has(swim_mode):
@@ -414,7 +477,8 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
 		"highlight_strength", "shadow_strength",
 		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
-		"pattern_intensity", "belly_height", "belly_slope",
+		"pattern_intensity", "pattern_invert", "pattern_seed", "pattern_size_lock",
+		"palette_scheme", "belly_height", "belly_slope",
 		"iridescence_strength", "iridescence_color", "iridescence_frequency",
 		"wetness", "scale_type", "scale_strength", "scale_size", "lateral_line_strength",
 		"pearlscale_strength", "metallic_scale_strength", "emissive_marking_strength",
@@ -518,6 +582,24 @@ static func _as_dictionary(value: Variant) -> Dictionary:
 	if typeof(value) == TYPE_DICTIONARY:
 		return value
 	return {}
+
+static func _as_color(value: Variant) -> Color:
+	if value is Color:
+		return value
+	if typeof(value) == TYPE_STRING:
+		return Color.html(value)
+	return Color(0.27, 0.78, 0.81, 1.0)
+
+static func _color_to_html(color: Color) -> String:
+	return "#%s" % color.to_html(false)
+
+static func _shift_color(color: Color, hue_delta: float, saturation_mult: float, value_mult: float) -> Color:
+	return Color.from_hsv(
+		fposmod(color.h + hue_delta, 1.0),
+		clampf(color.s * saturation_mult, 0.0, 1.0),
+		clampf(color.v * value_mult, 0.0, 1.0),
+		color.a
+	)
 
 static func _pick(source: Dictionary, keys: Array) -> Dictionary:
 	var result: Dictionary = {}

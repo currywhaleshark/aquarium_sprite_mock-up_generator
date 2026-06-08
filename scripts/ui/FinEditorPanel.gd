@@ -2,6 +2,8 @@ class_name FinEditorPanel
 extends VBoxContainer
 
 signal parameters_changed(parameters: Dictionary)
+signal vector_edit_target_changed(slot: String)
+signal vector_edit_preview_changed(slot: String, active: bool, norm_position: Vector2, ghost: bool)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
@@ -148,6 +150,9 @@ func _ready() -> void:
 		parameters[selected_slot + "_custom_points"] = pts
 		parameters_changed.emit(parameters.duplicate(true))
 	)
+	vector_editor.preview_marker_changed.connect(func(active: bool, norm_position: Vector2, ghost: bool) -> void:
+		vector_edit_preview_changed.emit(selected_slot, active and vector_editor.visible, norm_position, ghost)
+	)
 	add_child(vector_editor)
 
 	_refresh_controls()
@@ -270,8 +275,11 @@ func _refresh_controls() -> void:
 			else:
 				default_pts = [-0.5, 0.0, -0.25, 0.6, 0.0, 0.8, 0.25, 0.6, 0.5, 0.0]
 			vector_editor.points = parameters.get(selected_slot + "_custom_points", default_pts)
+			vector_edit_target_changed.emit(selected_slot)
 		else:
 			vector_editor.visible = false
+			vector_edit_target_changed.emit("")
+			vector_edit_preview_changed.emit(selected_slot, false, Vector2.ZERO, false)
 			
 	_updating = false
 

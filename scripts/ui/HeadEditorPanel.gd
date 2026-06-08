@@ -5,6 +5,8 @@ signal parameters_changed(parameters: Dictionary)
 # Emitted when the user drags a numeric slider (not on programmatic sync), with the key.
 # Lets the preview show context indicators (e.g. the jaw-hinge marker) for the active key.
 signal numeric_slider_changed(key: String)
+signal vector_edit_target_changed(slot: String)
+signal vector_edit_preview_changed(slot: String, active: bool, norm_position: Vector2, ghost: bool)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
@@ -124,6 +126,9 @@ func _ready() -> void:
 			return
 		parameters["operculum_custom_points"] = pts
 		parameters_changed.emit(parameters.duplicate(true))
+	)
+	operculum_editor.preview_marker_changed.connect(func(active: bool, norm_position: Vector2, ghost: bool) -> void:
+		vector_edit_preview_changed.emit("operculum", active and operculum_editor.visible, norm_position, ghost)
 	)
 	add_child(operculum_editor)
 
@@ -298,6 +303,10 @@ func _position_operculum_editor() -> void:
 	if is_op:
 		operculum_editor.slot = "operculum"
 		operculum_editor.points = parameters.get("operculum_custom_points", BodyProfileScript.DEFAULT_OPERCULUM_POINTS)
+		vector_edit_target_changed.emit("operculum")
+	else:
+		vector_edit_target_changed.emit("")
+		vector_edit_preview_changed.emit("operculum", false, Vector2.ZERO, false)
 
 func _sync_numeric_controls(is_ray: bool) -> void:
 	var visible_keys := _visible_numeric_keys(is_ray)

@@ -82,6 +82,7 @@ func _ready() -> void:
 	assert(_count_named_descendants(main_ray, "BodyMesh") == 1)
 	var body_mesh := _find_named_descendant(main_ray, "BodyMesh") as MeshInstance3D
 	assert(body_mesh != null)
+	main_ray.call("apply_pose", 0.0)
 	var before_vertices := _sample_surface_y_values(body_mesh, 0)
 	main_ray.call("apply_pose", 0.25)
 	var after_vertices := _sample_surface_y_values(body_mesh, 0)

@@ -2,6 +2,7 @@ class_name FinVectorEditor
 extends Control
 
 signal points_changed(points: Array)
+signal preview_marker_changed(active: bool, norm_position: Vector2, ghost: bool)
 
 const PADDING := 24.0
 const HANDLE_RADIUS := 6.0
@@ -21,6 +22,9 @@ var hovered_index := -1
 var dragged_index := -1
 var hovered_segment := -1
 var ghost_position := Vector2.ZERO
+var _preview_marker_active := false
+var _preview_marker_norm := Vector2.INF
+var _preview_marker_ghost := false
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(240, 180)
@@ -29,14 +33,20 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	if not visible:
+		_emit_preview_marker(false, Vector2.ZERO, false)
 		return
+	if dragged_index != -1 and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_finish_drag()
 	_update_mouse_over_states()
 
 func _update_mouse_over_states() -> void:
 	if points.size() < 6 or dragged_index != -1:
+		_emit_preview_marker(false, Vector2.ZERO, false)
 		return
 
-	var mouse_pos := get_local_mouse_position()
+	_update_mouse_over_states_at(get_local_mouse_position())
+
+func _update_mouse_over_states_at(mouse_pos: Vector2) -> void:
 	var best_dist := HOVER_RADIUS
 	hovered_index = -1
 	hovered_segment = -1
@@ -51,6 +61,8 @@ func _update_mouse_over_states() -> void:
 			hovered_index = i
 
 	if hovered_index != -1:
+		var point_norm := Vector2(points[hovered_index * 2], points[hovered_index * 2 + 1])
+		_emit_preview_marker(true, point_norm, false)
 		queue_redraw()
 		return
 
@@ -71,6 +83,10 @@ func _update_mouse_over_states() -> void:
 			hovered_segment = i
 			ghost_position = proj
 
+	if hovered_segment != -1:
+		_emit_preview_marker(true, _to_norm(ghost_position), true)
+	else:
+		_emit_preview_marker(false, Vector2.ZERO, false)
 	queue_redraw()
 
 func _gui_input(event: InputEvent) -> void:
@@ -82,17 +98,19 @@ func _gui_input(event: InputEvent) -> void:
 					# Check if it is a locked root point
 					if not _is_root_locked(hovered_index):
 						dragged_index = hovered_index
+						_emit_preview_marker(false, Vector2.ZERO, false)
 				elif hovered_segment != -1:
 					# Add new point on the segment
 					var norm_pos := _to_norm(ghost_position)
 					points.insert((hovered_segment + 1) * 2, norm_pos.x)
 					points.insert((hovered_segment + 1) * 2 + 1, norm_pos.y)
 					dragged_index = hovered_segment + 1
+					_emit_preview_marker(false, Vector2.ZERO, false)
 					points_changed.emit(points.duplicate())
 					queue_redraw()
 			else:
 				# Release drag
-				dragged_index = -1
+				_finish_drag()
 				queue_redraw()
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			# Delete hovered point
@@ -101,6 +119,7 @@ func _gui_input(event: InputEvent) -> void:
 					points.remove_at(hovered_index * 2 + 1)
 					points.remove_at(hovered_index * 2)
 					hovered_index = -1
+					_emit_preview_marker(false, Vector2.ZERO, false)
 					points_changed.emit(points.duplicate())
 					queue_redraw()
 	elif event is InputEventMouseMotion:
@@ -123,6 +142,21 @@ func _gui_input(event: InputEvent) -> void:
 			points[dragged_index * 2 + 1] = norm_pos.y
 			points_changed.emit(points.duplicate())
 			queue_redraw()
+
+func _finish_drag() -> void:
+	dragged_index = -1
+	hovered_index = -1
+	hovered_segment = -1
+	_update_mouse_over_states()
+	queue_redraw()
+
+func _emit_preview_marker(active: bool, norm_position: Vector2, ghost: bool) -> void:
+	if active == _preview_marker_active and ghost == _preview_marker_ghost and (not active or norm_position.distance_to(_preview_marker_norm) < 0.0001):
+		return
+	_preview_marker_active = active
+	_preview_marker_norm = norm_position
+	_preview_marker_ghost = ghost
+	preview_marker_changed.emit(active, norm_position, ghost)
 
 func _is_root_locked(idx: int) -> bool:
 	# Operculum is a free closed silhouette with no attachment anchor to pin.

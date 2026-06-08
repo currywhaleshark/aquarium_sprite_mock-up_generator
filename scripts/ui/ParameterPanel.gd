@@ -328,14 +328,17 @@ func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
 	var value_label := widgets["value_label"] as Label
 	sliders[key] = slider
 	labels[key] = value_label
-	
 	slider.value_changed.connect(func(new_value: float) -> void:
 		if _updating_values:
 			return
-		parameters[key] = new_value
 		value_label.text = "%.2f" % new_value
-		parameters_changed.emit(parameters.duplicate(true))
+		_apply_number_value(key, new_value, value_label)
 	)
+
+func _apply_number_value(key: String, new_value: float, value_label: Label) -> void:
+	parameters[key] = new_value
+	value_label.text = "%.2f" % new_value
+	parameters_changed.emit(parameters.duplicate(true))
 
 func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 	var row := HBoxContainer.new()
@@ -409,8 +412,10 @@ func _max_for_key(key: String, value: float) -> float:
 		return 0.2
 	if key == "wave_ripples":
 		return 3.0
-	if key == "pattern_intensity" or key == "belly_height" or key == "belly_slope" or key == "wetness" or key == "shell_roundness":
+	if key == "pattern_intensity" or key == "pattern_invert" or key == "pattern_size_lock" or key == "belly_height" or key == "belly_slope" or key == "wetness" or key == "shell_roundness":
 		return 1.0
+	if key == "pattern_seed":
+		return maxf(999.0, value * 2.0)
 	if key == "iridescence_frequency":
 		return 10.0
 	if key == "pattern_scale_x" or key == "pattern_scale_y":
@@ -435,6 +440,8 @@ func _category_for_key(key: String) -> String:
 		return "Scale Settings"
 	if key.begins_with("pattern"):
 		return "Pattern Settings"
+	if key == "palette_scheme":
+		return "Color Settings"
 	if key == "belly_height" or key == "belly_slope" or key == "wetness" or key.begins_with("iridescence"):
 		return "Color Settings"
 	if key.contains("color"):
@@ -482,13 +489,15 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "swim_mode" or key == "pattern_type" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style"
+	return key == "swim_mode" or key == "pattern_type" or key == "palette_scheme" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style"
 
 func _options_for_key(key: String) -> Array[String]:
 	if key == "swim_mode":
 		return BodyProfileScript.swim_mode_names()
 	if key == "pattern_type":
 		return BodyProfileScript.pattern_type_names()
+	if key == "palette_scheme":
+		return BodyProfileScript.palette_scheme_names()
 	if key == "scale_type":
 		return BodyProfileScript.scale_type_names()
 	if key == "pectoral_flap_sync":

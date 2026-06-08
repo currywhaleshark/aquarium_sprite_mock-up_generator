@@ -4,6 +4,7 @@ extends RefCounted
 const BODY_SHADER_PATH := "res://shaders/fish_body_toon.gdshader"
 const FIN_SHADER_PATH := "res://shaders/fish_fin_toon.gdshader"
 const SpeciesMarkingLayerScript := preload("res://scripts/species/SpeciesMarkingLayer.gd")
+const PATTERN_REFERENCE_LENGTH := 1.45
 
 # Opaque toon body material shared by the body shell and the head mesh. Carries
 # countershading (base/belly gradient) plus procedural patterns. Pattern type is
@@ -19,9 +20,14 @@ static func make_body_material(parameters: Dictionary) -> ShaderMaterial:
 	material.set_shader_parameter("belly_height", clampf(float(parameters.get("belly_height", 0.5)), 0.0, 1.0))
 	material.set_shader_parameter("belly_slope", clampf(float(parameters.get("belly_slope", 0.22)), 0.02, 1.0))
 	material.set_shader_parameter("pattern_type", BodyProfile.pattern_type_index(String(parameters.get("pattern_type", "none"))))
-	material.set_shader_parameter("pattern_scale_x", maxf(float(parameters.get("pattern_scale_x", 6.0)), 0.0))
-	material.set_shader_parameter("pattern_scale_y", maxf(float(parameters.get("pattern_scale_y", 4.0)), 0.0))
+	var pattern_density_scale := 1.0
+	if float(parameters.get("pattern_size_lock", 0.0)) > 0.5:
+		pattern_density_scale = maxf(float(parameters.get("body_length", PATTERN_REFERENCE_LENGTH)), 0.001) / PATTERN_REFERENCE_LENGTH
+	material.set_shader_parameter("pattern_scale_x", maxf(float(parameters.get("pattern_scale_x", 6.0)) * pattern_density_scale, 0.0))
+	material.set_shader_parameter("pattern_scale_y", maxf(float(parameters.get("pattern_scale_y", 4.0)) * pattern_density_scale, 0.0))
 	material.set_shader_parameter("pattern_intensity", clampf(float(parameters.get("pattern_intensity", 0.7)), 0.0, 1.0))
+	material.set_shader_parameter("pattern_invert", clampf(float(parameters.get("pattern_invert", 0.0)), 0.0, 1.0))
+	material.set_shader_parameter("pattern_seed", float(parameters.get("pattern_seed", 0.0)))
 	material.set_shader_parameter("iridescence_strength", clampf(float(parameters.get("iridescence_strength", 0.0)), 0.0, 1.0))
 	material.set_shader_parameter("iridescence_color", _as_color(parameters.get("iridescence_color", "#bfe9ff")))
 	material.set_shader_parameter("iridescence_frequency", clampf(float(parameters.get("iridescence_frequency", 2.0)), 0.1, 10.0))

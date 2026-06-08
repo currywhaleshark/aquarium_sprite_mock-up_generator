@@ -1130,6 +1130,65 @@ func get_drag_handles() -> Dictionary:
 		handles["eye_r"] = eye_r.global_position
 	return handles
 
+func get_vector_edit_marker_world(slot: String, norm_position: Vector2) -> Vector3:
+	match slot:
+		"dorsal", "dorsal_1":
+			return _single_local_point_to_world(dorsal_fin, _curved_fin_points(
+				"dorsal",
+				param_float("dorsal_1_attach_t", 0.45),
+				0.035,
+				PackedVector3Array([Vector3(norm_position.x * param_float("dorsal_1_length", 0.42), norm_position.y * param_float("dorsal_1_height", param_float("dorsal_fin_size", 0.28)), 0.0)]),
+				clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
+			)[0])
+		"dorsal_2":
+			return _single_local_point_to_world(dorsal_2_fin, _curved_fin_points(
+				"dorsal",
+				param_float("dorsal_2_attach_t", 0.68),
+				0.028,
+				PackedVector3Array([Vector3(norm_position.x * param_float("dorsal_2_length", 0.34), norm_position.y * param_float("dorsal_2_height", 0.18), 0.0)]),
+				clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
+			)[0])
+		"anal":
+			return _single_local_point_to_world(anal_fin, _curved_fin_points(
+				"ventral",
+				param_float("anal_attach_t", 0.64),
+				0.03,
+				PackedVector3Array([Vector3(norm_position.x * param_float("anal_length", 0.36), norm_position.y * param_float("anal_height", param_float("anal_fin_size", 0.2)), 0.0)]),
+				clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
+			)[0])
+		"pectoral":
+			var pectoral_size := param_float("pectoral_fin_size", 0.16)
+			return _single_local_point_to_world(pectoral_l, Vector3((norm_position.x + 0.5) * pectoral_size, norm_position.y * pectoral_size * 0.5, 0.0))
+		"pelvic":
+			return _single_local_point_to_world(pelvic_l, Vector3((norm_position.x + 0.5) * param_float("pelvic_length", 0.22), -norm_position.y * param_float("pelvic_height", 0.14), 0.0))
+		"caudal":
+			return _single_local_point_to_world(tail_fin, Vector3(norm_position.x * param_float("tail_fin_size", 0.46), norm_position.y * param_float("tail_fin_size", 0.46) * param_float("caudal_height_scale", 0.72), 0.0))
+		"operculum":
+			return _operculum_edit_marker_world(norm_position)
+	return Vector3.INF
+
+func _single_local_point_to_world(node: Node3D, local_point: Vector3) -> Vector3:
+	if node == null:
+		return Vector3.INF
+	return node.global_transform * local_point
+
+func _operculum_edit_marker_world(norm_position: Vector2) -> Vector3:
+	if body_pivot == null:
+		return Vector3.INF
+	var op_len := clampf(float(parameters.get("operculum_size", 1.0)), 0.5, 1.5)
+	var op_h := clampf(float(parameters.get("operculum_height", 1.0)), 0.5, 1.5)
+	var op_open := clampf(float(parameters.get("operculum_open", 0.0)), 0.0, 1.0)
+	var lift := 0.012 + 0.03 * op_open
+	var center_t := 0.19
+	var half_t := 0.05 * op_len
+	var t_front := maxf(center_t - half_t, 0.02)
+	var t_rear := center_t + half_t
+	var vfrac_max := 0.62 * op_h
+	var u := clampf(norm_position.x, 0.0, 1.0)
+	var f := clampf(norm_position.y * vfrac_max, -0.985, 0.985)
+	var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+	return body_pivot.global_transform * _op_shell_point(u, f, t_front, t_rear, 1.0, out)
+
 # Lower-jaw pivot in head-local space. Shared by _mouth_lower_jaw_mesh (which rotates the
 # jaw about it) and the editor hinge marker so the drawn point is the ACTUAL pivot.
 func _lower_jaw_hinge_local(origin: Vector3, jaw_scale: float, hinge_x_off: float, hinge_y_off: float) -> Vector3:
