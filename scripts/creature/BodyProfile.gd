@@ -145,6 +145,7 @@ const UNUSED_PARAMETER_KEYS := [
 const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated", "whale_grid"]
 const SCALE_TYPE_NAMES := ["cycloid", "ctenoid", "ganoid", "placoid", "pearlscale"]
 const PALETTE_SCHEME_NAMES := ["manual", "countershade", "complementary", "analogous", "muted"]
+const FIN_RAY_STYLE_NAMES := ["none", "soft", "spiny", "mixed", "fan", "threaded"]
 const VISUAL_PATTERN_DEFAULTS := {
 	"pattern_type": "none",
 	"pattern_color": "#1f5560",
@@ -170,6 +171,37 @@ const VISUAL_PATTERN_DEFAULTS := {
 	"emissive_marking_strength": 0.0,
 	"eye_iris_color": "#d8b24a",
 	"eye_pupil_scale": 0.6
+}
+const FIN_RAY_DEFAULTS := {
+	"fin_ray_style": "none",
+	"fin_ray_count": 0.0,
+	"fin_ray_strength": 0.0,
+	"fin_ray_root_bias": 0.0,
+	"fin_ray_spread": 0.75,
+	"fin_spine_count": 0.0,
+	"fin_spine_strength": 0.0,
+	"fin_ray_branching": 0.0,
+	"fin_ray_segmentation": 0.0,
+	"fin_ray_irregularity": 0.0
+}
+const ADIPOSE_FIN_DEFAULTS := {
+	"adipose_fin_enabled": false,
+	"adipose_fin_size": 0.0,
+	"adipose_fin_position": 0.82,
+	"adipose_fin_height": 0.18,
+	"adipose_fin_roundness": 0.75,
+	"adipose_fin_opacity": 0.72,
+	"adipose_fin_rayed": 0.0
+}
+const FINLET_DEFAULTS := {
+	"finlet_enabled": false,
+	"finlet_dorsal_count": 0.0,
+	"finlet_ventral_count": 0.0,
+	"finlet_size": 0.25,
+	"finlet_taper": 0.35,
+	"finlet_spacing": 0.72,
+	"finlet_pitch": 0.25,
+	"finlet_color_blend": 0.5
 }
 
 static func swim_mode_names() -> Array[String]:
@@ -199,12 +231,27 @@ static func palette_scheme_names() -> Array[String]:
 		names.append(String(name))
 	return names
 
+static func fin_ray_style_names() -> Array[String]:
+	var names: Array[String] = []
+	for name in FIN_RAY_STYLE_NAMES:
+		names.append(String(name))
+	return names
+
 # Injects defaults for the back/belly gradient and procedural pattern controls so
 # every preset (including ones saved before this feature) exposes them in the UI.
 static func ensure_visual_parameters(parameters: Dictionary) -> void:
 	for key in VISUAL_PATTERN_DEFAULTS.keys():
 		if not parameters.has(key):
 			parameters[key] = VISUAL_PATTERN_DEFAULTS[key]
+	for key in FIN_RAY_DEFAULTS.keys():
+		if not parameters.has(key):
+			parameters[key] = FIN_RAY_DEFAULTS[key]
+	for key in ADIPOSE_FIN_DEFAULTS.keys():
+		if not parameters.has(key):
+			parameters[key] = ADIPOSE_FIN_DEFAULTS[key]
+	for key in FINLET_DEFAULTS.keys():
+		if not parameters.has(key):
+			parameters[key] = FINLET_DEFAULTS[key]
 	if not parameters.has("shell_roundness"):
 		parameters["shell_roundness"] = 1.0
 	if not parameters.has("cephalic_horns"):
@@ -453,12 +500,21 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"operculum_custom_points",
 		"barbel_style", "eye_style", "mouth_detail",
 		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",
-		"fin_ray_strength", "fin_tip_color", "fin_gradient_color",
+		"fin_ray_strength", "fin_ray_style", "fin_ray_root_bias", "fin_ray_spread",
+		"fin_spine_count", "fin_spine_strength", "fin_ray_branching",
+		"fin_ray_segmentation", "fin_ray_irregularity",
+		"fin_tip_color", "fin_gradient_color",
 		"fin_translucency", "fin_translucency_strength", "fin_tornness", "fin_trailing_threads",
 		"fin_softness", "fin_rigidity",
 		"dorsal_1_softness", "dorsal_1_rigidity", "dorsal_2_softness", "dorsal_2_rigidity",
 		"anal_softness", "anal_rigidity", "pelvic_softness", "pelvic_rigidity",
 		"pectoral_softness", "pectoral_rigidity", "caudal_softness", "caudal_rigidity",
+		"adipose_fin_enabled", "adipose_fin_size", "adipose_fin_position",
+		"adipose_fin_height", "adipose_fin_roundness", "adipose_fin_opacity",
+		"adipose_fin_rayed",
+		"finlet_enabled", "finlet_dorsal_count", "finlet_ventral_count",
+		"finlet_size", "finlet_taper", "finlet_spacing", "finlet_pitch",
+		"finlet_color_blend",
 		"pectoral_fin_yaw", "pectoral_fin_pitch", "pectoral_fin_roll",
 		"dorsal_1_custom_points", "dorsal_2_custom_points", "pectoral_custom_points",
 		"pelvic_custom_points", "anal_custom_points", "caudal_custom_points",

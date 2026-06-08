@@ -10,6 +10,8 @@ func _ready() -> void:
 	_test_fin_material_exposes_detail_uniforms()
 	_test_fish_rig_uses_fin_material()
 	_test_fin_detail_parameters_round_trip_through_fin_profile()
+	_test_fin_ray_defaults_are_injected()
+	_test_new_fin_fields_round_trip_through_fin_profile()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/fin_material.ok", FileAccess.WRITE)
@@ -111,6 +113,52 @@ func _test_fin_detail_parameters_round_trip_through_fin_profile() -> void:
 	assert(String(rebuilt.get("fin_edge_color", "")) == "#111222")
 	assert(abs(float(rebuilt.get("fin_translucency_strength", 0.0)) - 0.37) < 0.001)
 	assert(abs(float(rebuilt.get("caudal_softness", 0.0)) - 0.82) < 0.001)
+
+func _test_fin_ray_defaults_are_injected() -> void:
+	var params := {}
+	BodyProfileScript.ensure_visual_parameters(params)
+	assert(String(params.get("fin_ray_style", "")) == "none")
+	assert(abs(float(params.get("fin_ray_count", -1.0)) - 0.0) < 0.001)
+	assert(abs(float(params.get("fin_ray_spread", -1.0)) - 0.75) < 0.001)
+	assert(abs(float(params.get("adipose_fin_position", 0.0)) - 0.82) < 0.001)
+	assert(bool(params.get("finlet_enabled", true)) == false)
+
+func _test_new_fin_fields_round_trip_through_fin_profile() -> void:
+	var params := {
+		"fin_ray_style": "fan",
+		"fin_ray_root_bias": -0.2,
+		"fin_ray_spread": 0.9,
+		"fin_spine_count": 3.0,
+		"fin_spine_strength": 0.4,
+		"fin_ray_branching": 0.7,
+		"fin_ray_segmentation": 0.5,
+		"fin_ray_irregularity": 0.2,
+		"adipose_fin_enabled": true,
+		"adipose_fin_size": 0.32,
+		"adipose_fin_position": 0.82,
+		"adipose_fin_height": 0.18,
+		"adipose_fin_roundness": 0.75,
+		"adipose_fin_opacity": 0.72,
+		"adipose_fin_rayed": 0.0,
+		"finlet_enabled": true,
+		"finlet_dorsal_count": 8.0,
+		"finlet_ventral_count": 8.0,
+		"finlet_size": 0.24,
+		"finlet_taper": 0.35,
+		"finlet_spacing": 0.72,
+		"finlet_pitch": 0.25,
+		"finlet_color_blend": 0.5
+	}
+	var split := BodyProfileScript.split_parameters_into_profiles(params, {"name": "new_fin_fields"})
+	var fin_profile: Dictionary = split.get("fin_profile", {})
+	assert(String(fin_profile.get("fin_ray_style", "")) == "fan")
+	assert(abs(float(fin_profile.get("fin_ray_branching", 0.0)) - 0.7) < 0.001)
+	assert(bool(fin_profile.get("adipose_fin_enabled", false)) == true)
+	assert(abs(float(fin_profile.get("finlet_dorsal_count", 0.0)) - 8.0) < 0.001)
+	var rebuilt := BodyProfileScript.make_parameters_from_structured_preset(split)
+	assert(String(rebuilt.get("fin_ray_style", "")) == "fan")
+	assert(bool(rebuilt.get("adipose_fin_enabled", false)) == true)
+	assert(abs(float(rebuilt.get("finlet_ventral_count", 0.0)) - 8.0) < 0.001)
 
 func _assert_mesh_has_uvs(mesh: Mesh) -> void:
 	assert(mesh != null)
