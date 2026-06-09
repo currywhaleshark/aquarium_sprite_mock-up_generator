@@ -8,6 +8,7 @@ func _ready() -> void:
 	_test_loads_species_archetypes()
 	_test_applies_archetype_profiles_and_markings()
 	_test_accepts_regional_layer_contract_types()
+	_test_scale_region_archetype_data_uses_only_supported_fields()
 	_test_archetype_metadata_round_trips_through_presets()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
@@ -79,6 +80,22 @@ func _test_accepts_regional_layer_contract_types() -> void:
 	assert(String((layers[0] as Dictionary).get("type", "")) == "region_color")
 	assert(String((layers[1] as Dictionary).get("type", "")) == "scale_region")
 	assert(String((layers[2] as Dictionary).get("type", "")) == "iridescence_region")
+
+func _test_scale_region_archetype_data_uses_only_supported_fields() -> void:
+	var mackerel := SpeciesArchetypeStoreScript.load_archetype("mackerel")
+	var layers: Array = mackerel.get("marking_layers", [])
+	var scale_layer := {}
+	for layer in layers:
+		var layer_dict := layer as Dictionary
+		if String(layer_dict.get("type", "")) == "scale_region":
+			scale_layer = layer_dict
+			break
+	assert(not scale_layer.is_empty())
+	assert(not scale_layer.has("color"))
+	assert(not scale_layer.has("y"))
+	assert(not scale_layer.has("thickness"))
+	assert(not scale_layer.has("emissive"))
+	assert(scale_layer.has("softness"))
 
 func _test_archetype_metadata_round_trips_through_presets() -> void:
 	var neon := SpeciesArchetypeStoreScript.load_archetype("neon_tetra")

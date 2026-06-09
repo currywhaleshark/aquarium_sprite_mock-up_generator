@@ -49,6 +49,13 @@ func _add_layer_row(index: int, layer: Dictionary) -> void:
 		_set_layer_field(index, "intensity", value)
 	)
 	row.add_child(intensity)
+	var remove_button := Button.new()
+	remove_button.text = "x"
+	remove_button.tooltip_text = "Remove layer"
+	remove_button.pressed.connect(func() -> void:
+		_remove_layer(index)
+	)
+	row.add_child(remove_button)
 	add_child(row)
 
 func _region_value_for_layer(layer: Dictionary) -> String:
@@ -101,6 +108,12 @@ func _set_layer_field(index: int, field: String, value: Variant) -> void:
 	layer[field] = value
 	layers[index] = layer
 	layers_changed.emit(layers.duplicate(true))
+
+func _remove_layer(index: int) -> void:
+	if _updating or index < 0 or index >= layers.size():
+		return
+	layers.remove_at(index)
+	_emit_and_rebuild()
 
 func _emit_and_rebuild() -> void:
 	layers_changed.emit(layers.duplicate(true))

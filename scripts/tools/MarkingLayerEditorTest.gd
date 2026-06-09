@@ -6,6 +6,7 @@ func _ready() -> void:
 	await _test_editor_emits_layer_changes()
 	await _test_editor_defaults_fin_zone_to_fin_region()
 	await _test_editor_adds_safe_editable_layer()
+	await _test_editor_removes_layer()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/marking_layer_editor.ok", FileAccess.WRITE)
@@ -73,3 +74,34 @@ func _test_editor_adds_safe_editable_layer() -> void:
 	assert(layer.has("thickness"))
 	editor.queue_free()
 	await get_tree().process_frame
+
+func _test_editor_removes_layer() -> void:
+	var editor := MarkingLayerEditorScript.new()
+	add_child(editor)
+	var seen := [[]]
+	editor.layers_changed.connect(func(layers: Array) -> void:
+		seen[0] = layers
+	)
+	editor.set_layers([
+		{"type": "horizontal_band", "region": "flank", "color": "#ffffff"},
+		{"type": "region_color", "region": "dorsal", "color": "#223344"}
+	])
+	await get_tree().process_frame
+	var row := editor.get_node("Layer_0") as HBoxContainer
+	var remove_button := _find_button_by_tooltip(row, "Remove layer")
+	assert(remove_button != null)
+	remove_button.pressed.emit()
+	await get_tree().process_frame
+	assert((seen[0] as Array).size() == 1)
+	assert(String(((seen[0] as Array)[0] as Dictionary).get("type", "")) == "region_color")
+	editor.queue_free()
+	await get_tree().process_frame
+
+func _find_button_by_tooltip(root: Node, tooltip: String) -> Button:
+	for child in root.get_children():
+		if child is Button and String((child as Button).tooltip_text) == tooltip:
+			return child as Button
+		var nested := _find_button_by_tooltip(child, tooltip)
+		if nested != null:
+			return nested
+	return null

@@ -102,7 +102,6 @@ static func encode_uniforms(raw_layers: Variant) -> Dictionary:
 		if i < normalized.size():
 			var layer: Dictionary = normalized[i]
 			encoded["marking_type_%d" % i] = int(layer["type_id"])
-			encoded["marking_zone_%d" % i] = int(layer["zone_id"])
 			encoded["marking_region_%d" % i] = int(layer["region_id"])
 			encoded["marking_blend_%d" % i] = int(layer["blend_id"])
 			encoded["marking_color_%d" % i] = _as_color(layer.get("color", "#ffffff"))
@@ -120,7 +119,6 @@ static func encode_uniforms(raw_layers: Variant) -> Dictionary:
 			)
 		else:
 			encoded["marking_type_%d" % i] = TYPE_NONE
-			encoded["marking_zone_%d" % i] = ZONE_BODY
 			encoded["marking_region_%d" % i] = REGION_BODY
 			encoded["marking_blend_%d" % i] = BLEND_NORMAL
 			encoded["marking_color_%d" % i] = Color(1, 1, 1, 1)

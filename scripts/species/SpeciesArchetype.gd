@@ -45,11 +45,14 @@ static func normalize_marking_layers(raw_layers: Variant) -> Array[Dictionary]:
 			continue
 		layer["type"] = layer_type
 		layer["zone"] = String(layer.get("zone", "body"))
-		layer["color"] = String(layer.get("color", "#ffffff"))
 		layer["x_start"] = clampf(float(layer.get("x_start", 0.0)), 0.0, 1.0)
 		layer["x_end"] = clampf(float(layer.get("x_end", 1.0)), 0.0, 1.0)
-		layer["y"] = clampf(float(layer.get("y", 0.0)), -1.0, 1.0)
-		layer["thickness"] = maxf(float(layer.get("thickness", 0.05)), 0.001)
-		layer["emissive"] = clampf(float(layer.get("emissive", 0.0)), 0.0, 1.0)
+		if layer_type != "scale_region" and layer_type != "iridescence_region":
+			layer["color"] = String(layer.get("color", "#ffffff"))
+		if layer_type != "region_color" and layer_type != "scale_region" and layer_type != "iridescence_region":
+			layer["y"] = clampf(float(layer.get("y", 0.0)), -1.0, 1.0)
+			layer["thickness"] = maxf(float(layer.get("thickness", 0.05)), 0.001)
+		if layer_type != "scale_region" and layer_type != "iridescence_region":
+			layer["emissive"] = clampf(float(layer.get("emissive", 0.0)), 0.0, 1.0)
 		layers.append(layer)
 	return layers

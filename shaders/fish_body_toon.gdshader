@@ -72,14 +72,6 @@ uniform int marking_type_4 = 0;
 uniform int marking_type_5 = 0;
 uniform int marking_type_6 = 0;
 uniform int marking_type_7 = 0;
-uniform int marking_zone_0 = 0;
-uniform int marking_zone_1 = 0;
-uniform int marking_zone_2 = 0;
-uniform int marking_zone_3 = 0;
-uniform int marking_zone_4 = 0;
-uniform int marking_zone_5 = 0;
-uniform int marking_zone_6 = 0;
-uniform int marking_zone_7 = 0;
 const int TYPE_REGION_COLOR = 13;
 const int TYPE_SCALE_REGION = 14;
 const int TYPE_IRIDESCENCE_REGION = 15;
@@ -260,6 +252,13 @@ float region_mask(int region, float u, float up) {
 	return 0.0;
 }
 
+float marking_region_gate(int kind, int region, float u, float up) {
+	if (kind == TYPE_REGION_COLOR) {
+		return region_mask(region, u, up);
+	}
+	return smoothstep(0.0, 0.18, region_mask(region, u, up));
+}
+
 vec3 blend_marking_color(vec3 base, vec3 layer, int blend_mode, float amount) {
 	vec3 blended = layer;
 	if (blend_mode == BLEND_MULTIPLY) {
@@ -313,11 +312,13 @@ void apply_marking_layer(inout vec3 col, int kind, int region, int blend_mode, v
 	if (kind == TYPE_SCALE_REGION || kind == TYPE_IRIDESCENCE_REGION) {
 		return;
 	}
-	float mask = marking_layer_mask(kind, rect, params, u, up);
+	float mask = 0.0;
 	if (kind == TYPE_REGION_COLOR) {
 		mask = band_range(u, min(rect.x, rect.y), max(rect.x, rect.y), max(params.y, 0.001));
+	} else {
+		mask = marking_layer_mask(kind, rect, params, u, up);
 	}
-	mask *= region_mask(region, u, up) * clamp(params.x, 0.0, 1.0);
+	mask *= marking_region_gate(kind, region, u, up) * clamp(params.x, 0.0, 1.0);
 	col = blend_marking_color(col, color.rgb, blend_mode, mask * color.a);
 	col += color.rgb * mask * clamp(params.z + emissive_marking_strength, 0.0, 1.0) * 0.35;
 }

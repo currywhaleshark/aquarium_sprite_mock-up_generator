@@ -10,6 +10,7 @@ func _ready() -> void:
 	_test_legacy_zone_defaults_preserve_existing_body_behavior()
 	_test_fin_uniform_encoder_filters_by_region()
 	_test_body_material_receives_marking_uniforms()
+	_test_body_encoder_drops_legacy_zone_uniforms()
 	_test_shader_contains_marking_mask_path()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
@@ -143,6 +144,13 @@ func _test_body_material_receives_marking_uniforms() -> void:
 	assert(material.get_shader_parameter("marking_params_0") is Vector4)
 	assert(int(material.get_shader_parameter("marking_type_1")) == SpeciesMarkingLayerScript.TYPE_HORIZONTAL_BAND)
 
+func _test_body_encoder_drops_legacy_zone_uniforms() -> void:
+	var encoded := SpeciesMarkingLayerScript.encode_uniforms([
+		{"type": "horizontal_band", "zone": "body", "region": "ventral_flank", "color": "#e93a3a"}
+	])
+	assert(not encoded.has("marking_zone_0"))
+	assert(not encoded.has("marking_zone_7"))
+
 func _test_shader_contains_marking_mask_path() -> void:
 	var shader := load(ToonMaterialFactoryScript.BODY_SHADER_PATH)
 	assert(shader is Shader)
@@ -153,6 +161,9 @@ func _test_shader_contains_marking_mask_path() -> void:
 	assert(code.contains("uniform int marking_region_0"))
 	assert(code.contains("uniform int marking_blend_0"))
 	assert(code.contains("float region_mask"))
+	assert(code.contains("float marking_region_gate"))
+	assert(code.contains("smoothstep(0.0, 0.18, region_mask(region, u, up))"))
 	assert(code.contains("vec3 blend_marking_color"))
 	assert(code.contains("TYPE_REGION_COLOR"))
 	assert(code.contains("apply_marking_layer(col, marking_type_0, marking_region_0, marking_blend_0"))
+	assert(not code.contains("marking_zone_"))
