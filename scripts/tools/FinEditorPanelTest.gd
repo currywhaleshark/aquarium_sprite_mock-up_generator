@@ -35,6 +35,17 @@ func _ready() -> void:
 	assert(seen_vector_slot[0] == "dorsal_1")
 	panel.set_slot_shape("dorsal_1", "single")
 	assert(seen_vector_slot[0] == "")
+	panel.set("selected_slot", "adipose_fin")
+	panel.set_slot_enabled("adipose_fin", true)
+	panel.set_slot_attach("adipose_fin", 0.84)
+	panel.set_slot_shape("adipose_fin", "custom")
+	assert(seen_vector_slot[0] == "adipose_fin")
+	panel.set_numeric_parameter("adipose_fin_size", 0.31)
+	panel.set("selected_slot", "finlet")
+	panel.set_slot_enabled("finlet", true)
+	panel.set_slot_shape("finlet", "rounded")
+	panel.set_numeric_parameter("finlet_dorsal_count", 6.0)
+	panel.set_numeric_parameter("finlet_spacing", 0.82)
 
 	assert(float(seen_parameters[0].get("dorsal_2_enabled", 0.0)) == 1.0)
 	assert(abs(float(seen_parameters[0].get("dorsal_2_attach_t", 0.0)) - 0.78) < 0.001)
@@ -44,6 +55,14 @@ func _ready() -> void:
 	assert(abs(float(seen_parameters[0].get("dorsal_1_softness", 0.0)) - 0.46) < 0.001)
 	assert(abs(float(seen_parameters[0].get("pectoral_rigidity", 0.0)) - 0.6) < 0.001)
 	assert(abs(float(seen_parameters[0].get("dorsal_1_height", 0.0)) - 0.33) < 0.001)
+	assert(float(seen_parameters[0].get("adipose_fin_enabled", 0.0)) == 1.0)
+	assert(abs(float(seen_parameters[0].get("adipose_fin_position", 0.0)) - 0.84) < 0.001)
+	assert(String(seen_parameters[0].get("adipose_fin_shape", "")) == "custom")
+	assert(abs(float(seen_parameters[0].get("adipose_fin_size", 0.0)) - 0.31) < 0.001)
+	assert(float(seen_parameters[0].get("finlet_enabled", 0.0)) == 1.0)
+	assert(String(seen_parameters[0].get("finlet_shape", "")) == "rounded")
+	assert(abs(float(seen_parameters[0].get("finlet_dorsal_count", 0.0)) - 6.0) < 0.001)
+	assert(abs(float(seen_parameters[0].get("finlet_spacing", 0.0)) - 0.82) < 0.001)
 
 	panel.set_parameters({
 		"creature_type": "ray",

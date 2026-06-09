@@ -42,6 +42,8 @@ const FIN_SLOTS := {
 	"pelvic": "배지느러미",
 	"anal": "뒷지느러미",
 	"caudal": "꼬리지느러미",
+	"adipose_fin": "기름지느러미",
+	"finlet": "토막지느러미",
 	"cephalic": "두흉엽"
 }
 
@@ -69,6 +71,7 @@ const OPTION_LABELS := {
 	"stout_skate": "스케이트 굵은꼬리",
 	"short_round": "짧은 둥근꼬리",
 	"single": "기본형",
+	"nub": "작은 돌기형",
 	"soft": "연조형",
 	"spiny": "가시형",
 	"mixed": "혼합형",

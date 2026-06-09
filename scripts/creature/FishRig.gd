@@ -1199,9 +1199,27 @@ func get_vector_edit_marker_world(slot: String, norm_position: Vector2) -> Vecto
 			return _single_local_point_to_world(pelvic_l, Vector3((norm_position.x + 0.5) * param_float("pelvic_length", 0.22), -norm_position.y * param_float("pelvic_height", 0.14), 0.0))
 		"caudal":
 			return _single_local_point_to_world(tail_fin, Vector3(norm_position.x * param_float("tail_fin_size", 0.46), norm_position.y * param_float("tail_fin_size", 0.46) * param_float("caudal_height_scale", 0.72), 0.0))
+		"adipose_fin":
+			var adipose_size := param_float("adipose_fin_size", DEFAULT_ADIPOSE_FIN_SIZE)
+			if adipose_size <= 0.001:
+				adipose_size = DEFAULT_ADIPOSE_FIN_SIZE
+			var adipose_height := maxf(param_float("adipose_fin_height", 0.18), 0.32) * adipose_size
+			var adipose_length := adipose_size * lerpf(0.16, 0.26, param_float("adipose_fin_roundness", 0.75))
+			return _single_local_point_to_world(adipose_fin, Vector3(norm_position.x * adipose_length, norm_position.y * adipose_height, 0.0))
+		"finlet":
+			var first_finlet := _first_finlet_node()
+			var finlet_size := param_float("finlet_size", 0.25)
+			return _single_local_point_to_world(first_finlet, Vector3(norm_position.x * finlet_size * 0.36, norm_position.y * finlet_size * 0.42, 0.0))
 		"operculum":
 			return _operculum_edit_marker_world(norm_position)
 	return Vector3.INF
+
+func _first_finlet_node() -> MeshInstance3D:
+	for spec in finlet_specs:
+		var finlet := spec.get("node") as MeshInstance3D
+		if finlet != null:
+			return finlet
+	return null
 
 func _single_local_point_to_world(node: Node3D, local_point: Vector3) -> Vector3:
 	if node == null:
@@ -1420,12 +1438,7 @@ func _build_adipose_fin(fin_mat: Material) -> void:
 		size = DEFAULT_ADIPOSE_FIN_SIZE
 	var height := maxf(param_float("adipose_fin_height", 0.18), 0.32) * size
 	var length := size * lerpf(0.16, 0.26, param_float("adipose_fin_roundness", 0.75))
-	var points := PackedVector3Array([
-		Vector3(-length * 0.45, 0.0, 0.0),
-		Vector3(-length * 0.10, height, 0.0),
-		Vector3(length * 0.45, height * 0.25, 0.0),
-		Vector3(length * 0.40, 0.0, 0.0)
-	])
+	var points := _get_fin_points("AdiposeFin", String(parameters.get("adipose_fin_shape", "nub")), length, height)
 	adipose_fin = PF.polygon_fin("AdiposeFin", points, fin_mat)
 	body_pivot.add_child(adipose_fin)
 	var attach_t := _effective_adipose_attach_t()
@@ -1457,17 +1470,17 @@ func _build_finlets(finlet_mat: Material) -> void:
 func _build_finlet_side(side: String, count: int, finlet_mat: Material) -> void:
 	var base_size := param_float("finlet_size", 0.25)
 	var taper := clampf(param_float("finlet_taper", 0.35), 0.0, 1.0)
+	var shape := String(parameters.get("finlet_shape", "triangle"))
 	for i in range(count):
 		var ratio := 0.0 if count <= 1 else float(i) / float(count - 1)
 		var scale := base_size * lerpf(1.0, 0.65, ratio * taper)
 		var height := scale * 0.42
 		var length := scale * 0.36
 		var y_sign := 1.0 if side == "dorsal" else -1.0
-		var points := PackedVector3Array([
-			Vector3(-length * 0.45, 0.0, 0.0),
-			Vector3(0.0, height * y_sign, 0.0),
-			Vector3(length * 0.45, 0.0, 0.0)
-		])
+		var shaped_points := _get_fin_points("Finlet", shape, length, height)
+		var points := PackedVector3Array()
+		for point in shaped_points:
+			points.append(Vector3(point.x, point.y * y_sign, point.z))
 		var node_name := "FinletDorsal_%d" % i if side == "dorsal" else "FinletVentral_%d" % i
 		var finlet := PF.polygon_fin(node_name, points, finlet_mat)
 		body_pivot.add_child(finlet)
@@ -1484,6 +1497,10 @@ func _get_fin_points(fin_name: String, shape: String, length: float, height: flo
 		var default_pts := [-0.5, 0.0, -0.25, 0.6, 0.0, 0.8, 0.25, 0.6, 0.5, 0.0]
 		if slot == "pectoral" or slot == "pelvic":
 			default_pts = [-0.5, 0.2, 0.0, 0.5, 0.5, 0.0, 0.0, -0.5, -0.5, -0.2]
+		elif slot == "adipose_fin":
+			default_pts = [-0.45, 0.0, -0.10, 1.0, 0.45, 0.25, 0.40, 0.0]
+		elif slot == "finlet":
+			default_pts = [-0.45, 0.0, 0.0, 1.0, 0.45, 0.0]
 		var raw_pts: Array = parameters.get(slot + "_custom_points", default_pts)
 		pts = PackedVector3Array()
 		for i in range(0, raw_pts.size(), 2):
@@ -1530,6 +1547,10 @@ func _fin_name_to_slot(fin_name: String) -> String:
 		return "pelvic"
 	elif fin_name.begins_with("PectoralFin"):
 		return "pectoral"
+	elif fin_name.begins_with("AdiposeFin"):
+		return "adipose_fin"
+	elif fin_name.begins_with("Finlet"):
+		return "finlet"
 	return "dorsal_1"
 
 func _curved_fin_points(side: String, attach_t: float, margin: float, points: PackedVector3Array, follow: float, loop_phase: float = -1.0) -> PackedVector3Array:

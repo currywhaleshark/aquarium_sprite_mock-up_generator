@@ -186,6 +186,7 @@ const FIN_RAY_DEFAULTS := {
 }
 const ADIPOSE_FIN_DEFAULTS := {
 	"adipose_fin_enabled": false,
+	"adipose_fin_shape": "nub",
 	"adipose_fin_size": 0.0,
 	"adipose_fin_position": 0.82,
 	"adipose_fin_height": 0.18,
@@ -195,6 +196,7 @@ const ADIPOSE_FIN_DEFAULTS := {
 }
 const FINLET_DEFAULTS := {
 	"finlet_enabled": false,
+	"finlet_shape": "triangle",
 	"finlet_dorsal_count": 0.0,
 	"finlet_ventral_count": 0.0,
 	"finlet_size": 0.25,
@@ -509,15 +511,20 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"dorsal_1_softness", "dorsal_1_rigidity", "dorsal_2_softness", "dorsal_2_rigidity",
 		"anal_softness", "anal_rigidity", "pelvic_softness", "pelvic_rigidity",
 		"pectoral_softness", "pectoral_rigidity", "caudal_softness", "caudal_rigidity",
-		"adipose_fin_enabled", "adipose_fin_size", "adipose_fin_position",
+		"adipose_fin_enabled", "adipose_fin_shape", "adipose_fin_size", "adipose_fin_position",
 		"adipose_fin_height", "adipose_fin_roundness", "adipose_fin_opacity",
 		"adipose_fin_rayed",
-		"finlet_enabled", "finlet_dorsal_count", "finlet_ventral_count",
+		"finlet_enabled", "finlet_shape", "finlet_dorsal_count", "finlet_ventral_count",
 		"finlet_size", "finlet_taper", "finlet_spacing", "finlet_pitch",
 		"finlet_color_blend",
 		"pectoral_fin_yaw", "pectoral_fin_pitch", "pectoral_fin_roll",
 		"dorsal_1_custom_points", "dorsal_2_custom_points", "pectoral_custom_points",
 		"pelvic_custom_points", "anal_custom_points", "caudal_custom_points",
+		"adipose_fin_custom_points", "finlet_custom_points",
+		"adipose_fin_bezier_p1_x", "adipose_fin_bezier_p1_y",
+		"adipose_fin_bezier_p2_x", "adipose_fin_bezier_p2_y",
+		"finlet_bezier_p1_x", "finlet_bezier_p1_y",
+		"finlet_bezier_p2_x", "finlet_bezier_p2_y",
 		"cephalic_horns", "ray_head_shape", "ray_disc_shape"
 	])
 	updated["motion_profile"] = _pick(normalized_parameters, [

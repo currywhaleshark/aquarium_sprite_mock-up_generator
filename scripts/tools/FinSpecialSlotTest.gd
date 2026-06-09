@@ -8,6 +8,7 @@ func _ready() -> void:
 	_test_finlet_spacing_controls_anchor_span()
 	_test_rayed_adipose_preserves_slot_opacity()
 	_test_enabled_special_slots_have_visible_defaults()
+	_test_special_slot_shapes_affect_geometry()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/fin_special_slot.ok", FileAccess.WRITE)
@@ -119,6 +120,31 @@ func _test_enabled_special_slots_have_visible_defaults() -> void:
 	assert(fish.get_node_or_null("BodyPivot/FinletVentral_0") != null)
 	fish.queue_free()
 
+func _test_special_slot_shapes_affect_geometry() -> void:
+	var fish := FishRigScript.new()
+	add_child(fish)
+	fish.auto_animate = false
+	fish.set_parameters({
+		"adipose_fin_enabled": true,
+		"adipose_fin_shape": "custom",
+		"adipose_fin_custom_points": [-0.4, 0.0, 0.0, 1.4, 0.4, 0.0],
+		"finlet_enabled": true,
+		"finlet_shape": "rounded",
+		"finlet_dorsal_count": 3.0,
+		"finlet_ventral_count": 0.0,
+		"finlet_size": 0.25
+	})
+	await get_tree().process_frame
+	var adipose := fish.get_node_or_null("BodyPivot/AdiposeFin") as MeshInstance3D
+	var finlet := fish.get_node_or_null("BodyPivot/FinletDorsal_0") as MeshInstance3D
+	assert(adipose != null)
+	assert(finlet != null)
+	assert(_mesh_y_span(adipose) > _mesh_x_span(adipose) * 1.2)
+	assert(_mesh_vertex_count(finlet) > 4)
+	assert(fish.get_vector_edit_marker_world("adipose_fin", Vector2(0.0, 0.8)).is_finite())
+	assert(fish.get_vector_edit_marker_world("finlet", Vector2(0.0, 0.8)).is_finite())
+	fish.queue_free()
+
 func _apply_finlet_spacing_parameters(fish: FishRig, spacing: float) -> void:
 	fish.auto_animate = false
 	fish.set_parameters({
@@ -155,3 +181,8 @@ func _mesh_y_span(node: MeshInstance3D) -> float:
 		min_y = minf(min_y, vertex.y)
 		max_y = maxf(max_y, vertex.y)
 	return max_y - min_y
+
+func _mesh_vertex_count(node: MeshInstance3D) -> int:
+	var arrays := node.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	return vertices.size()
