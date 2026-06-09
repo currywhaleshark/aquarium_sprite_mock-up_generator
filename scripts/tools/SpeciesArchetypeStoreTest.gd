@@ -2,6 +2,7 @@ extends Node
 
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const SpeciesArchetypeStoreScript := preload("res://scripts/species/SpeciesArchetypeStore.gd")
+const SpeciesMarkingLayerScript := preload("res://scripts/species/SpeciesMarkingLayer.gd")
 
 func _ready() -> void:
 	_test_loads_species_archetypes()
@@ -51,6 +52,17 @@ func _test_applies_archetype_profiles_and_markings() -> void:
 	assert(layers.size() == 2)
 	assert(String(layers[0].get("type", "")) == "lateral_line")
 	assert(String(layers[1].get("type", "")) == "horizontal_band")
+	assert(String(layers[0].get("region", "")) == "flank")
+	assert(String(layers[0].get("blend_mode", "")) == "screen")
+	assert(String(layers[1].get("region", "")) == "ventral_flank")
+	assert(String(layers[1].get("blend_mode", "")) == "normal")
+
+	var betta := SpeciesArchetypeStoreScript.load_archetype("betta")
+	var betta_fin := SpeciesMarkingLayerScript.encode_fin_uniforms(betta.get("marking_layers", []), "median_fin")
+	assert(int(betta_fin.get("fin_marking_count", 0)) >= 1)
+	var guppy := SpeciesArchetypeStoreScript.load_archetype("guppy")
+	var guppy_fin := SpeciesMarkingLayerScript.encode_fin_uniforms(guppy.get("marking_layers", []), "caudal_fin")
+	assert(int(guppy_fin.get("fin_marking_count", 0)) >= 1)
 
 func _test_archetype_metadata_round_trips_through_presets() -> void:
 	var neon := SpeciesArchetypeStoreScript.load_archetype("neon_tetra")

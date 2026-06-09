@@ -213,7 +213,11 @@ func _test_preset_round_trip() -> void:
 		"lateral_line_strength": 0.25,
 		"pearlscale_strength": 0.2,
 		"metallic_scale_strength": 0.4,
-		"emissive_marking_strength": 0.45
+		"emissive_marking_strength": 0.45,
+		"marking_layers": [
+			{"type": "region_color", "region": "dorsal", "blend_mode": "multiply", "color": "#223344", "x_start": 0.0, "x_end": 1.0, "intensity": 0.5},
+			{"type": "scale_region", "region": "flank", "intensity": 0.8}
+		]
 	}
 	var split := BodyProfileScript.split_parameters_into_profiles(params, {"name": "round_trip"})
 	var visual: Dictionary = split.get("visual_profile", {})
@@ -239,6 +243,11 @@ func _test_preset_round_trip() -> void:
 	assert(abs(float(visual.get("pearlscale_strength", 0.0)) - 0.2) < 0.0001)
 	assert(abs(float(visual.get("metallic_scale_strength", 0.0)) - 0.4) < 0.0001)
 	assert(abs(float(visual.get("emissive_marking_strength", 0.0)) - 0.45) < 0.0001)
+	var split_layers: Array = split.get("marking_layers", [])
+	assert(split_layers.size() == 2)
+	assert(String(split_layers[0].get("region", "")) == "dorsal")
+	assert(String(split_layers[0].get("blend_mode", "")) == "multiply")
+	assert(String(split_layers[1].get("type", "")) == "scale_region")
 
 	var rebuilt := BodyProfileScript.make_parameters_from_structured_preset(split)
 	assert(String(rebuilt.get("pattern_type", "")) == "zebra")
@@ -253,6 +262,13 @@ func _test_preset_round_trip() -> void:
 	assert(String(rebuilt.get("scale_type", "")) == "ctenoid")
 	assert(abs(float(rebuilt.get("scale_strength", 0.0)) - 0.3) < 0.0001)
 	assert(abs(float(rebuilt.get("metallic_scale_strength", 0.0)) - 0.4) < 0.0001)
+	var rebuilt_layers: Array = rebuilt.get("marking_layers", [])
+	assert(rebuilt_layers.size() == 2)
+	assert(String(rebuilt_layers[0].get("type", "")) == "region_color")
+	assert(String(rebuilt_layers[0].get("region", "")) == "dorsal")
+	assert(String(rebuilt_layers[0].get("blend_mode", "")) == "multiply")
+	assert(String(rebuilt_layers[1].get("type", "")) == "scale_region")
+	assert(String(rebuilt_layers[1].get("region", "")) == "flank")
 
 func _test_visual_defaults_injected() -> void:
 	# A preset saved before this feature has no pattern keys; defaults must appear

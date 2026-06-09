@@ -67,11 +67,26 @@
 		{
 			"type": "horizontal_band",
 			"zone": "body",
+			"region": "dorsal_flank",
+			"blend_mode": "multiply",
 			"color": "#102a3a",
 			"x_start": 0.06,
 			"x_end": 0.9,
 			"y": 0.2,
 			"thickness": 0.08,
+			"emissive": 0.0
+		},
+		{
+			"type": "scale_region",
+			"zone": "body",
+			"region": "flank",
+			"blend_mode": "normal",
+			"color": "#ffffff",
+			"x_start": 0.12,
+			"x_end": 0.92,
+			"y": 0.0,
+			"thickness": 0.65,
+			"intensity": 0.42,
 			"emissive": 0.0
 		}
 	],
