@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dcolorpopout1test"]
+
+[ext_resource type="Script" path="res://scripts/tools/ColorPanelPopoutTest.gd" id="1_color_panel_popout"]
+
+[node name="ColorPanelPopoutTest" type="Node"]
+script = ExtResource("1_color_panel_popout")

@@ -51,6 +51,11 @@ var creature_type_label: Label
 var playback_toggle: CheckButton
 var parameter_panel: ParameterPanel
 var color_panel: ParameterPanel
+var color_panel_dock: VBoxContainer
+var color_panel_window: Window
+var color_panel_window_body: VBoxContainer
+var color_panel_popout_button: Button
+var color_panel_dock_notice: Control
 var motion_panel: ParameterPanel
 var export_panel: VBoxContainer
 var mini_preview: TextureRect
@@ -423,13 +428,53 @@ func _build_ui() -> void:
 	shape_tab.add_child(parameter_panel)
 
 	# --- 색상 탭 ---
+	color_panel_dock = color_tab
 	color_panel = ParameterPanelScript.new()
 	color_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	color_panel.included_categories = ["Color Settings", "Pattern Settings"]
 	color_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
+
+	# Pop-out control: the colour/pattern editor (especially the wide regional
+	# marking-layer rows) is cramped in the fixed-width side panel, so let it detach
+	# into a movable, resizable window and re-dock when closed. color_panel stays a
+	# member wherever it is parented, so set_parameters and the parameters_changed
+	# signal keep working in both states.
+	var color_popout_row := HBoxContainer.new()
+	color_popout_row.name = "ColorPanelPopoutRow"
+	color_popout_row.alignment = BoxContainer.ALIGNMENT_END
+	color_tab.add_child(color_popout_row)
+	color_panel_popout_button = Button.new()
+	color_panel_popout_button.text = "↗ 창으로 빼기"
+	color_panel_popout_button.tooltip_text = "색상·무늬 편집기를 이동·크기조절 가능한 별도 창으로 분리합니다."
+	color_panel_popout_button.pressed.connect(_pop_out_color_panel)
+	color_popout_row.add_child(color_panel_popout_button)
+
+	color_panel_dock_notice = _make_color_dock_notice()
+	color_panel_dock_notice.visible = false
+	color_tab.add_child(color_panel_dock_notice)
+
 	color_tab.add_child(color_panel)
+
+	color_panel_window = Window.new()
+	color_panel_window.name = "ColorPanelWindow"
+	color_panel_window.title = "색상 · 무늬 편집기"
+	color_panel_window.min_size = Vector2i(420, 360)
+	color_panel_window.size = Vector2i(560, 640)
+	color_panel_window.visible = false
+	color_panel_window.close_requested.connect(_dock_color_panel)
+	add_child(color_panel_window)
+
+	color_panel_window_body = VBoxContainer.new()
+	color_panel_window_body.name = "ColorPanelWindowBody"
+	color_panel_window_body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 8)
+	color_panel_window_body.add_theme_constant_override("separation", 6)
+	color_panel_window.add_child(color_panel_window_body)
+	var window_redock_button := Button.new()
+	window_redock_button.text = "⤵ 패널로 되돌리기"
+	window_redock_button.pressed.connect(_dock_color_panel)
+	color_panel_window_body.add_child(window_redock_button)
 
 	# --- 움직임 탭 ---
 	motion_panel = ParameterPanelScript.new()
@@ -487,6 +532,53 @@ func _make_tab_page(tab_title: String) -> VBoxContainer:
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	side_tabs.add_child(content)
 	return content
+
+# Builds the placeholder shown in the colour tab while the panel is detached, with a
+# one-click way to bring it back.
+func _make_color_dock_notice() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "ColorPanelDockNotice"
+	box.add_theme_constant_override("separation", 6)
+	var label := Label.new()
+	label.text = "색상·무늬 편집기가 별도 창에 있습니다."
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(label)
+	var redock := Button.new()
+	redock.text = "⤵ 패널로 되돌리기"
+	redock.pressed.connect(_dock_color_panel)
+	box.add_child(redock)
+	return box
+
+# Reparents color_panel into the floating window and shows it.
+func _pop_out_color_panel() -> void:
+	if color_panel == null or color_panel_window == null:
+		return
+	if color_panel.get_parent() != color_panel_window_body:
+		if color_panel.get_parent() != null:
+			color_panel.get_parent().remove_child(color_panel)
+		color_panel_window_body.add_child(color_panel)
+	if color_panel_popout_button:
+		color_panel_popout_button.visible = false
+	if color_panel_dock_notice:
+		color_panel_dock_notice.visible = true
+	color_panel_window.visible = true
+	color_panel_window.grab_focus()
+
+# Reparents color_panel back into the colour tab and hides the window.
+func _dock_color_panel() -> void:
+	if color_panel == null:
+		return
+	if color_panel.get_parent() != color_panel_dock:
+		if color_panel.get_parent() != null:
+			color_panel.get_parent().remove_child(color_panel)
+		if color_panel_dock:
+			color_panel_dock.add_child(color_panel)
+	if color_panel_window:
+		color_panel_window.visible = false
+	if color_panel_popout_button:
+		color_panel_popout_button.visible = true
+	if color_panel_dock_notice:
+		color_panel_dock_notice.visible = false
 
 func _build_archetype_section(parent: VBoxContainer) -> void:
 	var title := Label.new()
