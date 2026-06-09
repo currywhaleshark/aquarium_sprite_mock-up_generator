@@ -8,55 +8,57 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var color_panel: Control = main.get("color_panel")
-	var dock: Node = main.get("color_panel_dock")
-	var window: Window = main.get("color_panel_window")
-	var window_body: Node = main.get("color_panel_window_body")
-	var popout_button: Button = main.get("color_panel_popout_button")
-	var dock_notice: Control = main.get("color_panel_dock_notice")
-	assert(color_panel != null)
-	assert(dock != null)
-	assert(window != null)
-	assert(window_body != null)
-	assert(popout_button != null)
-	assert(dock_notice != null)
+	var poppables: Dictionary = main.get("poppables")
+	assert(poppables.has("color"))
+	assert(poppables.has("motion"))
 
-	# Starts docked in the colour tab; the window is hidden and the notice is off.
-	assert(color_panel.get_parent() == dock)
-	assert(not window.visible)
-	assert(popout_button.visible)
-	assert(not dock_notice.visible)
+	# The same pop-out/dock contract must hold for every poppable panel.
+	await _exercise(poppables["color"], main.get("color_panel"))
+	await _exercise(poppables["motion"], main.get("motion_panel"))
 
-	# Pop out: the panel reparents into the window, the tab shows the re-dock notice.
-	main.call("_pop_out_color_panel")
-	await get_tree().process_frame
-	assert(color_panel.get_parent() == window_body)
-	assert(window.visible)
-	assert(not popout_button.visible)
-	assert(dock_notice.visible)
-
-	# Parameters still flow to the panel while it is detached.
-	color_panel.set_parameters({"base_color": "#123456", "belly_color": "#654321", "marking_layers": []})
-	await get_tree().process_frame
-	assert(color_panel.get_parent() == window_body)
+	# The regional marking editor lives inside the colour panel and is reachable in
+	# the tree whether the panel is docked or detached.
 	assert(main.find_child("RegionalMarkingLayerEditor", true, false) != null)
-
-	# Calling pop-out again is idempotent (no duplicate reparent / crash).
-	main.call("_pop_out_color_panel")
-	await get_tree().process_frame
-	assert(color_panel.get_parent() == window_body)
-
-	# Dock back: the panel returns to the tab and the window hides.
-	main.call("_dock_color_panel")
-	await get_tree().process_frame
-	assert(color_panel.get_parent() == dock)
-	assert(not window.visible)
-	assert(popout_button.visible)
-	assert(not dock_notice.visible)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/color_panel_popout.ok", FileAccess.WRITE)
-	file.store_string("colour panel pops out to a window and docks back")
+	file.store_string("colour and motion panels pop out to windows and dock back")
 	file.close()
 	print("COLOR_PANEL_POPOUT_TEST_OK")
 	get_tree().quit(0)
+
+func _exercise(p: Object, panel: Control) -> void:
+	assert(p != null)
+	assert(panel != null)
+
+	# Starts docked in its tab; window hidden, notice off, pop-out button shown.
+	assert(panel.get_parent() == p.dock)
+	assert(not p.window.visible)
+	assert(p.popout_button.visible)
+	assert(not p.dock_notice.visible)
+
+	# Pop out: panel reparents into the window, the tab shows the re-dock notice.
+	p.pop_out()
+	await get_tree().process_frame
+	assert(panel.get_parent() == p.window_body)
+	assert(p.window.visible)
+	assert(not p.popout_button.visible)
+	assert(p.dock_notice.visible)
+
+	# Parameters still flow to the panel while detached.
+	panel.set_parameters({"base_color": "#123456", "swim_mode": "general", "marking_layers": []})
+	await get_tree().process_frame
+	assert(panel.get_parent() == p.window_body)
+
+	# Pop-out is idempotent (no duplicate reparent / crash).
+	p.pop_out()
+	await get_tree().process_frame
+	assert(panel.get_parent() == p.window_body)
+
+	# Dock back: panel returns to its tab and the window hides.
+	p.dock_back()
+	await get_tree().process_frame
+	assert(panel.get_parent() == p.dock)
+	assert(not p.window.visible)
+	assert(p.popout_button.visible)
+	assert(not p.dock_notice.visible)

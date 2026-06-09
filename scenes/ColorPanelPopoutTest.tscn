@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://dcolorpopout1test"]
+[gd_scene format=3 uid="uid://bk2vjaiemtyv4"]
 
 [ext_resource type="Script" path="res://scripts/tools/ColorPanelPopoutTest.gd" id="1_color_panel_popout"]
 
