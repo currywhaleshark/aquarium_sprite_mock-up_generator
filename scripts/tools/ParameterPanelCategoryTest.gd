@@ -46,7 +46,10 @@ func _ready() -> void:
 		"visual_thickness": 0.32,
 		"pectoral_flap_amount": 7.5,
 		"body_length": 1.2,
-		"midbody_depth_scale": 1.4
+		"midbody_depth_scale": 1.4,
+		"marking_layers": [
+			{"type": "region_color", "region": "dorsal", "blend_mode": "multiply", "color": "#223344", "intensity": 0.5}
+		]
 	})
 	assert(panel.get_section_body("Head") == null)
 	assert(panel.get_section_body("Fins") == null)
@@ -90,6 +93,7 @@ func _ready() -> void:
 	assert(_find_color_picker_for_label_in_section(panel, "Color Settings", UiText.parameter("belly_color")) != null)
 	assert(_find_color_picker_for_label_in_section(panel, "Color Settings", UiText.parameter("fin_color")) != null)
 	assert(_find_color_picker_for_label_in_section(panel, "Color Settings", UiText.parameter("outline_color")) != null)
+	assert(_find_node_by_name(panel, "RegionalMarkingLayerEditor") != null)
 	base_color_picker.color_changed.emit(Color(0.2, 0.3, 0.4, 1.0))
 	await get_tree().process_frame
 	assert(String(seen[0].get("base_color", "")).begins_with("#"))
@@ -149,4 +153,13 @@ func _find_color_picker_for_label_in_section(panel: Control, section_name: Strin
 		var label := row.get_child(0) as Label
 		if label and label.text == label_text:
 			return row.get_child(1) as ColorPickerButton
+	return null
+
+func _find_node_by_name(root: Node, node_name: String) -> Node:
+	if root.name == node_name:
+		return root
+	for child in root.get_children():
+		var found := _find_node_by_name(child, node_name)
+		if found != null:
+			return found
 	return null

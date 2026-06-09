@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/MarkingLayerEditorTest.gd" id="1_marking_layer_editor"]
+
+[node name="MarkingLayerEditorTest" type="Node"]
+script = ExtResource("1_marking_layer_editor")

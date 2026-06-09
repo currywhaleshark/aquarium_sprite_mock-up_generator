@@ -6,6 +6,7 @@ signal parameters_changed(parameters: Dictionary)
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const MarkingLayerEditorScript := preload("res://scripts/ui/MarkingLayerEditor.gd")
 
 var parameters: Dictionary = {}
 var container: VBoxContainer
@@ -154,6 +155,10 @@ func _build_controls() -> void:
 		if not included_categories.is_empty() and not included_categories.has(category):
 			continue
 		if excluded_categories.has(category):
+			continue
+		if String(key) == "marking_layers" and value is Array:
+			var section_body := _ensure_section("Pattern Settings")
+			_add_marking_layer_editor(section_body, value)
 			continue
 		var section_body := _ensure_section(category)
 		if typeof(value) == TYPE_BOOL:
@@ -394,6 +399,19 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	)
 	parent.add_child(row)
 
+func _add_marking_layer_editor(parent: VBoxContainer, layers_value: Array) -> void:
+	var editor := MarkingLayerEditorScript.new()
+	editor.name = "RegionalMarkingLayerEditor"
+	editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	editor.set_layers(layers_value)
+	editor.layers_changed.connect(func(new_layers: Array) -> void:
+		if _updating_values:
+			return
+		parameters["marking_layers"] = new_layers.duplicate(true)
+		parameters_changed.emit(parameters.duplicate(true))
+	)
+	parent.add_child(editor)
+
 func _min_for_key(key: String, value: float) -> float:
 	if key == "scale_size":
 		return 4.0
@@ -452,6 +470,8 @@ func _is_signed_parameter(key: String) -> bool:
 	return key.contains("offset") or key.contains("position") or key.ends_with("_x") or key.ends_with("_y") or key.ends_with("_z")
 
 func _category_for_key(key: String) -> String:
+	if key == "marking_layers":
+		return "Pattern Settings"
 	if key.contains("scale") or key == "lateral_line_strength":
 		return "Scale Settings"
 	if key.begins_with("pattern"):
