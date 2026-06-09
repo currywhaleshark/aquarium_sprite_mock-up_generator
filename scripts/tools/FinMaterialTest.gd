@@ -13,6 +13,7 @@ func _ready() -> void:
 	_test_fin_ray_defaults_are_injected()
 	_test_new_fin_fields_round_trip_through_fin_profile()
 	_test_fin_material_exposes_ray_structure_uniforms()
+	_test_fish_rig_assigns_slot_specific_ray_axes()
 	_test_rayless_material_overrides_global_rays()
 	_test_legacy_parallel_ray_fallback_contract()
 
@@ -184,6 +185,27 @@ func _test_fin_material_exposes_ray_structure_uniforms() -> void:
 	assert(material.get_shader_parameter("fin_body_color") is Color)
 	assert(abs(float(material.get_shader_parameter("fin_color_blend")) - 0.4) < 0.001)
 
+func _test_fish_rig_assigns_slot_specific_ray_axes() -> void:
+	var fish := FishRigScript.new()
+	add_child(fish)
+	fish.auto_animate = false
+	fish.set_parameters({
+		"fin_ray_style": "fan",
+		"fin_ray_count": 10.0,
+		"fin_ray_strength": 0.6,
+		"pelvic_enabled": true,
+		"adipose_fin_enabled": true,
+		"adipose_fin_rayed": 0.5
+	})
+	await get_tree().process_frame
+	assert(_fin_ray_axis(fish, "BodyPivot/DorsalFin1") == 1)
+	assert(_fin_ray_axis(fish, "BodyPivot/AnalFin") == 2)
+	assert(_fin_ray_axis(fish, "BodyPivot/PelvicFinL") == 2)
+	assert(_fin_ray_axis(fish, "BodyPivot/PectoralFinL") == 0)
+	assert(_fin_ray_axis(fish, "BodyPivot/AdiposeFin") == 1)
+	assert(_fin_ray_axis(fish, "BodyPivot/TailPivot1/TailPivot2/TailFinPivot/TailFin") == 0)
+	fish.queue_free()
+
 func _test_rayless_material_overrides_global_rays() -> void:
 	var material := ToonMaterialFactoryScript.make_rayless_fin_material({
 		"fin_ray_style": "mixed",
@@ -219,3 +241,9 @@ func _assert_mesh_has_uvs(mesh: Mesh) -> void:
 		if abs(uv.x) > 0.001 or abs(uv.y) > 0.001:
 			saw_nonzero = true
 	assert(saw_nonzero)
+
+func _fin_ray_axis(fish: Node, path: String) -> int:
+	var node := fish.get_node_or_null(path) as MeshInstance3D
+	assert(node != null)
+	assert(node.material_override is ShaderMaterial)
+	return int(round(float(node.material_override.get_shader_parameter("fin_ray_axis"))))

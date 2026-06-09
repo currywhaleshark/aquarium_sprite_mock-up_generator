@@ -11,6 +11,9 @@ const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
 const FIN_BASE_EMBED := 0.05
 const DEFAULT_ADIPOSE_FIN_SIZE := 0.24
 const DEFAULT_FINLET_COUNT := 4
+const FIN_RAY_AXIS_HORIZONTAL := 0.0
+const FIN_RAY_AXIS_VERTICAL_UP := 1.0
+const FIN_RAY_AXIS_VERTICAL_DOWN := 2.0
 
 # Single jaw hinge location, as a fraction of mouth_size BEHIND the mouth node. The
 # upper/lower lip bands and the split lower-jaw mesh all pivot about this same x so
@@ -116,7 +119,9 @@ func rebuild() -> void:
 	# the head-appendage / eye-stalk accent.
 	var body_mat := TMF.make_body_material(parameters)
 	var secondary_mat := TMF.make_surface(param_color("secondary_color", "#d8fbff"), 0.2, 0.5)
-	var fin_mat := TMF.make_fin_material(parameters)
+	var dorsal_fin_mat := _make_fin_material(FIN_RAY_AXIS_VERTICAL_UP)
+	var ventral_fin_mat := _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN)
+	var horizontal_fin_mat := _make_fin_material(FIN_RAY_AXIS_HORIZONTAL)
 	var eye_mat := TMF.make_dark("#10161a")
 
 	var body_length := param_float("body_length", 1.45)
@@ -169,7 +174,7 @@ func rebuild() -> void:
 		param_float("dorsal_1_height", param_float("dorsal_fin_size", 0.28)),
 		param_float("dorsal_1_attach_t", 0.45),
 		0.035,
-		fin_mat
+		dorsal_fin_mat
 	)
 	dorsal_base_position = _surface_position("dorsal", param_float("dorsal_1_attach_t", 0.45), 0.035)
 	dorsal_fin.position = dorsal_base_position
@@ -185,7 +190,7 @@ func rebuild() -> void:
 			param_float("dorsal_2_height", 0.18),
 			param_float("dorsal_2_attach_t", 0.68),
 			0.028,
-			fin_mat
+			_make_fin_material(FIN_RAY_AXIS_VERTICAL_UP)
 		)
 		dorsal_2_base_position = _surface_position("dorsal", param_float("dorsal_2_attach_t", 0.68), 0.028)
 		dorsal_2_fin.position = dorsal_2_base_position
@@ -196,7 +201,7 @@ func rebuild() -> void:
 		"fin_opacity": clampf(param_float("adipose_fin_opacity", 0.72), 0.0, 1.0)
 	})
 	if float(parameters.get("adipose_fin_rayed", 0.0)) > 0.001:
-		adipose_mat = TMF.make_fin_material(parameters, {
+		adipose_mat = _make_fin_material(FIN_RAY_AXIS_VERTICAL_UP, {
 			"fin_opacity": clampf(param_float("adipose_fin_opacity", 0.72), 0.0, 1.0),
 			"fin_ray_strength": clampf(float(parameters.get("adipose_fin_rayed", 0.0)), 0.0, 1.0)
 		})
@@ -210,7 +215,7 @@ func rebuild() -> void:
 		param_float("anal_height", param_float("anal_fin_size", 0.2)),
 		param_float("anal_attach_t", 0.64),
 		0.03,
-		fin_mat
+		ventral_fin_mat
 	)
 	anal_base_position = _surface_position("ventral", param_float("anal_attach_t", 0.64), 0.03)
 	anal_fin.position = anal_base_position
@@ -224,8 +229,8 @@ func rebuild() -> void:
 		var pelvic_height := param_float("pelvic_height", 0.14)
 		if pelvic_shape == "oval":
 			pelvic_base_points = PF.oval_fin_points(pelvic_length, pelvic_height)
-			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, fin_mat)
-			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, fin_mat)
+			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, ventral_fin_mat)
+			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN))
 		else:
 			var points_l := _get_fin_points("PelvicFinL", pelvic_shape, pelvic_length, pelvic_height)
 			var points_r := _get_fin_points("PelvicFinR", pelvic_shape, pelvic_length, pelvic_height)
@@ -236,8 +241,8 @@ func rebuild() -> void:
 			for p in points_r:
 				inverted_r.append(Vector3(p.x, -p.y, p.z))
 			pelvic_base_points = inverted_l
-			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, fin_mat)
-			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, fin_mat)
+			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, ventral_fin_mat)
+			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN))
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -255,11 +260,11 @@ func rebuild() -> void:
 	var pectoral_shape := String(parameters.get("pectoral_shape", "oval"))
 	if pectoral_shape == "oval":
 		pectoral_base_points = PF.oval_fin_points(pectoral_size, pectoral_size * 0.5)
-		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, fin_mat)
+		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, horizontal_fin_mat)
 	else:
 		var points_l := _get_fin_points("PectoralFinL", pectoral_shape, pectoral_size, pectoral_size * 0.5)
 		pectoral_base_points = points_l
-		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, fin_mat)
+		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, horizontal_fin_mat)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
 	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -_surface_radius_z(pectoral_attach_t) - shell_expand * 0.18)
@@ -270,10 +275,10 @@ func rebuild() -> void:
 	body_pivot.add_child(pectoral_l)
 
 	if pectoral_shape == "oval":
-		pectoral_r = PF.oval_fin("PectoralFinR", pectoral_size, pectoral_size * 0.5, fin_mat)
+		pectoral_r = PF.oval_fin("PectoralFinR", pectoral_size, pectoral_size * 0.5, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL))
 	else:
 		var points_r := _get_fin_points("PectoralFinR", pectoral_shape, pectoral_size, pectoral_size * 0.5)
-		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, fin_mat)
+		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL))
 	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, _surface_radius_z(pectoral_attach_t) + shell_expand * 0.18)
 	pectoral_r.position = pectoral_r_base_position
 	pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
@@ -317,7 +322,7 @@ func rebuild() -> void:
 		adjusted_points.append(new_p)
 	tail_fin_base_points = adjusted_points
 
-	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, fin_mat)
+	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, horizontal_fin_mat)
 	tail_fin_pivot.add_child(tail_fin)
 	_update_body_ring_world_points()
 	if ring_editor_enabled or param_float("show_ring_guides", 0.0) > 0.5:
@@ -1392,6 +1397,11 @@ func _build_median_fin(fin_name: String, side: String, shape: String, length: fl
 	var points := _get_fin_points(fin_name, shape, length, height)
 	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
 	return PF.polygon_fin(fin_name, _curved_fin_points(side, attach_t, margin, points, follow), material)
+
+func _make_fin_material(ray_axis: float, overrides: Dictionary = {}) -> ShaderMaterial:
+	var axis_overrides := overrides.duplicate(true)
+	axis_overrides["fin_ray_axis"] = ray_axis
+	return TMF.make_fin_material(parameters, axis_overrides)
 
 func _effective_adipose_attach_t() -> float:
 	var requested := clampf(param_float("adipose_fin_position", 0.82), 0.0, 1.0)

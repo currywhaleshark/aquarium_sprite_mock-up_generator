@@ -12,6 +12,7 @@ uniform float fin_edge_width : hint_range(0.0, 0.25) = 0.035;
 uniform float fin_ray_count : hint_range(0.0, 48.0) = 0.0;
 uniform float fin_ray_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float fin_ray_style_id : hint_range(0.0, 5.0) = 0.0;
+uniform float fin_ray_axis : hint_range(0.0, 2.0) = 0.0;
 uniform float fin_ray_root_bias : hint_range(-1.0, 1.0) = 0.0;
 uniform float fin_ray_spread : hint_range(0.0, 1.0) = 0.75;
 uniform float fin_spine_count : hint_range(0.0, 12.0) = 0.0;
@@ -43,10 +44,28 @@ float repeated_line(float coord, float count, float width) {
 }
 
 float ray_coordinate(vec2 uv) {
-	vec2 root = vec2(0.5 + fin_ray_root_bias * 0.35, 0.0);
-	float angle = atan(uv.x - root.x, max(uv.y, 0.001));
+	if (fin_ray_axis < 0.5) {
+		vec2 root = vec2(0.0, 0.5 + fin_ray_root_bias * 0.35);
+		float angle = atan(uv.y - root.y, max(uv.x, 0.001));
+		float radial_coord = clamp((angle / PI) + 0.5, 0.0, 1.0);
+		return mix(uv.y, radial_coord, fin_ray_spread);
+	}
+	float root_y = fin_ray_axis < 1.5 ? 0.0 : 1.0;
+	float distance_from_root = fin_ray_axis < 1.5 ? uv.y : 1.0 - uv.y;
+	vec2 root = vec2(0.5 + fin_ray_root_bias * 0.35, root_y);
+	float angle = atan(uv.x - root.x, max(distance_from_root, 0.001));
 	float radial_coord = clamp((angle / PI) + 0.5, 0.0, 1.0);
 	return mix(uv.x, radial_coord, fin_ray_spread);
+}
+
+float ray_distance(vec2 uv) {
+	if (fin_ray_axis < 0.5) {
+		return uv.x;
+	}
+	if (fin_ray_axis < 1.5) {
+		return uv.y;
+	}
+	return 1.0 - uv.y;
 }
 
 void fragment() {
@@ -63,18 +82,19 @@ void fragment() {
 		float coord = ray_coordinate(v_uv);
 		float organic = (hash11(floor(coord * fin_ray_count)) - 0.5) * fin_ray_irregularity * 0.06;
 		float soft_ray = repeated_line(coord + organic, fin_ray_count, 0.45);
-		float branch_offset = smoothstep(0.55, 1.0, v_uv.x) * fin_ray_branching * 0.035;
+		float dist = ray_distance(v_uv);
+		float branch_offset = smoothstep(0.55, 1.0, dist) * fin_ray_branching * 0.035;
 		float branch_ray = max(
 			repeated_line(coord + branch_offset, fin_ray_count, 0.44),
 			repeated_line(coord - branch_offset, fin_ray_count, 0.44)
 		);
-		float segment = repeated_line(v_uv.x, mix(8.0, 18.0, v_uv.x), 0.42) * fin_ray_segmentation;
+		float segment = repeated_line(dist, mix(8.0, 18.0, dist), 0.42) * fin_ray_segmentation;
 		float ray = legacy_ray;
 		if (fin_ray_style_id > 0.5) {
 			ray = mix(soft_ray, branch_ray, fin_ray_branching);
 			ray = max(ray, segment * ray * 0.45);
 		}
-		float ray_fade = smoothstep(0.05, 0.8, v_uv.x);
+		float ray_fade = smoothstep(0.05, 0.8, dist);
 		col = mix(col, fin_edge_color.rgb, ray * ray_fade * fin_ray_strength);
 	}
 

@@ -109,6 +109,7 @@ static func make_fin_material(parameters: Dictionary, overrides: Dictionary = {}
 	material.set_shader_parameter("fin_opacity", clampf(float(effective.get("fin_opacity", 1.0)), 0.0, 1.0))
 	material.set_shader_parameter("fin_edge_width", clampf(float(effective.get("fin_edge_width", 0.035)), 0.0, 0.25))
 	material.set_shader_parameter("fin_ray_style_id", _fin_ray_style_id(String(effective.get("fin_ray_style", "none"))))
+	material.set_shader_parameter("fin_ray_axis", clampf(float(effective.get("fin_ray_axis", 0.0)), 0.0, 2.0))
 	material.set_shader_parameter("fin_ray_count", clampf(float(effective.get("fin_ray_count", 0.0)), 0.0, 48.0))
 	material.set_shader_parameter("fin_ray_strength", clampf(float(effective.get("fin_ray_strength", 0.0)), 0.0, 1.0))
 	material.set_shader_parameter("fin_ray_root_bias", clampf(float(effective.get("fin_ray_root_bias", 0.0)), -1.0, 1.0))
