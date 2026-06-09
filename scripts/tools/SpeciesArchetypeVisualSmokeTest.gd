@@ -15,7 +15,10 @@ const REQUIRED_IDS := [
 	"corydoras",
 	"puffer",
 	"eel_loach",
-	"koi_carp"
+	"koi_carp",
+	"trout",
+	"tuna",
+	"mackerel"
 ]
 
 func _ready() -> void:
@@ -83,6 +86,9 @@ func _check_signature_nodes(id: String, fish: FishRig, applied: Dictionary) -> v
 			assert(fish.get_node_or_null("BodyPivot/Head/HeadOrnament_wen") != null)
 			assert(String(applied.get("caudal_shape", "")) == "double_fan")
 			assert(float(applied.get("caudal_softness", 0.0)) > 0.55)
+		"guppy":
+			assert(String(applied.get("fin_ray_style", "")) == "threaded")
+			assert(float(applied.get("fin_ray_branching", 0.0)) > 0.3)
 		"corydoras":
 			assert(fish.get_node_or_null("BodyPivot/Head/BarbelCluster_cory") != null)
 			assert(String(applied.get("mouth_type", "")) == "inferior")
@@ -96,6 +102,19 @@ func _check_signature_nodes(id: String, fish: FishRig, applied: Dictionary) -> v
 		"koi_carp":
 			assert(fish.get_node_or_null("BodyPivot/Head/BarbelCluster_koi") != null)
 			assert(String(applied.get("mouth_detail", "")) == "lip")
+		"trout":
+			assert(bool(applied.get("adipose_fin_enabled", false)) == true)
+			assert(fish.get_node_or_null("BodyPivot/AdiposeFin") != null)
+		"tuna":
+			assert(String(applied.get("caudal_shape", "")) == "lunate")
+			assert(bool(applied.get("finlet_enabled", false)) == true)
+			assert(fish.get_node_or_null("BodyPivot/FinletDorsal_0") != null)
+			assert(fish.get_node_or_null("BodyPivot/FinletVentral_0") != null)
+		"mackerel":
+			assert(String(applied.get("caudal_shape", "")) == "lunate")
+			assert(bool(applied.get("finlet_enabled", false)) == true)
+			assert(fish.get_node_or_null("BodyPivot/FinletDorsal_0") != null)
+			assert(fish.get_node_or_null("BodyPivot/FinletVentral_0") != null)
 
 func _test_contact_sheet_builder() -> void:
 	var output_dir := ProjectSettings.globalize_path("res://exports/test_results/species_contact_source")

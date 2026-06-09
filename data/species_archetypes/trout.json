@@ -1,0 +1,76 @@
+{
+	"id": "trout",
+	"label": "Trout",
+	"creature_type": "fish",
+	"readability_priority": ["salmonid profile", "small adipose fin", "speckled body"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.48,
+			"body_height": 0.42,
+			"body_width": 0.26,
+			"head_size": 0.38,
+			"head_offset": -0.52,
+			"eye_size": 0.045
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.34,
+			"tail_fin_size": 0.36,
+			"caudal_shape": "forked_shallow",
+			"caudal_height_scale": 0.72
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "single",
+			"dorsal_1_length": 0.28,
+			"dorsal_1_height": 0.16,
+			"anal_shape": "single",
+			"anal_length": 0.24,
+			"anal_height": 0.12,
+			"fin_ray_style": "soft",
+			"fin_ray_count": 10,
+			"fin_ray_strength": 0.22,
+			"adipose_fin_enabled": true,
+			"adipose_fin_size": 0.24,
+			"adipose_fin_position": 0.82,
+			"adipose_fin_height": 0.18,
+			"adipose_fin_roundness": 0.8,
+			"adipose_fin_opacity": 0.72,
+			"adipose_fin_rayed": 0,
+			"fin_softness": 0.35,
+			"fin_rigidity": 0.25
+		},
+		"visual_profile": {
+			"base_color": "#6b7f55",
+			"belly_color": "#e7e0c4",
+			"fin_color": "#c78f53",
+			"outline_color": "#1f2933",
+			"pattern_type": "spots",
+			"pattern_color": "#2b1f18",
+			"pattern_intensity": 0.55,
+			"wetness": 0.24
+		},
+		"motion_profile": {
+			"swim_mode": "general",
+			"global_sway_amount": 8.0,
+			"tail_sway_multiplier": 1.1
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "scale_grid",
+			"zone": "body",
+			"color": "#2b1f18",
+			"x_start": 0.12,
+			"x_end": 0.88,
+			"y": 0.12,
+			"thickness": 0.06,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"color_jitter": 0.1,
+		"spot_density_variation": 0.2
+	}
+}
