@@ -9,6 +9,8 @@ const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
 # How far median/pelvic fin bases sink into the body so they look rooted
 # instead of floating above the surface. Larger embeds the base deeper.
 const FIN_BASE_EMBED := 0.05
+const DEFAULT_ADIPOSE_FIN_SIZE := 0.24
+const DEFAULT_FINLET_COUNT := 4
 
 # Single jaw hinge location, as a fraction of mouth_size BEHIND the mouth node. The
 # upper/lower lip bands and the split lower-jaw mesh all pivot about this same x so
@@ -49,7 +51,6 @@ var shell_tail_pivot_2_x := 0.0
 var dorsal_fin: MeshInstance3D
 var dorsal_2_fin: MeshInstance3D
 var adipose_fin: MeshInstance3D = null
-var finlet_nodes: Array[MeshInstance3D] = []
 var finlet_specs: Array[Dictionary] = []
 var anal_fin: MeshInstance3D
 var pelvic_l: MeshInstance3D
@@ -94,7 +95,6 @@ func rebuild() -> void:
 	dorsal_fin = null
 	dorsal_2_fin = null
 	adipose_fin = null
-	finlet_nodes.clear()
 	finlet_specs.clear()
 	anal_fin = null
 	pelvic_l = null
@@ -197,6 +197,7 @@ func rebuild() -> void:
 	})
 	if float(parameters.get("adipose_fin_rayed", 0.0)) > 0.001:
 		adipose_mat = TMF.make_fin_material(parameters, {
+			"fin_opacity": clampf(param_float("adipose_fin_opacity", 0.72), 0.0, 1.0),
 			"fin_ray_strength": clampf(float(parameters.get("adipose_fin_rayed", 0.0)), 0.0, 1.0)
 		})
 	_build_adipose_fin(adipose_mat)
@@ -1406,9 +1407,9 @@ func _build_adipose_fin(fin_mat: Material) -> void:
 		return
 	var size := param_float("adipose_fin_size", 0.0)
 	if size <= 0.001:
-		return
-	var height := param_float("adipose_fin_height", 0.18) * size
-	var length := size * lerpf(0.55, 0.85, param_float("adipose_fin_roundness", 0.75))
+		size = DEFAULT_ADIPOSE_FIN_SIZE
+	var height := maxf(param_float("adipose_fin_height", 0.18), 0.32) * size
+	var length := size * lerpf(0.16, 0.26, param_float("adipose_fin_roundness", 0.75))
 	var points := PackedVector3Array([
 		Vector3(-length * 0.45, 0.0, 0.0),
 		Vector3(-length * 0.10, height, 0.0),
@@ -1424,8 +1425,10 @@ func _build_adipose_fin(fin_mat: Material) -> void:
 func _finlet_attach_t(index: int, count: int) -> float:
 	if count <= 1:
 		return 0.82
-	var start_t := 0.70
-	var end_t := 0.90
+	var spacing := clampf(param_float("finlet_spacing", 0.72), 0.0, 1.0)
+	var half_span := 0.10 * lerpf(0.45, 1.35, spacing)
+	var start_t := clampf(0.80 - half_span, 0.64, 0.88)
+	var end_t := clampf(0.80 + half_span, start_t + 0.01, 0.94)
 	var span := end_t - start_t
 	var ratio := float(index) / float(count - 1)
 	return start_t + span * ratio
@@ -1435,6 +1438,9 @@ func _build_finlets(finlet_mat: Material) -> void:
 		return
 	var dorsal_count := clampi(int(round(param_float("finlet_dorsal_count", 0.0))), 0, 12)
 	var ventral_count := clampi(int(round(param_float("finlet_ventral_count", 0.0))), 0, 12)
+	if dorsal_count == 0 and ventral_count == 0:
+		dorsal_count = DEFAULT_FINLET_COUNT
+		ventral_count = DEFAULT_FINLET_COUNT
 	_build_finlet_side("dorsal", dorsal_count, finlet_mat)
 	_build_finlet_side("ventral", ventral_count, finlet_mat)
 
@@ -1459,7 +1465,6 @@ func _build_finlet_side(side: String, count: int, finlet_mat: Material) -> void:
 		var margin := 0.012
 		finlet.position = _surface_position(side, attach_t, margin)
 		finlet.rotation_degrees.z = _surface_tangent_angle_degrees(side, attach_t) + param_float("finlet_pitch", 0.25) * 15.0
-		finlet_nodes.append(finlet)
 		finlet_specs.append({"node": finlet, "side": side, "attach_t": attach_t, "margin": margin})
 
 func _get_fin_points(fin_name: String, shape: String, length: float, height: float) -> PackedVector3Array:

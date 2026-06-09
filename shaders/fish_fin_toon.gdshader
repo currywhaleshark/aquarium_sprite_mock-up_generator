@@ -43,10 +43,10 @@ float repeated_line(float coord, float count, float width) {
 }
 
 float ray_coordinate(vec2 uv) {
-	vec2 root = vec2(0.0, 0.5 + fin_ray_root_bias * 0.35);
-	float angle = atan(uv.y - root.y, max(uv.x, 0.001));
+	vec2 root = vec2(0.5 + fin_ray_root_bias * 0.35, 0.0);
+	float angle = atan(uv.x - root.x, max(uv.y, 0.001));
 	float radial_coord = clamp((angle / PI) + 0.5, 0.0, 1.0);
-	return mix(uv.y, radial_coord, fin_ray_spread);
+	return mix(uv.x, radial_coord, fin_ray_spread);
 }
 
 void fragment() {
