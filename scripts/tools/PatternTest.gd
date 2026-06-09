@@ -61,6 +61,11 @@ func _test_shader_compiles_and_uniforms() -> void:
 	var shader := load(ToonMaterialFactoryScript.BODY_SHADER_PATH)
 	assert(shader is Shader)
 	assert(String(shader.code).length() > 0)
+	var shader_code := String(shader.code)
+	assert(shader_code.contains("apply_scale_region_layer"))
+	assert(shader_code.contains("apply_iridescence_region_layer"))
+	assert(shader_code.contains("scale_strength_local = apply_scale_region_layer"))
+	assert(shader_code.contains("iridescence_strength_local = apply_iridescence_region_layer"))
 
 	var material := ToonMaterialFactoryScript.make_body_material({
 		"base_color": "#112233",

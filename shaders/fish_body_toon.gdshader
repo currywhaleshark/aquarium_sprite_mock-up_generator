@@ -322,6 +322,26 @@ void apply_marking_layer(inout vec3 col, int kind, int region, int blend_mode, v
 	col += color.rgb * mask * clamp(params.z + emissive_marking_strength, 0.0, 1.0) * 0.35;
 }
 
+float regional_layer_mask(int kind, int target_kind, int region, vec4 rect, vec4 params, float u, float up) {
+	if (kind != target_kind) {
+		return 0.0;
+	}
+	float x0 = min(rect.x, rect.y);
+	float x1 = max(rect.x, rect.y);
+	float mask = band_range(u, x0, x1, max(params.y, 0.001));
+	return mask * region_mask(region, u, up);
+}
+
+float apply_scale_region_layer(float current, int kind, int region, vec4 rect, vec4 params, float u, float up) {
+	float mask = regional_layer_mask(kind, TYPE_SCALE_REGION, region, rect, params, u, up);
+	return mix(current, clamp(params.x, 0.0, 1.0), mask);
+}
+
+float apply_iridescence_region_layer(float current, int kind, int region, vec4 rect, vec4 params, float u, float up) {
+	float mask = regional_layer_mask(kind, TYPE_IRIDESCENCE_REGION, region, rect, params, u, up);
+	return mix(current, clamp(params.x, 0.0, 1.0), mask);
+}
+
 void vertex() {
 	v_long = UV.x;
 	v_circ = UV.y;
@@ -427,6 +447,14 @@ void fragment() {
 	vec2 scale_p = vec2(UV2.x * scale_density, UV2.y * scale_density * 2.0);
 	
 	float scale_strength_local = is_head ? 0.0 : scale_strength;
+	scale_strength_local = apply_scale_region_layer(scale_strength_local, marking_type_0, marking_region_0, marking_rect_0, marking_params_0, v_long, up);
+	scale_strength_local = apply_scale_region_layer(scale_strength_local, marking_type_1, marking_region_1, marking_rect_1, marking_params_1, v_long, up);
+	scale_strength_local = apply_scale_region_layer(scale_strength_local, marking_type_2, marking_region_2, marking_rect_2, marking_params_2, v_long, up);
+	scale_strength_local = apply_scale_region_layer(scale_strength_local, marking_type_3, marking_region_3, marking_rect_3, marking_params_3, v_long, up);
+	scale_strength_local = apply_scale_region_layer(scale_strength_local, marking_type_4, marking_region_4, marking_rect_4, marking_params_4, v_long, up);
+	scale_strength_local = apply_scale_region_layer(scale_strength_local, marking_type_5, marking_region_5, marking_rect_5, marking_params_5, v_long, up);
+	scale_strength_local = apply_scale_region_layer(scale_strength_local, marking_type_6, marking_region_6, marking_rect_6, marking_params_6, v_long, up);
+	scale_strength_local = apply_scale_region_layer(scale_strength_local, marking_type_7, marking_region_7, marking_rect_7, marking_params_7, v_long, up);
 	
 	float scale_r = 0.75;
 	vec2 scale_aniso = vec2(1.0, 0.5);   // aspect ratio correction for vertical 2x density
@@ -640,9 +668,18 @@ void fragment() {
 	// belly->back), with only a faint fresnel edge accent so head/body stay
 	// consistent; wetness adds a weak grazing sheen. Both default off.
 	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 2.5);
+	float iridescence_strength_local = iridescence_strength;
+	iridescence_strength_local = apply_iridescence_region_layer(iridescence_strength_local, marking_type_0, marking_region_0, marking_rect_0, marking_params_0, v_long, up);
+	iridescence_strength_local = apply_iridescence_region_layer(iridescence_strength_local, marking_type_1, marking_region_1, marking_rect_1, marking_params_1, v_long, up);
+	iridescence_strength_local = apply_iridescence_region_layer(iridescence_strength_local, marking_type_2, marking_region_2, marking_rect_2, marking_params_2, v_long, up);
+	iridescence_strength_local = apply_iridescence_region_layer(iridescence_strength_local, marking_type_3, marking_region_3, marking_rect_3, marking_params_3, v_long, up);
+	iridescence_strength_local = apply_iridescence_region_layer(iridescence_strength_local, marking_type_4, marking_region_4, marking_rect_4, marking_params_4, v_long, up);
+	iridescence_strength_local = apply_iridescence_region_layer(iridescence_strength_local, marking_type_5, marking_region_5, marking_rect_5, marking_params_5, v_long, up);
+	iridescence_strength_local = apply_iridescence_region_layer(iridescence_strength_local, marking_type_6, marking_region_6, marking_rect_6, marking_params_6, v_long, up);
+	iridescence_strength_local = apply_iridescence_region_layer(iridescence_strength_local, marking_type_7, marking_region_7, marking_rect_7, marking_params_7, v_long, up);
 	float irid_phase = TAU * (v_long * iridescence_frequency + 0.5 * up);
 	vec3 irid = 0.5 + 0.5 * cos(irid_phase + vec3(0.0, 2.094, 4.188));
-	col += irid * iridescence_color.rgb * (iridescence_strength * (0.35 + 0.35 * fres));
+	col += irid * iridescence_color.rgb * (iridescence_strength_local * (0.35 + 0.35 * fres));
 	col += vec3(0.9, 0.95, 1.0) * (fres * wetness * 0.3);
 
 	ALBEDO = clamp(col, 0.0, 1.0);
