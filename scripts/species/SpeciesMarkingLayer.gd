@@ -16,10 +16,34 @@ const TYPE_FIN_EDGE := 9
 const TYPE_FIN_SPOTS := 10
 const TYPE_SCALE_GRID := 11
 const TYPE_RETICULATED_ZONE := 12
+const TYPE_REGION_COLOR := 13
+const TYPE_SCALE_REGION := 14
+const TYPE_IRIDESCENCE_REGION := 15
 
 const ZONE_BODY := 0
 const ZONE_HEAD := 1
 const ZONE_FIN := 2
+
+const REGION_BODY := 0
+const REGION_DORSAL := 1
+const REGION_FLANK := 2
+const REGION_VENTRAL := 3
+const REGION_DORSAL_FLANK := 4
+const REGION_VENTRAL_FLANK := 5
+const REGION_HEAD := 6
+const REGION_CHEEK := 7
+const REGION_OPERCULUM := 8
+const REGION_CAUDAL_PEDUNCLE := 9
+const REGION_MEDIAN_FIN := 10
+const REGION_PAIRED_FIN := 11
+const REGION_CAUDAL_FIN := 12
+const REGION_SPECIAL_FIN := 13
+const REGION_FIN := 14
+
+const BLEND_NORMAL := 0
+const BLEND_MULTIPLY := 1
+const BLEND_SCREEN := 2
+const BLEND_ADD := 3
 
 const TYPE_BY_NAME := {
 	"lateral_line": TYPE_LATERAL_LINE,
@@ -33,13 +57,41 @@ const TYPE_BY_NAME := {
 	"fin_edge": TYPE_FIN_EDGE,
 	"fin_spots": TYPE_FIN_SPOTS,
 	"scale_grid": TYPE_SCALE_GRID,
-	"reticulated_zone": TYPE_RETICULATED_ZONE
+	"reticulated_zone": TYPE_RETICULATED_ZONE,
+	"region_color": TYPE_REGION_COLOR,
+	"scale_region": TYPE_SCALE_REGION,
+	"iridescence_region": TYPE_IRIDESCENCE_REGION
 }
 
 const ZONE_BY_NAME := {
 	"body": ZONE_BODY,
 	"head": ZONE_HEAD,
 	"fin": ZONE_FIN
+}
+
+const REGION_BY_NAME := {
+	"body": REGION_BODY,
+	"dorsal": REGION_DORSAL,
+	"flank": REGION_FLANK,
+	"ventral": REGION_VENTRAL,
+	"dorsal_flank": REGION_DORSAL_FLANK,
+	"ventral_flank": REGION_VENTRAL_FLANK,
+	"head": REGION_HEAD,
+	"cheek": REGION_CHEEK,
+	"operculum": REGION_OPERCULUM,
+	"caudal_peduncle": REGION_CAUDAL_PEDUNCLE,
+	"median_fin": REGION_MEDIAN_FIN,
+	"paired_fin": REGION_PAIRED_FIN,
+	"caudal_fin": REGION_CAUDAL_FIN,
+	"special_fin": REGION_SPECIAL_FIN,
+	"fin": REGION_FIN
+}
+
+const BLEND_BY_NAME := {
+	"normal": BLEND_NORMAL,
+	"multiply": BLEND_MULTIPLY,
+	"screen": BLEND_SCREEN,
+	"add": BLEND_ADD
 }
 
 static func encode_uniforms(raw_layers: Variant) -> Dictionary:
@@ -50,6 +102,8 @@ static func encode_uniforms(raw_layers: Variant) -> Dictionary:
 			var layer: Dictionary = normalized[i]
 			encoded["marking_type_%d" % i] = int(layer["type_id"])
 			encoded["marking_zone_%d" % i] = int(layer["zone_id"])
+			encoded["marking_region_%d" % i] = int(layer["region_id"])
+			encoded["marking_blend_%d" % i] = int(layer["blend_id"])
 			encoded["marking_color_%d" % i] = _as_color(layer.get("color", "#ffffff"))
 			encoded["marking_rect_%d" % i] = Vector4(
 				float(layer.get("x_start", 0.0)),
@@ -66,6 +120,8 @@ static func encode_uniforms(raw_layers: Variant) -> Dictionary:
 		else:
 			encoded["marking_type_%d" % i] = TYPE_NONE
 			encoded["marking_zone_%d" % i] = ZONE_BODY
+			encoded["marking_region_%d" % i] = REGION_BODY
+			encoded["marking_blend_%d" % i] = BLEND_NORMAL
 			encoded["marking_color_%d" % i] = Color(1, 1, 1, 1)
 			encoded["marking_rect_%d" % i] = Vector4(0.0, 1.0, 0.0, 0.05)
 			encoded["marking_params_%d" % i] = Vector4(0.0, 0.025, 0.0, float(i))
@@ -87,6 +143,17 @@ static func _normalize_layers(raw_layers: Variant) -> Array[Dictionary]:
 		var layer: Dictionary = raw_layer.duplicate(true)
 		layer["type_id"] = int(TYPE_BY_NAME[type_name])
 		layer["zone_id"] = int(ZONE_BY_NAME.get(zone_name, ZONE_BODY))
+		var default_region_name := _default_region_name(zone_name)
+		var region_name := String(layer.get("region", default_region_name))
+		if not REGION_BY_NAME.has(region_name):
+			region_name = "body"
+		var blend_name := String(layer.get("blend_mode", "normal"))
+		if not BLEND_BY_NAME.has(blend_name):
+			blend_name = "normal"
+		layer["region"] = region_name
+		layer["region_id"] = int(REGION_BY_NAME[region_name])
+		layer["blend_mode"] = blend_name
+		layer["blend_id"] = int(BLEND_BY_NAME[blend_name])
 		layer["color"] = String(layer.get("color", "#ffffff"))
 		layer["x_start"] = clampf(float(layer.get("x_start", 0.0)), 0.0, 1.0)
 		layer["x_end"] = clampf(float(layer.get("x_end", 1.0)), 0.0, 1.0)
@@ -101,6 +168,11 @@ static func _normalize_layers(raw_layers: Variant) -> Array[Dictionary]:
 		layer["emissive"] = clampf(float(layer.get("emissive", 0.0)), 0.0, 1.0)
 		layers.append(layer)
 	return layers
+
+static func _default_region_name(zone_name: String) -> String:
+	if zone_name == "fin":
+		return "fin"
+	return "body"
 
 static func _as_color(value: Variant) -> Color:
 	if value is Color:
