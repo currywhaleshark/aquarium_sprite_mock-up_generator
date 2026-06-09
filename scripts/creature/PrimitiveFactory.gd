@@ -444,6 +444,13 @@ static func _fin_uv_for_point(point: Vector3, min_x: float, max_x: float, min_y:
 
 static func _fin_shape_points(shape: String, length: float, height: float) -> PackedVector3Array:
 	match shape:
+		"nub":
+			return PackedVector3Array([
+				Vector3(-length * 0.45, 0.0, 0.0),
+				Vector3(-length * 0.10, height, 0.0),
+				Vector3(length * 0.45, height * 0.25, 0.0),
+				Vector3(length * 0.40, 0.0, 0.0)
+			])
 		"spiny":
 			return PackedVector3Array([
 				Vector3(-length * 0.5, 0.0, 0.0),

@@ -9,6 +9,11 @@ const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
 # How far median/pelvic fin bases sink into the body so they look rooted
 # instead of floating above the surface. Larger embeds the base deeper.
 const FIN_BASE_EMBED := 0.05
+const DEFAULT_ADIPOSE_FIN_SIZE := 0.24
+const DEFAULT_FINLET_COUNT := 4
+const FIN_RAY_AXIS_HORIZONTAL := 0.0
+const FIN_RAY_AXIS_VERTICAL_UP := 1.0
+const FIN_RAY_AXIS_VERTICAL_DOWN := 2.0
 
 # Single jaw hinge location, as a fraction of mouth_size BEHIND the mouth node. The
 # upper/lower lip bands and the split lower-jaw mesh all pivot about this same x so
@@ -48,6 +53,8 @@ var shell_tail_pivot_1_x := 0.0
 var shell_tail_pivot_2_x := 0.0
 var dorsal_fin: MeshInstance3D
 var dorsal_2_fin: MeshInstance3D
+var adipose_fin: MeshInstance3D = null
+var finlet_specs: Array[Dictionary] = []
 var anal_fin: MeshInstance3D
 var pelvic_l: MeshInstance3D
 var pelvic_r: MeshInstance3D
@@ -90,6 +97,8 @@ func rebuild() -> void:
 	animated_shell_yaws = PackedFloat32Array()
 	dorsal_fin = null
 	dorsal_2_fin = null
+	adipose_fin = null
+	finlet_specs.clear()
 	anal_fin = null
 	pelvic_l = null
 	pelvic_r = null
@@ -110,7 +119,9 @@ func rebuild() -> void:
 	# the head-appendage / eye-stalk accent.
 	var body_mat := TMF.make_body_material(parameters)
 	var secondary_mat := TMF.make_surface(param_color("secondary_color", "#d8fbff"), 0.2, 0.5)
-	var fin_mat := TMF.make_fin_material(parameters)
+	var dorsal_fin_mat := _make_fin_material(FIN_RAY_AXIS_VERTICAL_UP)
+	var ventral_fin_mat := _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN)
+	var horizontal_fin_mat := _make_fin_material(FIN_RAY_AXIS_HORIZONTAL)
 	var eye_mat := TMF.make_dark("#10161a")
 
 	var body_length := param_float("body_length", 1.45)
@@ -163,7 +174,7 @@ func rebuild() -> void:
 		param_float("dorsal_1_height", param_float("dorsal_fin_size", 0.28)),
 		param_float("dorsal_1_attach_t", 0.45),
 		0.035,
-		fin_mat
+		dorsal_fin_mat
 	)
 	dorsal_base_position = _surface_position("dorsal", param_float("dorsal_1_attach_t", 0.45), 0.035)
 	dorsal_fin.position = dorsal_base_position
@@ -179,12 +190,22 @@ func rebuild() -> void:
 			param_float("dorsal_2_height", 0.18),
 			param_float("dorsal_2_attach_t", 0.68),
 			0.028,
-			fin_mat
+			_make_fin_material(FIN_RAY_AXIS_VERTICAL_UP)
 		)
 		dorsal_2_base_position = _surface_position("dorsal", param_float("dorsal_2_attach_t", 0.68), 0.028)
 		dorsal_2_fin.position = dorsal_2_base_position
 		dorsal_2_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", param_float("dorsal_2_attach_t", 0.68))
 		body_pivot.add_child(dorsal_2_fin)
+
+	var adipose_mat := TMF.make_rayless_fin_material(parameters, {
+		"fin_opacity": clampf(param_float("adipose_fin_opacity", 0.72), 0.0, 1.0)
+	})
+	if float(parameters.get("adipose_fin_rayed", 0.0)) > 0.001:
+		adipose_mat = _make_fin_material(FIN_RAY_AXIS_VERTICAL_UP, {
+			"fin_opacity": clampf(param_float("adipose_fin_opacity", 0.72), 0.0, 1.0),
+			"fin_ray_strength": clampf(float(parameters.get("adipose_fin_rayed", 0.0)), 0.0, 1.0)
+		})
+	_build_adipose_fin(adipose_mat)
 
 	anal_fin = _build_median_fin(
 		"AnalFin",
@@ -194,12 +215,13 @@ func rebuild() -> void:
 		param_float("anal_height", param_float("anal_fin_size", 0.2)),
 		param_float("anal_attach_t", 0.64),
 		0.03,
-		fin_mat
+		ventral_fin_mat
 	)
 	anal_base_position = _surface_position("ventral", param_float("anal_attach_t", 0.64), 0.03)
 	anal_fin.position = anal_base_position
 	anal_fin.rotation_degrees.z = _surface_tangent_angle_degrees("ventral", param_float("anal_attach_t", 0.64))
 	body_pivot.add_child(anal_fin)
+	_build_finlets(TMF.make_finlet_material(parameters))
 
 	if param_float("pelvic_enabled", 0.0) > 0.5:
 		var pelvic_shape := String(parameters.get("pelvic_shape", "triangle"))
@@ -207,8 +229,8 @@ func rebuild() -> void:
 		var pelvic_height := param_float("pelvic_height", 0.14)
 		if pelvic_shape == "oval":
 			pelvic_base_points = PF.oval_fin_points(pelvic_length, pelvic_height)
-			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, fin_mat)
-			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, fin_mat)
+			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, ventral_fin_mat)
+			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN))
 		else:
 			var points_l := _get_fin_points("PelvicFinL", pelvic_shape, pelvic_length, pelvic_height)
 			var points_r := _get_fin_points("PelvicFinR", pelvic_shape, pelvic_length, pelvic_height)
@@ -219,8 +241,8 @@ func rebuild() -> void:
 			for p in points_r:
 				inverted_r.append(Vector3(p.x, -p.y, p.z))
 			pelvic_base_points = inverted_l
-			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, fin_mat)
-			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, fin_mat)
+			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, ventral_fin_mat)
+			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN))
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -238,11 +260,11 @@ func rebuild() -> void:
 	var pectoral_shape := String(parameters.get("pectoral_shape", "oval"))
 	if pectoral_shape == "oval":
 		pectoral_base_points = PF.oval_fin_points(pectoral_size, pectoral_size * 0.5)
-		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, fin_mat)
+		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, horizontal_fin_mat)
 	else:
 		var points_l := _get_fin_points("PectoralFinL", pectoral_shape, pectoral_size, pectoral_size * 0.5)
 		pectoral_base_points = points_l
-		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, fin_mat)
+		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, horizontal_fin_mat)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
 	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -_surface_radius_z(pectoral_attach_t) - shell_expand * 0.18)
@@ -253,10 +275,10 @@ func rebuild() -> void:
 	body_pivot.add_child(pectoral_l)
 
 	if pectoral_shape == "oval":
-		pectoral_r = PF.oval_fin("PectoralFinR", pectoral_size, pectoral_size * 0.5, fin_mat)
+		pectoral_r = PF.oval_fin("PectoralFinR", pectoral_size, pectoral_size * 0.5, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL))
 	else:
 		var points_r := _get_fin_points("PectoralFinR", pectoral_shape, pectoral_size, pectoral_size * 0.5)
-		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, fin_mat)
+		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL))
 	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, _surface_radius_z(pectoral_attach_t) + shell_expand * 0.18)
 	pectoral_r.position = pectoral_r_base_position
 	pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
@@ -300,7 +322,7 @@ func rebuild() -> void:
 		adjusted_points.append(new_p)
 	tail_fin_base_points = adjusted_points
 
-	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, fin_mat)
+	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, horizontal_fin_mat)
 	tail_fin_pivot.add_child(tail_fin)
 	_update_body_ring_world_points()
 	if ring_editor_enabled or param_float("show_ring_guides", 0.0) > 0.5:
@@ -776,11 +798,25 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		dorsal_2_fin.position = _animated_surface_position("dorsal", dorsal_2_attach_t, 0.028, 0.0, 0.0, centers, yaws)
 		dorsal_2_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.12), 0.0, _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
 		_animate_median_fin(dorsal_2_fin, "dorsal", String(parameters.get("dorsal_2_shape", "single")), param_float("dorsal_2_length", 0.34), param_float("dorsal_2_height", 0.18), dorsal_2_attach_t, 0.028, loop_phase, centers, yaws)
+	if adipose_fin:
+		var adipose_attach_t := _effective_adipose_attach_t()
+		adipose_fin.position = _animated_surface_position("dorsal", adipose_attach_t, 0.02, 0.0, 0.0, centers, yaws)
+		adipose_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.18) * 0.25, 0.0, _surface_tangent_angle_degrees("dorsal", adipose_attach_t))
 	if anal_fin:
 		var anal_attach_t := param_float("anal_attach_t", 0.64)
 		anal_fin.position = _animated_surface_position("ventral", anal_attach_t, 0.03, 0.0, float(parameters.get("anal_fin_offset_x", 0.0)), centers, yaws)
 		anal_fin.rotation_degrees = Vector3(-_median_fin_flap(loop_phase, 0.5), 0.0, _surface_tangent_angle_degrees("ventral", anal_attach_t))
 		_animate_median_fin(anal_fin, "ventral", String(parameters.get("anal_shape", "long")), param_float("anal_length", 0.36), param_float("anal_height", param_float("anal_fin_size", 0.2)), anal_attach_t, 0.03, loop_phase, centers, yaws)
+	for spec in finlet_specs:
+		var finlet := spec.get("node") as MeshInstance3D
+		if finlet == null:
+			continue
+		var side := String(spec.get("side", "dorsal"))
+		var attach_t := float(spec.get("attach_t", 0.82))
+		var margin := float(spec.get("margin", 0.012))
+		finlet.position = _animated_surface_position(side, attach_t, margin, 0.0, 0.0, centers, yaws)
+		var flap := _median_fin_flap(loop_phase, attach_t) * 0.08
+		finlet.rotation_degrees = Vector3(flap, 0.0, _surface_tangent_angle_degrees(side, attach_t) + param_float("finlet_pitch", 0.25) * 15.0)
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -1163,9 +1199,27 @@ func get_vector_edit_marker_world(slot: String, norm_position: Vector2) -> Vecto
 			return _single_local_point_to_world(pelvic_l, Vector3((norm_position.x + 0.5) * param_float("pelvic_length", 0.22), -norm_position.y * param_float("pelvic_height", 0.14), 0.0))
 		"caudal":
 			return _single_local_point_to_world(tail_fin, Vector3(norm_position.x * param_float("tail_fin_size", 0.46), norm_position.y * param_float("tail_fin_size", 0.46) * param_float("caudal_height_scale", 0.72), 0.0))
+		"adipose_fin":
+			var adipose_size := param_float("adipose_fin_size", DEFAULT_ADIPOSE_FIN_SIZE)
+			if adipose_size <= 0.001:
+				adipose_size = DEFAULT_ADIPOSE_FIN_SIZE
+			var adipose_height := maxf(param_float("adipose_fin_height", 0.18), 0.32) * adipose_size
+			var adipose_length := adipose_size * lerpf(0.16, 0.26, param_float("adipose_fin_roundness", 0.75))
+			return _single_local_point_to_world(adipose_fin, Vector3(norm_position.x * adipose_length, norm_position.y * adipose_height, 0.0))
+		"finlet":
+			var first_finlet := _first_finlet_node()
+			var finlet_size := param_float("finlet_size", 0.25)
+			return _single_local_point_to_world(first_finlet, Vector3(norm_position.x * finlet_size * 0.36, norm_position.y * finlet_size * 0.42, 0.0))
 		"operculum":
 			return _operculum_edit_marker_world(norm_position)
 	return Vector3.INF
+
+func _first_finlet_node() -> MeshInstance3D:
+	for spec in finlet_specs:
+		var finlet := spec.get("node") as MeshInstance3D
+		if finlet != null:
+			return finlet
+	return null
 
 func _single_local_point_to_world(node: Node3D, local_point: Vector3) -> Vector3:
 	if node == null:
@@ -1362,6 +1416,80 @@ func _build_median_fin(fin_name: String, side: String, shape: String, length: fl
 	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
 	return PF.polygon_fin(fin_name, _curved_fin_points(side, attach_t, margin, points, follow), material)
 
+func _make_fin_material(ray_axis: float, overrides: Dictionary = {}) -> ShaderMaterial:
+	var axis_overrides := overrides.duplicate(true)
+	axis_overrides["fin_ray_axis"] = ray_axis
+	return TMF.make_fin_material(parameters, axis_overrides)
+
+func _effective_adipose_attach_t() -> float:
+	var requested := clampf(param_float("adipose_fin_position", 0.82), 0.0, 1.0)
+	var min_t := 0.72
+	if bool(parameters.get("dorsal_2_enabled", false)):
+		min_t = maxf(min_t, param_float("dorsal_2_attach_t", 0.68) + 0.08)
+	else:
+		min_t = maxf(min_t, param_float("dorsal_1_attach_t", 0.45) + 0.18)
+	return clampf(maxf(requested, min_t), 0.0, 0.92)
+
+func _build_adipose_fin(fin_mat: Material) -> void:
+	if not bool(parameters.get("adipose_fin_enabled", false)):
+		return
+	var size := param_float("adipose_fin_size", 0.0)
+	if size <= 0.001:
+		size = DEFAULT_ADIPOSE_FIN_SIZE
+	var height := maxf(param_float("adipose_fin_height", 0.18), 0.32) * size
+	var length := size * lerpf(0.16, 0.26, param_float("adipose_fin_roundness", 0.75))
+	var points := _get_fin_points("AdiposeFin", String(parameters.get("adipose_fin_shape", "nub")), length, height)
+	adipose_fin = PF.polygon_fin("AdiposeFin", points, fin_mat)
+	body_pivot.add_child(adipose_fin)
+	var attach_t := _effective_adipose_attach_t()
+	adipose_fin.position = _surface_position("dorsal", attach_t, 0.02)
+	adipose_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", attach_t)
+
+func _finlet_attach_t(index: int, count: int) -> float:
+	if count <= 1:
+		return 0.82
+	var spacing := clampf(param_float("finlet_spacing", 0.72), 0.0, 1.0)
+	var half_span := 0.10 * lerpf(0.45, 1.35, spacing)
+	var start_t := clampf(0.80 - half_span, 0.64, 0.88)
+	var end_t := clampf(0.80 + half_span, start_t + 0.01, 0.94)
+	var span := end_t - start_t
+	var ratio := float(index) / float(count - 1)
+	return start_t + span * ratio
+
+func _build_finlets(finlet_mat: Material) -> void:
+	if not bool(parameters.get("finlet_enabled", false)):
+		return
+	var dorsal_count := clampi(int(round(param_float("finlet_dorsal_count", 0.0))), 0, 12)
+	var ventral_count := clampi(int(round(param_float("finlet_ventral_count", 0.0))), 0, 12)
+	if dorsal_count == 0 and ventral_count == 0:
+		dorsal_count = DEFAULT_FINLET_COUNT
+		ventral_count = DEFAULT_FINLET_COUNT
+	_build_finlet_side("dorsal", dorsal_count, finlet_mat)
+	_build_finlet_side("ventral", ventral_count, finlet_mat)
+
+func _build_finlet_side(side: String, count: int, finlet_mat: Material) -> void:
+	var base_size := param_float("finlet_size", 0.25)
+	var taper := clampf(param_float("finlet_taper", 0.35), 0.0, 1.0)
+	var shape := String(parameters.get("finlet_shape", "triangle"))
+	for i in range(count):
+		var ratio := 0.0 if count <= 1 else float(i) / float(count - 1)
+		var scale := base_size * lerpf(1.0, 0.65, ratio * taper)
+		var height := scale * 0.42
+		var length := scale * 0.36
+		var y_sign := 1.0 if side == "dorsal" else -1.0
+		var shaped_points := _get_fin_points("Finlet", shape, length, height)
+		var points := PackedVector3Array()
+		for point in shaped_points:
+			points.append(Vector3(point.x, point.y * y_sign, point.z))
+		var node_name := "FinletDorsal_%d" % i if side == "dorsal" else "FinletVentral_%d" % i
+		var finlet := PF.polygon_fin(node_name, points, finlet_mat)
+		body_pivot.add_child(finlet)
+		var attach_t := _finlet_attach_t(i, count)
+		var margin := 0.012
+		finlet.position = _surface_position(side, attach_t, margin)
+		finlet.rotation_degrees.z = _surface_tangent_angle_degrees(side, attach_t) + param_float("finlet_pitch", 0.25) * 15.0
+		finlet_specs.append({"node": finlet, "side": side, "attach_t": attach_t, "margin": margin})
+
 func _get_fin_points(fin_name: String, shape: String, length: float, height: float) -> PackedVector3Array:
 	var pts: PackedVector3Array
 	var slot := _fin_name_to_slot(fin_name)
@@ -1369,6 +1497,10 @@ func _get_fin_points(fin_name: String, shape: String, length: float, height: flo
 		var default_pts := [-0.5, 0.0, -0.25, 0.6, 0.0, 0.8, 0.25, 0.6, 0.5, 0.0]
 		if slot == "pectoral" or slot == "pelvic":
 			default_pts = [-0.5, 0.2, 0.0, 0.5, 0.5, 0.0, 0.0, -0.5, -0.5, -0.2]
+		elif slot == "adipose_fin":
+			default_pts = [-0.45, 0.0, -0.10, 1.0, 0.45, 0.25, 0.40, 0.0]
+		elif slot == "finlet":
+			default_pts = [-0.45, 0.0, 0.0, 1.0, 0.45, 0.0]
 		var raw_pts: Array = parameters.get(slot + "_custom_points", default_pts)
 		pts = PackedVector3Array()
 		for i in range(0, raw_pts.size(), 2):
@@ -1415,6 +1547,10 @@ func _fin_name_to_slot(fin_name: String) -> String:
 		return "pelvic"
 	elif fin_name.begins_with("PectoralFin"):
 		return "pectoral"
+	elif fin_name.begins_with("AdiposeFin"):
+		return "adipose_fin"
+	elif fin_name.begins_with("Finlet"):
+		return "finlet"
 	return "dorsal_1"
 
 func _curved_fin_points(side: String, attach_t: float, margin: float, points: PackedVector3Array, follow: float, loop_phase: float = -1.0) -> PackedVector3Array:

@@ -1,0 +1,80 @@
+{
+	"id": "tuna",
+	"label": "Tuna",
+	"creature_type": "fish",
+	"readability_priority": ["torpedo body", "lunate tail", "posterior finlets"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.78,
+			"body_height": 0.38,
+			"body_width": 0.3,
+			"head_size": 0.36,
+			"head_offset": -0.54,
+			"eye_size": 0.038
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.42,
+			"tail_fin_size": 0.5,
+			"caudal_shape": "lunate",
+			"caudal_height_scale": 1.0
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "trigger",
+			"dorsal_1_length": 0.22,
+			"dorsal_1_height": 0.13,
+			"dorsal_2_enabled": true,
+			"dorsal_2_attach_t": 0.66,
+			"dorsal_2_shape": "single",
+			"dorsal_2_length": 0.18,
+			"dorsal_2_height": 0.09,
+			"anal_shape": "single",
+			"anal_length": 0.2,
+			"anal_height": 0.09,
+			"fin_ray_style": "soft",
+			"fin_ray_count": 8,
+			"fin_ray_strength": 0.18,
+			"finlet_enabled": true,
+			"finlet_dorsal_count": 9,
+			"finlet_ventral_count": 9,
+			"finlet_size": 0.22,
+			"finlet_taper": 0.35,
+			"finlet_spacing": 0.72,
+			"finlet_pitch": 0.25,
+			"finlet_color_blend": 0.55,
+			"fin_softness": 0.18,
+			"fin_rigidity": 0.6
+		},
+		"visual_profile": {
+			"base_color": "#1d4f73",
+			"belly_color": "#d9e6ef",
+			"fin_color": "#f0c453",
+			"outline_color": "#101923",
+			"metallic_scale_strength": 0.25,
+			"wetness": 0.35
+		},
+		"motion_profile": {
+			"swim_mode": "tuna",
+			"global_sway_amount": 4.0,
+			"tail_sway_multiplier": 1.55
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "horizontal_band",
+			"zone": "body",
+			"color": "#0f2f47",
+			"x_start": 0.0,
+			"x_end": 1.0,
+			"y": 0.24,
+			"thickness": 0.16,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"body_length_variation": 0.08,
+		"metallic_variation": 0.12
+	}
+}

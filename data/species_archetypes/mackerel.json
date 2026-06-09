@@ -1,0 +1,82 @@
+{
+	"id": "mackerel",
+	"label": "Mackerel",
+	"creature_type": "fish",
+	"readability_priority": ["striped fast swimmer", "forked/lunate tail", "posterior finlets"],
+	"profile_overrides": {
+		"global": {
+			"body_length": 1.58,
+			"body_height": 0.36,
+			"body_width": 0.25,
+			"head_size": 0.34,
+			"head_offset": -0.52,
+			"eye_size": 0.04
+		},
+		"body_profile": {
+			"shape": "slender_lateral"
+		},
+		"tail_profile": {
+			"tail_length": 0.36,
+			"tail_fin_size": 0.42,
+			"caudal_shape": "lunate",
+			"caudal_height_scale": 0.88
+		},
+		"fin_profile": {
+			"dorsal_1_shape": "single",
+			"dorsal_1_length": 0.24,
+			"dorsal_1_height": 0.13,
+			"dorsal_2_enabled": true,
+			"dorsal_2_attach_t": 0.64,
+			"dorsal_2_shape": "single",
+			"dorsal_2_length": 0.16,
+			"dorsal_2_height": 0.08,
+			"anal_shape": "single",
+			"anal_length": 0.18,
+			"anal_height": 0.08,
+			"fin_ray_style": "soft",
+			"fin_ray_count": 8,
+			"fin_ray_strength": 0.16,
+			"finlet_enabled": true,
+			"finlet_dorsal_count": 7,
+			"finlet_ventral_count": 7,
+			"finlet_size": 0.18,
+			"finlet_taper": 0.4,
+			"finlet_spacing": 0.72,
+			"finlet_pitch": 0.22,
+			"finlet_color_blend": 0.6,
+			"fin_softness": 0.2,
+			"fin_rigidity": 0.55
+		},
+		"visual_profile": {
+			"base_color": "#315f7d",
+			"belly_color": "#e5edf2",
+			"fin_color": "#b7c6c9",
+			"outline_color": "#111827",
+			"pattern_type": "horizontal_stripes",
+			"pattern_color": "#102a3a",
+			"pattern_intensity": 0.65,
+			"wetness": 0.3
+		},
+		"motion_profile": {
+			"swim_mode": "mackerel",
+			"global_sway_amount": 5.5,
+			"tail_sway_multiplier": 1.4
+		}
+	},
+	"marking_layers": [
+		{
+			"type": "horizontal_band",
+			"zone": "body",
+			"color": "#102a3a",
+			"x_start": 0.06,
+			"x_end": 0.9,
+			"y": 0.2,
+			"thickness": 0.08,
+			"emissive": 0.0
+		}
+	],
+	"variant_controls": {
+		"stripe_variation": 0.18,
+		"color_jitter": 0.08
+	}
+}

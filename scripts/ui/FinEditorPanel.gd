@@ -16,6 +16,8 @@ const SLOT_LABELS := {
 	"pelvic": "Pelvic",
 	"anal": "Anal",
 	"caudal": "Caudal",
+	"adipose_fin": "Adipose",
+	"finlet": "Finlet",
 	"cephalic": "Cephalic"
 }
 
@@ -25,6 +27,8 @@ const SHAPES := {
 	"pectoral": ["oval", "triangle", "long", "rounded", "bezier", "custom"],
 	"pelvic": ["triangle", "oval", "long", "rounded", "bezier", "custom"],
 	"anal": ["long", "single", "spiny", "rounded", "bezier", "custom"],
+	"adipose_fin": ["nub", "single", "rounded", "triangle", "bezier", "custom"],
+	"finlet": ["triangle", "single", "rounded", "bezier", "custom"],
 	"caudal": [
 		"forked_shallow", "forked_deep", "truncate", "rounded", "pointed", "lunate",
 		"fan", "double_fan", "halfmoon", "veil", "crowntail", "spade", "lyre",
@@ -75,6 +79,22 @@ const NUMERIC_KEYS := {
 		"caudal_height_scale": {"min": 0.2, "max": 1.8, "step": 0.005, "fallback": 0.72},
 		"caudal_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
 		"caudal_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
+	},
+	"adipose_fin": {
+		"adipose_fin_size": {"min": 0.04, "max": 0.7, "step": 0.005, "fallback": 0.24},
+		"adipose_fin_height": {"min": 0.04, "max": 0.8, "step": 0.005, "fallback": 0.18},
+		"adipose_fin_roundness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.75},
+		"adipose_fin_opacity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.72},
+		"adipose_fin_rayed": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.0}
+	},
+	"finlet": {
+		"finlet_dorsal_count": {"min": 0.0, "max": 12.0, "step": 1.0, "fallback": 0.0},
+		"finlet_ventral_count": {"min": 0.0, "max": 12.0, "step": 1.0, "fallback": 0.0},
+		"finlet_size": {"min": 0.04, "max": 0.7, "step": 0.005, "fallback": 0.25},
+		"finlet_taper": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.35},
+		"finlet_spacing": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.72},
+		"finlet_pitch": {"min": -1.0, "max": 1.0, "step": 0.01, "fallback": 0.25},
+		"finlet_color_blend": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback": 0.5}
 	}
 }
 
@@ -194,7 +214,7 @@ func _populate_slots() -> void:
 	if is_ray:
 		expected_slots = ["cephalic", "pelvic"]
 	else:
-		expected_slots = ["dorsal_1", "dorsal_2", "pectoral", "pelvic", "anal", "caudal"]
+		expected_slots = ["dorsal_1", "dorsal_2", "pectoral", "pelvic", "anal", "caudal", "adipose_fin", "finlet"]
 	
 	var matches := true
 	if slot_option.item_count != expected_slots.size():
@@ -270,6 +290,10 @@ func _refresh_controls() -> void:
 			var default_pts := []
 			if selected_slot == "caudal":
 				default_pts = [0.0, 0.44, 0.88, 0.98, 1.0, 0.0, 0.88, -0.98, 0.0, -0.44]
+			elif selected_slot == "adipose_fin":
+				default_pts = [-0.45, 0.0, -0.10, 1.0, 0.45, 0.25, 0.40, 0.0]
+			elif selected_slot == "finlet":
+				default_pts = [-0.45, 0.0, 0.0, 1.0, 0.45, 0.0]
 			elif selected_slot == "pectoral" or selected_slot == "pelvic":
 				default_pts = [-0.5, 0.2, 0.0, 0.5, 0.5, 0.0, 0.0, -0.5, -0.5, -0.2]
 			else:
@@ -378,6 +402,8 @@ func _attach_key(slot_id: String) -> String:
 			return "pelvic_attach_t"
 		"anal":
 			return "anal_attach_t"
+		"adipose_fin":
+			return "adipose_fin_position"
 	return ""
 
 func _shape_key(slot_id: String) -> String:
@@ -399,7 +425,7 @@ func _shape_key(slot_id: String) -> String:
 	return "%s_shape" % slot_id
 
 func _default_enabled(slot_id: String) -> float:
-	if slot_id == "dorsal_2" or slot_id == "pelvic":
+	if slot_id == "dorsal_2" or slot_id == "pelvic" or slot_id == "adipose_fin" or slot_id == "finlet":
 		return 0.0
 	return 1.0
 
@@ -415,4 +441,6 @@ func _default_attach(slot_id: String) -> float:
 			return 0.36
 		"anal":
 			return 0.64
+		"adipose_fin":
+			return 0.82
 	return 0.5
