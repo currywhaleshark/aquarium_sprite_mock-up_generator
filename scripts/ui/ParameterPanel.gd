@@ -156,7 +156,9 @@ func _build_controls() -> void:
 		if excluded_categories.has(category):
 			continue
 		var section_body := _ensure_section(category)
-		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
+		if typeof(value) == TYPE_BOOL:
+			_add_boolean_row(section_body, String(key), bool(value))
+		elif typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
 			if _is_boolean_parameter(String(key)):
 				_add_boolean_row(section_body, String(key), float(value) > 0.5)
 			else:
@@ -180,7 +182,7 @@ func _update_control_values() -> void:
 					label.text = "%.2f" % float(value)
 			elif widget is CheckBox:
 				var check := widget as CheckBox
-				check.button_pressed = float(value) > 0.5
+				check.button_pressed = bool(value) if typeof(value) == TYPE_BOOL else float(value) > 0.5
 		elif color_pickers.has(key):
 			var picker := color_pickers[key] as ColorPickerButton
 			picker.color = _color_from_value(value)
