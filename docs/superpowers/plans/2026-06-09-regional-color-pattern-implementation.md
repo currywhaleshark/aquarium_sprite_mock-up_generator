@@ -17,8 +17,9 @@ This plan implements a data-driven regional layer system. It does not add bitmap
 The first shipped behavior must satisfy these contracts:
 
 - Legacy `marking_layers` without `region` or `blend_mode` render as body/normal layers.
+- Legacy `zone = "fin"` layers without `region` are treated as fin-wide layers and apply to every fin group.
 - Body shader regions use stable UV-derived coordinates: `u = UV.x` snout to tail, `up = sin(UV.y * TAU)` belly to back.
-- Fins use grouped regions: `median_fin`, `paired_fin`, `caudal_fin`, and `special_fin`.
+- Fins use grouped regions: `median_fin`, `paired_fin`, `caudal_fin`, and `special_fin`, plus `fin` as a legacy all-fins alias.
 - `region_color` changes local body color.
 - `scale_region` changes local scale strength.
 - `iridescence_region` changes local iridescence strength.
@@ -45,7 +46,7 @@ The first shipped behavior must satisfy these contracts:
 - Modify `scripts/tools/PatternTest.gd`: cover material binding, preset round-trip, and shader contract strings for regional scale/iridescence.
 - Modify `scripts/tools/FinMaterialTest.gd`: cover fin-region material overrides and filtered fin uniforms.
 - Add `scripts/tools/MarkingLayerEditorTest.gd`: cover UI editor creation and emitted dictionaries.
-- Modify `scripts/tools/SpeciesArchetypeStoreTest.gd`: cover archetype region data preservation.
+- Modify `scripts/tools/SpeciesArchetypeStoreTest.gd`: cover archetype region data preservation and legacy fin-zone compatibility.
 
 ---
 
@@ -62,6 +63,7 @@ Add calls in `scripts/tools/MarkingLayerTest.gd` `_ready()`:
 ```gdscript
 	_test_marking_layer_region_and_blend_fields()
 	_test_invalid_region_and_blend_use_safe_defaults()
+	_test_legacy_zone_defaults_preserve_existing_body_behavior()
 ```
 
 Add these functions:
@@ -120,6 +122,15 @@ func _test_invalid_region_and_blend_use_safe_defaults() -> void:
 	assert(int(encoded.get("marking_count", 0)) == 1)
 	assert(int(encoded.get("marking_region_0", -1)) == SpeciesMarkingLayerScript.REGION_BODY)
 	assert(int(encoded.get("marking_blend_0", -1)) == SpeciesMarkingLayerScript.BLEND_NORMAL)
+
+func _test_legacy_zone_defaults_preserve_existing_body_behavior() -> void:
+	var encoded := SpeciesMarkingLayerScript.encode_uniforms([
+		{"type": "head_mask", "zone": "head", "color": "#223344"},
+		{"type": "fin_edge", "zone": "fin", "color": "#445566"}
+	])
+	assert(int(encoded.get("marking_count", 0)) == 2)
+	assert(int(encoded.get("marking_region_0", -1)) == SpeciesMarkingLayerScript.REGION_BODY)
+	assert(int(encoded.get("marking_region_1", -1)) == SpeciesMarkingLayerScript.REGION_FIN)
 ```
 
 - [ ] **Step 2: Run focused test and verify it fails**
@@ -155,6 +166,7 @@ const REGION_MEDIAN_FIN := 10
 const REGION_PAIRED_FIN := 11
 const REGION_CAUDAL_FIN := 12
 const REGION_SPECIAL_FIN := 13
+const REGION_FIN := 14
 
 const BLEND_NORMAL := 0
 const BLEND_MULTIPLY := 1
@@ -187,7 +199,8 @@ const REGION_BY_NAME := {
 	"median_fin": REGION_MEDIAN_FIN,
 	"paired_fin": REGION_PAIRED_FIN,
 	"caudal_fin": REGION_CAUDAL_FIN,
-	"special_fin": REGION_SPECIAL_FIN
+	"special_fin": REGION_SPECIAL_FIN,
+	"fin": REGION_FIN
 }
 
 const BLEND_BY_NAME := {
@@ -214,15 +227,24 @@ In the empty-slot branch, add:
 			encoded["marking_blend_%d" % i] = BLEND_NORMAL
 ```
 
+Add this helper near `_normalize_layers`:
+
+```gdscript
+static func _default_region_name(zone_name: String) -> String:
+	if zone_name == "fin":
+		return "fin"
+	return "body"
+```
+
 In `_normalize_layers`, after `zone_id` is assigned, add:
 
 ```gdscript
-		var region_name := String(raw_layer.get("region", zone_name))
+		var region_name := String(raw_layer.get("region", _default_region_name(zone_name)))
 		var blend_name := String(raw_layer.get("blend_mode", "normal"))
 		layer["region_id"] = int(REGION_BY_NAME.get(region_name, REGION_BODY))
 		layer["blend_id"] = int(BLEND_BY_NAME.get(blend_name, BLEND_NORMAL))
-		layer["region"] = String(REGION_BY_NAME.has(region_name) ? region_name : "body")
-		layer["blend_mode"] = String(BLEND_BY_NAME.has(blend_name) ? blend_name : "normal")
+		layer["region"] = region_name if REGION_BY_NAME.has(region_name) else "body"
+		layer["blend_mode"] = blend_name if BLEND_BY_NAME.has(blend_name) else "normal"
 ```
 
 - [ ] **Step 5: Run focused test and verify it passes**
@@ -316,7 +338,7 @@ float region_mask(int region, float u, float up) {
 	if (region == 2) { return 1.0 - smoothstep(0.28, 0.72, abs(up)); }
 	if (region == 3) { return 1.0 - smoothstep(-0.72, -0.28, up); }
 	if (region == 4) { return smoothstep(0.04, 0.44, up); }
-	if (region == 5) { return smoothstep(-0.04, -0.44, -up); }
+	if (region == 5) { return smoothstep(0.04, 0.44, -up); }
 	if (region == 6) { return 1.0 - smoothstep(0.20, 0.28, u); }
 	if (region == 7) { return (1.0 - smoothstep(0.10, 0.22, u)) * (1.0 - smoothstep(0.55, 0.9, abs(up))); }
 	if (region == 8) { return band_range(u, 0.14, 0.25, 0.025) * (1.0 - smoothstep(0.18, 0.62, abs(up))); }
@@ -534,7 +556,7 @@ Add this function:
 ```gdscript
 func _test_fin_uniform_encoder_filters_by_region() -> void:
 	var encoded := SpeciesMarkingLayerScript.encode_fin_uniforms([
-		{"type": "fin_edge", "region": "median_fin", "color": "#223344", "intensity": 0.7},
+		{"type": "fin_edge", "zone": "fin", "color": "#223344", "intensity": 0.7},
 		{"type": "fin_spots", "region": "paired_fin", "color": "#aa8844", "intensity": 0.5},
 		{"type": "horizontal_band", "region": "median_fin", "color": "#66ccff", "x_start": 0.1, "x_end": 0.8}
 	], "median_fin")
@@ -544,6 +566,14 @@ func _test_fin_uniform_encoder_filters_by_region() -> void:
 	assert(encoded.get("fin_marking_color_0") is Color)
 	assert(encoded.get("fin_marking_rect_0") is Vector4)
 	assert(encoded.get("fin_marking_params_0") is Vector4)
+	var paired_encoded := SpeciesMarkingLayerScript.encode_fin_uniforms([
+		{"type": "fin_edge", "zone": "fin", "color": "#223344", "intensity": 0.7},
+		{"type": "fin_spots", "region": "paired_fin", "color": "#aa8844", "intensity": 0.5},
+		{"type": "horizontal_band", "region": "median_fin", "color": "#66ccff", "x_start": 0.1, "x_end": 0.8}
+	], "paired_fin")
+	assert(int(paired_encoded.get("fin_marking_count", 0)) == 2)
+	assert(int(paired_encoded.get("fin_marking_type_0", 0)) == SpeciesMarkingLayerScript.TYPE_FIN_EDGE)
+	assert(int(paired_encoded.get("fin_marking_type_1", 0)) == SpeciesMarkingLayerScript.TYPE_FIN_SPOTS)
 ```
 
 Add a call in `scripts/tools/FinMaterialTest.gd` `_ready()`:
@@ -592,7 +622,8 @@ static func encode_fin_uniforms(raw_layers: Variant, fin_region: String) -> Dict
 	for layer in normalized:
 		if filtered.size() >= MAX_FIN_MARKING_LAYERS:
 			break
-		if int(layer.get("region_id", REGION_BODY)) != region_id:
+		var layer_region_id := int(layer.get("region_id", REGION_BODY))
+		if layer_region_id != REGION_FIN and layer_region_id != region_id:
 			continue
 		var type_id := int(layer.get("type_id", TYPE_NONE))
 		if not [TYPE_FIN_EDGE, TYPE_FIN_SPOTS, TYPE_HORIZONTAL_BAND, TYPE_VERTICAL_BAR, TYPE_REGION_COLOR].has(type_id):
@@ -637,6 +668,18 @@ In `scripts/materials/ToonMaterialFactory.gd`, near the end of `make_fin_materia
 	)
 	for key in fin_marking_uniforms.keys():
 		material.set_shader_parameter(String(key), fin_marking_uniforms[key])
+```
+
+Update `make_finlet_material` so finlets can receive the `special_fin` override:
+
+```gdscript
+static func make_finlet_material(parameters: Dictionary, overrides: Dictionary = {}) -> ShaderMaterial:
+	var finlet_overrides := {
+		"fin_color_blend": clampf(float(parameters.get("finlet_color_blend", 0.5)), 0.0, 1.0)
+	}
+	for key in overrides.keys():
+		finlet_overrides[key] = overrides[key]
+	return make_rayless_fin_material(parameters, finlet_overrides)
 ```
 
 - [ ] **Step 5: Add fin shader uniforms and mask helpers**
@@ -766,10 +809,16 @@ _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"})
 _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"})
 ```
 
-Use special regions for adipose and finlets:
+Use special regions for both adipose material branches and finlets. The rayless adipose branch calls `TMF.make_rayless_fin_material(parameters, overrides)`, the rayed adipose branch calls `_make_fin_material(...)`, and finlets call `TMF.make_finlet_material(parameters, overrides)`.
 
 ```gdscript
 "fin_region": "special_fin"
+```
+
+Update the finlet build call:
+
+```gdscript
+_build_finlets(TMF.make_finlet_material(parameters, {"fin_region": "special_fin"}))
 ```
 
 - [ ] **Step 7: Run focused tests**
@@ -832,12 +881,24 @@ After `rebuilt` is created, add:
 
 - [ ] **Step 2: Write failing archetype assertions**
 
-In `scripts/tools/SpeciesArchetypeStoreTest.gd`, in `_test_applies_archetype_profiles_and_markings()`, after existing layer type assertions, add:
+In `scripts/tools/SpeciesArchetypeStoreTest.gd`, add a preload near the existing preloads:
+
+```gdscript
+const SpeciesMarkingLayerScript := preload("res://scripts/species/SpeciesMarkingLayer.gd")
+```
+
+In `_test_applies_archetype_profiles_and_markings()`, after existing layer type assertions, add:
 
 ```gdscript
 	assert(String((layers[0] as Dictionary).get("region", "")) == "flank")
 	assert(String((layers[1] as Dictionary).get("region", "")) == "ventral_flank")
 	assert(String((layers[0] as Dictionary).get("blend_mode", "")) == "screen")
+	var betta := SpeciesArchetypeStoreScript.load_archetype("betta")
+	var betta_fin_uniforms := SpeciesMarkingLayerScript.encode_fin_uniforms(betta.get("marking_layers", []), "median_fin")
+	assert(int(betta_fin_uniforms.get("fin_marking_count", 0)) >= 1)
+	var guppy := SpeciesArchetypeStoreScript.load_archetype("guppy")
+	var guppy_fin_uniforms := SpeciesMarkingLayerScript.encode_fin_uniforms(guppy.get("marking_layers", []), "caudal_fin")
+	assert(int(guppy_fin_uniforms.get("fin_marking_count", 0)) >= 1)
 ```
 
 - [ ] **Step 3: Run focused tests and verify they fail**
@@ -849,7 +910,7 @@ powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter P
 powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter SpeciesArchetypeStoreTest
 ```
 
-Expected: `PatternTest` should pass if top-level `marking_layers` already round-trip; `SpeciesArchetypeStoreTest` should FAIL until JSON data includes `region` and `blend_mode`.
+Expected: `PatternTest` should pass if top-level `marking_layers` already round-trip; `SpeciesArchetypeStoreTest` should FAIL until neon tetra JSON includes `region` and `blend_mode`. Betta and guppy should pass through the legacy `zone = "fin"` compatibility path from Task 4 without JSON edits.
 
 - [ ] **Step 4: Update neon tetra archetype layers**
 
@@ -1231,7 +1292,7 @@ Run:
 powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1
 ```
 
-Expected: PASS with the full suite count. Treat `Failed to read the root certificate store` as non-fatal and use the runner exit code as source of truth.
+Expected: PASS with the full suite count. This is also the final shader uniform-budget check for the added body and fin layer uniforms. Treat `Failed to read the root certificate store` as non-fatal and use the runner exit code as source of truth.
 
 - [ ] **Step 4: Run whitespace check**
 
