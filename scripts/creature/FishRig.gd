@@ -48,6 +48,7 @@ var shell_tail_pivot_1_x := 0.0
 var shell_tail_pivot_2_x := 0.0
 var dorsal_fin: MeshInstance3D
 var dorsal_2_fin: MeshInstance3D
+var adipose_fin: MeshInstance3D = null
 var anal_fin: MeshInstance3D
 var pelvic_l: MeshInstance3D
 var pelvic_r: MeshInstance3D
@@ -90,6 +91,7 @@ func rebuild() -> void:
 	animated_shell_yaws = PackedFloat32Array()
 	dorsal_fin = null
 	dorsal_2_fin = null
+	adipose_fin = null
 	anal_fin = null
 	pelvic_l = null
 	pelvic_r = null
@@ -185,6 +187,15 @@ func rebuild() -> void:
 		dorsal_2_fin.position = dorsal_2_base_position
 		dorsal_2_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", param_float("dorsal_2_attach_t", 0.68))
 		body_pivot.add_child(dorsal_2_fin)
+
+	var adipose_mat := TMF.make_rayless_fin_material(parameters, {
+		"fin_opacity": clampf(param_float("adipose_fin_opacity", 0.72), 0.0, 1.0)
+	})
+	if float(parameters.get("adipose_fin_rayed", 0.0)) > 0.001:
+		adipose_mat = TMF.make_fin_material(parameters, {
+			"fin_ray_strength": clampf(float(parameters.get("adipose_fin_rayed", 0.0)), 0.0, 1.0)
+		})
+	_build_adipose_fin(adipose_mat)
 
 	anal_fin = _build_median_fin(
 		"AnalFin",
@@ -776,6 +787,10 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		dorsal_2_fin.position = _animated_surface_position("dorsal", dorsal_2_attach_t, 0.028, 0.0, 0.0, centers, yaws)
 		dorsal_2_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.12), 0.0, _surface_tangent_angle_degrees("dorsal", dorsal_2_attach_t))
 		_animate_median_fin(dorsal_2_fin, "dorsal", String(parameters.get("dorsal_2_shape", "single")), param_float("dorsal_2_length", 0.34), param_float("dorsal_2_height", 0.18), dorsal_2_attach_t, 0.028, loop_phase, centers, yaws)
+	if adipose_fin:
+		var adipose_attach_t := _effective_adipose_attach_t()
+		adipose_fin.position = _animated_surface_position("dorsal", adipose_attach_t, 0.02, 0.0, 0.0, centers, yaws)
+		adipose_fin.rotation_degrees = Vector3(_median_fin_flap(loop_phase, 0.18) * 0.25, 0.0, _surface_tangent_angle_degrees("dorsal", adipose_attach_t))
 	if anal_fin:
 		var anal_attach_t := param_float("anal_attach_t", 0.64)
 		anal_fin.position = _animated_surface_position("ventral", anal_attach_t, 0.03, 0.0, float(parameters.get("anal_fin_offset_x", 0.0)), centers, yaws)
@@ -1361,6 +1376,35 @@ func _build_median_fin(fin_name: String, side: String, shape: String, length: fl
 	var points := _get_fin_points(fin_name, shape, length, height)
 	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
 	return PF.polygon_fin(fin_name, _curved_fin_points(side, attach_t, margin, points, follow), material)
+
+func _effective_adipose_attach_t() -> float:
+	var requested := clampf(param_float("adipose_fin_position", 0.82), 0.0, 1.0)
+	var min_t := 0.72
+	if bool(parameters.get("dorsal_2_enabled", false)):
+		min_t = maxf(min_t, param_float("dorsal_2_attach_t", 0.68) + 0.08)
+	else:
+		min_t = maxf(min_t, param_float("dorsal_1_attach_t", 0.45) + 0.18)
+	return clampf(maxf(requested, min_t), 0.0, 0.92)
+
+func _build_adipose_fin(fin_mat: Material) -> void:
+	if not bool(parameters.get("adipose_fin_enabled", false)):
+		return
+	var size := param_float("adipose_fin_size", 0.0)
+	if size <= 0.001:
+		return
+	var height := param_float("adipose_fin_height", 0.18) * size
+	var length := size * lerpf(0.55, 0.85, param_float("adipose_fin_roundness", 0.75))
+	var points := PackedVector3Array([
+		Vector3(-length * 0.45, 0.0, 0.0),
+		Vector3(-length * 0.10, height, 0.0),
+		Vector3(length * 0.45, height * 0.25, 0.0),
+		Vector3(length * 0.40, 0.0, 0.0)
+	])
+	adipose_fin = PF.polygon_fin("AdiposeFin", points, fin_mat)
+	body_pivot.add_child(adipose_fin)
+	var attach_t := _effective_adipose_attach_t()
+	adipose_fin.position = _surface_position("dorsal", attach_t, 0.02)
+	adipose_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", attach_t)
 
 func _get_fin_points(fin_name: String, shape: String, length: float, height: float) -> PackedVector3Array:
 	var pts: PackedVector3Array
