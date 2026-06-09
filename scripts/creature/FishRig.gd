@@ -49,6 +49,8 @@ var shell_tail_pivot_2_x := 0.0
 var dorsal_fin: MeshInstance3D
 var dorsal_2_fin: MeshInstance3D
 var adipose_fin: MeshInstance3D = null
+var finlet_nodes: Array[MeshInstance3D] = []
+var finlet_specs: Array[Dictionary] = []
 var anal_fin: MeshInstance3D
 var pelvic_l: MeshInstance3D
 var pelvic_r: MeshInstance3D
@@ -92,6 +94,8 @@ func rebuild() -> void:
 	dorsal_fin = null
 	dorsal_2_fin = null
 	adipose_fin = null
+	finlet_nodes.clear()
+	finlet_specs.clear()
 	anal_fin = null
 	pelvic_l = null
 	pelvic_r = null
@@ -211,6 +215,7 @@ func rebuild() -> void:
 	anal_fin.position = anal_base_position
 	anal_fin.rotation_degrees.z = _surface_tangent_angle_degrees("ventral", param_float("anal_attach_t", 0.64))
 	body_pivot.add_child(anal_fin)
+	_build_finlets(TMF.make_finlet_material(parameters))
 
 	if param_float("pelvic_enabled", 0.0) > 0.5:
 		var pelvic_shape := String(parameters.get("pelvic_shape", "triangle"))
@@ -796,6 +801,16 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		anal_fin.position = _animated_surface_position("ventral", anal_attach_t, 0.03, 0.0, float(parameters.get("anal_fin_offset_x", 0.0)), centers, yaws)
 		anal_fin.rotation_degrees = Vector3(-_median_fin_flap(loop_phase, 0.5), 0.0, _surface_tangent_angle_degrees("ventral", anal_attach_t))
 		_animate_median_fin(anal_fin, "ventral", String(parameters.get("anal_shape", "long")), param_float("anal_length", 0.36), param_float("anal_height", param_float("anal_fin_size", 0.2)), anal_attach_t, 0.03, loop_phase, centers, yaws)
+	for spec in finlet_specs:
+		var finlet := spec.get("node") as MeshInstance3D
+		if finlet == null:
+			continue
+		var side := String(spec.get("side", "dorsal"))
+		var attach_t := float(spec.get("attach_t", 0.82))
+		var margin := float(spec.get("margin", 0.012))
+		finlet.position = _animated_surface_position(side, attach_t, margin, 0.0, 0.0, centers, yaws)
+		var flap := _median_fin_flap(loop_phase, attach_t) * 0.08
+		finlet.rotation_degrees = Vector3(flap, 0.0, _surface_tangent_angle_degrees(side, attach_t) + param_float("finlet_pitch", 0.25) * 15.0)
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -1405,6 +1420,47 @@ func _build_adipose_fin(fin_mat: Material) -> void:
 	var attach_t := _effective_adipose_attach_t()
 	adipose_fin.position = _surface_position("dorsal", attach_t, 0.02)
 	adipose_fin.rotation_degrees.z = _surface_tangent_angle_degrees("dorsal", attach_t)
+
+func _finlet_attach_t(index: int, count: int) -> float:
+	if count <= 1:
+		return 0.82
+	var start_t := 0.70
+	var end_t := 0.90
+	var span := end_t - start_t
+	var ratio := float(index) / float(count - 1)
+	return start_t + span * ratio
+
+func _build_finlets(finlet_mat: Material) -> void:
+	if not bool(parameters.get("finlet_enabled", false)):
+		return
+	var dorsal_count := clampi(int(round(param_float("finlet_dorsal_count", 0.0))), 0, 12)
+	var ventral_count := clampi(int(round(param_float("finlet_ventral_count", 0.0))), 0, 12)
+	_build_finlet_side("dorsal", dorsal_count, finlet_mat)
+	_build_finlet_side("ventral", ventral_count, finlet_mat)
+
+func _build_finlet_side(side: String, count: int, finlet_mat: Material) -> void:
+	var base_size := param_float("finlet_size", 0.25)
+	var taper := clampf(param_float("finlet_taper", 0.35), 0.0, 1.0)
+	for i in range(count):
+		var ratio := 0.0 if count <= 1 else float(i) / float(count - 1)
+		var scale := base_size * lerpf(1.0, 0.65, ratio * taper)
+		var height := scale * 0.42
+		var length := scale * 0.36
+		var y_sign := 1.0 if side == "dorsal" else -1.0
+		var points := PackedVector3Array([
+			Vector3(-length * 0.45, 0.0, 0.0),
+			Vector3(0.0, height * y_sign, 0.0),
+			Vector3(length * 0.45, 0.0, 0.0)
+		])
+		var node_name := "FinletDorsal_%d" % i if side == "dorsal" else "FinletVentral_%d" % i
+		var finlet := PF.polygon_fin(node_name, points, finlet_mat)
+		body_pivot.add_child(finlet)
+		var attach_t := _finlet_attach_t(i, count)
+		var margin := 0.012
+		finlet.position = _surface_position(side, attach_t, margin)
+		finlet.rotation_degrees.z = _surface_tangent_angle_degrees(side, attach_t) + param_float("finlet_pitch", 0.25) * 15.0
+		finlet_nodes.append(finlet)
+		finlet_specs.append({"node": finlet, "side": side, "attach_t": attach_t, "margin": margin})
 
 func _get_fin_points(fin_name: String, shape: String, length: float, height: float) -> PackedVector3Array:
 	var pts: PackedVector3Array
