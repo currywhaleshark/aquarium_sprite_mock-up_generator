@@ -7,6 +7,7 @@ const SpeciesMarkingLayerScript := preload("res://scripts/species/SpeciesMarking
 func _ready() -> void:
 	_test_loads_species_archetypes()
 	_test_applies_archetype_profiles_and_markings()
+	_test_accepts_regional_layer_contract_types()
 	_test_archetype_metadata_round_trips_through_presets()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
@@ -63,6 +64,21 @@ func _test_applies_archetype_profiles_and_markings() -> void:
 	var guppy := SpeciesArchetypeStoreScript.load_archetype("guppy")
 	var guppy_fin := SpeciesMarkingLayerScript.encode_fin_uniforms(guppy.get("marking_layers", []), "caudal_fin")
 	assert(int(guppy_fin.get("fin_marking_count", 0)) >= 1)
+
+func _test_accepts_regional_layer_contract_types() -> void:
+	var applied := SpeciesArchetypeStoreScript.apply_archetype({}, {
+		"id": "regional_contract",
+		"marking_layers": [
+			{"type": "region_color", "region": "dorsal", "blend_mode": "multiply", "color": "#223344"},
+			{"type": "scale_region", "region": "flank", "intensity": 0.8},
+			{"type": "iridescence_region", "region": "ventral_flank", "intensity": 0.5}
+		]
+	})
+	var layers: Array = applied.get("marking_layers", [])
+	assert(layers.size() == 3)
+	assert(String((layers[0] as Dictionary).get("type", "")) == "region_color")
+	assert(String((layers[1] as Dictionary).get("type", "")) == "scale_region")
+	assert(String((layers[2] as Dictionary).get("type", "")) == "iridescence_region")
 
 func _test_archetype_metadata_round_trips_through_presets() -> void:
 	var neon := SpeciesArchetypeStoreScript.load_archetype("neon_tetra")

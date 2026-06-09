@@ -4,6 +4,8 @@ const MarkingLayerEditorScript := preload("res://scripts/ui/MarkingLayerEditor.g
 
 func _ready() -> void:
 	await _test_editor_emits_layer_changes()
+	await _test_editor_defaults_fin_zone_to_fin_region()
+	await _test_editor_adds_safe_editable_layer()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/marking_layer_editor.ok", FileAccess.WRITE)
@@ -28,5 +30,46 @@ func _test_editor_emits_layer_changes() -> void:
 	await get_tree().process_frame
 	assert((seen[0] as Array).size() == 1)
 	assert(String(((seen[0] as Array)[0] as Dictionary).get("region", "")) == "flank")
+	editor.queue_free()
+	await get_tree().process_frame
+
+func _test_editor_defaults_fin_zone_to_fin_region() -> void:
+	var editor := MarkingLayerEditorScript.new()
+	add_child(editor)
+	var seen := [[]]
+	editor.layers_changed.connect(func(layers: Array) -> void:
+		seen[0] = layers
+	)
+	editor.set_layers([
+		{"type": "fin_edge", "zone": "fin", "color": "#223344", "intensity": 0.5}
+	])
+	await get_tree().process_frame
+	editor.call("_set_layer_field", 0, "blend_mode", "screen")
+	await get_tree().process_frame
+	assert(String(((seen[0] as Array)[0] as Dictionary).get("region", "")) == "fin")
+	editor.queue_free()
+	await get_tree().process_frame
+
+func _test_editor_adds_safe_editable_layer() -> void:
+	var editor := MarkingLayerEditorScript.new()
+	add_child(editor)
+	var seen := [[]]
+	editor.layers_changed.connect(func(layers: Array) -> void:
+		seen[0] = layers
+	)
+	editor.set_layers([])
+	await get_tree().process_frame
+	var add_button := editor.get_child(editor.get_child_count() - 1) as Button
+	add_button.pressed.emit()
+	await get_tree().process_frame
+	assert((seen[0] as Array).size() == 1)
+	var layer := (seen[0] as Array)[0] as Dictionary
+	assert(String(layer.get("type", "")) == "horizontal_band")
+	assert(String(layer.get("region", "")) == "flank")
+	assert(abs(float(layer.get("intensity", 1.0))) < 0.001)
+	assert(layer.has("color"))
+	assert(layer.has("x_start"))
+	assert(layer.has("x_end"))
+	assert(layer.has("thickness"))
 	editor.queue_free()
 	await get_tree().process_frame

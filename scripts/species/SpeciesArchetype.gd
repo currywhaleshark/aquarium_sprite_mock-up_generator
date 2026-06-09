@@ -13,7 +13,9 @@ const VALID_LAYER_TYPES := {
 	"fin_edge": true,
 	"fin_spots": true,
 	"scale_grid": true,
+	"region_color": true,
 	"scale_region": true,
+	"iridescence_region": true,
 	"reticulated_zone": true
 }
 
