@@ -80,6 +80,31 @@ uniform int marking_zone_4 = 0;
 uniform int marking_zone_5 = 0;
 uniform int marking_zone_6 = 0;
 uniform int marking_zone_7 = 0;
+const int TYPE_REGION_COLOR = 13;
+const int TYPE_SCALE_REGION = 14;
+const int TYPE_IRIDESCENCE_REGION = 15;
+
+const int BLEND_NORMAL = 0;
+const int BLEND_MULTIPLY = 1;
+const int BLEND_SCREEN = 2;
+const int BLEND_ADD = 3;
+
+uniform int marking_region_0 = 0;
+uniform int marking_region_1 = 0;
+uniform int marking_region_2 = 0;
+uniform int marking_region_3 = 0;
+uniform int marking_region_4 = 0;
+uniform int marking_region_5 = 0;
+uniform int marking_region_6 = 0;
+uniform int marking_region_7 = 0;
+uniform int marking_blend_0 = 0;
+uniform int marking_blend_1 = 0;
+uniform int marking_blend_2 = 0;
+uniform int marking_blend_3 = 0;
+uniform int marking_blend_4 = 0;
+uniform int marking_blend_5 = 0;
+uniform int marking_blend_6 = 0;
+uniform int marking_blend_7 = 0;
 uniform vec4 marking_color_0 : source_color = vec4(1.0);
 uniform vec4 marking_color_1 : source_color = vec4(1.0);
 uniform vec4 marking_color_2 : source_color = vec4(1.0);
@@ -221,6 +246,32 @@ float band_range(float value, float start_value, float end_value, float softness
 	return clamp(a * b, 0.0, 1.0);
 }
 
+float region_mask(int region, float u, float up) {
+	if (region == 0) { return 1.0; }
+	if (region == 1) { return smoothstep(0.22, 0.62, up); }
+	if (region == 2) { return 1.0 - smoothstep(0.28, 0.72, abs(up)); }
+	if (region == 3) { return 1.0 - smoothstep(-0.72, -0.28, up); }
+	if (region == 4) { return smoothstep(0.04, 0.44, up); }
+	if (region == 5) { return smoothstep(0.04, 0.44, -up); }
+	if (region == 6) { return 1.0 - smoothstep(0.20, 0.28, u); }
+	if (region == 7) { return (1.0 - smoothstep(0.10, 0.22, u)) * (1.0 - smoothstep(0.55, 0.9, abs(up))); }
+	if (region == 8) { return band_range(u, 0.14, 0.25, 0.025) * (1.0 - smoothstep(0.18, 0.62, abs(up))); }
+	if (region == 9) { return band_range(u, 0.72, 0.94, 0.04) * (1.0 - smoothstep(0.34, 0.82, abs(up))); }
+	return 0.0;
+}
+
+vec3 blend_marking_color(vec3 base, vec3 layer, int blend_mode, float amount) {
+	vec3 blended = layer;
+	if (blend_mode == BLEND_MULTIPLY) {
+		blended = base * layer;
+	} else if (blend_mode == BLEND_SCREEN) {
+		blended = 1.0 - (1.0 - base) * (1.0 - layer);
+	} else if (blend_mode == BLEND_ADD) {
+		blended = min(base + layer, vec3(1.0));
+	}
+	return mix(base, blended, amount);
+}
+
 float marking_layer_mask(int kind, vec4 rect, vec4 params, float u, float up) {
 	float x0 = min(rect.x, rect.y);
 	float x1 = max(rect.x, rect.y);
@@ -258,9 +309,16 @@ float marking_layer_mask(int kind, vec4 rect, vec4 params, float u, float up) {
 	return 0.0;
 }
 
-void apply_marking_layer(inout vec3 col, int kind, vec4 color, vec4 rect, vec4 params, float u, float up) {
-	float mask = marking_layer_mask(kind, rect, params, u, up) * clamp(params.x, 0.0, 1.0);
-	col = mix(col, color.rgb, mask * color.a);
+void apply_marking_layer(inout vec3 col, int kind, int region, int blend_mode, vec4 color, vec4 rect, vec4 params, float u, float up) {
+	if (kind == TYPE_SCALE_REGION || kind == TYPE_IRIDESCENCE_REGION) {
+		return;
+	}
+	float mask = marking_layer_mask(kind, rect, params, u, up);
+	if (kind == TYPE_REGION_COLOR) {
+		mask = band_range(u, min(rect.x, rect.y), max(rect.x, rect.y), max(params.y, 0.001));
+	}
+	mask *= region_mask(region, u, up) * clamp(params.x, 0.0, 1.0);
+	col = blend_marking_color(col, color.rgb, blend_mode, mask * color.a);
 	col += color.rgb * mask * clamp(params.z + emissive_marking_strength, 0.0, 1.0) * 0.35;
 }
 
@@ -289,14 +347,14 @@ void fragment() {
 	// 2b. Species markings. These are localized, high-readability marks such as
 	// neon lateral lines, posterior bands, vertical bars, head masks, or spots.
 	int count = min(marking_count, 8);
-	if (count > 0) { apply_marking_layer(col, marking_type_0, marking_color_0, marking_rect_0, marking_params_0, v_long, up); }
-	if (count > 1) { apply_marking_layer(col, marking_type_1, marking_color_1, marking_rect_1, marking_params_1, v_long, up); }
-	if (count > 2) { apply_marking_layer(col, marking_type_2, marking_color_2, marking_rect_2, marking_params_2, v_long, up); }
-	if (count > 3) { apply_marking_layer(col, marking_type_3, marking_color_3, marking_rect_3, marking_params_3, v_long, up); }
-	if (count > 4) { apply_marking_layer(col, marking_type_4, marking_color_4, marking_rect_4, marking_params_4, v_long, up); }
-	if (count > 5) { apply_marking_layer(col, marking_type_5, marking_color_5, marking_rect_5, marking_params_5, v_long, up); }
-	if (count > 6) { apply_marking_layer(col, marking_type_6, marking_color_6, marking_rect_6, marking_params_6, v_long, up); }
-	if (count > 7) { apply_marking_layer(col, marking_type_7, marking_color_7, marking_rect_7, marking_params_7, v_long, up); }
+	if (count > 0) { apply_marking_layer(col, marking_type_0, marking_region_0, marking_blend_0, marking_color_0, marking_rect_0, marking_params_0, v_long, up); }
+	if (count > 1) { apply_marking_layer(col, marking_type_1, marking_region_1, marking_blend_1, marking_color_1, marking_rect_1, marking_params_1, v_long, up); }
+	if (count > 2) { apply_marking_layer(col, marking_type_2, marking_region_2, marking_blend_2, marking_color_2, marking_rect_2, marking_params_2, v_long, up); }
+	if (count > 3) { apply_marking_layer(col, marking_type_3, marking_region_3, marking_blend_3, marking_color_3, marking_rect_3, marking_params_3, v_long, up); }
+	if (count > 4) { apply_marking_layer(col, marking_type_4, marking_region_4, marking_blend_4, marking_color_4, marking_rect_4, marking_params_4, v_long, up); }
+	if (count > 5) { apply_marking_layer(col, marking_type_5, marking_region_5, marking_blend_5, marking_color_5, marking_rect_5, marking_params_5, v_long, up); }
+	if (count > 6) { apply_marking_layer(col, marking_type_6, marking_region_6, marking_blend_6, marking_color_6, marking_rect_6, marking_params_6, v_long, up); }
+	if (count > 7) { apply_marking_layer(col, marking_type_7, marking_region_7, marking_blend_7, marking_color_7, marking_rect_7, marking_params_7, v_long, up); }
 
 	// 2c. Operculum (gill cover). Painted in UV on the body shell's front region
 	// (operculum_u sits in the whole-fish [0,1] UV, ~14-22% back), which is the
