@@ -258,6 +258,18 @@ static func ensure_visual_parameters(parameters: Dictionary) -> void:
 		parameters["shell_roundness"] = 1.0
 	if not parameters.has("cephalic_horns"):
 		parameters["cephalic_horns"] = "none"
+	# Surface colours and the regional marking editor are key-driven in the UI, so
+	# inject them when absent or their controls never appear (e.g. a preset that
+	# predates the feature, or a base preset that omitted belly_color). Defaults
+	# mirror the renderer's own fallbacks so injecting them changes no appearance.
+	if not parameters.has("belly_color"):
+		parameters["belly_color"] = String(parameters.get("base_color", "#d6fbff"))
+	if not parameters.has("secondary_color"):
+		parameters["secondary_color"] = "#d8fbff"
+	if not parameters.has("fin_color"):
+		parameters["fin_color"] = "#7ee1e8"
+	if not parameters.has("marking_layers"):
+		parameters["marking_layers"] = []
 
 static func suggest_pattern(body_length: float, body_height: float) -> String:
 	var ratio := body_length / maxf(body_height, 0.001)

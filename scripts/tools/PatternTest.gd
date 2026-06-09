@@ -299,6 +299,22 @@ func _test_visual_defaults_injected() -> void:
 	assert(legacy.has("pearlscale_strength"))
 	assert(legacy.has("metallic_scale_strength"))
 	assert(legacy.has("emissive_marking_strength"))
+	# Surface colours and the regional marking editor are key-driven in the UI, so
+	# they must be injected too or their controls never appear in the default state.
+	assert(legacy.has("belly_color"))
+	assert(String(legacy.get("belly_color", "")) == "#46c6cf") # mirrors base_color: no visual change
+	assert(legacy.has("secondary_color"))
+	assert(legacy.has("fin_color"))
+	assert(legacy.has("marking_layers"))
+	assert(legacy.get("marking_layers") is Array)
+	assert((legacy.get("marking_layers") as Array).is_empty())
+	# Presets that already define these keep their own values.
+	var explicit := BodyProfileScript.make_parameters_from_structured_preset({
+		"name": "explicit",
+		"global": {"body_length": 1.2, "body_height": 0.5},
+		"visual_profile": {"base_color": "#46c6cf", "belly_color": "#102030"}
+	})
+	assert(String(explicit.get("belly_color", "")) == "#102030")
 
 func _luma(color: Color) -> float:
 	return color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722
