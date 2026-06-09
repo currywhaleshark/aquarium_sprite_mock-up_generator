@@ -26,6 +26,37 @@ uniform float fin_translucency_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float fin_tornness : hint_range(0.0, 1.0) = 0.0;
 uniform float fin_trailing_threads : hint_range(0.0, 1.0) = 0.0;
 
+const int FIN_TYPE_REGION_COLOR = 13;
+const int FIN_TYPE_HORIZONTAL_BAND = 2;
+const int FIN_TYPE_VERTICAL_BAR = 3;
+const int FIN_TYPE_FIN_EDGE = 9;
+const int FIN_TYPE_FIN_SPOTS = 10;
+const int FIN_BLEND_MULTIPLY = 1;
+const int FIN_BLEND_SCREEN = 2;
+const int FIN_BLEND_ADD = 3;
+
+uniform int fin_marking_count = 0;
+uniform int fin_marking_type_0 = 0;
+uniform int fin_marking_blend_0 = 0;
+uniform vec4 fin_marking_color_0 : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 fin_marking_rect_0 = vec4(0.0, 1.0, 0.0, 0.08);
+uniform vec4 fin_marking_params_0 = vec4(0.0, 0.025, 0.0, 0.0);
+uniform int fin_marking_type_1 = 0;
+uniform int fin_marking_blend_1 = 0;
+uniform vec4 fin_marking_color_1 : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 fin_marking_rect_1 = vec4(0.0, 1.0, 0.0, 0.08);
+uniform vec4 fin_marking_params_1 = vec4(0.0, 0.025, 0.0, 1.0);
+uniform int fin_marking_type_2 = 0;
+uniform int fin_marking_blend_2 = 0;
+uniform vec4 fin_marking_color_2 : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 fin_marking_rect_2 = vec4(0.0, 1.0, 0.0, 0.08);
+uniform vec4 fin_marking_params_2 = vec4(0.0, 0.025, 0.0, 2.0);
+uniform int fin_marking_type_3 = 0;
+uniform int fin_marking_blend_3 = 0;
+uniform vec4 fin_marking_color_3 : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 fin_marking_rect_3 = vec4(0.0, 1.0, 0.0, 0.08);
+uniform vec4 fin_marking_params_3 = vec4(0.0, 0.025, 0.0, 3.0);
+
 varying vec2 v_uv;
 
 void vertex() {
@@ -68,10 +99,75 @@ float ray_distance(vec2 uv) {
 	return 1.0 - uv.y;
 }
 
+float fin_band_range(float value, float start, float end, float softness) {
+	float aa = max(softness, fwidth(value));
+	float enter = smoothstep(start, start + aa, value);
+	float exit = 1.0 - smoothstep(end - aa, end, value);
+	return clamp(enter * exit, 0.0, 1.0);
+}
+
+float fin_marking_mask(int marking_type, vec2 uv, vec4 rect, vec4 params) {
+	float intensity = clamp(params.x, 0.0, 1.0);
+	float softness = max(params.y, 0.001);
+	if (marking_type == FIN_TYPE_FIN_EDGE) {
+		float edge = 1.0 - smoothstep(rect.w, rect.w + softness, min(uv.y, 1.0 - uv.y));
+		edge = max(edge, smoothstep(1.0 - rect.w - softness, 1.0 - rect.w, uv.x));
+		return edge * intensity;
+	}
+	if (marking_type == FIN_TYPE_FIN_SPOTS) {
+		vec2 cell = fract(vec2(uv.x * 8.0, uv.y * 5.0) + params.w * 0.17) - 0.5;
+		float spot = 1.0 - smoothstep(0.18, 0.18 + softness, length(cell));
+		return spot * fin_band_range(uv.x, rect.x, rect.y, softness) * intensity;
+	}
+	if (marking_type == FIN_TYPE_HORIZONTAL_BAND) {
+		float center_y = clamp(rect.z * 0.5 + 0.5, 0.0, 1.0);
+		float band = 1.0 - smoothstep(rect.w, rect.w + softness, abs(uv.y - center_y));
+		return band * fin_band_range(uv.x, rect.x, rect.y, softness) * intensity;
+	}
+	if (marking_type == FIN_TYPE_VERTICAL_BAR) {
+		float center_x = (rect.x + rect.y) * 0.5;
+		return (1.0 - smoothstep(rect.w, rect.w + softness, abs(uv.x - center_x))) * intensity;
+	}
+	if (marking_type == FIN_TYPE_REGION_COLOR) {
+		return fin_band_range(uv.x, rect.x, rect.y, softness) * intensity;
+	}
+	return 0.0;
+}
+
+vec3 fin_blend(vec3 base, vec3 marking, int blend_mode, float mask) {
+	vec3 blended = marking;
+	if (blend_mode == FIN_BLEND_MULTIPLY) {
+		blended = base * marking;
+	} else if (blend_mode == FIN_BLEND_SCREEN) {
+		blended = 1.0 - (1.0 - base) * (1.0 - marking);
+	} else if (blend_mode == FIN_BLEND_ADD) {
+		blended = min(base + marking, vec3(1.0));
+	}
+	return mix(base, blended, clamp(mask, 0.0, 1.0));
+}
+
+void apply_fin_marking(inout vec3 base, int marking_type, int blend_mode, vec4 marking_color, vec4 rect, vec4 params, vec2 uv) {
+	float mask = fin_marking_mask(marking_type, uv, rect, params) * marking_color.a;
+	base = fin_blend(base, marking_color.rgb, blend_mode, mask);
+}
+
 void fragment() {
 	vec3 col = mix(fin_gradient_color.rgb, fin_color.rgb, 1.0 - v_uv.x);
 	col = mix(col, fin_tip_color.rgb, smoothstep(0.68, 1.0, v_uv.x) * fin_tip_color.a);
 	col = mix(col, fin_body_color.rgb, fin_color_blend * fin_body_color.a);
+
+	if (fin_marking_count > 0) {
+		apply_fin_marking(col, fin_marking_type_0, fin_marking_blend_0, fin_marking_color_0, fin_marking_rect_0, fin_marking_params_0, v_uv);
+	}
+	if (fin_marking_count > 1) {
+		apply_fin_marking(col, fin_marking_type_1, fin_marking_blend_1, fin_marking_color_1, fin_marking_rect_1, fin_marking_params_1, v_uv);
+	}
+	if (fin_marking_count > 2) {
+		apply_fin_marking(col, fin_marking_type_2, fin_marking_blend_2, fin_marking_color_2, fin_marking_rect_2, fin_marking_params_2, v_uv);
+	}
+	if (fin_marking_count > 3) {
+		apply_fin_marking(col, fin_marking_type_3, fin_marking_blend_3, fin_marking_color_3, fin_marking_rect_3, fin_marking_params_3, v_uv);
+	}
 
 	float edge = 1.0 - smoothstep(fin_edge_width, fin_edge_width + 0.02, min(v_uv.y, 1.0 - v_uv.y));
 	edge = max(edge, smoothstep(1.0 - fin_edge_width - 0.02, 1.0 - fin_edge_width, v_uv.x));

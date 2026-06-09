@@ -4,6 +4,7 @@ const PrimitiveFactoryScript := preload("res://scripts/creature/PrimitiveFactory
 const ToonMaterialFactoryScript := preload("res://scripts/materials/ToonMaterialFactory.gd")
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const SpeciesMarkingLayerScript := preload("res://scripts/species/SpeciesMarkingLayer.gd")
 
 func _ready() -> void:
 	_test_polygon_and_oval_fins_have_uvs()
@@ -13,6 +14,7 @@ func _ready() -> void:
 	_test_fin_ray_defaults_are_injected()
 	_test_new_fin_fields_round_trip_through_fin_profile()
 	_test_fin_material_exposes_ray_structure_uniforms()
+	_test_fin_material_receives_filtered_marking_uniforms()
 	_test_fish_rig_assigns_slot_specific_ray_axes()
 	_test_rayless_material_overrides_global_rays()
 	_test_legacy_parallel_ray_fallback_contract()
@@ -184,6 +186,17 @@ func _test_fin_material_exposes_ray_structure_uniforms() -> void:
 	assert(abs(float(material.get_shader_parameter("fin_spine_count")) - 4.0) < 0.001)
 	assert(material.get_shader_parameter("fin_body_color") is Color)
 	assert(abs(float(material.get_shader_parameter("fin_color_blend")) - 0.4) < 0.001)
+
+func _test_fin_material_receives_filtered_marking_uniforms() -> void:
+	var material := ToonMaterialFactoryScript.make_fin_material({
+		"marking_layers": [
+			{"type": "fin_spots", "region": "paired_fin", "color": "#aa8844", "intensity": 0.5},
+			{"type": "horizontal_band", "region": "median_fin", "color": "#66ccff", "x_start": 0.1, "x_end": 0.8}
+		]
+	}, {"fin_region": "paired_fin"})
+	assert(int(material.get_shader_parameter("fin_marking_count")) == 1)
+	assert(int(material.get_shader_parameter("fin_marking_type_0")) == SpeciesMarkingLayerScript.TYPE_FIN_SPOTS)
+	assert(material.get_shader_parameter("fin_marking_color_0") is Color)
 
 func _test_fish_rig_assigns_slot_specific_ray_axes() -> void:
 	var fish := FishRigScript.new()

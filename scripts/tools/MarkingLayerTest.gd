@@ -8,6 +8,7 @@ func _ready() -> void:
 	_test_marking_layer_region_and_blend_fields()
 	_test_invalid_region_and_blend_use_safe_defaults()
 	_test_legacy_zone_defaults_preserve_existing_body_behavior()
+	_test_fin_uniform_encoder_filters_by_region()
 	_test_body_material_receives_marking_uniforms()
 	_test_shader_contains_marking_mask_path()
 
@@ -105,6 +106,26 @@ func _test_legacy_zone_defaults_preserve_existing_body_behavior() -> void:
 	assert(int(encoded.get("marking_count", 0)) == 2)
 	assert(int(encoded.get("marking_region_0", -1)) == SpeciesMarkingLayerScript.REGION_BODY)
 	assert(int(encoded.get("marking_region_1", -1)) == SpeciesMarkingLayerScript.REGION_FIN)
+
+func _test_fin_uniform_encoder_filters_by_region() -> void:
+	var raw_layers := [
+		{"type": "fin_edge", "zone": "fin", "color": "#223344", "intensity": 0.7},
+		{"type": "fin_spots", "region": "paired_fin", "color": "#aa8844", "intensity": 0.5},
+		{"type": "horizontal_band", "region": "median_fin", "color": "#66ccff", "x_start": 0.1, "x_end": 0.8}
+	]
+	var median_encoded := SpeciesMarkingLayerScript.encode_fin_uniforms(raw_layers, "median_fin")
+	assert(int(median_encoded.get("fin_marking_count", 0)) == 2)
+	assert(int(median_encoded.get("fin_marking_type_0", 0)) == SpeciesMarkingLayerScript.TYPE_FIN_EDGE)
+	assert(int(median_encoded.get("fin_marking_type_1", 0)) == SpeciesMarkingLayerScript.TYPE_HORIZONTAL_BAND)
+	assert(median_encoded.get("fin_marking_color_0") is Color)
+	assert(median_encoded.get("fin_marking_rect_0") is Vector4)
+	assert(median_encoded.get("fin_marking_params_0") is Vector4)
+	var median_rect: Vector4 = median_encoded.get("fin_marking_rect_0")
+	assert(abs(median_rect.w - 0.08) < 0.001)
+	var paired_encoded := SpeciesMarkingLayerScript.encode_fin_uniforms(raw_layers, "paired_fin")
+	assert(int(paired_encoded.get("fin_marking_count", 0)) == 2)
+	assert(int(paired_encoded.get("fin_marking_type_0", 0)) == SpeciesMarkingLayerScript.TYPE_FIN_EDGE)
+	assert(int(paired_encoded.get("fin_marking_type_1", 0)) == SpeciesMarkingLayerScript.TYPE_FIN_SPOTS)
 
 func _test_body_material_receives_marking_uniforms() -> void:
 	var material := ToonMaterialFactoryScript.make_body_material({

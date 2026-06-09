@@ -121,7 +121,9 @@ func rebuild() -> void:
 	var secondary_mat := TMF.make_surface(param_color("secondary_color", "#d8fbff"), 0.2, 0.5)
 	var dorsal_fin_mat := _make_fin_material(FIN_RAY_AXIS_VERTICAL_UP)
 	var ventral_fin_mat := _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN)
-	var horizontal_fin_mat := _make_fin_material(FIN_RAY_AXIS_HORIZONTAL)
+	var paired_horizontal_fin_mat := _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"})
+	var paired_ventral_fin_mat := _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"})
+	var caudal_fin_mat := _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "caudal_fin"})
 	var eye_mat := TMF.make_dark("#10161a")
 
 	var body_length := param_float("body_length", 1.45)
@@ -198,10 +200,12 @@ func rebuild() -> void:
 		body_pivot.add_child(dorsal_2_fin)
 
 	var adipose_mat := TMF.make_rayless_fin_material(parameters, {
+		"fin_region": "special_fin",
 		"fin_opacity": clampf(param_float("adipose_fin_opacity", 0.72), 0.0, 1.0)
 	})
 	if float(parameters.get("adipose_fin_rayed", 0.0)) > 0.001:
 		adipose_mat = _make_fin_material(FIN_RAY_AXIS_VERTICAL_UP, {
+			"fin_region": "special_fin",
 			"fin_opacity": clampf(param_float("adipose_fin_opacity", 0.72), 0.0, 1.0),
 			"fin_ray_strength": clampf(float(parameters.get("adipose_fin_rayed", 0.0)), 0.0, 1.0)
 		})
@@ -221,7 +225,7 @@ func rebuild() -> void:
 	anal_fin.position = anal_base_position
 	anal_fin.rotation_degrees.z = _surface_tangent_angle_degrees("ventral", param_float("anal_attach_t", 0.64))
 	body_pivot.add_child(anal_fin)
-	_build_finlets(TMF.make_finlet_material(parameters))
+	_build_finlets(TMF.make_finlet_material(parameters, {"fin_region": "special_fin"}))
 
 	if param_float("pelvic_enabled", 0.0) > 0.5:
 		var pelvic_shape := String(parameters.get("pelvic_shape", "triangle"))
@@ -229,8 +233,8 @@ func rebuild() -> void:
 		var pelvic_height := param_float("pelvic_height", 0.14)
 		if pelvic_shape == "oval":
 			pelvic_base_points = PF.oval_fin_points(pelvic_length, pelvic_height)
-			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, ventral_fin_mat)
-			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN))
+			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, paired_ventral_fin_mat)
+			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"}))
 		else:
 			var points_l := _get_fin_points("PelvicFinL", pelvic_shape, pelvic_length, pelvic_height)
 			var points_r := _get_fin_points("PelvicFinR", pelvic_shape, pelvic_length, pelvic_height)
@@ -241,8 +245,8 @@ func rebuild() -> void:
 			for p in points_r:
 				inverted_r.append(Vector3(p.x, -p.y, p.z))
 			pelvic_base_points = inverted_l
-			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, ventral_fin_mat)
-			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN))
+			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, paired_ventral_fin_mat)
+			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"}))
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
 		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
@@ -260,11 +264,11 @@ func rebuild() -> void:
 	var pectoral_shape := String(parameters.get("pectoral_shape", "oval"))
 	if pectoral_shape == "oval":
 		pectoral_base_points = PF.oval_fin_points(pectoral_size, pectoral_size * 0.5)
-		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, horizontal_fin_mat)
+		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, paired_horizontal_fin_mat)
 	else:
 		var points_l := _get_fin_points("PectoralFinL", pectoral_shape, pectoral_size, pectoral_size * 0.5)
 		pectoral_base_points = points_l
-		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, horizontal_fin_mat)
+		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, paired_horizontal_fin_mat)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
 	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -_surface_radius_z(pectoral_attach_t) - shell_expand * 0.18)
@@ -275,10 +279,10 @@ func rebuild() -> void:
 	body_pivot.add_child(pectoral_l)
 
 	if pectoral_shape == "oval":
-		pectoral_r = PF.oval_fin("PectoralFinR", pectoral_size, pectoral_size * 0.5, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL))
+		pectoral_r = PF.oval_fin("PectoralFinR", pectoral_size, pectoral_size * 0.5, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"}))
 	else:
 		var points_r := _get_fin_points("PectoralFinR", pectoral_shape, pectoral_size, pectoral_size * 0.5)
-		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL))
+		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"}))
 	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, _surface_radius_z(pectoral_attach_t) + shell_expand * 0.18)
 	pectoral_r.position = pectoral_r_base_position
 	pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
@@ -322,7 +326,7 @@ func rebuild() -> void:
 		adjusted_points.append(new_p)
 	tail_fin_base_points = adjusted_points
 
-	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, horizontal_fin_mat)
+	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, caudal_fin_mat)
 	tail_fin_pivot.add_child(tail_fin)
 	_update_body_ring_world_points()
 	if ring_editor_enabled or param_float("show_ring_guides", 0.0) > 0.5:
@@ -1419,6 +1423,8 @@ func _build_median_fin(fin_name: String, side: String, shape: String, length: fl
 func _make_fin_material(ray_axis: float, overrides: Dictionary = {}) -> ShaderMaterial:
 	var axis_overrides := overrides.duplicate(true)
 	axis_overrides["fin_ray_axis"] = ray_axis
+	if not axis_overrides.has("fin_region"):
+		axis_overrides["fin_region"] = "median_fin"
 	return TMF.make_fin_material(parameters, axis_overrides)
 
 func _effective_adipose_attach_t() -> float:

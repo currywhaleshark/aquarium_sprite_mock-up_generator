@@ -124,6 +124,9 @@ static func make_fin_material(parameters: Dictionary, overrides: Dictionary = {}
 	material.set_shader_parameter("fin_translucency_strength", clampf(float(effective.get("fin_translucency_strength", effective.get("fin_translucency", 0.0))), 0.0, 1.0))
 	material.set_shader_parameter("fin_tornness", clampf(float(effective.get("fin_tornness", 0.0)), 0.0, 1.0))
 	material.set_shader_parameter("fin_trailing_threads", clampf(float(effective.get("fin_trailing_threads", 0.0)), 0.0, 1.0))
+	var fin_marking_uniforms := SpeciesMarkingLayerScript.encode_fin_uniforms(effective.get("marking_layers", []), String(effective.get("fin_region", "median_fin")))
+	for key in fin_marking_uniforms.keys():
+		material.set_shader_parameter(String(key), fin_marking_uniforms[key])
 	return material
 
 static func make_rayless_fin_material(parameters: Dictionary, overrides: Dictionary = {}) -> ShaderMaterial:
@@ -142,10 +145,13 @@ static func make_rayless_fin_material(parameters: Dictionary, overrides: Diction
 		rayless[key] = overrides[key]
 	return make_fin_material(parameters, rayless)
 
-static func make_finlet_material(parameters: Dictionary) -> ShaderMaterial:
-	return make_rayless_fin_material(parameters, {
+static func make_finlet_material(parameters: Dictionary, overrides: Dictionary = {}) -> ShaderMaterial:
+	var finlet_overrides := {
 		"fin_color_blend": clampf(float(parameters.get("finlet_color_blend", 0.5)), 0.0, 1.0)
-	})
+	}
+	for key in overrides.keys():
+		finlet_overrides[key] = overrides[key]
+	return make_rayless_fin_material(parameters, finlet_overrides)
 
 static func make_dark(color_value: Variant) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()

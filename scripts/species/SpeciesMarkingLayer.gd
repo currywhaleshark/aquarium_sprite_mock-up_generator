@@ -2,6 +2,7 @@ class_name SpeciesMarkingLayer
 extends RefCounted
 
 const MAX_MARKING_LAYERS := 8
+const MAX_FIN_MARKING_LAYERS := 4
 
 const TYPE_NONE := 0
 const TYPE_LATERAL_LINE := 1
@@ -127,6 +128,54 @@ static func encode_uniforms(raw_layers: Variant) -> Dictionary:
 			encoded["marking_params_%d" % i] = Vector4(0.0, 0.025, 0.0, float(i))
 	return encoded
 
+static func encode_fin_uniforms(raw_layers: Variant, fin_region: String) -> Dictionary:
+	var normalized := _normalize_layers(raw_layers)
+	var requested_region_id := int(REGION_BY_NAME.get(fin_region, REGION_MEDIAN_FIN))
+	var allowed_type_ids := [
+		TYPE_FIN_EDGE,
+		TYPE_FIN_SPOTS,
+		TYPE_HORIZONTAL_BAND,
+		TYPE_VERTICAL_BAR,
+		TYPE_REGION_COLOR
+	]
+	var fin_layers: Array[Dictionary] = []
+	for layer in normalized:
+		var type_id := int(layer["type_id"])
+		var region_id := int(layer["region_id"])
+		if not allowed_type_ids.has(type_id):
+			continue
+		if region_id != REGION_FIN and region_id != requested_region_id:
+			continue
+		fin_layers.append(layer)
+		if fin_layers.size() >= MAX_FIN_MARKING_LAYERS:
+			break
+	var encoded := {"fin_marking_count": fin_layers.size()}
+	for i in MAX_FIN_MARKING_LAYERS:
+		if i < fin_layers.size():
+			var layer: Dictionary = fin_layers[i]
+			encoded["fin_marking_type_%d" % i] = int(layer["type_id"])
+			encoded["fin_marking_blend_%d" % i] = int(layer["blend_id"])
+			encoded["fin_marking_color_%d" % i] = _as_color(layer.get("color", "#ffffff"))
+			encoded["fin_marking_rect_%d" % i] = Vector4(
+				float(layer.get("x_start", 0.0)),
+				float(layer.get("x_end", 1.0)),
+				float(layer.get("y", 0.0)),
+				float(layer.get("fin_thickness", layer.get("thickness", 0.08)))
+			)
+			encoded["fin_marking_params_%d" % i] = Vector4(
+				float(layer.get("intensity", 1.0)),
+				float(layer.get("softness", 0.025)),
+				float(layer.get("emissive", 0.0)),
+				float(layer.get("seed", i))
+			)
+		else:
+			encoded["fin_marking_type_%d" % i] = TYPE_NONE
+			encoded["fin_marking_blend_%d" % i] = BLEND_NORMAL
+			encoded["fin_marking_color_%d" % i] = Color(1, 1, 1, 1)
+			encoded["fin_marking_rect_%d" % i] = Vector4(0.0, 1.0, 0.0, 0.08)
+			encoded["fin_marking_params_%d" % i] = Vector4(0.0, 0.025, 0.0, float(i))
+	return encoded
+
 static func _normalize_layers(raw_layers: Variant) -> Array[Dictionary]:
 	var layers: Array[Dictionary] = []
 	if typeof(raw_layers) != TYPE_ARRAY:
@@ -163,6 +212,7 @@ static func _normalize_layers(raw_layers: Variant) -> Array[Dictionary]:
 			layer["x_end"] = tmp
 		layer["y"] = clampf(float(layer.get("y", 0.0)), -1.0, 1.0)
 		layer["thickness"] = maxf(float(layer.get("thickness", 0.05)), 0.001)
+		layer["fin_thickness"] = layer["thickness"] if raw_layer.has("thickness") else 0.08
 		layer["intensity"] = clampf(float(layer.get("intensity", 1.0)), 0.0, 1.0)
 		layer["softness"] = maxf(float(layer.get("softness", 0.025)), 0.001)
 		layer["emissive"] = clampf(float(layer.get("emissive", 0.0)), 0.0, 1.0)
