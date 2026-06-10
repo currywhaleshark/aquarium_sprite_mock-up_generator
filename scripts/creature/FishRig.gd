@@ -2200,32 +2200,21 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# the body-coloured surface. Its height grows with mouth_open. Skipped on a fully closed
 	# mouth so it can never show on a shut mouth.
 	if t > 0.01:
-		# Dark socket lining: fills the real mouth pit the head shell is dented into (same
-		# HeadProfile.mouth_pit math), sitting a hair proud of the dented shell so it shows.
-		# Because it lives inside a true concavity it reads as depth from any angle and never
-		# pokes out of the silhouette. Grows with mouth_open along with the pit.
-		# Top edge fixed at the bite line, growing DOWNWARD with gape to follow the lower jaw
-		# (must mirror PrimitiveFactory block 6c so the lining sits in the shell's dent).
-		var mouth_width_scale := clampf(mouth_size / 0.08, 0.45, 2.2)
-		var mouth_depth_scale := lerpf(0.85, 1.25, clampf((mouth_width_scale - 0.65) / 1.55, 0.0, 1.0))
-		
-		var buffer_y: float = 0.03 * lower_jaw_scale * sqrt(mouth_width_scale)
-		var pit_top: float = (jaw_lm["upper_tip"] as Vector2).y + buffer_y
-		var pit_bottom: float = (jaw_lm["lower_tip"] as Vector2).y - buffer_y
-		var pit_h: float = pit_top - pit_bottom
-		var pit_half_h: float = pit_h * 0.5
-		var pit_center_y: float = (pit_top + pit_bottom) * 0.5
-		var lower_jaw_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * mouth_width_scale
-		var pit_half_w := lower_jaw_half_w * 0.84
-		var pit_depth := PF.UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale * mouth_depth_scale
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
-		cavity.mesh = _mouth_pit_dark_mesh(pit_center_y, mouth_position, t, pit_half_h, pit_half_w, pit_depth, angle, head_verts)
+		cavity.mesh = PF.mouth_pit_lining_mesh(
+			String(parameters.get("head_shape", "rounded")),
+			param_float("snout_length", 0.0),
+			param_float("forehead_slope", 0.35),
+			18,
+			24,
+			sculpt
+		)
 		var cavity_mat := dark_mat.duplicate()
 		if cavity_mat is BaseMaterial3D:
 			cavity_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		cavity.material_override = cavity_mat
-		cavity.position = mouth_position
+		cavity.position = Vector3.ZERO
 		head.add_child(cavity)
 
 		var upper_interior := MeshInstance3D.new()
@@ -2337,93 +2326,6 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 		var p11: Vector3 = grid[1][j + 1]
 		st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
 		st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
-	st.generate_normals()
-	return st.commit()
-
-# Dark socket lining for the real mouth pit. Samples a fine grid over the mouth region on the
-# analytic head front, applies the SAME HeadProfile.mouth_pit dent (a hair shallower so it sits
-# just proud of the dented shell), and emits it dark. Smooth (analytic, no nearest-vertex
-# jaggies), recessed (lives in the pit, never pokes out), and grows with gape.
-func _mouth_pit_dark_mesh(center_y: float, origin: Vector3, gape_t: float, half_h: float, half_w: float, depth: float, tilt_deg: float, head_verts: PackedVector3Array = PackedVector3Array(), rows: int = 8, cols: int = 12) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var tilt_r := deg_to_rad(tilt_deg)
-	var g := clampf(gape_t, 0.0, 1.0)
-	var top := center_y + half_h
-	var bottom := center_y - half_h
-
-	# Fetch sculpt params and calculate protrusion parameters to match PrimitiveFactory.gd
-	var sculpt := _head_sculpt_params()
-	var lower_jaw_scale: float = sculpt["lower_jaw_scale"]
-	var mouth_center_y: float = sculpt["mouth_center_y"]
-	var mouth_size_scale := clampf(float(sculpt.get("mouth_size", 0.08)) / 0.08, 0.65, 2.2)
-	var upper_carve_size_scale := lerpf(0.75, 1.35, clampf((mouth_size_scale - 0.65) / 1.55, 0.0, 1.0))
-	var shape := String(parameters.get("head_shape", "rounded"))
-
-	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, g)
-	var premax_fwd: float = HeadProfile.JAW_SNOUT_FRONT_X - jaw_lm["upper_tip"].x
-	var shift := _snout_tip_displacement()
-
-	var sample := func(ay: float, az: float) -> Vector3:
-		# 1. Unshift y to get the correct base coordinate on the sphere before snout curve/shift
-		var ay_unshifted := ay - shift
-		var base_x := _head_front_surface_x(ay_unshifted, az, 0.0)
-		
-		# 2. Get the base sphere 'u' coordinate (matching PrimitiveFactory.gd line 79)
-		var x_sq := maxf(0.25 - ay_unshifted * ay_unshifted - az * az, 0.0)
-		var x_sphere := -sqrt(x_sq)
-		var u_base := x_sphere + 0.5
-		
-		# 3. Apply Upper-Jaw Carve (mirrors PrimitiveFactory.gd lines 145-154)
-		var cx := base_x
-		var cy := ay
-		if shape != "cephalofoil" and cx < 0.04:
-			var front_w := smoothstep(PF.UPPER_JAW_CARVE_LENGTH, 0.0, u_base)
-			var carve_depth := PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * upper_carve_size_scale
-			var carve_half_width := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * upper_carve_size_scale
-			var lower_edge := mouth_center_y - carve_depth
-			var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, cy)
-			var center_w := 1.0 - clampf(absf(az) / carve_half_width, 0.0, 1.0)
-			var carve_w := front_w * lower_w * center_w
-			cx += PF.UPPER_JAW_CARVE_BACK * lower_jaw_scale * upper_carve_size_scale * carve_w
-			cy += PF.UPPER_JAW_CARVE_UP * lower_jaw_scale * upper_carve_size_scale * carve_w
-			
-		# 4. Apply Premaxilla Protrusion (mirrors PrimitiveFactory.gd lines 159-160)
-		if shape != "cephalofoil" and premax_fwd > 0.0 and cx < 0.1:
-			cx -= premax_fwd * smoothstep(PF.UPPER_JAW_CARVE_LENGTH, 0.0, u_base)
-			
-		# 5. Apply Real Mouth Pit Offset (mirrors PrimitiveFactory.gd lines 166-178)
-		var off := HeadProfile.mouth_pit_offset(u_base, cy, az, center_y, half_h, half_w, depth * 0.85, g)
-		var p := Vector3(cx + off.x - 0.004, cy + off.y, az + off.z)
-		if not head_verts.is_empty():
-			p.x = minf(p.x, _head_mesh_front_x(head_verts, p.y, p.z, 0.006))
-
-		if tilt_r != 0.0:
-			var tx := p.x - origin.x
-			var ty := p.y - origin.y
-			p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
-			p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
-		return p - origin
-	var grid := []
-	for i in range(rows + 1):
-		var ay := lerpf(top, bottom, float(i) / float(rows))
-		# Taper the width toward the top/bottom rows so the socket reads as a rounded oval
-		# instead of a hard-edged rectangle.
-		var ev := (ay - center_y) / maxf(half_h, 0.001)
-		var row_w := half_w * sqrt(maxf(1.0 - ev * ev, 0.0))
-		var line := []
-		for j in range(cols + 1):
-			var az := lerpf(-row_w, row_w, float(j) / float(cols))
-			line.append(sample.call(ay, az))
-		grid.append(line)
-	for i in range(rows):
-		for j in range(cols):
-			var p00: Vector3 = grid[i][j]
-			var p01: Vector3 = grid[i][j + 1]
-			var p10: Vector3 = grid[i + 1][j]
-			var p11: Vector3 = grid[i + 1][j + 1]
-			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
-			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
 	st.generate_normals()
 	return st.commit()
 

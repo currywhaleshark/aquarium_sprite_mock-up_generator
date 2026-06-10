@@ -340,6 +340,45 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	st.generate_normals()
 	return st.commit()
 
+static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int, segments: int, sculpt: Dictionary, proud: float = 0.004) -> ArrayMesh:
+	var precomputed := _head_mesh_precompute(shape, snout_length, forehead_slope, sculpt)
+	var grid := []
+	for i in range(rings + 1):
+		var phi := PI * float(i) / float(rings)
+		var ring_samples := []
+		for j in range(segments + 1):
+			var theta := TAU * float(j) / float(segments)
+			ring_samples.append(_head_final_point(shape, phi, theta, snout_length, forehead_slope, sculpt, precomputed))
+		grid.append(ring_samples)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var emitted := false
+	for i in rings:
+		for j in segments:
+			var s00: Dictionary = grid[i][j]
+			var s01: Dictionary = grid[i][j + 1]
+			var s10: Dictionary = grid[i + 1][j]
+			var s11: Dictionary = grid[i + 1][j + 1]
+			if maxf(maxf(float(s00["pit_weight"]), float(s01["pit_weight"])), maxf(float(s10["pit_weight"]), float(s11["pit_weight"]))) <= 0.02:
+				continue
+			var p00 := _mouth_lining_vertex(s00, proud)
+			var p01 := _mouth_lining_vertex(s01, proud)
+			var p10 := _mouth_lining_vertex(s10, proud)
+			var p11 := _mouth_lining_vertex(s11, proud)
+			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
+			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
+			emitted = true
+	if not emitted:
+		return ArrayMesh.new()
+	st.generate_normals()
+	return st.commit()
+
+static func _mouth_lining_vertex(sample: Dictionary, proud: float) -> Vector3:
+	var point := sample["point"] as Vector3
+	var outset := minf(proud * float(sample["pit_weight"]), float(sample["pit_inset_x"]) * 0.45)
+	return point + Vector3(-outset, 0.0, 0.0)
+
 static func deformed_head(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = name
