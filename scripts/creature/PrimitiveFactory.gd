@@ -98,169 +98,207 @@ static func _head_point_before_flatness(shape: String, phi: float, theta: float,
 
 	return Vector3(x, y, z)
 
+static func _head_mesh_precompute(shape: String, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Dictionary:
+	var mouth_size_scale := clampf(float(sculpt.get("mouth_size", 0.08)) / 0.08, 0.65, 2.2)
+	var jaw_gape := clampf(float(sculpt.get("mouth_open", 0.0)), 0.0, 1.0)
+	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, jaw_gape)
+	return {
+		"snout_base": float(sculpt.get("snout_base", HeadProfile.SNOUT_BLEND_HALF)),
+		"snout_thickness": float(sculpt.get("snout_thickness", 1.0)),
+		"snout_taper": float(sculpt.get("snout_taper", 0.0)),
+		"snout_shift": float(sculpt.get("snout_y_shift", 0.0)),
+		"snout_curve": float(sculpt.get("snout_curve", 0.0)),
+		"top_curve": float(sculpt.get("head_top_curve", 0.0)),
+		"top_peak": float(sculpt.get("head_top_peak", 0.35)),
+		"belly_curve": float(sculpt.get("head_belly_curve", 0.0)),
+		"head_top_flatness": clampf(float(sculpt.get("head_top_flatness", 0.0)), 0.0, 1.0),
+		"head_bottom_flatness": clampf(float(sculpt.get("head_bottom_flatness", 0.0)), 0.0, 1.0),
+		"head_left_flatness": clampf(float(sculpt.get("head_left_flatness", 0.0)), 0.0, 1.0),
+		"head_right_flatness": clampf(float(sculpt.get("head_right_flatness", 0.0)), 0.0, 1.0),
+		"bump_height": float(sculpt.get("head_bump_height", 0.0)),
+		"bump_pos": float(sculpt.get("head_bump_pos", -0.2)),
+		"bump_width": float(sculpt.get("head_bump_width", 0.18)),
+		"bump_round": float(sculpt.get("head_bump_round", 0.6)),
+		"bump_up": cos(deg_to_rad(float(sculpt.get("head_bump_angle", 35.0)))),
+		"bump_fwd": sin(deg_to_rad(float(sculpt.get("head_bump_angle", 35.0)))),
+		"mouth_center_y": float(sculpt.get("mouth_center_y", 0.0)),
+		"lower_jaw_scale": clampf(float(sculpt.get("lower_jaw_scale", 1.0)), 0.45, 1.8),
+		"mouth_size_scale": mouth_size_scale,
+		"upper_carve_size_scale": lerpf(0.75, 1.35, clampf((mouth_size_scale - 0.65) / 1.55, 0.0, 1.0)),
+		"jaw_gape": jaw_gape,
+		"jaw_lm": jaw_lm,
+		"premax_fwd": HeadProfile.JAW_SNOUT_FRONT_X - (jaw_lm["upper_tip"] as Vector2).x,
+	}
+
+# Returns {"point": Vector3, "pit_weight": float, "pit_inset_x": float} for one
+# (phi, theta) grid sample. pit_weight is the HeadProfile.mouth_pit_weight used in
+# block 6c and pit_inset_x is the actual +x dent applied there.
+static func _head_final_point(shape: String, phi: float, theta: float, snout_length: float, forehead_slope: float, sculpt: Dictionary, precomputed: Dictionary) -> Dictionary:
+	var snout_base := float(precomputed["snout_base"])
+	var snout_thickness := float(precomputed["snout_thickness"])
+	var snout_taper := float(precomputed["snout_taper"])
+	var snout_shift := float(precomputed["snout_shift"])
+	var snout_curve := float(precomputed["snout_curve"])
+	var top_curve := float(precomputed["top_curve"])
+	var top_peak := float(precomputed["top_peak"])
+	var belly_curve := float(precomputed["belly_curve"])
+	var head_top_flatness := float(precomputed["head_top_flatness"])
+	var head_bottom_flatness := float(precomputed["head_bottom_flatness"])
+	var head_left_flatness := float(precomputed["head_left_flatness"])
+	var head_right_flatness := float(precomputed["head_right_flatness"])
+	var bump_height := float(precomputed["bump_height"])
+	var bump_pos := float(precomputed["bump_pos"])
+	var bump_width := float(precomputed["bump_width"])
+	var bump_round := float(precomputed["bump_round"])
+	var bump_up := float(precomputed["bump_up"])
+	var bump_fwd := float(precomputed["bump_fwd"])
+	var mouth_center_y := float(precomputed["mouth_center_y"])
+	var lower_jaw_scale := float(precomputed["lower_jaw_scale"])
+	var mouth_size_scale := float(precomputed["mouth_size_scale"])
+	var upper_carve_size_scale := float(precomputed["upper_carve_size_scale"])
+	var jaw_gape := float(precomputed["jaw_gape"])
+	var jaw_lm: Dictionary = precomputed["jaw_lm"]
+	var premax_fwd := float(precomputed["premax_fwd"])
+
+	var x := -0.5 * cos(phi)
+	var y := 0.5 * sin(phi) * sin(theta)
+	var z := 0.5 * sin(phi) * cos(theta)
+
+	var u := x + 0.5 # 0.0 (front) to 1.0 (back)
+
+	# 1. Cephalofoil (Hammerhead)
+	if shape == "cephalofoil":
+		var z_stretch := sin(phi) * HeadProfile.CEPHALOFOIL_Z_GAIN
+		z *= (1.0 + z_stretch)
+		y *= HeadProfile.CEPHALOFOIL_Y_SCALE
+		x += abs(z) * HeadProfile.CEPHALOFOIL_SWEEP # sweep wings back
+
+	# 2. Snout stretch & taper (for non-cephalofoil snouts)
+	if shape != "cephalofoil" and x < 0.0:
+		x -= HeadProfile.snout_forward_x_shift(snout_length, u, snout_base)
+		var taper := HeadProfile.taper_factor(shape, u)
+		var snout_r := HeadProfile.snout_radial_scale(snout_length, u, snout_base, snout_thickness, snout_taper)
+		y *= taper * snout_r
+		z *= taper * snout_r
+
+	# 3. Nuchal Hump / Steep Forehead
+	if shape != "cephalofoil" and y > 0.0 and x < 0.1:
+		var hump_weight := sin(phi) * (1.0 - u)
+		var hump_height := HeadProfile.hump_height(forehead_slope)
+		if shape == "hump":
+			y += hump_weight * hump_height
+		elif shape == "steep_forehead":
+			y += hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_SCALE
+			x -= hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_X_SHIFT
+
+	# 4. Flattened head
+	if shape == "flattened" and y < 0.0:
+		y *= HeadProfile.FLATTEN_MESH_FACTOR
+
+	# 4b. Continuous dorsal/ventral profile (forehead hump, flat top, flat belly).
+	# Weight by |sin(theta)| so the offset is full at the crown/keel (theta = 90/270)
+	# and fades to zero at the flanks (theta = 0/180). Without this the whole upper
+	# (or lower) hemisphere shifts uniformly, dragging the side vertices out past the
+	# body shell's silhouette-based envelope and tearing the head/shell seam. The
+	# shell contour samples theta = 90, which still gets the full offset, so the two
+	# stay matched.
+	if shape != "cephalofoil":
+		var theta_w := absf(sin(theta))
+		if y > 0.0:
+			y += HeadProfile.dorsal_offset(u, sin(phi), top_curve, top_peak) * theta_w
+		elif y < 0.0:
+			y -= HeadProfile.ventral_offset(u, sin(phi), belly_curve, 0.45) * theta_w
+
+	# 4c. Localized crown bump protruding at head_bump_angle (up .. forward).
+	if shape != "cephalofoil" and bump_height != 0.0:
+		var bump_amt := bump_height * HeadProfile.head_bump_falloff(x, theta, bump_pos, bump_width, bump_round)
+		y += bump_amt * bump_up
+		x -= bump_amt * bump_fwd
+
+	# 5. Jaw shear + snout curve: the snout tip follows the mouth and can curl
+	# up/down, while the snout base (where it meets the head) stays fixed, so the
+	# head body itself does not move.
+	if shape != "cephalofoil":
+		y += HeadProfile.snout_y_shift(snout_shift, u, snout_base, snout_curve)
+
+	if shape != "cephalofoil" and sin(phi) > 0.001:
+		var top_target := _head_point_before_flatness(shape, phi, PI * 0.5, snout_length, forehead_slope, sculpt).y
+		var bottom_target := _head_point_before_flatness(shape, phi, PI * 1.5, snout_length, forehead_slope, sculpt).y
+		var left_target := _head_point_before_flatness(shape, phi, PI, snout_length, forehead_slope, sculpt).z
+		var right_target := _head_point_before_flatness(shape, phi, 0.0, snout_length, forehead_slope, sculpt).z
+		y = HeadProfile.flat_cap_value(y, top_target, 1.0, head_top_flatness)
+		y = HeadProfile.flat_cap_value(y, bottom_target, -1.0, head_bottom_flatness)
+		z = HeadProfile.flat_cap_value(z, left_target, -1.0, head_left_flatness)
+		z = HeadProfile.flat_cap_value(z, right_target, 1.0, head_right_flatness)
+
+	# 6. Upper-jaw silhouette: the head mesh ITSELF is the upper jaw, and its
+	# underside is carved into a defined biting plane ALWAYS - not only when the
+	# mouth opens. This is the base shape (the teardrop "head+upper jaw" of the
+	# sketch). The gape comes entirely from the separate lower-jaw mesh swinging
+	# down below this plane; mouth_open only widens the carve slightly so the
+	# upper lip lifts a touch as the jaw drops. The lower jaw fills this carved
+	# region when closed (mouth_open = 0) so the head still reads as whole.
+	# front_w stretches the cut back along the snout (jaw plane length); center_w
+	# widens it across the mouth's z so it spans the mouth width, not a notch.
+	if shape != "cephalofoil" and x < 0.04:
+		var front_w := smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
+		var carve_depth := UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * upper_carve_size_scale
+		var carve_half_width := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * upper_carve_size_scale
+		var lower_edge := mouth_center_y - carve_depth
+		var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, y)
+		var center_w := 1.0 - clampf(absf(z) / carve_half_width, 0.0, 1.0)
+		var carve_w := front_w * lower_w * center_w
+		x += UPPER_JAW_CARVE_BACK * lower_jaw_scale * upper_carve_size_scale * carve_w
+		y += UPPER_JAW_CARVE_UP * lower_jaw_scale * upper_carve_size_scale * carve_w
+
+	# 6b. Premaxilla protrusion: as the mouth opens, the upper jaw is thrown
+	# forward (the teleost protrusible-jaw tube). Pushes the snout-front region
+	# (-x) weighted by how close it is to the tip; no-op when jaw_protrusion = 0.
+	if shape != "cephalofoil" and premax_fwd > 0.0 and x < 0.1:
+		x -= premax_fwd * smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
+
+	var pit_weight := 0.0
+	var pit_inset_x := 0.0
+
+	# 6c. Real mouth pit: as the mouth opens the lower-front shell is dented INWARD into
+	# a concave socket (a true silhouette concavity visible from the side). The socket
+	# grows taller/wider with gape; 0 when closed so the resting head is untouched. The
+	# dark socket lining (FishRig) uses the same HeadProfile.mouth_pit math to stay flush.
+	if shape != "cephalofoil" and jaw_gape > 0.0 and x < 0.1:
+		var mouth_width_scale := mouth_size_scale
+		var mouth_depth_scale := lerpf(0.85, 1.25, clampf((mouth_width_scale - 0.65) / 1.55, 0.0, 1.0))
+
+		var buffer_y: float = 0.03 * lower_jaw_scale * sqrt(mouth_width_scale)
+		var pit_top: float = (jaw_lm["upper_tip"] as Vector2).y + buffer_y
+		var pit_bottom: float = (jaw_lm["lower_tip"] as Vector2).y - buffer_y
+		var pit_h: float = pit_top - pit_bottom
+		var pit_half_h: float = pit_h * 0.5
+		var pit_center_y: float = (pit_top + pit_bottom) * 0.5
+		var lower_jaw_half_w := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * mouth_width_scale
+		var pit_half_w := lower_jaw_half_w * 0.84
+		var pit_depth := UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale * mouth_depth_scale
+		pit_weight = HeadProfile.mouth_pit_weight(u, y, z, pit_center_y, pit_half_h, pit_half_w)
+		var pit := HeadProfile.mouth_pit_offset(u, y, z, pit_center_y, pit_half_h, pit_half_w, pit_depth, jaw_gape)
+		pit_inset_x = maxf(pit.x, 0.0)
+		x += pit.x
+		y += pit.y
+		z += pit.z
+
+	return {"point": Vector3(x, y, z), "pit_weight": pit_weight, "pit_inset_x": pit_inset_x}
+
 static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var snout_base := float(sculpt.get("snout_base", HeadProfile.SNOUT_BLEND_HALF))
-	var snout_thickness := float(sculpt.get("snout_thickness", 1.0))
-	var snout_taper := float(sculpt.get("snout_taper", 0.0))
-	var snout_shift := float(sculpt.get("snout_y_shift", 0.0))
-	var snout_curve := float(sculpt.get("snout_curve", 0.0))
-	var top_curve := float(sculpt.get("head_top_curve", 0.0))
-	var top_peak := float(sculpt.get("head_top_peak", 0.35))
-	var belly_curve := float(sculpt.get("head_belly_curve", 0.0))
-	var head_top_flatness := clampf(float(sculpt.get("head_top_flatness", 0.0)), 0.0, 1.0)
-	var head_bottom_flatness := clampf(float(sculpt.get("head_bottom_flatness", 0.0)), 0.0, 1.0)
-	var head_left_flatness := clampf(float(sculpt.get("head_left_flatness", 0.0)), 0.0, 1.0)
-	var head_right_flatness := clampf(float(sculpt.get("head_right_flatness", 0.0)), 0.0, 1.0)
-	var bump_height := float(sculpt.get("head_bump_height", 0.0))
-	var bump_pos := float(sculpt.get("head_bump_pos", -0.2))
-	var bump_width := float(sculpt.get("head_bump_width", 0.18))
-	var bump_round := float(sculpt.get("head_bump_round", 0.6))
-	# Protrusion direction: 0 deg = straight up, 90 deg = straight forward, >90 leans
-	# forward-and-down (overhang), negative leans back.
-	var bump_rad := deg_to_rad(float(sculpt.get("head_bump_angle", 35.0)))
-	var bump_up := cos(bump_rad)
-	var bump_fwd := sin(bump_rad)
-	var mouth_center_y := float(sculpt.get("mouth_center_y", 0.0))
-	var lower_jaw_scale := clampf(float(sculpt.get("lower_jaw_scale", 1.0)), 0.45, 1.8)
-	var mouth_size_scale := clampf(float(sculpt.get("mouth_size", 0.08)) / 0.08, 0.65, 2.2)
-	var upper_carve_size_scale := lerpf(0.75, 1.35, clampf((mouth_size_scale - 0.65) / 1.55, 0.0, 1.0))
-	# Phase 7: shared jaw linkage. premax_fwd is how far the upper jaw (premaxilla) is
-	# thrown forward at the current gape; 0 with the legacy default (jaw_protrusion 0),
-	# so the carve below is byte-identical unless protrusion is dialled in.
-	var jaw_gape := clampf(float(sculpt.get("mouth_open", 0.0)), 0.0, 1.0)
-	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, jaw_gape)
-	var premax_fwd: float = HeadProfile.JAW_SNOUT_FRONT_X - jaw_lm["upper_tip"].x
-
+	var precomputed := _head_mesh_precompute(shape, snout_length, forehead_slope, sculpt)
 	var grid := []
 	for i in range(rings + 1):
 		var phi := PI * float(i) / float(rings)
 		var ring_vertices := []
 		for j in range(segments + 1):
 			var theta := TAU * float(j) / float(segments)
-			
-			var x := -0.5 * cos(phi)
-			var y := 0.5 * sin(phi) * sin(theta)
-			var z := 0.5 * sin(phi) * cos(theta)
-			
-			var u := x + 0.5 # 0.0 (front) to 1.0 (back)
-			
-			# 1. Cephalofoil (Hammerhead)
-			if shape == "cephalofoil":
-				var z_stretch := sin(phi) * HeadProfile.CEPHALOFOIL_Z_GAIN
-				z *= (1.0 + z_stretch)
-				y *= HeadProfile.CEPHALOFOIL_Y_SCALE
-				x += abs(z) * HeadProfile.CEPHALOFOIL_SWEEP # sweep wings back
-
-			# 2. Snout stretch & taper (for non-cephalofoil snouts)
-			if shape != "cephalofoil" and x < 0.0:
-				x -= HeadProfile.snout_forward_x_shift(snout_length, u, snout_base)
-				var taper := HeadProfile.taper_factor(shape, u)
-				var snout_r := HeadProfile.snout_radial_scale(snout_length, u, snout_base, snout_thickness, snout_taper)
-				y *= taper * snout_r
-				z *= taper * snout_r
-
-			# 3. Nuchal Hump / Steep Forehead
-			if shape != "cephalofoil" and y > 0.0 and x < 0.1:
-				var hump_weight := sin(phi) * (1.0 - u)
-				var hump_height := HeadProfile.hump_height(forehead_slope)
-				if shape == "hump":
-					y += hump_weight * hump_height
-				elif shape == "steep_forehead":
-					y += hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_SCALE
-					x -= hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_X_SHIFT
-
-			# 4. Flattened head
-			if shape == "flattened" and y < 0.0:
-				y *= HeadProfile.FLATTEN_MESH_FACTOR
-
-			# 4b. Continuous dorsal/ventral profile (forehead hump, flat top, flat belly).
-			# Weight by |sin(theta)| so the offset is full at the crown/keel (theta = 90/270)
-			# and fades to zero at the flanks (theta = 0/180). Without this the whole upper
-			# (or lower) hemisphere shifts uniformly, dragging the side vertices out past the
-			# body shell's silhouette-based envelope and tearing the head/shell seam. The
-			# shell contour samples theta = 90, which still gets the full offset, so the two
-			# stay matched.
-			if shape != "cephalofoil":
-				var theta_w := absf(sin(theta))
-				if y > 0.0:
-					y += HeadProfile.dorsal_offset(u, sin(phi), top_curve, top_peak) * theta_w
-				elif y < 0.0:
-					y -= HeadProfile.ventral_offset(u, sin(phi), belly_curve, 0.45) * theta_w
-
-			# 4c. Localized crown bump protruding at head_bump_angle (up .. forward).
-			if shape != "cephalofoil" and bump_height != 0.0:
-				var bump_amt := bump_height * HeadProfile.head_bump_falloff(x, theta, bump_pos, bump_width, bump_round)
-				y += bump_amt * bump_up
-				x -= bump_amt * bump_fwd
-
-			# 5. Jaw shear + snout curve: the snout tip follows the mouth and can curl
-			# up/down, while the snout base (where it meets the head) stays fixed, so the
-			# head body itself does not move.
-			if shape != "cephalofoil":
-				y += HeadProfile.snout_y_shift(snout_shift, u, snout_base, snout_curve)
-
-			if shape != "cephalofoil" and sin(phi) > 0.001:
-				var top_target := _head_point_before_flatness(shape, phi, PI * 0.5, snout_length, forehead_slope, sculpt).y
-				var bottom_target := _head_point_before_flatness(shape, phi, PI * 1.5, snout_length, forehead_slope, sculpt).y
-				var left_target := _head_point_before_flatness(shape, phi, PI, snout_length, forehead_slope, sculpt).z
-				var right_target := _head_point_before_flatness(shape, phi, 0.0, snout_length, forehead_slope, sculpt).z
-				y = HeadProfile.flat_cap_value(y, top_target, 1.0, head_top_flatness)
-				y = HeadProfile.flat_cap_value(y, bottom_target, -1.0, head_bottom_flatness)
-				z = HeadProfile.flat_cap_value(z, left_target, -1.0, head_left_flatness)
-				z = HeadProfile.flat_cap_value(z, right_target, 1.0, head_right_flatness)
-
-			# 6. Upper-jaw silhouette: the head mesh ITSELF is the upper jaw, and its
-			# underside is carved into a defined biting plane ALWAYS - not only when the
-			# mouth opens. This is the base shape (the teardrop "head+upper jaw" of the
-			# sketch). The gape comes entirely from the separate lower-jaw mesh swinging
-			# down below this plane; mouth_open only widens the carve slightly so the
-			# upper lip lifts a touch as the jaw drops. The lower jaw fills this carved
-			# region when closed (mouth_open = 0) so the head still reads as whole.
-			# front_w stretches the cut back along the snout (jaw plane length); center_w
-			# widens it across the mouth's z so it spans the mouth width, not a notch.
-			if shape != "cephalofoil" and x < 0.04:
-				var front_w := smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
-				var carve_depth := UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * upper_carve_size_scale
-				var carve_half_width := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * upper_carve_size_scale
-				var lower_edge := mouth_center_y - carve_depth
-				var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, y)
-				var center_w := 1.0 - clampf(absf(z) / carve_half_width, 0.0, 1.0)
-				var carve_w := front_w * lower_w * center_w
-				x += UPPER_JAW_CARVE_BACK * lower_jaw_scale * upper_carve_size_scale * carve_w
-				y += UPPER_JAW_CARVE_UP * lower_jaw_scale * upper_carve_size_scale * carve_w
-
-			# 6b. Premaxilla protrusion: as the mouth opens, the upper jaw is thrown
-			# forward (the teleost protrusible-jaw tube). Pushes the snout-front region
-			# (-x) weighted by how close it is to the tip; no-op when jaw_protrusion = 0.
-			if shape != "cephalofoil" and premax_fwd > 0.0 and x < 0.1:
-				x -= premax_fwd * smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
-
-			# 6c. Real mouth pit: as the mouth opens the lower-front shell is dented INWARD into
-			# a concave socket (a true silhouette concavity visible from the side). The socket
-			# grows taller/wider with gape; 0 when closed so the resting head is untouched. The
-			# dark socket lining (FishRig) uses the same HeadProfile.mouth_pit math to stay flush.
-			if shape != "cephalofoil" and jaw_gape > 0.0 and x < 0.1:
-				var mouth_width_scale := mouth_size_scale
-				var mouth_depth_scale := lerpf(0.85, 1.25, clampf((mouth_width_scale - 0.65) / 1.55, 0.0, 1.0))
-				
-				var buffer_y: float = 0.03 * lower_jaw_scale * sqrt(mouth_width_scale)
-				var pit_top: float = (jaw_lm["upper_tip"] as Vector2).y + buffer_y
-				var pit_bottom: float = (jaw_lm["lower_tip"] as Vector2).y - buffer_y
-				var pit_h: float = pit_top - pit_bottom
-				var pit_half_h: float = pit_h * 0.5
-				var pit_center_y: float = (pit_top + pit_bottom) * 0.5
-				var lower_jaw_half_w := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * mouth_width_scale
-				var pit_half_w := lower_jaw_half_w * 0.84
-				var pit_depth := UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale * mouth_depth_scale
-				var pit := HeadProfile.mouth_pit_offset(u, y, z, pit_center_y, pit_half_h, pit_half_w, pit_depth, jaw_gape)
-				x += pit.x
-				y += pit.y
-				z += pit.z
-
-			ring_vertices.append(Vector3(x, y, z))
+			var sample := _head_final_point(shape, phi, theta, snout_length, forehead_slope, sculpt, precomputed)
+			ring_vertices.append(sample["point"] as Vector3)
 		grid.append(ring_vertices)
 		
 	# Add triangles. U runs 0.0 (snout) to HEAD_U_SPAN (neck) so pattern density on
