@@ -4,7 +4,7 @@
 
 **Goal:** 위턱 카브/입 구덩이를 덮는 검은 음영(`MouthCavity`)이 깨지고 어긋나는 문제를 해결한다. 음영이 ① 입 안 패임에 정확히 맞고 ② 입 밖(실루엣 바깥)으로 튀어나오지 않으며 ③ 아래턱 쪽 음영(`MouthFloor`)과 틈 없이 이어지게 한다.
 
-**Architecture:** 근본 원인은 `FishRig._mouth_pit_dark_mesh`가 머리 표면을 수식으로 복제 근사하는 것이다(주둥이 테이퍼·등선/배선·범프·방향별 평면화를 반영하지 않는 `_head_front_surface_x`, 순수 구를 역산하는 `u_base`, 최근접 정점 클램프 `_head_mesh_front_x`의 계단 현상). 해결은 복제를 제거하고 음영 메쉬를 `PrimitiveFactory.deformed_head_mesh`와 **같은 정점별 변형 체인**에서 직접 방출하는 것이다: 정점 체인을 공유 헬퍼로 추출하고, 구덩이 가중치(`HeadProfile.mouth_pit_weight`)가 0보다 큰 그리드 셀만 모아 살짝 띄운 안감 메쉬를 만든다. 띄움량을 가중치에 비례시키면 구덩이 가장자리에서 자동으로 0이 되어 실루엣 밖으로 절대 나가지 않는다. 아래턱 연결부는 맞대기(butt-joint) 대신 같은 어두운 재질끼리 의도적으로 겹쳐 틈을 없앤다.
+**Architecture:** 근본 원인은 `FishRig._mouth_pit_dark_mesh`가 머리 표면을 수식으로 복제 근사하는 것이다(주둥이 테이퍼·등선/배선·범프·방향별 평면화를 반영하지 않는 `_head_front_surface_x`, 순수 구를 역산하는 `u_base`, 최근접 정점 클램프 `_head_mesh_front_x`의 계단 현상). 해결은 복제를 제거하고 음영 메쉬를 `PrimitiveFactory.deformed_head_mesh`와 **같은 정점별 변형 체인**에서 직접 방출하는 것이다: 정점 체인을 공유 헬퍼로 추출하고, 구덩이 가중치(`HeadProfile.mouth_pit_weight`)가 0보다 큰 그리드 셀만 모아 살짝 띄운 안감 메쉬를 만든다. 띄움량은 가중치 기반 기본값을 쓰되 실제 패임량(`pit_inset_x`)으로 캡해 구덩이 가장자리에서는 셸과 일치하고, 작은 게이프에서도 실루엣 밖으로 나가지 않게 한다. 아래턱 연결부는 맞대기(butt-joint) 대신 같은 어두운 재질끼리 의도적으로 겹쳐 틈을 없앤다.
 
 **Tech Stack:** Godot 4 GDScript, `tools/run_godot_cli_tests.ps1`, 육안 확인은 기존 `scripts/tools/MouthShot.gd`(비-headless) 패턴.
 
