@@ -2,7 +2,19 @@ class_name BodyProfile
 extends RefCounted
 
 const MIN_RING_COUNT := 3
-const RING_KEYS := ["x", "y_offset", "upper_height", "lower_height", "width", "roundness", "sway_weight"]
+const RING_KEYS := [
+	"x", "y_offset",
+	"upper_height", "lower_height",
+	"width", "top_width", "bottom_width",
+	"top_flatness", "bottom_flatness", "left_flatness", "right_flatness",
+	"roundness", "sway_weight"
+]
+const RING_EXTRA_DEFAULTS := {
+	"top_flatness": 0.0,
+	"bottom_flatness": 0.0,
+	"left_flatness": 0.0,
+	"right_flatness": 0.0,
+}
 # Default operculum (gill cover) silhouette as a closed outline in normalized
 # side-view space: x 0 (front/preopercle hinge) .. 1 (rear free edge),
 # y -1 (ventral) .. 1 (dorsal). Shared by the head editor (display default) and
@@ -405,7 +417,21 @@ static func default_fish_rings(shape: String = "default_fish") -> Array[Dictiona
 
 static func sample_rings(rings: Array, u: float) -> Dictionary:
 	if rings.is_empty():
-		return {"x": u, "upper_height": 0.3, "lower_height": 0.3, "width": 0.5, "y_offset": 0.0, "roundness": 1.0, "sway_weight": 1.0}
+		return {
+			"x": u,
+			"upper_height": 0.3,
+			"lower_height": 0.3,
+			"width": 0.5,
+			"top_width": 0.5,
+			"bottom_width": 0.5,
+			"top_flatness": 0.0,
+			"bottom_flatness": 0.0,
+			"left_flatness": 0.0,
+			"right_flatness": 0.0,
+			"y_offset": 0.0,
+			"roundness": 1.0,
+			"sway_weight": 1.0
+		}
 	var r_left: Dictionary = rings[0]
 	var r_right: Dictionary = rings[-1]
 	if u <= float(r_left.get("x", 0.0)):
@@ -424,6 +450,12 @@ static func sample_rings(rings: Array, u: float) -> Dictionary:
 				"upper_height": lerpf(float(r1.get("upper_height", 0.3)), float(r2.get("upper_height", 0.3)), t),
 				"lower_height": lerpf(float(r1.get("lower_height", 0.3)), float(r2.get("lower_height", 0.3)), t),
 				"width": lerpf(float(r1.get("width", 0.5)), float(r2.get("width", 0.5)), t),
+				"top_width": lerpf(float(r1.get("top_width", r1.get("width", 0.5))), float(r2.get("top_width", r2.get("width", 0.5))), t),
+				"bottom_width": lerpf(float(r1.get("bottom_width", r1.get("width", 0.5))), float(r2.get("bottom_width", r2.get("width", 0.5))), t),
+				"top_flatness": lerpf(float(r1.get("top_flatness", 0.0)), float(r2.get("top_flatness", 0.0)), t),
+				"bottom_flatness": lerpf(float(r1.get("bottom_flatness", 0.0)), float(r2.get("bottom_flatness", 0.0)), t),
+				"left_flatness": lerpf(float(r1.get("left_flatness", 0.0)), float(r2.get("left_flatness", 0.0)), t),
+				"right_flatness": lerpf(float(r1.get("right_flatness", 0.0)), float(r2.get("right_flatness", 0.0)), t),
 				"y_offset": lerpf(float(r1.get("y_offset", 0.0)), float(r2.get("y_offset", 0.0)), t),
 				"roundness": lerpf(float(r1.get("roundness", 1.0)), float(r2.get("roundness", 1.0)), t),
 				"sway_weight": lerpf(float(r1.get("sway_weight", 1.0)), float(r2.get("sway_weight", 1.0)), t)
@@ -446,12 +478,22 @@ static func normalize_ring(raw_ring: Dictionary, index: int) -> Dictionary:
 	var ring := {}
 	ring["id"] = String(raw_ring.get("id", defaults["id"]))
 	ring["label"] = String(raw_ring.get("label", defaults["label"]))
+	var legacy_width := float(raw_ring.get("width", defaults.get("width", 0.5)))
 	for key in RING_KEYS:
-		ring[key] = float(raw_ring.get(key, defaults[key]))
+		var fallback := float(defaults.get(key, RING_EXTRA_DEFAULTS.get(key, 0.0)))
+		if key == "top_width" or key == "bottom_width":
+			fallback = legacy_width
+		ring[key] = float(raw_ring.get(key, fallback))
 	ring["x"] = clampf(float(ring["x"]), 0.0, 1.0)
 	ring["upper_height"] = maxf(float(ring["upper_height"]), 0.01)
 	ring["lower_height"] = maxf(float(ring["lower_height"]), 0.01)
-	ring["width"] = maxf(float(ring["width"]), 0.01)
+	ring["top_width"] = maxf(float(ring["top_width"]), 0.01)
+	ring["bottom_width"] = maxf(float(ring["bottom_width"]), 0.01)
+	ring["width"] = (float(ring["top_width"]) + float(ring["bottom_width"])) * 0.5
+	ring["top_flatness"] = clampf(float(ring["top_flatness"]), 0.0, 1.0)
+	ring["bottom_flatness"] = clampf(float(ring["bottom_flatness"]), 0.0, 1.0)
+	ring["left_flatness"] = clampf(float(ring["left_flatness"]), 0.0, 1.0)
+	ring["right_flatness"] = clampf(float(ring["right_flatness"]), 0.0, 1.0)
 	ring["roundness"] = clampf(float(ring["roundness"]), 0.0, 1.0)
 	ring["sway_weight"] = clampf(float(ring["sway_weight"]), 0.0, 1.5)
 	return ring
@@ -510,6 +552,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round",
 		"forehead_slope", "jaw_offset", "mouth_size", "lower_jaw_length", "lower_jaw_angle",
 		"lower_jaw_thickness", "lower_jaw_tip", "head_flattening",
+		"head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness",
 		"head_ornament", "gill_mark", "operculum_size", "operculum_height", "operculum_open", "operculum_ridge",
 		"operculum_position_x", "operculum_position_y",
 		"operculum_custom_points",
@@ -637,7 +680,7 @@ static func _default_swim_mode(parameters: Dictionary) -> String:
 static func _rings(rows: Array) -> Array[Dictionary]:
 	var rings: Array[Dictionary] = []
 	for row in rows:
-		rings.append({
+		var ring := {
 			"id": row[0],
 			"label": row[1],
 			"x": row[2],
@@ -647,7 +690,14 @@ static func _rings(rows: Array) -> Array[Dictionary]:
 			"width": row[6],
 			"roundness": row[7],
 			"sway_weight": row[8]
-		})
+		}
+		ring["top_width"] = ring["width"]
+		ring["bottom_width"] = ring["width"]
+		ring["top_flatness"] = 0.0
+		ring["bottom_flatness"] = 0.0
+		ring["left_flatness"] = 0.0
+		ring["right_flatness"] = 0.0
+		rings.append(ring)
 	return rings
 
 static func _merge(target: Dictionary, source: Dictionary) -> void:

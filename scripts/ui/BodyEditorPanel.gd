@@ -14,6 +14,12 @@ const RING_NUMERIC_KEYS := {
 	"upper_height": {"min": 0.02, "max": 1.4, "step": 0.005},
 	"lower_height": {"min": 0.02, "max": 1.4, "step": 0.005},
 	"width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"top_width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"bottom_width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"top_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"bottom_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"left_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"right_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"roundness": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"sway_weight": {"min": 0.0, "max": 1.5, "step": 0.005}
 }
@@ -121,7 +127,15 @@ func set_ring_parameter(key: String, value: float) -> void:
 		return
 	var config: Dictionary = RING_NUMERIC_KEYS[key]
 	var rings := _rings()
-	rings[index][key] = clampf(value, float(config["min"]), float(config["max"]))
+	var clamped := clampf(value, float(config["min"]), float(config["max"]))
+	if key == "width":
+		rings[index]["width"] = clamped
+		rings[index]["top_width"] = clamped
+		rings[index]["bottom_width"] = clamped
+	else:
+		rings[index][key] = clamped
+		if key == "top_width" or key == "bottom_width":
+			rings[index]["width"] = (float(rings[index].get("top_width", clamped)) + float(rings[index].get("bottom_width", clamped))) * 0.5
 	parameters["body_profile"]["rings"] = rings
 	_emit_and_refresh()
 

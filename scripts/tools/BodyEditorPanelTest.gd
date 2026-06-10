@@ -29,6 +29,10 @@ func _ready() -> void:
 	assert(selected[0] == "mid_body")
 	panel.set_ring_parameter("upper_height", 0.72)
 	panel.set_ring_parameter("lower_height", 0.61)
+	panel.set_ring_parameter("top_width", 0.71)
+	panel.set_ring_parameter("bottom_width", 0.29)
+	panel.set_ring_parameter("top_flatness", 0.8)
+	panel.set_ring_parameter("right_flatness", 0.55)
 	panel.set_ring_parameter("sway_weight", 0.5)
 
 	var body_profile: Dictionary = seen[0].get("body_profile", {})
@@ -37,6 +41,11 @@ func _ready() -> void:
 	assert(String(rings[3].get("id", "")) == "mid_body")
 	assert(abs(float(rings[3].get("upper_height", 0.0)) - 0.72) < 0.001)
 	assert(abs(float(rings[3].get("lower_height", 0.0)) - 0.61) < 0.001)
+	assert(abs(float(rings[3].get("top_width", 0.0)) - 0.71) < 0.001)
+	assert(abs(float(rings[3].get("bottom_width", 0.0)) - 0.29) < 0.001)
+	assert(abs(float(rings[3].get("width", 0.0)) - 0.5) < 0.001)
+	assert(abs(float(rings[3].get("top_flatness", 0.0)) - 0.8) < 0.001)
+	assert(abs(float(rings[3].get("right_flatness", 0.0)) - 0.55) < 0.001)
 	assert(abs(float(rings[3].get("sway_weight", 0.0)) - 0.5) < 0.001)
 
 	panel.select_next_ring()

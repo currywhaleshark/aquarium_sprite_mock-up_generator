@@ -36,6 +36,10 @@ const NUMERIC_KEYS := {
 	"head_bump_width": {"min": 0.06, "max": 0.5, "step": 0.01},
 	"head_bump_angle": {"min": -45.0, "max": 120.0, "step": 1.0},
 	"head_bump_round": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"head_top_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"head_bottom_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"head_left_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"head_right_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"forehead_slope": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"jaw_offset": {"min": -0.3, "max": 0.3, "step": 0.005},
 	"mouth_size": {"min": 0.02, "max": 0.24, "step": 0.005},
@@ -93,6 +97,7 @@ var _updating := false
 # section fall through to a trailing "기타" group so nothing is ever dropped.
 const FISH_SECTIONS := [
 	{"title": "머리 본체", "keys": ["head_size", "head_offset", "head_flattening"]},
+	{"title": "평면화", "keys": ["head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness"]},
 	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length"]},
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
 	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},

@@ -34,6 +34,70 @@ static func ellipsoid(name: String, scale_value: Vector3, material: Material) ->
 	node.material_override = material
 	return node
 
+static func _head_point_before_flatness(shape: String, phi: float, theta: float, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Vector3:
+	var snout_base := float(sculpt.get("snout_base", HeadProfile.SNOUT_BLEND_HALF))
+	var snout_thickness := float(sculpt.get("snout_thickness", 1.0))
+	var snout_taper := float(sculpt.get("snout_taper", 0.0))
+	var snout_shift := float(sculpt.get("snout_y_shift", 0.0))
+	var snout_curve := float(sculpt.get("snout_curve", 0.0))
+	var top_curve := float(sculpt.get("head_top_curve", 0.0))
+	var top_peak := float(sculpt.get("head_top_peak", 0.35))
+	var belly_curve := float(sculpt.get("head_belly_curve", 0.0))
+	var bump_height := float(sculpt.get("head_bump_height", 0.0))
+	var bump_pos := float(sculpt.get("head_bump_pos", -0.2))
+	var bump_width := float(sculpt.get("head_bump_width", 0.18))
+	var bump_round := float(sculpt.get("head_bump_round", 0.6))
+	var bump_rad := deg_to_rad(float(sculpt.get("head_bump_angle", 35.0)))
+	var bump_up := cos(bump_rad)
+	var bump_fwd := sin(bump_rad)
+
+	var x := -0.5 * cos(phi)
+	var y := 0.5 * sin(phi) * sin(theta)
+	var z := 0.5 * sin(phi) * cos(theta)
+	var u := x + 0.5
+
+	if shape == "cephalofoil":
+		var z_stretch := sin(phi) * HeadProfile.CEPHALOFOIL_Z_GAIN
+		z *= (1.0 + z_stretch)
+		y *= HeadProfile.CEPHALOFOIL_Y_SCALE
+		x += abs(z) * HeadProfile.CEPHALOFOIL_SWEEP
+
+	if shape != "cephalofoil" and x < 0.0:
+		x -= HeadProfile.snout_forward_x_shift(snout_length, u, snout_base)
+		var taper := HeadProfile.taper_factor(shape, u)
+		var snout_r := HeadProfile.snout_radial_scale(snout_length, u, snout_base, snout_thickness, snout_taper)
+		y *= taper * snout_r
+		z *= taper * snout_r
+
+	if shape != "cephalofoil" and y > 0.0 and x < 0.1:
+		var hump_weight := sin(phi) * (1.0 - u)
+		var hump_height := HeadProfile.hump_height(forehead_slope)
+		if shape == "hump":
+			y += hump_weight * hump_height
+		elif shape == "steep_forehead":
+			y += hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_SCALE
+			x -= hump_weight * hump_height * HeadProfile.STEEP_FOREHEAD_X_SHIFT
+
+	if shape == "flattened" and y < 0.0:
+		y *= HeadProfile.FLATTEN_MESH_FACTOR
+
+	if shape != "cephalofoil":
+		var theta_w := absf(sin(theta))
+		if y > 0.0:
+			y += HeadProfile.dorsal_offset(u, sin(phi), top_curve, top_peak) * theta_w
+		elif y < 0.0:
+			y -= HeadProfile.ventral_offset(u, sin(phi), belly_curve, 0.45) * theta_w
+
+	if shape != "cephalofoil" and bump_height != 0.0:
+		var bump_amt := bump_height * HeadProfile.head_bump_falloff(x, theta, bump_pos, bump_width, bump_round)
+		y += bump_amt * bump_up
+		x -= bump_amt * bump_fwd
+
+	if shape != "cephalofoil":
+		y += HeadProfile.snout_y_shift(snout_shift, u, snout_base, snout_curve)
+
+	return Vector3(x, y, z)
+
 static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -46,6 +110,10 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	var top_curve := float(sculpt.get("head_top_curve", 0.0))
 	var top_peak := float(sculpt.get("head_top_peak", 0.35))
 	var belly_curve := float(sculpt.get("head_belly_curve", 0.0))
+	var head_top_flatness := clampf(float(sculpt.get("head_top_flatness", 0.0)), 0.0, 1.0)
+	var head_bottom_flatness := clampf(float(sculpt.get("head_bottom_flatness", 0.0)), 0.0, 1.0)
+	var head_left_flatness := clampf(float(sculpt.get("head_left_flatness", 0.0)), 0.0, 1.0)
+	var head_right_flatness := clampf(float(sculpt.get("head_right_flatness", 0.0)), 0.0, 1.0)
 	var bump_height := float(sculpt.get("head_bump_height", 0.0))
 	var bump_pos := float(sculpt.get("head_bump_pos", -0.2))
 	var bump_width := float(sculpt.get("head_bump_width", 0.18))
@@ -133,6 +201,16 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			# head body itself does not move.
 			if shape != "cephalofoil":
 				y += HeadProfile.snout_y_shift(snout_shift, u, snout_base, snout_curve)
+
+			if shape != "cephalofoil" and sin(phi) > 0.001:
+				var top_target := _head_point_before_flatness(shape, phi, PI * 0.5, snout_length, forehead_slope, sculpt).y
+				var bottom_target := _head_point_before_flatness(shape, phi, PI * 1.5, snout_length, forehead_slope, sculpt).y
+				var left_target := _head_point_before_flatness(shape, phi, PI, snout_length, forehead_slope, sculpt).z
+				var right_target := _head_point_before_flatness(shape, phi, 0.0, snout_length, forehead_slope, sculpt).z
+				y = HeadProfile.flat_cap_value(y, top_target, 1.0, head_top_flatness)
+				y = HeadProfile.flat_cap_value(y, bottom_target, -1.0, head_bottom_flatness)
+				z = HeadProfile.flat_cap_value(z, left_target, -1.0, head_left_flatness)
+				z = HeadProfile.flat_cap_value(z, right_target, 1.0, head_right_flatness)
 
 			# 6. Upper-jaw silhouette: the head mesh ITSELF is the upper jaw, and its
 			# underside is carved into a defined biting plane ALWAYS - not only when the
@@ -774,18 +852,21 @@ static func ray_wing(name: String, side: float, length: float, width: float, cur
 	node.material_override = material
 	return node
 
-static func fish_outer_shell(name: String, profile: Array[Vector3], material: Material, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array(), radius_half_diffs: PackedFloat32Array = PackedFloat32Array()) -> MeshInstance3D:
+static func fish_outer_shell(name: String, profile: Array[Vector3], material: Material, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array(), radius_half_diffs: PackedFloat32Array = PackedFloat32Array(), radius_z_half_diffs: PackedFloat32Array = PackedFloat32Array(), flatness_profiles: Array[Vector4] = []) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = name
-	node.mesh = build_fish_outer_shell_mesh(profile, PackedFloat32Array(), segments, PackedVector3Array(), PackedFloat32Array(), center_y_offsets, radius_half_diffs)
+	node.mesh = build_fish_outer_shell_mesh(profile, PackedFloat32Array(), segments, PackedVector3Array(), PackedFloat32Array(), center_y_offsets, radius_half_diffs, radius_z_half_diffs, flatness_profiles)
 	node.material_override = material
 	return node
 
 static func update_fish_outer_shell(node: MeshInstance3D, profile: Array[Vector3], z_offsets: PackedFloat32Array, segments: int = 28) -> void:
 	node.mesh = build_fish_outer_shell_mesh(profile, z_offsets, segments)
 
-static func update_fish_outer_shell_bent(node: MeshInstance3D, profile: Array[Vector3], centers: PackedVector3Array, yaw_degrees: PackedFloat32Array, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array(), radius_half_diffs: PackedFloat32Array = PackedFloat32Array()) -> void:
-	node.mesh = build_fish_outer_shell_mesh(profile, PackedFloat32Array(), segments, centers, yaw_degrees, center_y_offsets, radius_half_diffs)
+static func update_fish_outer_shell_bent(node: MeshInstance3D, profile: Array[Vector3], centers: PackedVector3Array, yaw_degrees: PackedFloat32Array, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array(), radius_half_diffs: PackedFloat32Array = PackedFloat32Array(), radius_z_half_diffs: PackedFloat32Array = PackedFloat32Array(), flatness_profiles: Array[Vector4] = []) -> void:
+	node.mesh = build_fish_outer_shell_mesh(profile, PackedFloat32Array(), segments, centers, yaw_degrees, center_y_offsets, radius_half_diffs, radius_z_half_diffs, flatness_profiles)
+
+static func _apply_flat_cap(value: float, radius: float, side_sign: float, amount: float) -> float:
+	return HeadProfile.flat_cap_value(value, side_sign * radius, side_sign, amount)
 
 static func build_fish_outer_shell_mesh(
 	profile: Array[Vector3],
@@ -794,7 +875,9 @@ static func build_fish_outer_shell_mesh(
 	centers: PackedVector3Array = PackedVector3Array(),
 	yaw_degrees: PackedFloat32Array = PackedFloat32Array(),
 	center_y_offsets: PackedFloat32Array = PackedFloat32Array(),
-	radius_half_diffs: PackedFloat32Array = PackedFloat32Array()
+	radius_half_diffs: PackedFloat32Array = PackedFloat32Array(),
+	radius_z_half_diffs: PackedFloat32Array = PackedFloat32Array(),
+	flatness_profiles: Array[Vector4] = []
 ) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
@@ -823,15 +906,27 @@ static func build_fish_outer_shell_mesh(
 		var r_up := point.y + hd
 		var r_lo := point.y - hd
 		var center_true_y := center.y - hd
+		var zd := radius_z_half_diffs[ring_index] if ring_index < radius_z_half_diffs.size() else 0.0
+		zd = clampf(zd, -point.z * 0.9, point.z * 0.9)
+		var r_z_top := maxf(point.z + zd, 0.001)
+		var r_z_bottom := maxf(point.z - zd, 0.001)
+		var flat := flatness_profiles[ring_index] if ring_index < flatness_profiles.size() else Vector4.ZERO
 		for segment in range(verts_per_ring):
 			var angle := TAU * float(segment) / float(segments)
 			var sin_a := sin(angle)
-			var r_y := r_up if sin_a >= 0.0 else r_lo
+			var cos_a := cos(angle)
+			var upper_half := sin_a >= 0.0
+			var r_y := r_up if upper_half else r_lo
+			var z_radius := lerpf(r_z_bottom, r_z_top, HeadProfile.vertical_half_blend(sin_a))
 			var y := (center_true_y - center.y) + sin_a * r_y
-			var z := cos(angle) * point.z
+			var z := cos_a * z_radius
+			y = _apply_flat_cap(y, point.y, 1.0, flat.x)
+			y = _apply_flat_cap(y, point.y, -1.0, flat.y)
+			z = _apply_flat_cap(z, z_radius, -1.0, flat.z)
+			z = _apply_flat_cap(z, z_radius, 1.0, flat.w)
 			var local_vertex := Vector3(0.0, y, z)
 			vertices.append(center + ring_basis * local_vertex)
-			var local_normal := Vector3(0.0, sin_a / maxf(r_y, 0.001), z / maxf(point.z, 0.001)).normalized()
+			var local_normal := Vector3(0.0, sin_a / maxf(r_y, 0.001), z / maxf(z_radius, 0.001)).normalized()
 			normals.append((ring_basis * local_normal).normalized())
 			uvs.append(Vector2(u, float(segment) / float(segments)))
 			var circumference := TAU * (point.y + point.z) * 0.5

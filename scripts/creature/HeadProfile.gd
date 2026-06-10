@@ -151,6 +151,21 @@ static func head_bump_falloff(x: float, theta: float, pos: float, width: float, 
 	var p := lerpf(2.0, 0.5, clampf(round_amount, 0.0, 1.0))
 	return pow(cap, p) * w_top
 
+static func flat_cap_value(value: float, target: float, side_sign: float, amount: float) -> float:
+	var flat := clampf(amount, 0.0, 1.0)
+	var extent := absf(target)
+	if flat <= 0.0 or extent <= 0.001:
+		return value
+	var signed := value * side_sign
+	if signed <= 0.0:
+		return value
+	var t := clampf(signed / extent, 0.0, 1.0)
+	var weight := smoothstep(0.35, 1.0, t) * flat
+	return lerpf(value, target, weight)
+
+static func vertical_half_blend(vertical_fraction: float) -> float:
+	return smoothstep(-0.35, 0.35, clampf(vertical_fraction, -1.0, 1.0))
+
 # ---- Phase 7: anatomical jaw linkage --------------------------------------
 # A simplified planar abstraction of the teleost feeding mechanism, expressed in
 # head-LOCAL units (head radius 0.5; x = -0.5 snout tip .. +0.5 neck, y up, on the

@@ -46,6 +46,10 @@ var shell_center_y_offsets: Array[float] = []
 # independent upper/lower radius (egg cross-section) so editing one height no longer
 # reshapes the opposite side.
 var shell_radius_half_diff: Array[float] = []
+# Per-ring (top_width - bottom_width) * 0.5 in z-radius space. The mesh builder
+# applies it by upper/lower cross-section half, preserving left/right symmetry.
+var shell_radius_z_half_diff: Array[float] = []
+var shell_flatness_profiles: Array[Vector4] = []
 var shell_ring_ids: Array[String] = []
 var animated_shell_centers := PackedVector3Array()
 var animated_shell_yaws := PackedFloat32Array()
@@ -95,6 +99,8 @@ func rebuild() -> void:
 	outer_shell = null
 	shell_profile = []
 	shell_center_y_offsets = []
+	shell_radius_z_half_diff = []
+	shell_flatness_profiles = []
 	animated_shell_centers = PackedVector3Array()
 	animated_shell_yaws = PackedFloat32Array()
 	dorsal_fin = null
@@ -139,8 +145,8 @@ func rebuild() -> void:
 	var head_ring := _ring_by_id(rings, "head", 1)
 	var midbody_depth_scale := maxf((float(mid_ring.get("upper_height", 0.46)) + float(mid_ring.get("lower_height", 0.42))) * 0.5 / 0.46, 0.1)
 	var head_depth_scale := maxf((float(head_ring.get("upper_height", 0.42)) + float(head_ring.get("lower_height", 0.36))) * 0.5 / 0.42, 0.1)
-	var body_z_scale := maxf(float(mid_ring.get("width", 0.38)) / 0.38, 0.1)
-	var head_width_boost := maxf(float(head_ring.get("width", 0.34)) / 0.34, 0.35)
+	var body_z_scale := _symmetric_width_scale(mid_ring, 0.38)
+	var head_width_boost := maxf(_symmetric_width_scale(head_ring, 0.34), 0.35)
 	var head_size := param_float("head_size", 0.44)
 	var head_offset := param_float("head_offset", -0.58)
 	var tail_length := param_float("tail_length", 0.78)
@@ -154,7 +160,16 @@ func rebuild() -> void:
 	_build_shell_profile_from_rings(rings, body_length, body_height, body_width, body_z_scale, head_offset, head_size, tail_length, shell_expand)
 
 	if param_float("shell_enabled", 1.0) > 0.5:
-		outer_shell = PF.fish_outer_shell("OuterShell", shell_profile, body_mat, shell_segments, PackedFloat32Array(shell_center_y_offsets), PackedFloat32Array(shell_radius_half_diff))
+		outer_shell = PF.fish_outer_shell(
+			"OuterShell",
+			shell_profile,
+			body_mat,
+			shell_segments,
+			PackedFloat32Array(shell_center_y_offsets),
+			PackedFloat32Array(shell_radius_half_diff),
+			PackedFloat32Array(shell_radius_z_half_diff),
+			shell_flatness_profiles
+		)
 		body_pivot.add_child(outer_shell)
 
 	var head_scale := _head_scale_for_shape(String(parameters.get("head_shape", "rounded")), head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
@@ -251,7 +266,7 @@ func rebuild() -> void:
 			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"}))
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
-		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
+		var pelvic_z := _surface_radius_z_for_vertical_half(pelvic_attach_t, -1.0) * 0.32
 		pelvic_l_base_position = pelvic_center + Vector3(0.0, 0.0, -pelvic_z)
 		pelvic_r_base_position = pelvic_center + Vector3(0.0, 0.0, pelvic_z)
 		pelvic_l.position = pelvic_l_base_position
@@ -273,7 +288,8 @@ func rebuild() -> void:
 		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, paired_horizontal_fin_mat)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -_surface_radius_z(pectoral_attach_t) - shell_expand * 0.18)
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) + shell_expand * 0.18
+	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -pectoral_z)
 	pectoral_l.position = pectoral_l_base_position
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	pectoral_l_base_rotation = Vector3(0.0, 25.0, -28.0 + pectoral_surface_angle)
@@ -285,7 +301,7 @@ func rebuild() -> void:
 	else:
 		var points_r := _get_fin_points("PectoralFinR", pectoral_shape, pectoral_size, pectoral_size * 0.5)
 		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"}))
-	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, _surface_radius_z(pectoral_attach_t) + shell_expand * 0.18)
+	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, pectoral_z)
 	pectoral_r.position = pectoral_r_base_position
 	pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
 	pectoral_r.rotation_degrees = pectoral_r_base_rotation
@@ -351,6 +367,8 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 	shell_profile = []
 	shell_center_y_offsets = []
 	shell_radius_half_diff = []
+	shell_radius_z_half_diff = []
+	shell_flatness_profiles = []
 	shell_ring_ids = []
 	if rings.is_empty():
 		rings = BodyProfileScript.default_fish_rings()
@@ -365,16 +383,35 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 		var ring_id := String(ring.get("id", ""))
 		if ring_id == "snout" or ring_id == "head":
 			center_y += 0.02
-		var radius_z := body_width * body_z_scale * float(ring["width"]) * lerpf(0.62, 1.0, float(ring["roundness"])) + shell_expand * lerpf(1.0, 0.18, float(ring["x"]))
+		var width_scale := lerpf(0.62, 1.0, float(ring["roundness"]))
+		var shell_z_expand := shell_expand * lerpf(1.0, 0.18, float(ring["x"]))
+		var top_width := float(ring.get("top_width", ring["width"]))
+		var bottom_width := float(ring.get("bottom_width", ring["width"]))
+		var average_width := (top_width + bottom_width) * 0.5
+		var radius_z := body_width * body_z_scale * average_width * width_scale + shell_z_expand
+		var radius_z_top := body_width * body_z_scale * top_width * width_scale + shell_z_expand
+		var radius_z_bottom := body_width * body_z_scale * bottom_width * width_scale + shell_z_expand
 		var adjusted := _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell)
 		radius_y = float(adjusted["radius_y"])
-		radius_z = float(adjusted["radius_z"])
+		var adjusted_top := _apply_head_shell_metrics(ring, radius_y, radius_z_top, head_shell)
+		var adjusted_bottom := _apply_head_shell_metrics(ring, radius_y, radius_z_bottom, head_shell)
+		var adjusted_top_z := float(adjusted_top["radius_z"])
+		var adjusted_bottom_z := float(adjusted_bottom["radius_z"])
+		radius_z = (adjusted_top_z + adjusted_bottom_z) * 0.5
+		var radius_z_half := (adjusted_top_z - adjusted_bottom_z) * 0.5
 		center_y += float(adjusted.get("center_y_delta", 0.0))
 		shell_profile.append(Vector3(lerpf(start_x, end_x, float(ring["x"])), radius_y, radius_z))
 		shell_center_y_offsets.append(center_y)
 		# Asymmetry magnitude for the egg cross-section. center_y already carries the same
 		# (upper-lower)/2 shift, so the mesh recovers the true centerline as center_y - this.
 		shell_radius_half_diff.append(body_height * (float(ring["upper_height"]) - float(ring["lower_height"])) * 0.5)
+		shell_radius_z_half_diff.append(radius_z_half)
+		shell_flatness_profiles.append(Vector4(
+			float(ring.get("top_flatness", 0.0)),
+			float(ring.get("bottom_flatness", 0.0)),
+			float(ring.get("left_flatness", 0.0)),
+			float(ring.get("right_flatness", 0.0))
+		))
 		shell_ring_ids.append(String(ring.get("id", "ring_%d" % i)))
 	shell_tail_pivot_1_x = _ring_x_by_id("rear_body", body_length * 0.48)
 	shell_tail_pivot_2_x = _ring_x_by_id("tail_stem", shell_tail_pivot_1_x + tail_length * 0.5)
@@ -382,7 +419,7 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 func _head_shell_metrics(rings: Array, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, shell_expand: float) -> Dictionary:
 	var head_ring := _ring_by_id(rings, "head", mini(1, rings.size() - 1))
 	var head_depth_scale := maxf((float(head_ring.get("upper_height", 0.42)) + float(head_ring.get("lower_height", 0.36))) * 0.5 / 0.42, 0.1)
-	var head_width_boost := maxf(float(head_ring.get("width", 0.34)) / 0.34, 0.35)
+	var head_width_boost := maxf(_symmetric_width_scale(head_ring, 0.34), 0.35)
 	var shape := String(parameters.get("head_shape", "rounded"))
 	var head_scale := _head_scale_for_shape(shape, head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
 	var start_x := head_offset - head_scale.x * 0.22
@@ -554,6 +591,13 @@ func _ring_by_id(rings: Array, ring_id: String, fallback_index: int) -> Dictiona
 		return BodyProfileScript.default_fish_rings()[0]
 	return rings[clampi(fallback_index, 0, rings.size() - 1)]
 
+func _symmetric_width_scale(ring: Dictionary, base_width: float) -> float:
+	var top_width := float(ring.get("top_width", ring.get("width", base_width)))
+	var bottom_width := float(ring.get("bottom_width", ring.get("width", base_width)))
+	if absf(top_width - bottom_width) > 0.0001:
+		return 1.0
+	return maxf(float(ring.get("width", base_width)) / maxf(base_width, 0.001), 0.1)
+
 func _ring_label_by_id(ring_id: String, fallback: String) -> String:
 	for ring in BodyProfileScript.ensure_body_profile(parameters).get("rings", []):
 		if String(ring.get("id", "")) == ring_id:
@@ -677,7 +721,17 @@ func _deform_shell(loop_phase: float) -> void:
 			centers[i].y = raw_y
 			yaws[i] = yaw_head
 
-	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets), PackedFloat32Array(shell_radius_half_diff))
+	PF.update_fish_outer_shell_bent(
+		outer_shell,
+		shell_profile,
+		centers,
+		yaws,
+		shell_segments,
+		PackedFloat32Array(shell_center_y_offsets),
+		PackedFloat32Array(shell_radius_half_diff),
+		PackedFloat32Array(shell_radius_z_half_diff),
+		shell_flatness_profiles
+	)
 	animated_shell_centers = centers
 	animated_shell_yaws = yaws
 	_apply_animated_attachments(loop_phase, centers, yaws)
@@ -825,7 +879,7 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		finlet.rotation_degrees = Vector3(flap, 0.0, _surface_tangent_angle_degrees(side, attach_t) + param_float("finlet_pitch", 0.25) * 15.0)
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
-		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
+		var pelvic_z := _surface_radius_z_for_vertical_half(pelvic_attach_t, -1.0) * 0.32
 		var pelvic_yaw := _fin_follow_yaw(pelvic_attach_t, yaws)
 		var pelvic_surface_angle := _surface_tangent_angle_degrees("ventral", pelvic_attach_t)
 		pelvic_l.position = _animated_surface_position("ventral", pelvic_attach_t, 0.02, -pelvic_z, 0.0, centers, yaws)
@@ -1318,7 +1372,7 @@ func _apply_fin_offsets() -> void:
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
-		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
+		var pelvic_z := _surface_radius_z_for_vertical_half(pelvic_attach_t, -1.0) * 0.32
 		pelvic_l_base_position = pelvic_center + Vector3(0.0, 0.0, -pelvic_z)
 		pelvic_r_base_position = pelvic_center + Vector3(0.0, 0.0, pelvic_z)
 		pelvic_l.position = pelvic_l_base_position
@@ -1398,6 +1452,15 @@ func _surface_position(side: String, attach_t: float, margin: float) -> Vector3:
 
 func _surface_radius_z(attach_t: float) -> float:
 	return _sample_shell_profile(attach_t).z
+
+func _surface_radius_z_for_vertical_half(attach_t: float, vertical_sign: float) -> float:
+	return _surface_radius_z_for_vertical_fraction(attach_t, -1.0 if vertical_sign < 0.0 else 1.0)
+
+func _surface_radius_z_for_vertical_fraction(attach_t: float, vertical_fraction: float) -> float:
+	var sample := _sample_shell_profile(attach_t)
+	var half_diff := _sample_shell_radius_z_half_diff(attach_t)
+	var blend := HeadProfile.vertical_half_blend(vertical_fraction)
+	return maxf(sample.z + half_diff * lerpf(-1.0, 1.0, blend), 0.001)
 
 func _surface_tangent_angle_degrees(side: String, attach_t: float) -> float:
 	if shell_profile.size() < 2:
@@ -1701,6 +1764,15 @@ func _sample_shell_profile(attach_t: float) -> Vector3:
 	var local_t := scaled - float(index)
 	return shell_profile[index].lerp(shell_profile[next_index], local_t)
 
+func _sample_shell_radius_z_half_diff(attach_t: float) -> float:
+	if shell_radius_z_half_diff.is_empty():
+		return 0.0
+	var scaled := clampf(attach_t, 0.0, 1.0) * float(shell_radius_z_half_diff.size() - 1)
+	var index := int(floor(scaled))
+	var next_index := mini(index + 1, shell_radius_z_half_diff.size() - 1)
+	var local_t := scaled - float(index)
+	return lerpf(shell_radius_z_half_diff[index], shell_radius_z_half_diff[next_index], local_t)
+
 func _sample_shell_center_y(attach_t: float) -> float:
 	if shell_center_y_offsets.is_empty():
 		return 0.0
@@ -1772,6 +1844,10 @@ func _head_sculpt_params() -> Dictionary:
 		"head_bump_width": param_float("head_bump_width", 0.18),
 		"head_bump_angle": param_float("head_bump_angle", 35.0),
 		"head_bump_round": param_float("head_bump_round", 0.6),
+		"head_top_flatness": param_float("head_top_flatness", 0.0),
+		"head_bottom_flatness": param_float("head_bottom_flatness", 0.0),
+		"head_left_flatness": param_float("head_left_flatness", 0.0),
+		"head_right_flatness": param_float("head_right_flatness", 0.0),
 		"mouth_open": param_float("mouth_open", 0.25),
 		"mouth_size": param_float("mouth_size", 0.08),
 		"mouth_center_y": mouth_base_y + _snout_tip_displacement(),
@@ -2810,7 +2886,8 @@ func _op_shell_point(u: float, f: float, t_front: float, t_rear: float, sgn: flo
 	var sample := _sample_shell_profile(at_t)
 	var cy := _sample_shell_center_y(at_t)
 	var zfrac := sqrt(maxf(1.0 - f * f, 0.0))
-	return Vector3(sample.x, cy + f * sample.y, (sample.z * zfrac + outset) * sgn)
+	var radius_z := _surface_radius_z_for_vertical_fraction(at_t, f)
+	return Vector3(sample.x, cy + f * sample.y, (radius_z * zfrac + outset) * sgn)
 
 # Dark gill opening that traces the silhouette's trailing (rear) edge top-to-bottom:
 # for each height v across the outline's full vertical extent we find the rear-most

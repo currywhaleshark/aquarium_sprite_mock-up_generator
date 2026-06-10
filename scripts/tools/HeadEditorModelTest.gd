@@ -130,6 +130,27 @@ func _ready() -> void:
 	await get_tree().process_frame
 	assert(_max_y(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D)) > base_top + 0.1)
 
+	var neutral_flatness: Dictionary = neutral_jaw.duplicate(true)
+	neutral_flatness["snout_length"] = 0.0
+	neutral_flatness["head_top_curve"] = 0.0
+	neutral_flatness["head_bump_height"] = 0.0
+	neutral_flatness["head_top_flatness"] = 0.0
+	fish.set_parameters(neutral_flatness)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var neutral_head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var neutral_top := _mesh_max_y(neutral_head)
+	var neutral_upper_avg := _mesh_upper_quadrant_average_y(neutral_head)
+
+	var top_flattened: Dictionary = neutral_flatness.duplicate(true)
+	top_flattened["head_top_flatness"] = 1.0
+	fish.set_parameters(top_flattened)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var top_flat_head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	assert(absf(_mesh_max_y(top_flat_head) - neutral_top) < 0.01)
+	assert(_mesh_upper_quadrant_average_y(top_flat_head) > neutral_upper_avg + 0.01)
+
 	# Forehead bump: a forward-leaning crown bump must push geometry both up and
 	# forward (-x), i.e. it juts out in front rather than only bulging upward.
 	var no_bump: Dictionary = flat_top.duplicate(true)
@@ -605,6 +626,25 @@ func _mesh_extent(node: MeshInstance3D) -> Vector3:
 		max_v.y = maxf(max_v.y, v.y)
 		max_v.z = maxf(max_v.z, v.z)
 	return max_v - min_v
+
+func _mesh_max_y(mesh_instance: MeshInstance3D) -> float:
+	assert(mesh_instance != null)
+	var verts: PackedVector3Array = mesh_instance.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var max_y := -INF
+	for v in verts:
+		max_y = maxf(max_y, v.y)
+	return max_y
+
+func _mesh_upper_quadrant_average_y(mesh_instance: MeshInstance3D) -> float:
+	assert(mesh_instance != null)
+	var verts: PackedVector3Array = mesh_instance.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var total := 0.0
+	var count := 0
+	for v in verts:
+		if v.y > 0.0 and absf(v.z) > 0.12:
+			total += v.y
+			count += 1
+	return total / maxf(float(count), 1.0)
 
 func _head_shader_material(fish: Node) -> ShaderMaterial:
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D

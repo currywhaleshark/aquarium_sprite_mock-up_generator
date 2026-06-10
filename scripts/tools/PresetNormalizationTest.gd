@@ -156,6 +156,27 @@ func _ready() -> void:
 	assert(not legacy_no_operculum.has("operculum_position_x"))
 	assert(not legacy_no_operculum.has("operculum_position_y"))
 
+	var sculpt_split := BodyProfileScript.split_parameters_into_profiles({
+		"head_shape": "rounded",
+		"head_top_flatness": 0.7,
+		"head_bottom_flatness": 0.2,
+		"head_left_flatness": 0.3,
+		"head_right_flatness": 0.4,
+		"body_profile": {
+			"rings": [
+				{"id": "snout", "label": "Snout", "x": 0.0, "y_offset": 0.0, "upper_height": 0.24, "lower_height": 0.20, "width": 0.18, "top_width": 0.16, "bottom_width": 0.21, "top_flatness": 0.5, "bottom_flatness": 0.0, "left_flatness": 0.0, "right_flatness": 0.25, "roundness": 0.65, "sway_weight": 0.0},
+				{"id": "head", "label": "Head", "x": 0.16, "y_offset": 0.0, "upper_height": 0.42, "lower_height": 0.36, "width": 0.34, "top_width": 0.32, "bottom_width": 0.36, "top_flatness": 0.0, "bottom_flatness": 0.0, "left_flatness": 0.2, "right_flatness": 0.2, "roundness": 0.82, "sway_weight": 0.05},
+				{"id": "front_body", "label": "Front Body", "x": 0.36, "y_offset": 0.0, "upper_height": 0.52, "lower_height": 0.48, "width": 0.46, "top_width": 0.42, "bottom_width": 0.50, "top_flatness": 0.0, "bottom_flatness": 0.3, "left_flatness": 0.0, "right_flatness": 0.0, "roundness": 0.9, "sway_weight": 0.15}
+			]
+		}
+	}, {"name": "directional_sculpt"})
+	var rebuilt_sculpt := BodyProfileScript.make_parameters_from_structured_preset(sculpt_split)
+	assert(abs(float(rebuilt_sculpt.get("head_top_flatness", 0.0)) - 0.7) < 0.001)
+	var rebuilt_rings: Array = rebuilt_sculpt.get("body_profile", {}).get("rings", [])
+	assert(abs(float(rebuilt_rings[0].get("top_width", 0.0)) - 0.16) < 0.001)
+	assert(abs(float(rebuilt_rings[0].get("bottom_width", 0.0)) - 0.21) < 0.001)
+	assert(abs(float(rebuilt_rings[0].get("top_flatness", 0.0)) - 0.5) < 0.001)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/preset_normalization.ok", FileAccess.WRITE)
 	file.store_string("legacy motion parameters normalized")
