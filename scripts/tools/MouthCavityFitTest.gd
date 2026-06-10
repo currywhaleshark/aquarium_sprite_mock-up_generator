@@ -1,6 +1,8 @@
 extends Node
 
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
+const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
+const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
 
 func _fail(message: String) -> bool:
 	push_error(message)
@@ -52,6 +54,53 @@ func _assert_cavity_fits_head(fish: FishRig) -> bool:
 		return _fail("MouthCavity protrudes ahead of Head: worst_ahead=%.5f" % worst_ahead)
 	return true
 
+func _pit_metrics(params: Dictionary, gape: float) -> Dictionary:
+	var lower_jaw_scale := clampf(float(params.get("lower_jaw_scale", 1.0)), 0.45, 1.8)
+	var mouth_width_scale := clampf(float(params.get("mouth_size", 0.08)) / 0.08, 0.65, 2.2)
+	var jaw_lm := HeadProfile.jaw_landmarks(params, gape)
+	var lower_jaw_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * mouth_width_scale
+	return {
+		"buffer_y": 0.03 * lower_jaw_scale * sqrt(mouth_width_scale),
+		"pit_half_w": lower_jaw_half_w * 0.84,
+		"upper_tip": jaw_lm["upper_tip"],
+		"lower_tip": jaw_lm["lower_tip"],
+	}
+
+func _assert_floor_overlaps_cavity(fish: FishRig, params: Dictionary, gape: float) -> bool:
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	if cavity == null or cavity.mesh == null:
+		return _fail("MouthCavity is missing for overlap check at gape %.2f" % gape)
+	var floor := fish.get_node_or_null("BodyPivot/Head/MouthFloor") as MeshInstance3D
+	if floor == null or floor.mesh == null:
+		return _fail("MouthFloor is missing for overlap check at gape %.2f" % gape)
+
+	var cavity_verts := _mesh_vertices_in_parent_space(cavity)
+	var floor_verts := _mesh_vertices_in_parent_space(floor)
+	var metrics := _pit_metrics(params, gape)
+	var pit_half_w := float(metrics["pit_half_w"])
+	var buffer_y := float(metrics["buffer_y"])
+	var slice_width := maxf(pit_half_w * 0.2, 0.001)
+	for frac in [-0.6, -0.3, 0.0, 0.3, 0.6]:
+		var z_center := float(frac) * pit_half_w
+		var min_cavity_y := INF
+		var max_floor_y := -INF
+		var found_cavity := false
+		var found_floor := false
+		for v in cavity_verts:
+			if absf(v.z - z_center) <= slice_width:
+				min_cavity_y = minf(min_cavity_y, v.y)
+				found_cavity = true
+		for v in floor_verts:
+			if absf(v.z - z_center) <= slice_width:
+				max_floor_y = maxf(max_floor_y, v.y)
+				found_floor = true
+		if not found_cavity or not found_floor:
+			return _fail("Missing overlap slice vertices at gape %.2f z=%.4f" % [gape, z_center])
+		var required_y := min_cavity_y + buffer_y * 0.5
+		if max_floor_y < required_y:
+			return _fail("MouthFloor does not overlap MouthCavity at gape %.2f z=%.4f: floor_y=%.5f required=%.5f" % [gape, z_center, max_floor_y, required_y])
+	return true
+
 func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
@@ -72,6 +121,14 @@ func _ready() -> void:
 	await get_tree().process_frame
 	if not _assert_cavity_fits_head(fish):
 		return
+
+	for gape in [0.3, 0.6, 1.0]:
+		var open_params := params.duplicate(true)
+		open_params["mouth_open"] = gape
+		fish.set_parameters(open_params)
+		await get_tree().process_frame
+		if not _assert_floor_overlaps_cavity(fish, open_params, gape):
+			return
 
 	var closed_params := params.duplicate(true)
 	closed_params["mouth_open"] = 0.0
