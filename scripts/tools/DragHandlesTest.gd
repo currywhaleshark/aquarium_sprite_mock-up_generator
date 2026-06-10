@@ -2,6 +2,7 @@ extends Node
 
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const FinDragControllerScript := preload("res://scripts/ui/FishFinDragController.gd")
+const DragHandlesOverlayScript := preload("res://scripts/ui/DragHandlesOverlay.gd")
 
 class StubCameraController extends Node:
 	var suppressed := false
@@ -33,15 +34,37 @@ func _ready() -> void:
 	assert(handles.has("eye_r"))
 	assert(handles.has("pectoral"))
 	assert(handles.has("anal"))
+	assert(handles.has("operculum"))
 	var dorsal_marker: Vector3 = fish.get_vector_edit_marker_world("dorsal_1", Vector2(0.0, 0.7))
 	assert(not is_inf(dorsal_marker.x))
 	var operculum_marker: Vector3 = fish.get_vector_edit_marker_world("operculum", Vector2(1.0, 0.0))
 	assert(not is_inf(operculum_marker.x))
 	assert(operculum_marker.z > 0.0)
 
+	var overlay: DragHandlesOverlay = DragHandlesOverlayScript.new()
+	add_child(overlay)
+	overlay.draw_head = true
+	overlay.draw_fins = false
+	assert(overlay._should_draw_handle("operculum"))
+	overlay.draw_head = false
+	overlay.draw_fins = true
+	assert(not overlay._should_draw_handle("operculum"))
+
 	var controller: FishFinDragController = FinDragControllerScript.new()
 	add_child(controller)
 	controller.bind_fish(fish)
+
+	# Operculum drag is free in 2D and moves the whole gill cover while preserving the
+	# separate outline editor points.
+	var op_x0 := float(fish.parameters.get("operculum_position_x", 0.0))
+	var op_y0 := float(fish.parameters.get("operculum_position_y", 0.0))
+	var op_marker0: Vector3 = fish.get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))
+	controller.drag_fin_by_pixels("operculum", Vector2(30.0, -25.0))
+	var op_marker1: Vector3 = fish.get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))
+	assert(float(fish.parameters.get("operculum_position_x", 0.0)) > op_x0)
+	assert(float(fish.parameters.get("operculum_position_y", 0.0)) > op_y0)
+	assert(op_marker1.x > op_marker0.x + 0.01)
+	assert(op_marker1.y > op_marker0.y + 0.01)
 
 	# Eye drag is free in 2D: screen-right -> +x, screen-up -> +y.
 	var eye_x0 := float(fish.parameters.get("eye_position_x"))

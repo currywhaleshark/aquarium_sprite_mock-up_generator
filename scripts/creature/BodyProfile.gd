@@ -511,6 +511,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"forehead_slope", "jaw_offset", "mouth_size", "lower_jaw_length", "lower_jaw_angle",
 		"lower_jaw_thickness", "lower_jaw_tip", "head_flattening",
 		"head_ornament", "gill_mark", "operculum_size", "operculum_height", "operculum_open", "operculum_ridge",
+		"operculum_position_x", "operculum_position_y",
 		"operculum_custom_points",
 		"barbel_style", "eye_style", "mouth_detail",
 		"fin_opacity", "fin_edge_color", "fin_edge_width", "fin_ray_count",

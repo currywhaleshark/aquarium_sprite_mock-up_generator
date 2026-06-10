@@ -194,6 +194,8 @@ const PARAMETER_LABELS := {
 	"operculum_height": "아가미덮개 높이",
 	"operculum_open": "아가미덮개 열림",
 	"operculum_ridge": "아가미덮개 경계",
+	"operculum_position_x": "아가미덮개 X 위치",
+	"operculum_position_y": "아가미덮개 Y 위치",
 	"barbel_style": "수염 형태",
 	"eye_style": "눈 형태",
 	"mouth_detail": "입 디테일",
