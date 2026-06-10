@@ -55,6 +55,9 @@ func _apply_handle_drag(handle_id: String, delta: Vector2) -> void:
 	if handle_id.begins_with("eye"):
 		# Eyes move freely on the head and stay left/right symmetric by construction.
 		fish.move_eye(delta_x, delta_y)
+	elif handle_id == "operculum":
+		# Gill cover moves freely as a head-side placement handle.
+		fish.move_operculum(delta_x, delta_y)
 	elif handle_id == "pectoral":
 		# Pectorals move freely while keeping both sides mirrored.
 		fish.move_pectoral(delta_x, delta_y)

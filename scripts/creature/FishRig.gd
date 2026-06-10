@@ -28,6 +28,8 @@ const MOUTH_HINGE_FRAC := 0.56
 # cavity, upper/lower lip bands) is hidden while the carved upper jaw + filling lower jaw
 # are shaped, because it overlays and occludes them. Set true to restore the old mouth.
 const MOUTH_DECOR_ENABLED := true
+const OPERCULUM_POSITION_X_LIMIT := 0.12
+const OPERCULUM_POSITION_Y_LIMIT := 0.35
 
 var body_pivot: Node3D
 var tail_pivot_1: Node3D
@@ -1164,6 +1166,10 @@ func get_drag_handles() -> Dictionary:
 		handles["eye_l"] = eye_l.global_position
 	if eye_r:
 		handles["eye_r"] = eye_r.global_position
+	if String(parameters.get("gill_mark", "none")) == "operculum":
+		var op_handle := get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))
+		if not is_inf(op_handle.x):
+			handles["operculum"] = op_handle
 	return handles
 
 func get_vector_edit_marker_world(slot: String, norm_position: Vector2) -> Vector3:
@@ -1233,15 +1239,24 @@ func _operculum_edit_marker_world(norm_position: Vector2) -> Vector3:
 	var op_h := clampf(float(parameters.get("operculum_height", 1.0)), 0.5, 1.5)
 	var op_open := clampf(float(parameters.get("operculum_open", 0.0)), 0.0, 1.0)
 	var lift := 0.012 + 0.03 * op_open
-	var center_t := 0.19
+	var center_t := _operculum_center_t()
 	var half_t := 0.05 * op_len
 	var t_front := maxf(center_t - half_t, 0.02)
 	var t_rear := center_t + half_t
 	var vfrac_max := 0.62 * op_h
 	var u := clampf(norm_position.x, 0.0, 1.0)
-	var f := clampf(norm_position.y * vfrac_max, -0.985, 0.985)
+	var f := clampf(norm_position.y * vfrac_max + _operculum_position_y(), -0.985, 0.985)
 	var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
 	return body_pivot.global_transform * _op_shell_point(u, f, t_front, t_rear, 1.0, out)
+
+func _operculum_center_t() -> float:
+	return clampf(0.19 + _operculum_position_x(), 0.07, 0.31)
+
+func _operculum_position_x() -> float:
+	return clampf(float(parameters.get("operculum_position_x", 0.0)), -OPERCULUM_POSITION_X_LIMIT, OPERCULUM_POSITION_X_LIMIT)
+
+func _operculum_position_y() -> float:
+	return clampf(float(parameters.get("operculum_position_y", 0.0)), -OPERCULUM_POSITION_Y_LIMIT, OPERCULUM_POSITION_Y_LIMIT)
 
 # Lower-jaw pivot in head-local space. Shared by _mouth_lower_jaw_mesh (which rotates the
 # jaw about it) and the editor hinge marker so the drawn point is the ACTUAL pivot.
@@ -1266,6 +1281,19 @@ func move_pectoral(delta_x: float, delta_y: float) -> void:
 	parameters["pectoral_attach_t"] = clampf(float(parameters.get("pectoral_attach_t", 0.32)) + delta_x, 0.02, 0.98)
 	parameters["pectoral_offset_y"] = clampf(float(parameters.get("pectoral_offset_y", 0.0)) + delta_y, -0.5, 0.5)
 	_apply_fin_offsets()
+
+func move_operculum(delta_x: float, delta_y: float) -> void:
+	parameters["operculum_position_x"] = clampf(float(parameters.get("operculum_position_x", 0.0)) + delta_x, -OPERCULUM_POSITION_X_LIMIT, OPERCULUM_POSITION_X_LIMIT)
+	parameters["operculum_position_y"] = clampf(float(parameters.get("operculum_position_y", 0.0)) + delta_y, -OPERCULUM_POSITION_Y_LIMIT, OPERCULUM_POSITION_Y_LIMIT)
+	_rebuild_operculum_flaps()
+
+func _rebuild_operculum_flaps() -> void:
+	if body_pivot == null or head_node == null or String(parameters.get("gill_mark", "none")) != "operculum":
+		return
+	var existing := body_pivot.get_node_or_null("GillMark_operculum")
+	if existing != null:
+		existing.free()
+	_add_operculum_flaps(head_node.material_override, TMF.make_dark("#15191b"))
 
 func _apply_fin_offsets() -> void:
 	if dorsal_fin:
@@ -2648,11 +2676,12 @@ func _add_operculum_flaps(body_material: Material, dark_material: Material) -> v
 			side, op_len, op_h, lift, op_ridge, body_material, dark_material))
 
 func _build_operculum_flap(flap_name: String, side: float, length: float, height: float, lift: float, ridge: float, body_material: Material, dark_material: Material) -> MeshInstance3D:
-	var center_t := 0.19
+	var center_t := _operculum_center_t()
 	var half_t := 0.05 * length
 	var t_front := maxf(center_t - half_t, 0.02)
 	var t_rear := center_t + half_t
 	var vfrac_max := 0.62 * height
+	var position_y := _operculum_position_y()
 	var sgn := -1.0 if side < 0.0 else 1.0
 
 	# Optional hand-drawn silhouette (normalized side-view outline). When present,
@@ -2689,7 +2718,7 @@ func _build_operculum_flap(flap_name: String, side: float, length: float, height
 				rverts.append([])
 				ruvs.append([])
 				continue
-			var f := clampf(v * vfrac_max, -0.985, 0.985)
+			var f := clampf(v * vfrac_max + position_y, -0.985, 0.985)
 			var uvy := asin(f) / TAU
 			if uvy < 0.0:
 				uvy += 1.0
@@ -2726,7 +2755,7 @@ func _build_operculum_flap(flap_name: String, side: float, length: float, height
 			var urow := []
 			for j in range(nt + 1):
 				var tv := lerpf(-1.0, 1.0, float(j) / float(nt))
-				var f := clampf(tv * env * vfrac_max, -0.985, 0.985)
+				var f := clampf(tv * env * vfrac_max + position_y, -0.985, 0.985)
 				var y := cy + f * sample.y
 				var zfrac := sqrt(maxf(1.0 - f * f, 0.0))
 				prow.append(Vector3(sample.x, y, (sample.z * zfrac + out) * sgn))
@@ -2746,9 +2775,9 @@ func _build_operculum_flap(flap_name: String, side: float, length: float, height
 	node.mesh = st.commit()
 	node.material_override = body_material
 	if use_outline:
-		node.add_child(_build_operculum_opening_outline("%s_Opening" % flap_name, side, poly, t_front, t_rear, vfrac_max, dark_material))
+		node.add_child(_build_operculum_opening_outline("%s_Opening" % flap_name, side, poly, t_front, t_rear, vfrac_max, position_y, dark_material))
 	else:
-		node.add_child(_build_operculum_opening("%s_Opening" % flap_name, side, t_rear, ridge, vfrac_max, dark_material))
+		node.add_child(_build_operculum_opening("%s_Opening" % flap_name, side, t_rear, ridge, vfrac_max, position_y, dark_material))
 	return node
 
 # U-extent [u_min, u_max] of the outline polygon at vertical v (horizontal scan).
@@ -2781,7 +2810,7 @@ func _op_shell_point(u: float, f: float, t_front: float, t_rear: float, sgn: flo
 # for each height v across the outline's full vertical extent we find the rear-most
 # x and lay a thin dark strip just behind it. So it spans the whole free margin and
 # reshapes with the silhouette instead of collapsing to a narrow rear column.
-func _build_operculum_opening_outline(open_name: String, side: float, poly: PackedVector2Array, t_front: float, t_rear: float, vfrac_max: float, dark_material: Material) -> MeshInstance3D:
+func _build_operculum_opening_outline(open_name: String, side: float, poly: PackedVector2Array, t_front: float, t_rear: float, vfrac_max: float, position_y: float, dark_material: Material) -> MeshInstance3D:
 	var sgn := -1.0 if side < 0.0 else 1.0
 	var v_lo := INF
 	var v_hi := -INF
@@ -2800,7 +2829,7 @@ func _build_operculum_opening_outline(open_name: String, side: float, poly: Pack
 			inner.append(Vector3.ZERO)
 			outer.append(Vector3.ZERO)
 			continue
-		var f := clampf(v * vfrac_max, -0.985, 0.985)
+		var f := clampf(v * vfrac_max + position_y, -0.985, 0.985)
 		var u_edge: float = uspan.y
 		inner.append(_op_shell_point(clampf(u_edge - 0.03, 0.0, 1.5), f, t_front, t_rear, sgn, 0.010))
 		outer.append(_op_shell_point(u_edge + 0.05, f, t_front, t_rear, sgn, 0.010))
@@ -2821,7 +2850,7 @@ func _build_operculum_opening_outline(open_name: String, side: float, poly: Pack
 
 # Thin dark strip on the shell surface just under the lifted free edge, reading
 # as the gill opening.
-func _build_operculum_opening(open_name: String, side: float, t_rear: float, ridge: float, vfrac_max: float, dark_material: Material) -> MeshInstance3D:
+func _build_operculum_opening(open_name: String, side: float, t_rear: float, ridge: float, vfrac_max: float, position_y: float, dark_material: Material) -> MeshInstance3D:
 	var nt := 10
 	var sgn := -1.0 if side < 0.0 else 1.0
 	var cols := [t_rear - (0.02 + 0.02 * ridge), t_rear + 0.006]
@@ -2833,7 +2862,7 @@ func _build_operculum_opening(open_name: String, side: float, t_rear: float, rid
 		var col := []
 		for j in range(nt + 1):
 			var tv := lerpf(-1.0, 1.0, float(j) / float(nt))
-			var f := clampf(tv * vfrac_max, -0.985, 0.985)
+			var f := clampf(tv * vfrac_max + position_y, -0.985, 0.985)
 			var y := cy + f * sample.y
 			var zfrac := sqrt(maxf(1.0 - f * f, 0.0))
 			col.append(Vector3(sample.x, y, (sample.z * zfrac + 0.010) * sgn))

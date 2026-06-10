@@ -478,6 +478,18 @@ func _ready() -> void:
 	assert(base_flap != null)
 	assert(op_root.get_node_or_null("OperculumFlapL") != null)
 	var base_extent := _mesh_extent(base_flap)
+	var op_base_world := _world_mesh_extent(base_flap)
+	var op_base_center := op_base_world.position + op_base_world.size * 0.5
+
+	var shifted_operculum := operculum_base.duplicate(true)
+	shifted_operculum["operculum_position_x"] = 0.08
+	shifted_operculum["operculum_position_y"] = 0.22
+	fish.set_parameters(shifted_operculum)
+	await get_tree().process_frame
+	var shifted_world := _world_mesh_extent(fish.get_node_or_null("BodyPivot/GillMark_operculum/OperculumFlapR") as MeshInstance3D)
+	var shifted_center := shifted_world.position + shifted_world.size * 0.5
+	assert(shifted_center.x > op_base_center.x + 0.035)
+	assert(shifted_center.y > op_base_center.y + 0.035)
 
 	var large_operculum := operculum_base.duplicate(true)
 	large_operculum["operculum_size"] = 1.45

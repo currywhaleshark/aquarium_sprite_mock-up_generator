@@ -57,7 +57,7 @@ func _update_hovered_handle() -> void:
 			hovered_handle = String(handle_id)
 
 func _should_draw_handle(handle_id: String) -> bool:
-	if handle_id.begins_with("eye"):
+	if handle_id.begins_with("eye") or handle_id == "operculum":
 		return draw_head
 	else:
 		return draw_fins
@@ -163,6 +163,8 @@ func _get_handle_label(handle_id: String) -> String:
 			return "왼쪽 눈"
 		"eye_r":
 			return "오른쪽 눈"
+		"operculum":
+			return "아가미덮개"
 		"pectoral":
 			return "가슴지느러미"
 		"pelvic":

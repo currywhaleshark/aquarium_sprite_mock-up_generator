@@ -124,7 +124,9 @@ func _ready() -> void:
 		"operculum_size": 1.25,
 		"operculum_height": 1.35,
 		"operculum_open": 0.6,
-		"operculum_ridge": 0.8
+		"operculum_ridge": 0.8,
+		"operculum_position_x": 0.08,
+		"operculum_position_y": -0.22
 	}, {"name": "operculum_roundtrip", "type": "fish"})
 	var operculum_fin_profile: Dictionary = operculum_split.get("fin_profile", {})
 	assert(String(operculum_fin_profile.get("gill_mark", "")) == "operculum")
@@ -132,12 +134,16 @@ func _ready() -> void:
 	assert(abs(float(operculum_fin_profile.get("operculum_height", 0.0)) - 1.35) < 0.001)
 	assert(abs(float(operculum_fin_profile.get("operculum_open", 0.0)) - 0.6) < 0.001)
 	assert(abs(float(operculum_fin_profile.get("operculum_ridge", 0.0)) - 0.8) < 0.001)
+	assert(abs(float(operculum_fin_profile.get("operculum_position_x", 0.0)) - 0.08) < 0.001)
+	assert(abs(float(operculum_fin_profile.get("operculum_position_y", 0.0)) + 0.22) < 0.001)
 	var rebuilt_operculum := BodyProfileScript.make_parameters_from_structured_preset(operculum_split)
 	assert(String(rebuilt_operculum.get("gill_mark", "")) == "operculum")
 	assert(abs(float(rebuilt_operculum.get("operculum_size", 0.0)) - 1.25) < 0.001)
 	assert(abs(float(rebuilt_operculum.get("operculum_height", 0.0)) - 1.35) < 0.001)
 	assert(abs(float(rebuilt_operculum.get("operculum_open", 0.0)) - 0.6) < 0.001)
 	assert(abs(float(rebuilt_operculum.get("operculum_ridge", 0.0)) - 0.8) < 0.001)
+	assert(abs(float(rebuilt_operculum.get("operculum_position_x", 0.0)) - 0.08) < 0.001)
+	assert(abs(float(rebuilt_operculum.get("operculum_position_y", 0.0)) + 0.22) < 0.001)
 	var legacy_no_operculum_split := BodyProfileScript.split_parameters_into_profiles({
 		"gill_mark": "none"
 	}, {"name": "legacy_no_operculum_keys", "type": "fish"})
@@ -147,6 +153,8 @@ func _ready() -> void:
 	assert(not legacy_no_operculum.has("operculum_height"))
 	assert(not legacy_no_operculum.has("operculum_open"))
 	assert(not legacy_no_operculum.has("operculum_ridge"))
+	assert(not legacy_no_operculum.has("operculum_position_x"))
+	assert(not legacy_no_operculum.has("operculum_position_y"))
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/preset_normalization.ok", FileAccess.WRITE)
