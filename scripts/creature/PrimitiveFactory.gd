@@ -340,7 +340,13 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 	st.generate_normals()
 	return st.commit()
 
-static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int, segments: int, sculpt: Dictionary, proud: float = 0.004) -> ArrayMesh:
+# Cells whose dent is shallower than this (in head-local units) are skipped: there the
+# lining would sit nearly coplanar with the shell and depth-fight (jagged black/teal
+# triangles). The skipped rim ring is sub-pixel shallow, so the dark edge still reads as
+# the pit boundary.
+const MOUTH_LINING_MIN_INSET := 0.006
+
+static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int, segments: int, sculpt: Dictionary, proud: float = 0.02) -> ArrayMesh:
 	var precomputed := _head_mesh_precompute(shape, snout_length, forehead_slope, sculpt)
 	var grid := []
 	for i in range(rings + 1):
@@ -360,7 +366,11 @@ static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_s
 			var s01: Dictionary = grid[i][j + 1]
 			var s10: Dictionary = grid[i + 1][j]
 			var s11: Dictionary = grid[i + 1][j + 1]
-			if maxf(maxf(float(s00["pit_weight"]), float(s01["pit_weight"])), maxf(float(s10["pit_weight"]), float(s11["pit_weight"]))) <= 0.02:
+			var min_inset := minf(
+				minf(float(s00["pit_inset_x"]), float(s01["pit_inset_x"])),
+				minf(float(s10["pit_inset_x"]), float(s11["pit_inset_x"]))
+			)
+			if min_inset < MOUTH_LINING_MIN_INSET:
 				continue
 			var p00 := _mouth_lining_vertex(s00, proud)
 			var p01 := _mouth_lining_vertex(s01, proud)
@@ -376,7 +386,12 @@ static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_s
 
 static func _mouth_lining_vertex(sample: Dictionary, proud: float) -> Vector3:
 	var point := sample["point"] as Vector3
-	var outset := minf(proud * float(sample["pit_weight"]), float(sample["pit_inset_x"]) * 0.45)
+	# Float at half the local dent depth (capped at `proud`): always far enough in front
+	# of the dented shell to win the depth test cleanly, yet always behind the un-dented
+	# surface (outset < inset), so the lining can never poke out of the silhouette at any
+	# gape. A fixed micro-offset is NOT enough here - it shrinks below depth-buffer
+	# precision near the rim and z-fights as a jagged star.
+	var outset := minf(float(sample["pit_inset_x"]) * 0.5, proud)
 	return point + Vector3(-outset, 0.0, 0.0)
 
 static func deformed_head(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:

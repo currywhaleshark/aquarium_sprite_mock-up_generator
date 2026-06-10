@@ -43,15 +43,21 @@ func _assert_cavity_fits_head(fish: FishRig) -> bool:
 
 	var worst_fit := 0.0
 	var worst_ahead := 0.0
+	var min_ahead := INF
 	for v in cavity_verts:
 		var nearest := _nearest_vertex(v, head_verts)
 		worst_fit = maxf(worst_fit, v.distance_to(nearest))
 		worst_ahead = maxf(worst_ahead, nearest.x - v.x)
+		min_ahead = minf(min_ahead, nearest.x - v.x)
 
-	if worst_fit >= 0.02:
+	if worst_fit >= 0.03:
 		return _fail("MouthCavity is not flush with Head: worst_fit=%.5f" % worst_fit)
-	if worst_ahead >= 0.006:
+	if worst_ahead >= 0.022:
 		return _fail("MouthCavity protrudes ahead of Head: worst_ahead=%.5f" % worst_ahead)
+	# The lining must keep a real gap from the dented shell everywhere; coplanar vertices
+	# z-fight and render as jagged black/teal triangles (the "star" regression).
+	if min_ahead <= 0.002:
+		return _fail("MouthCavity sits coplanar with Head (depth-fight risk): min_ahead=%.5f" % min_ahead)
 	return true
 
 func _pit_metrics(params: Dictionary, gape: float) -> Dictionary:

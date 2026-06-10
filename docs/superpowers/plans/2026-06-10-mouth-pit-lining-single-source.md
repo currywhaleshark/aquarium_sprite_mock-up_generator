@@ -23,7 +23,8 @@
 
 - `deformed_head_mesh`의 기하 출력은 리팩터링 전후 동일해야 한다. 정점 체인을 헬퍼로 추출하는 것은 순수 코드 이동이며, 기존 `HeadEditorModelTest`/`HeadShellSeamTest`의 기하 assert가 그대로 통과해야 한다.
 - 안감 메쉬의 모든 정점은 같은 (phi, theta) 그리드 인덱스의 머리 메쉬 정점에서 **띄움량(≤ 0.004) 이내** 거리에 있어야 한다. 별도의 표면 근사·정점 클램프를 다시 도입하지 않는다.
-- 띄움량은 **실제 패임량으로 캡**한다: `outset = minf(proud * pit_weight, pit_inset_x * 0.45)`. 패임량(`HeadProfile.mouth_pit_offset`의 x 성분)은 `depth * gape * weight`로 게이프에 비례하므로, 고정 `proud * weight`만 쓰면 작은 `mouth_open`(스폰 임계 0.01 직후 ~0.036 구간)에서 띄움이 패임을 초과해 원래 표면 밖으로 나온다. 캡 덕에 림(가중치 0) 정점은 셸과 일치하고, 내부 정점은 어떤 게이프·스컬프트 조합에서도 패임의 45% 이내에만 떠 있어 바깥 실루엣을 뚫지 않는다. (게이프가 아주 작을 때 안감-셸 간격이 서브픽셀이 되어 의미가 없어지는 것은 허용 — 그 구간에선 패임 자체가 보이지 않는다.)
+- 띄움량은 **패임량의 절반, 상한 0.02**: `outset = minf(pit_inset_x * 0.5, 0.02)`. 비율이 100% 미만이므로 어떤 게이프·스컬프트 조합에서도 원래 표면 밖으로 나가지 않고, 패임에 비례해 충분히 떠 있으므로 셸과 깊이 싸움(z-fighting)을 하지 않는다. **고정 미세 띄움(예: 0.004 × weight)은 금지** — 림 부근에서 깊이 버퍼 정밀도 아래로 내려가 삼각형 단위로 검정/몸색이 교차하는 톱니 별 모양으로 깨진다(2026-06-11 실측 회귀).
+- 패임이 `MOUTH_LINING_MIN_INSET`(0.006)보다 얕은 셀은 방출하지 않는다. 네 모서리 모두 기준. 이로써 방출된 모든 정점의 최소 이격이 0.003 이상으로 보장된다. 잘려나간 림 띠는 패임 자체가 서브픽셀이라 보이지 않으며, 게이프가 아주 작을 때 안감이 아예 생기지 않는 것도 같은 이유로 허용된다.
 - `mouth_open <= 0.01`이면 `MouthCavity`가 생성되지 않는 기존 동작 유지 (구덩이 자체가 게이프 0에서 사라지므로).
 - 입 모양 틸트(`_mouth_angle_for_type`)는 안감에 적용하지 않는다 — 머리 메쉬의 패임(블록 6c) 자체가 틸트되지 않으므로, 기존 `_mouth_pit_dark_mesh`의 틸트 회전은 근사의 일부였을 뿐이다.
 - `_mouth_upper_interior_mesh`, `_mouth_side_aperture_mesh`, `_mouth_band_mesh`는 이 계획의 범위 밖이다(동일한 최근접 정점 클램프 문제를 갖고 있으나 후속 작업). 단, 이번에 만드는 공유 헬퍼는 이들이 재사용할 수 있는 형태여야 한다.
@@ -108,14 +109,14 @@ static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_s
 ```
 
   - `deformed_head_mesh`와 **동일한** (phi, theta) 그리드를 돌며 `_head_final_point` 결과를 수집.
-  - 셀의 네 모서리 중 하나라도 `pit_weight > 0.02`이면 그 셀의 두 삼각형을 방출. 각 정점의 띄움은 실제 패임량으로 캡:
+  - 셀의 네 모서리 **모두** `pit_inset_x >= MOUTH_LINING_MIN_INSET`(0.006)이면 그 셀의 두 삼각형을 방출. 각 정점의 띄움은 패임량 비례:
 
 ```gdscript
-var outset := minf(proud * float(sample["pit_weight"]), float(sample["pit_inset_x"]) * 0.45)
+var outset := minf(float(sample["pit_inset_x"]) * 0.5, proud) # proud 기본 0.02
 var vertex := (sample["point"] as Vector3) + Vector3(-outset, 0.0, 0.0)
 ```
 
-    림(가중치 0)에서 셸과 정확히 만나고, 게이프가 작아 패임이 얕을 때도 띄움이 패임의 45%를 넘지 않으므로 원래 표면 밖으로 절대 나가지 않는다.
+    비율(50%) < 100%이므로 원래 표면 밖으로 절대 나가지 않고, 방출 셀의 최소 패임(0.006) 덕에 이격이 항상 0.003 이상이라 셸과 z-fighting하지 않는다. 가중치 기반 고정 미세 띄움은 림에서 이격이 0으로 수렴해 톱니 별 모양 z-fight를 만들므로 쓰지 않는다.
   - 방출 셀이 하나도 없으면(`mouth_open` 0 등) 빈 ArrayMesh 반환.
   - `st.generate_normals()` 후 commit. UV 불필요(단색 dark 재질).
 - [ ] **Step 2: FishRig 교체.** `_add_mouth`(MouthCavity 생성 블록, 현재 `cavity.mesh = _mouth_pit_dark_mesh(...)` 부근):
@@ -156,6 +157,6 @@ var vertex := (sample["point"] as Vector3) + Vector3(-outset, 0.0, 0.0)
 ## Self-Review
 
 - 음영이 패임과 같은 정점 체인에서 나오므로 "딱 맞음"이 구조적으로 보장됨.
-- 띄움을 가중치 비례 + 실제 패임량(`pit_inset_x * 0.45`) 캡으로 이중 제한 → 림에서 셸과 일치하고, 게이프가 작아 패임이 얕은 구간에서도 "밖으로 안 나감"이 성립.
+- 띄움을 패임량의 50%(상한 0.02)로 잡고 얕은 림 셀은 방출하지 않음 → "밖으로 안 나감"(비율 < 100%)과 "z-fight 없음"(최소 이격 0.003)이 동시에 성립. MouthFloor 리프트는 게이프 비례(`0.06 + 0.38 * t`)로 잘린 림만큼 위로 겹침.
 - 아래턱 연결은 정밀 맞대기 대신 겹침 원칙으로 해결해 게이프 변화에 강건함.
 - Task 2가 순수 이동임을 기존 기하 테스트로 검증한 뒤에만 신규 동작을 얹는 순서.

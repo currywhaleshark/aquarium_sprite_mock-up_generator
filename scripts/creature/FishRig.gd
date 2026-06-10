@@ -2247,7 +2247,12 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		if floor_mat is BaseMaterial3D:
 			floor_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		floor.material_override = floor_mat
-		floor.position = mouth_position + Vector3(0.0, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * 0.06, 0.0)
+		# Lift grows with gape so the floor's rear/top edge tucks behind the cavity
+		# lining's lower rim: the lining skips shallow rim cells (MOUTH_LINING_MIN_INSET),
+		# so its bottom edge sits higher than the full pit extent and the floor must reach
+		# further up while the mouth is open. Near closed the lift returns to the legacy
+		# offset so the dark floor cannot peek above the shut jaw.
+		floor.position = mouth_position + Vector3(0.0, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * (0.06 + 0.38 * t), 0.0)
 		head.add_child(floor)
 
 	if not MOUTH_DECOR_ENABLED:
