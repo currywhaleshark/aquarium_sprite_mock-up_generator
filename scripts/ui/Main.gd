@@ -1386,8 +1386,21 @@ func _sync_edit_input_state() -> void:
 	var body_active := body_edit_toggle != null and body_edit_toggle.button_pressed and _is_fish()
 	if fin_drag_controller:
 		fin_drag_controller.call("set_enabled", _is_fish() and not body_active)
+		fin_drag_controller.set("allowed_handle_filter", _active_fin_drag_handle_filter())
 	if body_ring_drag_controller:
 		body_ring_drag_controller.call("set_enabled", body_active)
+
+func _active_fin_drag_handle_filter() -> Callable:
+	if head_edit_toggle != null and head_edit_toggle.button_pressed:
+		return func(handle_id: String) -> bool:
+			return _is_head_drag_handle(handle_id)
+	if fin_edit_toggle != null and fin_edit_toggle.button_pressed:
+		return func(handle_id: String) -> bool:
+			return not _is_head_drag_handle(handle_id)
+	return Callable()
+
+func _is_head_drag_handle(handle_id: String) -> bool:
+	return handle_id.begins_with("eye") or handle_id == "operculum" or handle_id == "jaw_hinge" or handle_id == "head_bump"
 
 func _update_overlay_visibility() -> void:
 	if drag_handles_overlay:

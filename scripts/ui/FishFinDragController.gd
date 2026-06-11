@@ -3,6 +3,8 @@ extends Node
 
 signal parameters_changed(parameters: Dictionary)
 
+const ScreenDragProjectorScript := preload("res://scripts/ui/ScreenDragProjector.gd")
+
 const DRAG_WORLD_PER_PIXEL := 0.004
 const PICK_RADIUS_PX := 28.0
 
@@ -12,6 +14,8 @@ var camera_controller: Node
 var input_control: Control
 var enabled := true
 var selected_handle := ""
+var allowed_handle_filter := Callable()
+var _previous_mouse_pos := Vector2.ZERO
 
 func bind_fish(new_fish: FishRig) -> void:
 	fish = new_fish
@@ -52,7 +56,11 @@ func _apply_handle_drag(handle_id: String, delta: Vector2) -> void:
 	# Screen-right travels toward the tail (+x); screen-up raises the handle (+y).
 	var delta_x := delta.x * DRAG_WORLD_PER_PIXEL
 	var delta_y := -delta.y * DRAG_WORLD_PER_PIXEL
-	if handle_id.begins_with("eye"):
+	if handle_id == "jaw_hinge":
+		fish.move_jaw_hinge(Vector3(delta_x, delta_y, 0.0))
+	elif handle_id == "head_bump":
+		fish.move_head_bump(Vector3(delta_x, delta_y, 0.0))
+	elif handle_id.begins_with("eye"):
 		# Eyes move freely on the head and stay left/right symmetric by construction.
 		fish.move_eye(delta_x, delta_y)
 	elif handle_id == "operculum":
@@ -64,6 +72,25 @@ func _apply_handle_drag(handle_id: String, delta: Vector2) -> void:
 	else:
 		# Median fins (dorsal/anal/pelvic) only slide fore/aft along the centerline.
 		fish.move_fin_attach(handle_id, delta_x)
+
+func _drag_head_live(handle_id: String, mouse_position: Vector2) -> void:
+	if fish == null or camera == null or not fish.has_method("get_head_drag_plane"):
+		return
+	var plane: Dictionary = fish.call("get_head_drag_plane", handle_id)
+	var world_delta: Vector3 = ScreenDragProjectorScript.screen_delta_on_plane(
+		camera,
+		_previous_mouse_pos,
+		mouse_position,
+		plane.get("point", Vector3.ZERO),
+		plane.get("normal", Vector3.BACK)
+	)
+	_previous_mouse_pos = mouse_position
+	if world_delta.length_squared() <= 0.0000001:
+		return
+	if handle_id == "jaw_hinge":
+		fish.move_jaw_hinge(world_delta)
+	elif handle_id == "head_bump":
+		fish.move_head_bump(world_delta)
 
 func _on_gui_input(event: InputEvent) -> void:
 	if not enabled or fish == null:
@@ -79,6 +106,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.pressed:
 		selected_handle = _pick_handle(event.position)
 		if selected_handle != "":
+			_previous_mouse_pos = event.position
 			_set_camera_suppressed(true)
 			input_control.accept_event()
 	else:
@@ -91,7 +119,10 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 	if selected_handle != "":
-		_drag_live(selected_handle, event.relative)
+		if selected_handle == "jaw_hinge" or selected_handle == "head_bump":
+			_drag_head_live(selected_handle, event.position)
+		else:
+			_drag_live(selected_handle, event.relative)
 		input_control.accept_event()
 	else:
 		var hover := _pick_handle(event.position)
@@ -117,9 +148,16 @@ func _pick_handle(mouse_position: Vector2) -> String:
 	var best_handle := ""
 	var best_distance := PICK_RADIUS_PX
 	for handle_id in points.keys():
+		if not _is_handle_allowed(String(handle_id)):
+			continue
 		var screen_position := camera.unproject_position(points[handle_id])
 		var distance := screen_position.distance_to(mouse_position)
 		if distance < best_distance:
 			best_distance = distance
 			best_handle = String(handle_id)
 	return best_handle
+
+func _is_handle_allowed(handle_id: String) -> bool:
+	if allowed_handle_filter.is_valid():
+		return bool(allowed_handle_filter.call(handle_id))
+	return true

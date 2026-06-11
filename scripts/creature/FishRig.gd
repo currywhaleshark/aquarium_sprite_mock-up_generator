@@ -1324,6 +1324,12 @@ func get_drag_handles() -> Dictionary:
 		handles["eye_l"] = eye_l.global_position
 	if eye_r:
 		handles["eye_r"] = eye_r.global_position
+	var jaw_hinge := get_jaw_hinge_world()
+	if not is_inf(jaw_hinge.x):
+		handles["jaw_hinge"] = jaw_hinge
+	var head_bump := get_head_bump_world()
+	if float(parameters.get("head_bump_height", 0.0)) > 0.001 and not is_inf(head_bump.x):
+		handles["head_bump"] = head_bump
 	if String(parameters.get("gill_mark", "none")) == "operculum":
 		var op_handle := get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))
 		if not is_inf(op_handle.x):
@@ -1440,7 +1446,7 @@ func get_indicator_world(key: String) -> Vector3:
 			return Vector3.INF
 		return get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))
 	if key.begins_with("head_bump_"):
-		return _head_bump_indicator_world()
+		return get_head_bump_world()
 	if key.begins_with("snout_") or key == "snout_appendage_length":
 		return _snout_indicator_world()
 	if key == "head_size" or key == "head_offset" or key == "head_flattening" or key == "head_belly_curve" or key == "forehead_slope" or key.begins_with("head_top_") or (key.begins_with("head_") and key.ends_with("_flatness")):
@@ -1454,12 +1460,30 @@ func get_indicator_world(key: String) -> Vector3:
 		return _body_ring_indicator_world(part)
 	return Vector3.INF
 
-func _head_bump_indicator_world() -> Vector3:
+func get_head_bump_world() -> Vector3:
 	if head_node == null:
 		return Vector3.INF
 	var local_x := clampf(param_float("head_bump_pos", -0.2), -0.5, 0.5) * eye_head_scale.x
 	var local_y := eye_head_scale.y * (0.5 + clampf(param_float("head_bump_height", 0.0), 0.0, 0.8) * 0.5)
 	return head_node.global_transform * Vector3(local_x, local_y, 0.0)
+
+func _head_bump_indicator_world() -> Vector3:
+	return get_head_bump_world()
+
+func get_head_drag_plane(handle_id: String) -> Dictionary:
+	var point := Vector3.INF
+	match handle_id:
+		"jaw_hinge":
+			point = get_jaw_hinge_world()
+		"head_bump":
+			point = get_head_bump_world()
+	var normal := Vector3.BACK
+	if head_node != null:
+		normal = head_node.global_transform.basis.z.normalized()
+	return {
+		"point": point,
+		"normal": normal
+	}
 
 func _snout_indicator_world() -> Vector3:
 	if head_node == null:
@@ -1512,6 +1536,22 @@ func move_operculum(delta_x: float, delta_y: float) -> void:
 	parameters["operculum_position_x"] = clampf(float(parameters.get("operculum_position_x", 0.0)) + delta_x, -OPERCULUM_POSITION_X_LIMIT, OPERCULUM_POSITION_X_LIMIT)
 	parameters["operculum_position_y"] = clampf(float(parameters.get("operculum_position_y", 0.0)) + delta_y, -OPERCULUM_POSITION_Y_LIMIT, OPERCULUM_POSITION_Y_LIMIT)
 	_rebuild_operculum_flaps()
+
+func move_jaw_hinge(world_delta: Vector3) -> void:
+	if head_node == null:
+		return
+	var local_delta: Vector3 = head_node.global_transform.basis.inverse() * world_delta
+	parameters["jaw_hinge_x"] = clampf(float(parameters.get("jaw_hinge_x", 0.0)) + local_delta.x, -0.8, 1.0)
+	parameters["jaw_hinge_y"] = clampf(float(parameters.get("jaw_hinge_y", 0.0)) + local_delta.y, -0.4, 0.4)
+	rebuild()
+
+func move_head_bump(world_delta: Vector3) -> void:
+	if head_node == null:
+		return
+	var local_delta: Vector3 = head_node.global_transform.basis.inverse() * world_delta
+	parameters["head_bump_pos"] = clampf(float(parameters.get("head_bump_pos", -0.2)) + local_delta.x / maxf(eye_head_scale.x, 0.001), -0.5, 0.5)
+	parameters["head_bump_height"] = clampf(float(parameters.get("head_bump_height", 0.0)) + local_delta.y / maxf(eye_head_scale.y * 0.5, 0.001), 0.0, 0.8)
+	rebuild()
 
 func _rebuild_operculum_flaps() -> void:
 	if body_pivot == null or head_node == null or String(parameters.get("gill_mark", "none")) != "operculum":

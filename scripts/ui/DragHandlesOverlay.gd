@@ -75,7 +75,7 @@ func _update_hovered_handle() -> void:
 					hovered_handle = "%s:%s" % [String(ring_id), String(part)]
 
 func _should_draw_handle(handle_id: String) -> bool:
-	if handle_id.begins_with("eye") or handle_id == "operculum":
+	if handle_id.begins_with("eye") or handle_id == "operculum" or handle_id == "jaw_hinge" or handle_id == "head_bump":
 		return draw_head
 	else:
 		return draw_fins
