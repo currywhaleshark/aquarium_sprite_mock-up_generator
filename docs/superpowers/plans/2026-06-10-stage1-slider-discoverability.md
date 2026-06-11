@@ -115,12 +115,12 @@
 
 **Files:** `scripts/creature/FishRig.gd`, `scripts/ui/DragHandlesOverlay.gd`, `scripts/ui/Main.gd`, 3개 패널, `scripts/tools/SliderIndicatorTest.gd` + tscn, `scripts/tools/DragHandlesTest.gd`
 
-- [ ] **Step 1: 실패하는 테스트.** `SliderIndicatorTest.gd`: 기본 파라미터의 FishRig에서
+- [x] **Step 1: 실패하는 테스트.** `SliderIndicatorTest.gd`: 기본 파라미터의 FishRig에서
   - `get_indicator_world("jaw_hinge_x")`가 유한 벡터이고 `get_jaw_hinge_world()`와 일치.
   - `get_indicator_world("eye_size")` 유한, `get_indicator_world("operculum_size")`는 `gill_mark=="operculum"`일 때만 유한.
   - `set_selected_body_ring("mid_body")` 후 `get_indicator_world("upper_height")`가 해당 링 상단점(= 링 가이드 top과 동일 좌표) 반환.
   - `get_indicator_world("no_such_key")`는 `Vector3.INF`.
-- [ ] **Step 2: FishRig 구현.** `func get_indicator_world(key: String) -> Vector3`, prefix 테이블 기반:
+- [x] **Step 2: FishRig 구현.** `func get_indicator_world(key: String) -> Vector3`, prefix 테이블 기반:
   - `jaw_*`, `lower_jaw_*`, `mouth_*`, `lower_upper_ratio` → `get_jaw_hinge_world()`
   - `eye_*` → `eye_l.global_position`
   - `operculum_*` → `get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))`
@@ -129,9 +129,9 @@
   - `head_size`, `head_offset`, `head_flattening`, `head_top_*`, `head_belly_curve`, `forehead_slope`, `head_*_flatness` → `head_node.global_position`
   - 바디 링 키(`x`, `y_offset`, `upper_height`, `lower_height`, `width`, `top_width`, `bottom_width`, `*_flatness`, `roundness`, `sway_weight`) → `selected_body_ring_id` 링의 center/top/bottom 점 (upper→top, lower→bottom, 그 외→center). `_add_ring_guides`가 쓰는 좌표 계산을 헬퍼로 추출해 공유.
   - 그 외 → `Vector3.INF`
-- [ ] **Step 3: 오버레이 교체.** `DragHandlesOverlay`: `show_jaw_hinge` 제거, `var indicator_key := ""` 추가. `_draw`에서 `indicator_key != ""`이면 `fish.get_indicator_world(indicator_key)`가 유한할 때 십자 마커 + `UiText` 라벨 텍스트 표시(기존 턱 힌지 마커 그리기 코드 재활용). `DragHandlesTest.gd`에서 `show_jaw_hinge` 참조를 `indicator_key`로 갱신.
-- [ ] **Step 4: Main 와이어링.** `_on_head_numeric_slider_changed`를 `_on_editor_numeric_slider_changed(key)`로 일반화: `overlay.indicator_key = key`, 타이머 재시작(만료 시 `indicator_key = ""`). `jaw_hinge_marker_timer` → `indicator_timer`로 개명. BodyEditorPanel과 FinEditorPanel에 `numeric_slider_changed(key)` 시그널 추가(HeadEditorPanel `_add_numeric_row`의 emit 패턴 복제) 후 같은 핸들러에 연결. 오버레이 가시성: 인디케이터 활성 시 body 편집 모드에서도 오버레이가 보이도록 `_update_overlay_visibility` 조건에 `indicator_key != ""` 추가.
-- [ ] **Step 5: 테스트 + 커밋.** `-Filter SliderIndicatorTest`, `-Filter DragHandlesTest`, `-Filter HeadEditorPanelTest` 통과 → `"Generalize slider preview indicators"`
+- [x] **Step 3: 오버레이 교체.** `DragHandlesOverlay`: `show_jaw_hinge` 제거, `var indicator_key := ""` 추가. `_draw`에서 `indicator_key != ""`이면 `fish.get_indicator_world(indicator_key)`가 유한할 때 십자 마커 + `UiText` 라벨 텍스트 표시(기존 턱 힌지 마커 그리기 코드 재활용). `DragHandlesTest.gd`에서 `show_jaw_hinge` 참조를 `indicator_key`로 갱신.
+- [x] **Step 4: Main 와이어링.** `_on_head_numeric_slider_changed`를 `_on_editor_numeric_slider_changed(key)`로 일반화: `overlay.indicator_key = key`, 타이머 재시작(만료 시 `indicator_key = ""`). `jaw_hinge_marker_timer` → `indicator_timer`로 개명. BodyEditorPanel과 FinEditorPanel에 `numeric_slider_changed(key)` 시그널 추가(HeadEditorPanel `_add_numeric_row`의 emit 패턴 복제) 후 같은 핸들러에 연결. 오버레이 가시성: 인디케이터 활성 시 body 편집 모드에서도 오버레이가 보이도록 `_update_overlay_visibility` 조건에 `indicator_key != ""` 추가.
+- [x] **Step 5: 테스트 + 커밋.** `-Filter SliderIndicatorTest`, `-Filter DragHandlesTest`, `-Filter HeadEditorPanelTest` 통과 → `"Generalize slider preview indicators"`
 
 ### Task 5: 최종 검증
 

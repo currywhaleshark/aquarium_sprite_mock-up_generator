@@ -1,6 +1,8 @@
 class_name DragHandlesOverlay
 extends Control
 
+const UiText := preload("res://scripts/ui/UiText.gd")
+
 const PICK_RADIUS_PX := 28.0
 
 var camera: Camera3D
@@ -9,9 +11,9 @@ var fin_drag_controller: Node
 
 var draw_fins := false
 var draw_head := false
-# When true (set by Main while a jaw-hinge slider is being adjusted), an amber crosshair
-# marks the lower-jaw pivot so the user sees where jaw_hinge_x/_y move it.
-var show_jaw_hinge := false
+# Set by Main while a numeric editor slider is being adjusted. The fish resolves
+# the key to a world-space point and the overlay draws a temporary crosshair there.
+var indicator_key := ""
 var vector_edit_slot := ""
 var vector_edit_marker_active := false
 var vector_edit_marker_norm := Vector2.ZERO
@@ -63,7 +65,7 @@ func _should_draw_handle(handle_id: String) -> bool:
 		return draw_fins
 
 func _draw() -> void:
-	if camera == null or fish == null or not (draw_fins or draw_head or vector_edit_marker_active):
+	if camera == null or fish == null or not (draw_fins or draw_head or vector_edit_marker_active or indicator_key != ""):
 		return
 		
 	var font := get_theme_font("font")
@@ -138,24 +140,39 @@ func _draw() -> void:
 			draw_circle(screen_pos, 3.0, marker_color)
 			draw_circle(screen_pos, 1.2, Color.WHITE)
 
-	# Jaw-hinge marker: a distinct amber crosshair on the lower-jaw pivot, shown only while
-	# the jaw_hinge sliders are being adjusted. Not a draggable handle - just an indicator.
-	if show_jaw_hinge and draw_head and fish.has_method("get_jaw_hinge_world"):
-		var hinge_world: Vector3 = fish.get_jaw_hinge_world()
-		if not is_inf(hinge_world.x):
-			var hp := camera.unproject_position(hinge_world) * scale_factor
+	if indicator_key != "" and fish.has_method("get_indicator_world"):
+		var indicator_world: Vector3 = fish.call("get_indicator_world", indicator_key)
+		if not is_inf(indicator_world.x):
+			var hp := camera.unproject_position(indicator_world) * scale_factor
 			var amber := Color(1.0, 0.7, 0.1, 0.95)
 			draw_circle(hp, 9.0, Color(1.0, 0.7, 0.1, 0.22))
 			draw_arc(hp, 9.0, 0.0, TAU, 20, amber, 2.0)
 			draw_line(hp - Vector2(13, 0), hp + Vector2(13, 0), amber, 1.5)
 			draw_line(hp - Vector2(0, 13), hp + Vector2(0, 13), amber, 1.5)
-			var label := "턱 경첩"
+			var label := _indicator_label(indicator_key)
 			var lsize: Vector2 = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 			var lpos := hp + Vector2(16, 4)
 			var lrect := Rect2(lpos - Vector2(6, 16), lsize + Vector2(12, 6))
 			draw_rect(lrect, Color(0, 0, 0, 0.7), true, 4.0)
 			draw_rect(lrect, amber, false, 1.0, 4.0)
 			draw_string(font, lpos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+
+func _indicator_label(key: String) -> String:
+	if key == "x" \
+		or key == "y_offset" \
+		or key == "upper_height" \
+		or key == "lower_height" \
+		or key == "width" \
+		or key == "top_width" \
+		or key == "bottom_width" \
+		or key == "top_flatness" \
+		or key == "bottom_flatness" \
+		or key == "left_flatness" \
+		or key == "right_flatness" \
+		or key == "roundness" \
+		or key == "sway_weight":
+		return UiText.ring_parameter(key)
+	return UiText.parameter(key)
 
 func _get_handle_label(handle_id: String) -> String:
 	match handle_id:

@@ -1330,6 +1330,74 @@ func get_jaw_hinge_world() -> Vector3:
 		return Vector3.INF
 	return head_node.global_transform * jaw_hinge_local
 
+func get_indicator_world(key: String) -> Vector3:
+	if key.begins_with("jaw_") or key.begins_with("lower_jaw_") or key.begins_with("mouth_") or key == "lower_upper_ratio":
+		return get_jaw_hinge_world()
+	if key.begins_with("eye_"):
+		return eye_l.global_position if eye_l != null else Vector3.INF
+	if key.begins_with("operculum_"):
+		if String(parameters.get("gill_mark", "none")) != "operculum":
+			return Vector3.INF
+		return get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))
+	if key.begins_with("head_bump_"):
+		return _head_bump_indicator_world()
+	if key.begins_with("snout_") or key == "snout_appendage_length":
+		return _snout_indicator_world()
+	if key == "head_size" or key == "head_offset" or key == "head_flattening" or key == "head_belly_curve" or key == "forehead_slope" or key.begins_with("head_top_") or (key.begins_with("head_") and key.ends_with("_flatness")):
+		return head_node.global_position if head_node != null else Vector3.INF
+	if _is_body_ring_indicator_key(key):
+		var part := "center"
+		if key.begins_with("upper") or key.begins_with("top_"):
+			part = "top"
+		elif key.begins_with("lower") or key.begins_with("bottom_"):
+			part = "bottom"
+		return _body_ring_indicator_world(part)
+	return Vector3.INF
+
+func _head_bump_indicator_world() -> Vector3:
+	if head_node == null:
+		return Vector3.INF
+	var local_x := clampf(param_float("head_bump_pos", -0.2), -0.5, 0.5) * eye_head_scale.x
+	var local_y := eye_head_scale.y * (0.5 + clampf(param_float("head_bump_height", 0.0), 0.0, 0.8) * 0.5)
+	return head_node.global_transform * Vector3(local_x, local_y, 0.0)
+
+func _snout_indicator_world() -> Vector3:
+	if head_node == null:
+		return Vector3.INF
+	var snout_length := maxf(param_float("snout_length", 0.0), 0.0)
+	return head_node.global_transform * Vector3(-eye_head_scale.x * (0.5 + snout_length), 0.0, 0.0)
+
+func _is_body_ring_indicator_key(key: String) -> bool:
+	return key == "x" \
+		or key == "y_offset" \
+		or key == "upper_height" \
+		or key == "lower_height" \
+		or key == "width" \
+		or key == "top_width" \
+		or key == "bottom_width" \
+		or key == "top_flatness" \
+		or key == "bottom_flatness" \
+		or key == "left_flatness" \
+		or key == "right_flatness" \
+		or key == "roundness" \
+		or key == "sway_weight"
+
+func _body_ring_indicator_world(part: String) -> Vector3:
+	if body_pivot == null or selected_body_ring_id == "":
+		return Vector3.INF
+	for i in shell_ring_ids.size():
+		if String(shell_ring_ids[i]) != selected_body_ring_id:
+			continue
+		var point := shell_profile[i]
+		var center_y := shell_center_y_offsets[i] if i < shell_center_y_offsets.size() else 0.0
+		match part:
+			"top":
+				center_y += point.y
+			"bottom":
+				center_y -= point.y
+		return body_pivot.to_global(Vector3(point.x, center_y, -point.z - 0.03))
+	return Vector3.INF
+
 func move_eye(delta_x: float, delta_y: float) -> void:
 	parameters["eye_position_x"] = clampf(float(parameters.get("eye_position_x", -0.78)) + delta_x, -1.5, 0.2)
 	parameters["eye_position_y"] = clampf(float(parameters.get("eye_position_y", 0.12)) + delta_y, -0.5, 0.6)

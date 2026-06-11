@@ -31,7 +31,7 @@ var camera: Camera3D
 var camera_controller: Node
 var fin_drag_controller: Node
 var drag_handles_overlay: Control
-var jaw_hinge_marker_timer: Timer
+var indicator_timer: Timer
 var preview_bg: ColorRect
 var world_root: Node3D
 var current_rig: CreatureRig
@@ -182,15 +182,16 @@ func _build_ui() -> void:
 	drag_handles_overlay.visible = false
 	preview_stack.add_child(drag_handles_overlay)
 
-	# Auto-hides the jaw-hinge marker a moment after the last hinge-slider adjustment.
-	jaw_hinge_marker_timer = Timer.new()
-	jaw_hinge_marker_timer.one_shot = true
-	jaw_hinge_marker_timer.wait_time = 2.0
-	jaw_hinge_marker_timer.timeout.connect(func() -> void:
+	# Auto-hides the temporary slider indicator a moment after the last adjustment.
+	indicator_timer = Timer.new()
+	indicator_timer.one_shot = true
+	indicator_timer.wait_time = 2.0
+	indicator_timer.timeout.connect(func() -> void:
 		if drag_handles_overlay:
-			drag_handles_overlay.show_jaw_hinge = false
+			drag_handles_overlay.indicator_key = ""
+			_update_overlay_visibility()
 	)
-	add_child(jaw_hinge_marker_timer)
+	add_child(indicator_timer)
 
 	reference_overlay = TextureRect.new()
 	reference_overlay.name = "ReferenceImageOverlay"
@@ -418,6 +419,7 @@ func _build_ui() -> void:
 	fin_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
+	fin_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
 	fin_editor_panel.vector_edit_target_changed.connect(func(slot: String) -> void:
 		if slot == "" or not fin_editor_panel.visible:
 			_set_vector_edit_marker_slot("")
@@ -432,7 +434,7 @@ func _build_ui() -> void:
 	head_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	head_editor_panel.numeric_slider_changed.connect(_on_head_numeric_slider_changed)
+	head_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
 	head_editor_panel.vector_edit_target_changed.connect(func(slot: String) -> void:
 		if slot == "" or not head_editor_panel.visible:
 			_set_vector_edit_marker_slot("")
@@ -447,6 +449,7 @@ func _build_ui() -> void:
 	body_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
+	body_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
 	body_editor_panel.ring_selected.connect(func(ring_id: String) -> void:
 		var fish_rig := current_rig as FishRig
 		if fish_rig:
@@ -1237,7 +1240,7 @@ func _set_head_edit_enabled(enabled: bool) -> void:
 	if drag_handles_overlay:
 		drag_handles_overlay.draw_head = enabled
 		if not enabled:
-			drag_handles_overlay.show_jaw_hinge = false
+			drag_handles_overlay.indicator_key = ""
 			if String(drag_handles_overlay.vector_edit_slot) == "operculum":
 				_set_vector_edit_marker_slot("")
 		_update_overlay_visibility()
@@ -1261,15 +1264,13 @@ func _set_vector_edit_preview_marker(slot: String, active: bool, norm_position: 
 	drag_handles_overlay.vector_edit_marker_ghost = ghost
 	_update_overlay_visibility()
 
-# Shows the jaw-hinge marker while the user is adjusting a hinge slider, and hides it once
-# they move to a different slider (or after the auto-hide timer elapses).
-func _on_head_numeric_slider_changed(key: String) -> void:
+func _on_editor_numeric_slider_changed(key: String) -> void:
 	if drag_handles_overlay == null:
 		return
-	var is_hinge := key == "jaw_hinge_x" or key == "jaw_hinge_y"
-	drag_handles_overlay.show_jaw_hinge = is_hinge
-	if is_hinge and jaw_hinge_marker_timer:
-		jaw_hinge_marker_timer.start()
+	drag_handles_overlay.indicator_key = key
+	if indicator_timer:
+		indicator_timer.start()
+	_update_overlay_visibility()
 
 func _set_body_edit_enabled(enabled: bool) -> void:
 	if body_editor_panel:
@@ -1339,7 +1340,7 @@ func _sync_edit_input_state() -> void:
 
 func _update_overlay_visibility() -> void:
 	if drag_handles_overlay:
-		drag_handles_overlay.visible = _is_fish() and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head or drag_handles_overlay.vector_edit_marker_active)
+		drag_handles_overlay.visible = _is_fish() and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head or drag_handles_overlay.vector_edit_marker_active or String(drag_handles_overlay.indicator_key) != "")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
