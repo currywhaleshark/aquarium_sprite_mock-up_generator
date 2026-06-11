@@ -363,6 +363,57 @@ func get_body_ring_global_points() -> Dictionary:
 	_update_body_ring_world_points()
 	return body_ring_world_points.duplicate(true)
 
+func get_body_ring_handles() -> Dictionary:
+	var handles := {}
+	if body_pivot == null:
+		return handles
+	for i in shell_profile.size():
+		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else "ring_%d" % i
+		var local_positions := _body_ring_handle_local_positions(i)
+		if local_positions.is_empty():
+			continue
+		handles[ring_id] = {
+			"center": body_pivot.to_global(local_positions["center"]),
+			"top": body_pivot.to_global(local_positions["top"]),
+			"bottom": body_pivot.to_global(local_positions["bottom"])
+		}
+	return handles
+
+func get_body_ring_drag_plane(ring_id: String, part: String) -> Dictionary:
+	var normal := Vector3.BACK
+	if body_pivot != null:
+		normal = body_pivot.global_transform.basis.z.normalized()
+	return {
+		"point": _body_ring_handle_world(ring_id, part),
+		"normal": normal
+	}
+
+func drag_ring_handle(ring_id: String, part: String, world_delta: Vector3) -> void:
+	if body_pivot == null:
+		return
+	var profile := BodyProfileScript.ensure_body_profile(parameters)
+	var rings: Array = profile.get("rings", [])
+	var index := BodyProfileScript.find_ring_index(rings, ring_id)
+	if index < 0:
+		return
+	var local_delta: Vector3 = body_pivot.global_transform.basis.inverse() * world_delta
+	var body_height := maxf(param_float("body_height", 0.58), 0.001)
+	var ring: Dictionary = rings[index].duplicate(true)
+	match part:
+		"top":
+			ring["upper_height"] = _clamp_ring_key("upper_height", float(ring.get("upper_height", 0.0)) + local_delta.y / body_height)
+		"bottom":
+			ring["lower_height"] = _clamp_ring_key("lower_height", float(ring.get("lower_height", 0.0)) - local_delta.y / body_height)
+		"center":
+			ring["x"] = _clamp_ring_x(index, rings, float(ring.get("x", 0.0)) + local_delta.x / _body_ring_x_span())
+			ring["y_offset"] = _clamp_ring_key("y_offset", float(ring.get("y_offset", 0.0)) + local_delta.y / body_height)
+		_:
+			return
+	rings[index] = ring
+	profile["rings"] = rings
+	parameters["body_profile"] = profile
+	rebuild()
+
 func _build_shell_profile_from_rings(rings: Array, body_length: float, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, tail_length: float, shell_expand: float) -> void:
 	shell_profile = []
 	shell_center_y_offsets = []
@@ -555,24 +606,36 @@ func _add_ring_guides() -> void:
 	for i in shell_profile.size():
 		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else ""
 		var selected := ring_id == selected_body_ring_id
-		var center_y := shell_center_y_offsets[i] if i < shell_center_y_offsets.size() else 0.0
-		var point := shell_profile[i]
+		var positions := _body_ring_handle_local_positions(i)
 		var center := PF.ellipsoid("RingCenter_%s" % ring_id, Vector3(0.035, 0.035, 0.035), selected_mat if selected else guide_mat)
-		center.position = Vector3(point.x, center_y, -point.z - 0.03)
+		center.position = positions["center"]
 		guide_root.add_child(center)
 		var top := PF.ellipsoid("RingTop_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
-		top.position = Vector3(point.x, center_y + point.y, -point.z - 0.03)
+		top.position = positions["top"]
 		guide_root.add_child(top)
 		var bottom := PF.ellipsoid("RingBottom_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
-		bottom.position = Vector3(point.x, center_y - point.y, -point.z - 0.03)
+		bottom.position = positions["bottom"]
 		guide_root.add_child(bottom)
 		var label := Label3D.new()
 		label.name = "RingLabel_%s" % ring_id
 		label.text = _ring_label_by_id(ring_id, "Ring")
 		label.font_size = 18
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.position = Vector3(point.x, center_y + point.y + 0.08, -point.z - 0.04)
+		var top_position: Vector3 = positions["top"]
+		label.position = top_position + Vector3(0.0, 0.08, -0.01)
 		guide_root.add_child(label)
+
+func _body_ring_handle_local_positions(index: int) -> Dictionary:
+	if index < 0 or index >= shell_profile.size():
+		return {}
+	var point := shell_profile[index]
+	var center_y := shell_center_y_offsets[index] if index < shell_center_y_offsets.size() else 0.0
+	var z := -point.z - 0.03
+	return {
+		"center": Vector3(point.x, center_y, z),
+		"top": Vector3(point.x, center_y + point.y, z),
+		"bottom": Vector3(point.x, center_y - point.y, z)
+	}
 
 func _update_body_ring_world_points() -> void:
 	body_ring_world_points.clear()
@@ -609,6 +672,43 @@ func _ring_x_by_id(ring_id: String, fallback: float) -> float:
 		if shell_ring_ids[i] == ring_id:
 			return shell_profile[i].x
 	return fallback
+
+func _body_ring_handle_world(ring_id: String, part: String) -> Vector3:
+	if body_pivot == null:
+		return Vector3.INF
+	for i in shell_ring_ids.size():
+		if String(shell_ring_ids[i]) != ring_id:
+			continue
+		var local_positions := _body_ring_handle_local_positions(i)
+		if not local_positions.has(part):
+			return Vector3.INF
+		return body_pivot.to_global(local_positions[part])
+	return Vector3.INF
+
+func _body_ring_x_span() -> float:
+	if shell_profile.size() < 2:
+		return 1.0
+	return maxf(shell_profile.back().x - shell_profile[0].x, 0.001)
+
+func _clamp_ring_key(key: String, value: float) -> float:
+	var ranges: Dictionary = BodyProfileScript.RING_KEY_RANGES
+	if not ranges.has(key):
+		return value
+	var config: Dictionary = ranges[key]
+	return clampf(value, float(config.get("min", value)), float(config.get("max", value)))
+
+func _clamp_ring_x(index: int, rings: Array, value: float) -> float:
+	var config: Dictionary = BodyProfileScript.RING_KEY_RANGES["x"]
+	var min_x := float(config.get("min", 0.0))
+	var max_x := float(config.get("max", 1.0))
+	var gap := float(config.get("step", 0.005))
+	if index > 0:
+		min_x = maxf(min_x, float(rings[index - 1].get("x", min_x)) + gap)
+	if index < rings.size() - 1:
+		max_x = minf(max_x, float(rings[index + 1].get("x", max_x)) - gap)
+	if min_x > max_x:
+		return clampf(value, max_x, min_x)
+	return clampf(value, min_x, max_x)
 
 func _ring_sway_weight(ring_id: String, fallback: float) -> float:
 	for ring in BodyProfileScript.ensure_body_profile(parameters).get("rings", []):
