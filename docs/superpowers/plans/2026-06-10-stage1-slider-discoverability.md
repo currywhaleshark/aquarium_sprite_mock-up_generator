@@ -43,14 +43,14 @@
 
 **Files:** `scripts/ui/UiRows.gd`, `scripts/tools/UiRowsDefaultsTest.gd`, `scenes/UiRowsDefaultsTest.tscn`
 
-- [ ] **Step 1: 실패하는 테스트 작성.** `UiRowsDefaultsTest.gd`: 컨테이너에 `add_labeled_slider`로 `{"min":0.0,"max":1.0,"step":0.01,"default":0.4,"value":0.8}` 행을 만들고 다음을 assert:
+- [x] **Step 1: 실패하는 테스트 작성.** `UiRowsDefaultsTest.gd`: 컨테이너에 `add_labeled_slider`로 `{"min":0.0,"max":1.0,"step":0.01,"default":0.4,"value":0.8}` 행을 만들고 다음을 assert:
   - 반환 딕셔너리에 `"row"`, `"slider"`, `"value_label"`, `"name_label"` 키 존재.
   - `UiRows.reset_row_to_default(widgets)` 호출 후 `slider.value == 0.4`.
   - `UiRows.is_changed_from_default(widgets)`가 리셋 전 `true`, 후 `false`.
   - `default` 없는 config로 만든 행에서 `reset_row_to_default`가 no-op이고 오류가 없음.
   - 행 자식 수가 정확히 3, 순서가 Label/HSlider/Label.
-- [ ] **Step 2: 테스트 실행, 실패 확인.** `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter UiRowsDefaultsTest`
-- [ ] **Step 3: 구현.** `add_labeled_slider`에 추가:
+- [x] **Step 2: 테스트 실행, 실패 확인.** `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter UiRowsDefaultsTest`
+- [x] **Step 3: 구현.** `add_labeled_slider`에 추가:
   - config `"default"`(옵션). 있으면 행 메타에 저장(`row.set_meta("default_value", ...)` 또는 반환 딕셔너리).
   - 반환 딕셔너리에 `"name_label"` 추가 (기존 키 유지).
   - 눈금: `slider.draw.connect(...)`로 `(default-min)/(max-min)` 비율 위치에 폭 2px, 높이 ~8px 세로선을 반투명 색으로 그림. `slider.size.x` 기준.
@@ -58,7 +58,7 @@
   - `static func reset_row_to_default(widgets: Dictionary) -> void`: default 있으면 `slider.value = default` (value_changed 시그널이 기존 패널 핸들러를 타게 둔다).
   - `static func is_changed_from_default(widgets: Dictionary) -> bool`: `absf(value - default) > step * 0.5` 기준. default 없으면 `false`.
   - `static func update_changed_marker(widgets: Dictionary) -> void`: 변경 시 name_label에 `add_theme_color_override("font_color", 강조색)`, 아니면 `remove_theme_color_override`.
-- [ ] **Step 4: 테스트 통과 확인 후 커밋.** `git add scripts/ui/UiRows.gd scripts/tools/UiRowsDefaultsTest.gd scenes/UiRowsDefaultsTest.tscn` (+ 생성된 `.uid` 사이드카) → `git commit -m "Add slider default tick, reset, changed marker"`
+- [x] **Step 4: 테스트 통과 확인 후 커밋.** `git add scripts/ui/UiRows.gd scripts/tools/UiRowsDefaultsTest.gd scenes/UiRowsDefaultsTest.tscn` (+ 생성된 `.uid` 사이드카) → `git commit -m "Add slider default tick, reset, changed marker"`
 
 ### Task 2: 패널별 기본값 공급 및 변경 마커 적용
 
