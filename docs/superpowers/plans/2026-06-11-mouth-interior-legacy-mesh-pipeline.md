@@ -207,7 +207,7 @@ Task 1~6 구현 후 세 가지 시각 회귀가 관찰·재현됐다 (`exports/_
 **Files:** `scripts/creature/PrimitiveFactory.gd`, `scripts/tools/MouthInteriorContainmentTest.gd`
 
 - [ ] **Step 1: 게이프 응답 테스트 추가 (실패 입증).** `MouthInteriorContainmentTest`에 추가: pale 세트에서 `MouthCavity` 메쉬의 y-extent(head-local)를 게이프 0.05/0.3/1.0에서 측정해 `extent_y(0.05) < 0.35 × extent_y(1.0)` 그리고 `extent_y(0.3) < 0.9 × extent_y(1.0)` assert (수치는 구현 전 실측으로 보정하되 "근사 닫힘에서 띠가 사라질 것"이라는 의도 유지). 현재 코드로 실패 확인.
-- [ ] **Step 2: 방출 게이팅.** `mouth_interior_lining_mesh`에서 카브 셀 판정에만 게이프를 반영한다 — `precomputed["jaw_gape"]`(이미 존재, `sculpt["mouth_open"]` 유래)로 `var reveal := smoothstep(0.0, MOUTH_LINING_REVEAL_GAPE, jaw_gape)` (신규 상수, 초기값 0.6), 판정을 `min_carve_back * reveal >= MOUTH_LINING_MIN_CARVE`로. **띄움 계산(`_mouth_lining_vertex`)은 실제 패임 그대로 둔다** — 방출된 셀의 실제 카브가 `0.012 / reveal ≥ 0.012`이므로 최소 이격 0.006이 오히려 강화되고 봉쇄·z-fight 계약 불변. 구덩이(`pit_inset_x`)는 자체적으로 게이프 비례라 게이팅하지 않는다.
+- [ ] **Step 2: 방출 게이팅.** `mouth_interior_lining_mesh`에서 카브 셀 판정에만 게이프를 반영한다 — `precomputed["jaw_gape"]`(이미 존재, `sculpt["mouth_open"]` 유래)로 `var reveal := smoothstep(0.0, MOUTH_LINING_REVEAL_GAPE, jaw_gape)` (신규 상수, 실측 튜닝값 1.0), 판정을 `min_carve_back * reveal >= MOUTH_LINING_MIN_CARVE`로. **띄움 계산(`_mouth_lining_vertex`)은 실제 패임 그대로 둔다** — 방출된 셀의 실제 카브가 `0.012 / reveal ≥ 0.012`이므로 최소 이격 0.006이 오히려 강화되고 봉쇄·z-fight 계약 불변. 구덩이(`pit_inset_x`)는 자체적으로 게이프 비례라 게이팅하지 않는다.
 - [ ] **Step 3: 검증.** Step 1 테스트 통과, `-Filter MouthCavityFitTest`/`-Filter HeadEditorModelTest` 통과(통합 안감 extent assert가 게이프 1.0 기준이면 영향 없음 — 깨지면 해당 assert의 게이프를 1.0으로 고정), `MouthIsolateShot`에서 `full_g005`에 검은 띠가 사실상 안 보이고 g030→g100으로 자연스럽게 커지는지 육안. `MOUTH_LINING_REVEAL_GAPE`가 유일한 튜닝 노브.
 - [ ] **Step 4: 커밋.** `"Reveal the carve lining proportionally to the gape"`
 

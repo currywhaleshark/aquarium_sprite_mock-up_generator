@@ -94,6 +94,39 @@ func _assert_closed_interior_absent(fish: FishRig, label: String) -> bool:
 			return _fail("%s: %s exists when mouth_open is 0.0" % [label, node_name])
 	return true
 
+func _mouth_cavity_y_extent(fish: FishRig) -> float:
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	assert(cavity != null and cavity.mesh != null)
+	if cavity.mesh.get_surface_count() == 0:
+		return 0.0
+	var verts := _mesh_vertices_in_parent_space(cavity)
+	assert(not verts.is_empty())
+	var min_y := INF
+	var max_y := -INF
+	for v in verts:
+		min_y = minf(min_y, v.y)
+		max_y = maxf(max_y, v.y)
+	return max_y - min_y
+
+func _assert_cavity_responds_to_gape(fish: FishRig, base_params: Dictionary) -> bool:
+	var extents := {}
+	for gape in [0.05, 0.3, 1.0]:
+		var params := base_params.duplicate(true)
+		params["mouth_open"] = gape
+		fish.set_parameters(params)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		extents[gape] = _mouth_cavity_y_extent(fish)
+
+	var near_closed := float(extents[0.05])
+	var partial := float(extents[0.3])
+	var full := float(extents[1.0])
+	if near_closed >= full * 0.35:
+		return _fail("MouthCavity y extent does not shrink near closed: g005=%.5f full=%.5f" % [near_closed, full])
+	if partial >= full * 0.9:
+		return _fail("MouthCavity y extent barely responds to gape: g030=%.5f full=%.5f" % [partial, full])
+	return true
+
 func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
@@ -118,6 +151,10 @@ func _ready() -> void:
 		await get_tree().process_frame
 		if not _assert_closed_interior_absent(fish, scenario_label):
 			return
+
+		if scenario_label == "pale":
+			if not await _assert_cavity_responds_to_gape(fish, base_params):
+				return
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/mouth_interior_containment.ok", FileAccess.WRITE)

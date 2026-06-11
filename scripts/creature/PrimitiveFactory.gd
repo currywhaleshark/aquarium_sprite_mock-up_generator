@@ -357,9 +357,11 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 # the pit boundary.
 const MOUTH_LINING_MIN_INSET := 0.006
 const MOUTH_LINING_MIN_CARVE := 0.012
+const MOUTH_LINING_REVEAL_GAPE := 1.0
 
 static func mouth_interior_lining_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int, segments: int, sculpt: Dictionary, proud: float = 0.02) -> ArrayMesh:
 	var precomputed := _head_mesh_precompute(shape, snout_length, forehead_slope, sculpt)
+	var reveal := smoothstep(0.0, MOUTH_LINING_REVEAL_GAPE, float(precomputed["jaw_gape"]))
 	var grid := []
 	for i in range(rings + 1):
 		var phi := PI * float(i) / float(rings)
@@ -386,7 +388,7 @@ static func mouth_interior_lining_mesh(shape: String, snout_length: float, foreh
 				minf(float(s00["carve_back_x"]), float(s01["carve_back_x"])),
 				minf(float(s10["carve_back_x"]), float(s11["carve_back_x"]))
 			)
-			if min_pit_inset < MOUTH_LINING_MIN_INSET and min_carve_back < MOUTH_LINING_MIN_CARVE:
+			if min_pit_inset < MOUTH_LINING_MIN_INSET and min_carve_back * reveal < MOUTH_LINING_MIN_CARVE:
 				continue
 			var p00 := _mouth_lining_vertex(s00, proud)
 			var p01 := _mouth_lining_vertex(s01, proud)
