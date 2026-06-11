@@ -100,16 +100,16 @@
 
 **Files:** 4개 패널, `scripts/ui/UiText.gd`, `scripts/tools/SliderSearchFilterTest.gd` + tscn
 
-- [ ] **Step 1: 실패하는 테스트.** `SliderSearchFilterTest.gd`: HeadEditorPanel을 인스턴스화하고 `set_parameters({})` 후:
+- [x] **Step 1: 실패하는 테스트.** `SliderSearchFilterTest.gd`: HeadEditorPanel을 인스턴스화하고 `set_parameters({})` 후:
   - `panel.set_search_text("턱")` → `jaw_hinge_x` 행의 `row.visible == true`, `eye_size` 행은 숨김(행이 속한 섹션 body는 강제 표시 상태).
   - `panel.set_search_text("")` → 모든 행 복구, 섹션 펼침 상태가 검색 전과 동일.
   - 검색 중 `set_numeric_parameter` 호출이 정상 동작(필터가 값 경로를 막지 않음).
-- [ ] **Step 2: 구현.**
+- [x] **Step 2: 구현.**
   - `UiRows.add_filter_row(parent, placeholder) -> LineEdit` 헬퍼 (한 줄 LineEdit, `text_changed` 연결은 호출자가).
   - 각 패널에 `var search_text := ""` + `func set_search_text(text)` + `func _apply_row_filter()`. 매칭 기준: `UiText` 한글 라벨(이름 Label의 `text`)에 `contains` (대소문자 무시 불필요 — 한글). 매칭 규칙은 "변경만 보기"와 AND 결합.
   - HeadEditorPanel: 검색 활성 시 매칭 행을 포함한 섹션 body를 `visible = true`로 강제(헤더 `button_pressed`는 건드리지 않음), 검색 해제 시 `section_expanded` 기준으로 복원. `_sync_numeric_controls`가 행을 재생성한 직후 `_apply_row_filter()` 재호출.
   - BodyEditorPanel/FinEditorPanel/ParameterPanel: 동일 패턴 (ParameterPanel은 `sliders`/`section_bodies` 레지스트리 사용, `_ensure_section` 헤더 포함).
-- [ ] **Step 3: 테스트 + 커밋.** `-Filter SliderSearchFilterTest`, 기존 패널 테스트 4종 통과 → `"Add slider search filter to editor panels"`
+- [x] **Step 3: 테스트 + 커밋.** `-Filter SliderSearchFilterTest`, 기존 패널 테스트 4종 통과 → `"Add slider search filter to editor panels"`
 
 ### Task 4: 프리뷰 인디케이터 일반화
 

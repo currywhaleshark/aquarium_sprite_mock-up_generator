@@ -109,6 +109,8 @@ var shape_option: OptionButton
 var numeric_container: VBoxContainer
 var numeric_sliders := {}
 var vector_editor: Control
+var search_edit: LineEdit
+var search_text := ""
 var changed_only_check: CheckBox
 var show_changed_only := false
 var _updating := false
@@ -161,6 +163,11 @@ func _ready() -> void:
 	)
 	add_child(shape_option)
 
+	search_edit = UiRows.add_filter_row(self, UiText.slider_search_placeholder())
+	search_edit.text_changed.connect(func(text: String) -> void:
+		set_search_text(text)
+	)
+
 	changed_only_check = CheckBox.new()
 	changed_only_check.text = UiText.changed_only_filter()
 	changed_only_check.toggled.connect(func(enabled: bool) -> void:
@@ -191,6 +198,12 @@ func _ready() -> void:
 func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
 	_refresh_controls()
+
+func set_search_text(text: String) -> void:
+	search_text = text
+	if search_edit != null and search_edit.text != search_text:
+		search_edit.text = search_text
+	_apply_row_filter()
 
 func set_slot_enabled(slot_id: String, enabled: bool) -> void:
 	parameters[_enabled_key(slot_id)] = 1.0 if enabled else 0.0
@@ -405,7 +418,16 @@ func _apply_row_filter() -> void:
 		var row := widgets.get("row") as Control
 		if row == null:
 			continue
-		row.visible = (not show_changed_only) or UiRows.is_changed_from_default(widgets)
+		row.visible = _row_matches_filter(widgets)
+
+func _row_matches_filter(widgets: Dictionary) -> bool:
+	if show_changed_only and not UiRows.is_changed_from_default(widgets):
+		return false
+	var query := search_text.strip_edges()
+	if query == "":
+		return true
+	var name_label := widgets.get("name_label") as Label
+	return name_label != null and name_label.text.contains(query)
 
 func _numeric_config_for_key(key: String) -> Dictionary:
 	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {})

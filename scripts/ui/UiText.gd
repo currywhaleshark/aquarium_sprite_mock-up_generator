@@ -497,5 +497,8 @@ static func ring_parameter(key: String) -> String:
 static func changed_only_filter() -> String:
 	return "변경된 항목만"
 
+static func slider_search_placeholder() -> String:
+	return "슬라이더 검색"
+
 static func _humanize(value: String) -> String:
 	return value.replace("_", " ")

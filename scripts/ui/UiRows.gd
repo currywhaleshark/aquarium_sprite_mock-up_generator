@@ -63,6 +63,14 @@ static func add_labeled_slider(parent: Node, label_text: String, config: Diction
 	parent.add_child(row)
 	return {"row": row, "slider": slider, "value_label": value_label, "name_label": label}
 
+static func add_filter_row(parent: Node, placeholder: String) -> LineEdit:
+	var search := LineEdit.new()
+	search.placeholder_text = placeholder
+	search.clear_button_enabled = true
+	search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(search)
+	return search
+
 static func reset_row_to_default(widgets: Dictionary) -> void:
 	if not widgets.has("row") or not widgets.has("slider"):
 		return

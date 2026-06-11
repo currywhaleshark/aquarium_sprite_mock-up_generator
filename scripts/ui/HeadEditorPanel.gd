@@ -91,6 +91,8 @@ var ray_head_shape_option: OptionButton
 var numeric_sliders := {}
 var current_numeric_keys: Array[String] = []
 var operculum_editor: Control
+var search_edit: LineEdit
+var search_text := ""
 var changed_only_check: CheckBox
 var show_changed_only := false
 var _updating := false
@@ -124,6 +126,11 @@ func _ready() -> void:
 	options_container = VBoxContainer.new()
 	add_child(options_container)
 
+	search_edit = UiRows.add_filter_row(self, UiText.slider_search_placeholder())
+	search_edit.text_changed.connect(func(text: String) -> void:
+		set_search_text(text)
+	)
+
 	changed_only_check = CheckBox.new()
 	changed_only_check.text = UiText.changed_only_filter()
 	changed_only_check.toggled.connect(func(enabled: bool) -> void:
@@ -155,6 +162,12 @@ func _ready() -> void:
 func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
 	_refresh_controls()
+
+func set_search_text(text: String) -> void:
+	search_text = text
+	if search_edit != null and search_edit.text != search_text:
+		search_edit.text = search_text
+	_apply_row_filter()
 
 func set_head_shape(shape: String) -> void:
 	parameters["head_shape"] = shape
@@ -461,12 +474,14 @@ func is_row_changed(key: String) -> bool:
 	return UiRows.is_changed_from_default(numeric_sliders[key])
 
 func _apply_row_filter() -> void:
+	var search_active := search_text.strip_edges() != ""
+	var filter_active := show_changed_only or search_active
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]
 		var row := widgets.get("row") as Control
 		if row == null:
 			continue
-		row.visible = (not show_changed_only) or UiRows.is_changed_from_default(widgets)
+		row.visible = _row_matches_filter(widgets)
 	for title in section_bodies.keys():
 		var body := section_bodies[title] as Control
 		var header := section_headers.get(title) as Control
@@ -478,8 +493,20 @@ func _apply_row_filter() -> void:
 				any_visible = true
 				break
 		if header != null:
-			header.visible = (not show_changed_only) or any_visible
-		body.visible = bool(section_expanded.get(title, false)) and ((not show_changed_only) or any_visible)
+			header.visible = (not filter_active) or any_visible
+		if search_active:
+			body.visible = any_visible
+		else:
+			body.visible = bool(section_expanded.get(title, false)) and ((not show_changed_only) or any_visible)
+
+func _row_matches_filter(widgets: Dictionary) -> bool:
+	if show_changed_only and not UiRows.is_changed_from_default(widgets):
+		return false
+	var query := search_text.strip_edges()
+	if query == "":
+		return true
+	var name_label := widgets.get("name_label") as Label
+	return name_label != null and name_label.text.contains(query)
 
 func _visible_numeric_keys(is_ray: bool) -> Array[String]:
 	var result: Array[String] = []

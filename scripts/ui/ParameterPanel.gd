@@ -16,6 +16,10 @@ var sliders := {}
 var color_pickers := {}
 var option_buttons := {}
 var labels := {}
+var search_edit: LineEdit
+var search_text := ""
+var control_rows := {}
+var control_name_labels := {}
 var _updating_values := false
 # Optional category filters so one parameter set can be split across several panels
 # (e.g. separate tabs for colour and motion). Empty included_categories = show all.
@@ -138,6 +142,12 @@ func set_parameters(new_parameters: Dictionary) -> void:
 	else:
 		_update_control_values()
 
+func set_search_text(text: String) -> void:
+	search_text = text
+	if search_edit != null and search_edit.text != search_text:
+		search_edit.text = search_text
+	_apply_row_filter()
+
 func _build_controls() -> void:
 	for child in container.get_children():
 		child.queue_free()
@@ -146,6 +156,14 @@ func _build_controls() -> void:
 	color_pickers.clear()
 	option_buttons.clear()
 	labels.clear()
+	control_rows.clear()
+	control_name_labels.clear()
+
+	search_edit = UiRows.add_filter_row(container, UiText.slider_search_placeholder())
+	search_edit.text = search_text
+	search_edit.text_changed.connect(func(text: String) -> void:
+		set_search_text(text)
+	)
 	
 	for key in parameters.keys():
 		if _should_hide_key(String(key)):
@@ -172,6 +190,7 @@ func _build_controls() -> void:
 			_add_color_row(section_body, String(key), _color_from_value(value))
 		elif typeof(value) == TYPE_STRING and _is_option_parameter(String(key)):
 			_add_option_row(section_body, String(key), String(value))
+	_apply_row_filter()
 
 func _update_control_values() -> void:
 	_updating_values = true
@@ -212,6 +231,7 @@ func set_section_collapsed(section_name: String, collapsed: bool) -> void:
 		if header:
 			header.button_pressed = not collapsed
 			header.text = _header_text(section_name, not collapsed)
+	_apply_row_filter()
 
 func _ensure_section(section_name: String) -> VBoxContainer:
 	if section_bodies.has(section_name):
@@ -286,6 +306,7 @@ func _ensure_section(section_name: String) -> VBoxContainer:
 		collapsed_sections[section_name] = not opened
 		body.visible = opened
 		header.text = _header_text(section_name, opened)
+		_apply_row_filter()
 	)
 	container.add_child(section)
 	section_bodies[section_name] = body
@@ -320,6 +341,8 @@ func _add_boolean_row(parent: VBoxContainer, key: String, checked: bool) -> void
 		parameters_changed.emit(parameters.duplicate(true))
 	)
 	parent.add_child(row)
+	control_rows[key] = row
+	control_name_labels[key] = label
 
 func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
 	var max_value := _max_for_key(key, value)
@@ -335,6 +358,8 @@ func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
 	var value_label := widgets["value_label"] as Label
 	sliders[key] = slider
 	labels[key] = value_label
+	control_rows[key] = widgets["row"]
+	control_name_labels[key] = widgets["name_label"]
 	slider.value_changed.connect(func(new_value: float) -> void:
 		if _updating_values:
 			return
@@ -368,6 +393,8 @@ func _add_color_row(parent: VBoxContainer, key: String, color: Color) -> void:
 		parameters_changed.emit(parameters.duplicate(true))
 	)
 	parent.add_child(row)
+	control_rows[key] = row
+	control_name_labels[key] = label
 
 func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 	var row := HBoxContainer.new()
@@ -398,6 +425,40 @@ func _add_option_row(parent: VBoxContainer, key: String, value: String) -> void:
 		parameters_changed.emit(parameters.duplicate(true))
 	)
 	parent.add_child(row)
+	control_rows[key] = row
+	control_name_labels[key] = label
+
+func _apply_row_filter() -> void:
+	var search_active := search_text.strip_edges() != ""
+	for key in control_rows.keys():
+		var row := control_rows[key] as Control
+		if row == null:
+			continue
+		row.visible = _row_matches_search(String(key))
+	for section_name in section_bodies.keys():
+		var body := section_bodies[section_name] as Control
+		if body == null:
+			continue
+		var section := body.get_parent() as Control
+		var any_visible := false
+		for key in control_rows.keys():
+			var row := control_rows[key] as Control
+			if row != null and row.get_parent() == body and row.visible:
+				any_visible = true
+				break
+		if section != null:
+			section.visible = (not search_active) or any_visible
+		if search_active:
+			body.visible = any_visible
+		else:
+			body.visible = not bool(collapsed_sections.get(String(section_name), true))
+
+func _row_matches_search(key: String) -> bool:
+	var query := search_text.strip_edges()
+	if query == "":
+		return true
+	var label := control_name_labels.get(key) as Label
+	return label != null and label.text.contains(query)
 
 func _add_marking_layer_editor(parent: VBoxContainer, layers_value: Array) -> void:
 	var editor := MarkingLayerEditorScript.new()

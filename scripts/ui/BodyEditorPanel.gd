@@ -31,6 +31,8 @@ var ring_buttons := {}
 var ring_list: VBoxContainer
 var selected_label: Label
 var numeric_sliders := {}
+var search_edit: LineEdit
+var search_text := ""
 var changed_only_check: CheckBox
 var show_changed_only := false
 var _updating := false
@@ -62,6 +64,11 @@ func _ready() -> void:
 	selected_label.text = "링: -"
 	selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(selected_label)
+
+	search_edit = UiRows.add_filter_row(self, UiText.slider_search_placeholder())
+	search_edit.text_changed.connect(func(text: String) -> void:
+		set_search_text(text)
+	)
 
 	changed_only_check = CheckBox.new()
 	changed_only_check.text = UiText.changed_only_filter()
@@ -107,6 +114,12 @@ func set_parameters(new_parameters: Dictionary) -> void:
 	if BodyProfileScript.find_ring_index(rings, selected_ring_id) < 0 and not rings.is_empty():
 		selected_ring_id = String(rings[0].get("id", ""))
 	_refresh_controls()
+
+func set_search_text(text: String) -> void:
+	search_text = text
+	if search_edit != null and search_edit.text != search_text:
+		search_edit.text = search_text
+	_apply_row_filter()
 
 func select_ring_by_id(ring_id: String) -> void:
 	if BodyProfileScript.find_ring_index(_rings(), ring_id) < 0:
@@ -301,7 +314,16 @@ func _apply_row_filter() -> void:
 		var row := widgets.get("row") as Control
 		if row == null:
 			continue
-		row.visible = (not show_changed_only) or UiRows.is_changed_from_default(widgets)
+		row.visible = _row_matches_filter(widgets)
+
+func _row_matches_filter(widgets: Dictionary) -> bool:
+	if show_changed_only and not UiRows.is_changed_from_default(widgets):
+		return false
+	var query := search_text.strip_edges()
+	if query == "":
+		return true
+	var name_label := widgets.get("name_label") as Label
+	return name_label != null and name_label.text.contains(query)
 
 func _rings() -> Array:
 	if not parameters.has("body_profile"):
