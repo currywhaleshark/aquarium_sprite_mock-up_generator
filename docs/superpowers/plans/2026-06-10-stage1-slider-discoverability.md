@@ -135,9 +135,9 @@
 
 ### Task 5: 최종 검증
 
-- [ ] 신규 4개 테스트 + `BodyEditorPanelTest`, `HeadEditorPanelTest`, `FinEditorPanelTest`, `ParameterPanelCategoryTest`, `ParameterPanelRangeTest`, `DragHandlesTest`, `EditModeExclusivityTest`, `EditorParameterSyncTest` 개별 실행 통과.
-- [ ] 전체 스위트: `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1` (러너 종료 코드 기준; `Failed to read the root certificate store`는 무시).
-- [ ] `git status --short`로 이 계획에 명시된 파일만 변경됐는지 확인.
+- [x] 신규 4개 테스트 + `BodyEditorPanelTest`, `HeadEditorPanelTest`, `FinEditorPanelTest`, `ParameterPanelCategoryTest`, `ParameterPanelRangeTest`, `DragHandlesTest`, `EditModeExclusivityTest`, `EditorParameterSyncTest` 개별 실행 통과.
+- [x] 전체 스위트: `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1` (러너 종료 코드 기준; `Failed to read the root certificate store`는 무시).
+- [x] `git status --short`로 이 계획에 명시된 파일만 변경됐는지 확인.
 
 ## Out of Scope
 
