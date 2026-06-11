@@ -18,14 +18,60 @@ func _mesh_vertices_in_parent_space(node: MeshInstance3D) -> PackedVector3Array:
 		result.append(node.transform * v)
 	return result
 
-func _nearest_vertex(point: Vector3, candidates: PackedVector3Array) -> Vector3:
-	var best := candidates[0]
-	var best_dist := point.distance_squared_to(best)
-	for i in range(1, candidates.size()):
-		var d := point.distance_squared_to(candidates[i])
+func _closest_point_on_triangle(p: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Vector3:
+	var ab := b - a
+	var ac := c - a
+	var ap := p - a
+	var d1 := ab.dot(ap)
+	var d2 := ac.dot(ap)
+	if d1 <= 0.0 and d2 <= 0.0:
+		return a
+	var bp := p - b
+	var d3 := ab.dot(bp)
+	var d4 := ac.dot(bp)
+	if d3 >= 0.0 and d4 <= d3:
+		return b
+	var vc := d1 * d4 - d3 * d2
+	if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+		return a + ab * (d1 / (d1 - d3))
+	var cp := p - c
+	var d5 := ab.dot(cp)
+	var d6 := ac.dot(cp)
+	if d6 >= 0.0 and d5 <= d6:
+		return c
+	var vb := d5 * d2 - d1 * d6
+	if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+		return a + ac * (d2 / (d2 - d6))
+	var va := d3 * d6 - d5 * d4
+	if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+		return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)))
+	var denom := 1.0 / (va + vb + vc)
+	var v := vb * denom
+	var w := vc * denom
+	return a + ab * v + ac * w
+
+func _mesh_triangles(mesh: ArrayMesh) -> Array:
+	var arrays := mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	var triangles := []
+	if indices.is_empty():
+		for i in range(0, verts.size() - 2, 3):
+			triangles.append([verts[i], verts[i + 1], verts[i + 2]])
+	else:
+		for i in range(0, indices.size() - 2, 3):
+			triangles.append([verts[indices[i]], verts[indices[i + 1]], verts[indices[i + 2]]])
+	return triangles
+
+func _closest_mesh_point(point: Vector3, triangles: Array) -> Vector3:
+	var best: Vector3 = triangles[0][0]
+	var best_dist := INF
+	for tri in triangles:
+		var closest := _closest_point_on_triangle(point, tri[0], tri[1], tri[2])
+		var d := point.distance_squared_to(closest)
 		if d < best_dist:
 			best_dist = d
-			best = candidates[i]
+			best = closest
 	return best
 
 func _scenario_params() -> Array[Dictionary]:
@@ -61,9 +107,8 @@ func _assert_interior_contained(fish: FishRig, label: String) -> bool:
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
 	if head == null or head.mesh == null:
 		return _fail("%s: BodyPivot/Head mesh is missing" % label)
-	var head_arrays := head.mesh.surface_get_arrays(0)
-	var head_verts: PackedVector3Array = head_arrays[Mesh.ARRAY_VERTEX]
-	if head_verts.is_empty():
+	var head_triangles := _mesh_triangles(head.mesh as ArrayMesh)
+	if head_triangles.is_empty():
 		return _fail("%s: Head mesh has no vertices" % label)
 
 	var found_any := false
@@ -79,7 +124,7 @@ func _assert_interior_contained(fish: FishRig, label: String) -> bool:
 			return _fail("%s: %s has no vertices" % [label, node_name])
 		var worst_ahead := 0.0
 		for v in verts:
-			var nearest := _nearest_vertex(v, head_verts)
+			var nearest := _closest_mesh_point(v, head_triangles)
 			worst_ahead = maxf(worst_ahead, nearest.x - v.x)
 		if worst_ahead >= MAX_AHEAD:
 			return _fail("%s: %s protrudes ahead of Head: worst_ahead=%.5f" % [label, node_name, worst_ahead])

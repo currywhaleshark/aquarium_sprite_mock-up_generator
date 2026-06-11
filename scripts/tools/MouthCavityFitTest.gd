@@ -17,14 +17,60 @@ func _mesh_vertices_in_parent_space(node: MeshInstance3D) -> PackedVector3Array:
 		result.append(node.transform * v)
 	return result
 
-func _nearest_vertex(point: Vector3, candidates: PackedVector3Array) -> Vector3:
-	var best := candidates[0]
-	var best_dist := point.distance_squared_to(best)
-	for i in range(1, candidates.size()):
-		var d := point.distance_squared_to(candidates[i])
+func _closest_point_on_triangle(p: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Vector3:
+	var ab := b - a
+	var ac := c - a
+	var ap := p - a
+	var d1 := ab.dot(ap)
+	var d2 := ac.dot(ap)
+	if d1 <= 0.0 and d2 <= 0.0:
+		return a
+	var bp := p - b
+	var d3 := ab.dot(bp)
+	var d4 := ac.dot(bp)
+	if d3 >= 0.0 and d4 <= d3:
+		return b
+	var vc := d1 * d4 - d3 * d2
+	if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+		return a + ab * (d1 / (d1 - d3))
+	var cp := p - c
+	var d5 := ab.dot(cp)
+	var d6 := ac.dot(cp)
+	if d6 >= 0.0 and d5 <= d6:
+		return c
+	var vb := d5 * d2 - d1 * d6
+	if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+		return a + ac * (d2 / (d2 - d6))
+	var va := d3 * d6 - d5 * d4
+	if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+		return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)))
+	var denom := 1.0 / (va + vb + vc)
+	var v := vb * denom
+	var w := vc * denom
+	return a + ab * v + ac * w
+
+func _mesh_triangles(mesh: ArrayMesh) -> Array:
+	var arrays := mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	var triangles := []
+	if indices.is_empty():
+		for i in range(0, verts.size() - 2, 3):
+			triangles.append([verts[i], verts[i + 1], verts[i + 2]])
+	else:
+		for i in range(0, indices.size() - 2, 3):
+			triangles.append([verts[indices[i]], verts[indices[i + 1]], verts[indices[i + 2]]])
+	return triangles
+
+func _closest_mesh_point(point: Vector3, triangles: Array) -> Vector3:
+	var best: Vector3 = triangles[0][0]
+	var best_dist := INF
+	for tri in triangles:
+		var closest := _closest_point_on_triangle(point, tri[0], tri[1], tri[2])
+		var d := point.distance_squared_to(closest)
 		if d < best_dist:
 			best_dist = d
-			best = candidates[i]
+			best = closest
 	return best
 
 func _assert_cavity_fits_head(fish: FishRig) -> bool:
@@ -35,20 +81,20 @@ func _assert_cavity_fits_head(fish: FishRig) -> bool:
 	if cavity == null or cavity.mesh == null:
 		return _fail("BodyPivot/Head/MouthCavity mesh is missing")
 
-	var head_arrays := head.mesh.surface_get_arrays(0)
-	var head_verts: PackedVector3Array = head_arrays[Mesh.ARRAY_VERTEX]
+	var head_triangles := _mesh_triangles(head.mesh as ArrayMesh)
 	var cavity_verts := _mesh_vertices_in_parent_space(cavity)
-	if head_verts.is_empty() or cavity_verts.is_empty():
+	if head_triangles.is_empty() or cavity_verts.is_empty():
 		return _fail("head or cavity mesh has no vertices")
 
 	var worst_fit := 0.0
 	var worst_ahead := 0.0
-	var min_ahead := INF
+	var min_gap := INF
 	for v in cavity_verts:
-		var nearest := _nearest_vertex(v, head_verts)
-		worst_fit = maxf(worst_fit, v.distance_to(nearest))
+		var nearest := _closest_mesh_point(v, head_triangles)
+		var fit := v.distance_to(nearest)
+		worst_fit = maxf(worst_fit, fit)
 		worst_ahead = maxf(worst_ahead, nearest.x - v.x)
-		min_ahead = minf(min_ahead, nearest.x - v.x)
+		min_gap = minf(min_gap, fit)
 
 	if worst_fit >= 0.03:
 		return _fail("MouthCavity is not flush with Head: worst_fit=%.5f" % worst_fit)
@@ -56,8 +102,8 @@ func _assert_cavity_fits_head(fish: FishRig) -> bool:
 		return _fail("MouthCavity protrudes ahead of Head: worst_ahead=%.5f" % worst_ahead)
 	# The lining must keep a real gap from the dented shell everywhere; coplanar vertices
 	# z-fight and render as jagged black/teal triangles (the "star" regression).
-	if min_ahead <= 0.002:
-		return _fail("MouthCavity sits coplanar with Head (depth-fight risk): min_ahead=%.5f" % min_ahead)
+	if min_gap <= 0.001:
+		return _fail("MouthCavity sits coplanar with Head (depth-fight risk): min_gap=%.5f" % min_gap)
 	return true
 
 func _pit_metrics(params: Dictionary, gape: float) -> Dictionary:

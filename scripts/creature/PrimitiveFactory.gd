@@ -357,7 +357,7 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 # the pit boundary.
 const MOUTH_LINING_MIN_INSET := 0.006
 const MOUTH_LINING_MIN_CARVE := 0.012
-const MOUTH_LINING_REVEAL_GAPE := 1.0
+const MOUTH_LINING_REVEAL_GAPE := 1.5
 
 static func mouth_interior_lining_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int, segments: int, sculpt: Dictionary, proud: float = 0.02) -> ArrayMesh:
 	var precomputed := _head_mesh_precompute(shape, snout_length, forehead_slope, sculpt)
@@ -380,27 +380,76 @@ static func mouth_interior_lining_mesh(shape: String, snout_length: float, foreh
 			var s01: Dictionary = grid[i][j + 1]
 			var s10: Dictionary = grid[i + 1][j]
 			var s11: Dictionary = grid[i + 1][j + 1]
-			var min_pit_inset := minf(
-				minf(float(s00["pit_inset_x"]), float(s01["pit_inset_x"])),
-				minf(float(s10["pit_inset_x"]), float(s11["pit_inset_x"]))
-			)
-			var min_carve_back := minf(
-				minf(float(s00["carve_back_x"]), float(s01["carve_back_x"])),
-				minf(float(s10["carve_back_x"]), float(s11["carve_back_x"]))
-			)
-			if min_pit_inset < MOUTH_LINING_MIN_INSET and min_carve_back * reveal < MOUTH_LINING_MIN_CARVE:
+			var f00 := _mouth_lining_field(s00, reveal)
+			var f01 := _mouth_lining_field(s01, reveal)
+			var f10 := _mouth_lining_field(s10, reveal)
+			var f11 := _mouth_lining_field(s11, reveal)
+			if f00 < 0.0 and f01 < 0.0 and f10 < 0.0 and f11 < 0.0:
 				continue
-			var p00 := _mouth_lining_vertex(s00, proud)
-			var p01 := _mouth_lining_vertex(s01, proud)
-			var p10 := _mouth_lining_vertex(s10, proud)
-			var p11 := _mouth_lining_vertex(s11, proud)
-			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
-			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
+			if f00 >= 0.0 and f01 >= 0.0 and f10 >= 0.0 and f11 >= 0.0:
+				var p00 := _mouth_lining_vertex(s00, proud)
+				var p01 := _mouth_lining_vertex(s01, proud)
+				var p10 := _mouth_lining_vertex(s10, proud)
+				var p11 := _mouth_lining_vertex(s11, proud)
+				st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
+				st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
+				emitted = true
+				continue
+			var polygon := _mouth_lining_cell_polygon([s00, s10, s11, s01], reveal)
+			if polygon.size() < 3:
+				continue
+			var p0 := _mouth_lining_vertex(polygon[0], proud)
+			for k in range(1, polygon.size() - 1):
+				st.add_vertex(p0)
+				st.add_vertex(_mouth_lining_vertex(polygon[k], proud))
+				st.add_vertex(_mouth_lining_vertex(polygon[k + 1], proud))
 			emitted = true
 	if not emitted:
 		return ArrayMesh.new()
 	st.generate_normals()
 	return st.commit()
+
+static func _mouth_lining_cell_polygon(samples: Array, reveal: float) -> Array:
+	var polygon := []
+	for sample in samples:
+		polygon.append({
+			"sample": sample,
+			"field": _mouth_lining_field(sample, reveal),
+		})
+	var clipped := []
+	for i in range(polygon.size()):
+		var current: Dictionary = polygon[i]
+		var next: Dictionary = polygon[(i + 1) % polygon.size()]
+		var current_inside := float(current["field"]) >= 0.0
+		var next_inside := float(next["field"]) >= 0.0
+		if current_inside and next_inside:
+			clipped.append(next["sample"])
+		elif current_inside and not next_inside:
+			clipped.append(_mouth_lining_lerp_sample(current, next))
+		elif not current_inside and next_inside:
+			clipped.append(_mouth_lining_lerp_sample(current, next))
+			clipped.append(next["sample"])
+	return clipped
+
+static func _mouth_lining_field(sample: Dictionary, reveal: float) -> float:
+	var pit_field := float(sample["pit_inset_x"]) / MOUTH_LINING_MIN_INSET
+	var carve_field := float(sample["carve_back_x"]) * reveal / MOUTH_LINING_MIN_CARVE
+	return maxf(pit_field, carve_field) - 1.0
+
+static func _mouth_lining_lerp_sample(a: Dictionary, b: Dictionary) -> Dictionary:
+	var af := float(a["field"])
+	var bf := float(b["field"])
+	var denom := af - bf
+	var t := 0.5 if absf(denom) < 0.000001 else clampf(af / denom, 0.0, 1.0)
+	var sa: Dictionary = a["sample"]
+	var sb: Dictionary = b["sample"]
+	return {
+		"point": (sa["point"] as Vector3).lerp(sb["point"] as Vector3, t),
+		"pit_weight": lerpf(float(sa["pit_weight"]), float(sb["pit_weight"]), t),
+		"pit_inset_x": lerpf(float(sa["pit_inset_x"]), float(sb["pit_inset_x"]), t),
+		"carve_back_x": lerpf(float(sa["carve_back_x"]), float(sb["carve_back_x"]), t),
+		"carve_up_y": lerpf(float(sa["carve_up_y"]), float(sb["carve_up_y"]), t),
+	}
 
 static func _mouth_lining_vertex(sample: Dictionary, proud: float) -> Vector3:
 	var point := sample["point"] as Vector3

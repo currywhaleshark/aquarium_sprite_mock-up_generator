@@ -215,9 +215,9 @@ Task 1~6 구현 후 세 가지 시각 회귀가 관찰·재현됐다 (`exports/_
 
 **Files:** `scripts/creature/PrimitiveFactory.gd`
 
-- [ ] **Step 1: marching-squares 부분 셀 방출.** 셀 통째 방출/스킵 대신, 모서리별 스칼라 필드 `field := maxf(pit_inset_x / MOUTH_LINING_MIN_INSET, carve_eff / MOUTH_LINING_MIN_CARVE) - 1.0`(`carve_eff = carve_back_x * reveal`, Task 8)로 등고선 `field = 0`을 셀 변 위에서 선형 보간해 부분 폴리곤(3~6각)을 팬 삼각분할로 방출한다. 보간 정점의 샘플 값(point, pit_inset_x, carve_back_x, carve_up_y)도 같은 비율로 lerp한 뒤 `_mouth_lining_vertex`에 넣는다 — 등고선 위 정점의 패임이 정확히 임계값이므로 띄움이 0.003~0.006으로 보장돼 z-fight 계약 유지. 4모서리 전부 통과/전부 미달 셀은 기존과 동일 동작(전량 방출/스킵).
-- [ ] **Step 2: 검증.** `-Filter MouthInteriorContainmentTest`(보간 정점도 두 안쪽 점의 lerp이므로 봉쇄 유지 — 통과해야 정상), `-Filter MouthCavityFitTest`, `-Filter HeadEditorModelTest`. `MouthIsolateShot` 육안: 열린 입 림의 삼각 이빨 소멸, 옆모습(`side_g100`) 턱선의 지그재그 띠가 매끈한 곡선 띠로.
-- [ ] **Step 3: 커밋.** `"Interpolate the mouth lining rim to the emission isoline"`
+- [x] **Step 1: marching-squares 부분 셀 방출.** 셀 통째 방출/스킵 대신, 모서리별 스칼라 필드 `field := maxf(pit_inset_x / MOUTH_LINING_MIN_INSET, carve_eff / MOUTH_LINING_MIN_CARVE) - 1.0`(`carve_eff = carve_back_x * reveal`, Task 8)로 등고선 `field = 0`을 셀 변 위에서 선형 보간해 부분 폴리곤(3~6각)을 팬 삼각분할로 방출한다. 보간 정점의 샘플 값(point, pit_inset_x, carve_back_x, carve_up_y)도 같은 비율로 lerp한 뒤 `_mouth_lining_vertex`에 넣는다 — 등고선 위 정점의 패임이 정확히 임계값이므로 띄움이 0.003~0.006으로 보장돼 z-fight 계약 유지. 4모서리 전부 통과/전부 미달 셀은 기존과 동일 동작(전량 방출/스킵). `MOUTH_LINING_REVEAL_GAPE`는 부분 셀의 얇은 극단부까지 gape extent에 잡히므로 1.5로 재튜닝했다.
+- [x] **Step 2: 검증.** `-Filter MouthInteriorContainmentTest`(보간 정점도 두 안쪽 점의 lerp이므로 봉쇄 유지 — 통과해야 정상), `-Filter MouthCavityFitTest`, `-Filter HeadEditorModelTest`. 보간 정점은 head 정점 격자 사이에 생기므로 `MouthInteriorContainmentTest`/`MouthCavityFitTest`/`HeadEditorModelTest`의 관련 검사는 최근접 정점 대신 head 삼각면 최근접 기준으로 보강했다. `MouthIsolateShot` 육안: 열린 입 림의 삼각 이빨 소멸, 옆모습(`side_g100`) 턱선의 지그재그 띠가 매끈한 곡선 띠로.
+- [x] **Step 3: 커밋.** `"Interpolate the mouth lining rim to the emission isoline"`
 
 ### Task 10: 최종 검증 + 조건부 MouthFloor 박형화
 
