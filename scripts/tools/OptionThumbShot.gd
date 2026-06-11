@@ -67,21 +67,6 @@ func _jobs() -> Array[Dictionary]:
 			"eye_size": 0.095,
 			"eye_bulge": 0.45
 		}, "eye", 0.38))
-	for value in HeadEditorPanelScript.GILL_MARKS:
-		jobs.append(_job("gill_mark", String(value), {
-			"gill_mark": value,
-			"operculum_size": 1.18,
-			"operculum_height": 1.15,
-			"operculum_ridge": 0.8,
-			"operculum_open": 0.18
-		}, "gill", 0.52))
-	for value in HeadEditorPanelScript.HEAD_ORNAMENTS:
-		jobs.append(_job("head_ornament", String(value), {
-			"head_ornament": value,
-			"head_bump_height": 0.28,
-			"head_bump_pos": -0.2,
-			"head_bump_width": 0.22
-		}, "head", 0.72))
 	return jobs
 
 func _job(key: String, value: String, overrides: Dictionary, focus: String, camera_size: float) -> Dictionary:

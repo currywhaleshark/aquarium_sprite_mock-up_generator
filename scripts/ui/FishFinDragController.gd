@@ -20,6 +20,14 @@ var allowed_handle_filter := Callable()
 var _previous_mouse_pos := Vector2.ZERO
 var _press_mouse_pos := Vector2.ZERO
 var _drag_distance_px := 0.0
+var _dragging_started := false
+var _accumulated_head_world_delta := Vector3.ZERO
+
+func _ready() -> void:
+	set_process(true)
+
+func _process(_delta: float) -> void:
+	_apply_accumulated_head_drag()
 
 func bind_fish(new_fish: FishRig) -> void:
 	fish = new_fish
@@ -77,7 +85,7 @@ func _apply_handle_drag(handle_id: String, delta: Vector2) -> void:
 		# Median fins (dorsal/anal/pelvic) only slide fore/aft along the centerline.
 		fish.move_fin_attach(handle_id, delta_x)
 
-func _drag_head_live(handle_id: String, mouse_position: Vector2) -> void:
+func _queue_head_drag(handle_id: String, mouse_position: Vector2) -> void:
 	if fish == null or camera == null or not fish.has_method("get_head_drag_plane"):
 		return
 	var plane: Dictionary = fish.call("get_head_drag_plane", handle_id)
@@ -91,10 +99,7 @@ func _drag_head_live(handle_id: String, mouse_position: Vector2) -> void:
 	_previous_mouse_pos = mouse_position
 	if world_delta.length_squared() <= 0.0000001:
 		return
-	if handle_id == "jaw_hinge":
-		fish.move_jaw_hinge(world_delta)
-	elif handle_id == "head_bump":
-		fish.move_head_bump(world_delta)
+	_accumulated_head_world_delta += world_delta
 
 func _on_gui_input(event: InputEvent) -> void:
 	if not enabled or fish == null:
@@ -113,13 +118,16 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_press_mouse_pos = event.position
 			_previous_mouse_pos = event.position
 			_drag_distance_px = 0.0
+			_dragging_started = false
+			_accumulated_head_world_delta = Vector3.ZERO
 			_set_camera_suppressed(true)
 			input_control.accept_event()
 	else:
 		if selected_handle != "":
-			if _drag_distance_px <= CLICK_DISTANCE_PX:
+			if not _dragging_started:
 				handle_clicked.emit(selected_handle)
 			else:
+				_apply_accumulated_head_drag()
 				# Commit the drag once on release so the preset and editor panels
 				# only rebuild a single time instead of on every mouse motion.
 				parameters_changed.emit(fish.parameters.duplicate(true))
@@ -129,10 +137,18 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 	if selected_handle != "":
 		_drag_distance_px = maxf(_drag_distance_px, event.position.distance_to(_press_mouse_pos))
-		if selected_handle == "jaw_hinge" or selected_handle == "head_bump":
-			_drag_head_live(selected_handle, event.position)
+		if not _dragging_started:
+			if _drag_distance_px <= CLICK_DISTANCE_PX:
+				input_control.accept_event()
+				return
+			_dragging_started = true
+			_previous_mouse_pos = _press_mouse_pos
+		if _is_head_rebuild_handle(selected_handle):
+			_queue_head_drag(selected_handle, event.position)
 		else:
-			_drag_live(selected_handle, event.relative)
+			var delta := event.position - _previous_mouse_pos
+			_previous_mouse_pos = event.position
+			_drag_live(selected_handle, delta)
 		input_control.accept_event()
 	else:
 		var hover := _pick_handle(event.position)
@@ -144,9 +160,27 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 func _release() -> void:
 	selected_handle = ""
 	_drag_distance_px = 0.0
+	_dragging_started = false
+	_accumulated_head_world_delta = Vector3.ZERO
 	_set_camera_suppressed(false)
 	if input_control:
 		input_control.mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+func _apply_accumulated_head_drag() -> bool:
+	if selected_handle == "" or not _is_head_rebuild_handle(selected_handle) or fish == null:
+		return false
+	if _accumulated_head_world_delta.length_squared() <= 0.0000001:
+		return false
+	var world_delta := _accumulated_head_world_delta
+	_accumulated_head_world_delta = Vector3.ZERO
+	if selected_handle == "jaw_hinge":
+		fish.move_jaw_hinge(world_delta)
+	elif selected_handle == "head_bump":
+		fish.move_head_bump(world_delta)
+	return true
+
+func _is_head_rebuild_handle(handle_id: String) -> bool:
+	return handle_id == "jaw_hinge" or handle_id == "head_bump"
 
 func _set_camera_suppressed(value: bool) -> void:
 	if camera_controller and camera_controller.has_method("set_drag_suppressed"):

@@ -3,6 +3,7 @@ extends Node
 const HeadEditorPanelScript := preload("res://scripts/ui/HeadEditorPanel.gd")
 const FinVectorEditorScript := preload("res://scripts/ui/FinVectorEditor.gd")
 const BodyRingDragControllerScript := preload("res://scripts/ui/BodyRingDragController.gd")
+const FishFinDragControllerScript := preload("res://scripts/ui/FishFinDragController.gd")
 
 var _failed := false
 
@@ -36,12 +37,45 @@ class StubBodyRingFish extends Node3D:
 		drag_calls += 1
 		last_delta += world_delta
 
+class StubHeadHandleFish extends FishRig:
+	var jaw_calls := 0
+	var bump_calls := 0
+	var jaw_delta := Vector3.ZERO
+	var bump_delta := Vector3.ZERO
+
+	func get_drag_handles() -> Dictionary:
+		return {
+			"jaw_hinge": global_transform * Vector3.ZERO,
+			"head_bump": global_transform * Vector3(0.0, 0.25, 0.0)
+		}
+
+	func get_head_drag_plane(handle_id: String) -> Dictionary:
+		return {
+			"point": get_drag_handles()[handle_id],
+			"normal": Vector3.BACK
+		}
+
+	func move_jaw_hinge(world_delta: Vector3) -> void:
+		jaw_calls += 1
+		jaw_delta += world_delta
+		parameters["jaw_hinge_x"] = float(parameters.get("jaw_hinge_x", 0.0)) + world_delta.x
+		parameters["jaw_hinge_y"] = float(parameters.get("jaw_hinge_y", 0.0)) + world_delta.y
+
+	func move_head_bump(world_delta: Vector3) -> void:
+		bump_calls += 1
+		bump_delta += world_delta
+		parameters["head_bump_pos"] = float(parameters.get("head_bump_pos", 0.0)) + world_delta.x
+		parameters["head_bump_height"] = float(parameters.get("head_bump_height", 0.0)) + world_delta.y
+
 func _ready() -> void:
 	await _test_head_slider_emits_during_drag()
 	_test_vector_editor_emits_during_drag()
 	await _test_vector_editor_recovers_preview_marker_after_missed_release()
 	_test_vector_editor_emits_single_preview_marker()
+	await _test_head_handle_ignores_motion_inside_click_threshold()
+	await _test_head_handle_controller_throttles_live_drag()
 	await _test_body_ring_controller_throttles_live_drag()
+	await _test_body_ring_click_only_does_not_emit_parameters()
 	if _failed:
 		get_tree().quit(1)
 		return
@@ -128,6 +162,88 @@ func _test_vector_editor_emits_single_preview_marker() -> void:
 	_require(not bool(seen[-1].get("active", true)), "marker should clear when hover leaves")
 	editor.queue_free()
 
+func _test_head_handle_ignores_motion_inside_click_threshold() -> void:
+	var setup := await _make_head_drag_setup()
+	var fish := setup["fish"] as StubHeadHandleFish
+	var controller = setup["controller"]
+	var camera := setup["camera"] as Camera3D
+	var clicked := [""]
+	var emitted := [0]
+	controller.handle_clicked.connect(func(handle_id: String) -> void:
+		clicked[0] = handle_id
+	)
+	controller.parameters_changed.connect(func(_parameters: Dictionary) -> void:
+		emitted[0] += 1
+	)
+	var start_pos := camera.unproject_position(fish.get_drag_handles()["jaw_hinge"])
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = start_pos
+	controller._handle_mouse_button(press)
+
+	var motion := InputEventMouseMotion.new()
+	motion.position = start_pos + Vector2(2.0, 1.0)
+	motion.relative = Vector2(2.0, 1.0)
+	controller._handle_mouse_motion(motion)
+	_require(fish.jaw_calls == 0, "small pre-click motion should not mutate jaw hinge; calls=%d" % fish.jaw_calls)
+
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = motion.position
+	controller._handle_mouse_button(release)
+	_require(clicked[0] == "jaw_hinge", "small motion release should still be a click")
+	_require(emitted[0] == 0, "small click should not commit parameters; emitted=%d" % emitted[0])
+	_free_head_drag_setup(setup)
+
+func _test_head_handle_controller_throttles_live_drag() -> void:
+	var setup := await _make_head_drag_setup()
+	var fish := setup["fish"] as StubHeadHandleFish
+	var controller = setup["controller"]
+	var camera := setup["camera"] as Camera3D
+	var camera_controller := setup["camera_controller"] as StubCameraController
+	var emitted := [0]
+	controller.parameters_changed.connect(func(_parameters: Dictionary) -> void:
+		emitted[0] += 1
+	)
+	var start_pos := camera.unproject_position(fish.get_drag_handles()["jaw_hinge"])
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = start_pos
+	controller._handle_mouse_button(press)
+	_require(camera_controller.suppressed, "head handle drag should suppress camera after handle press")
+
+	for i in 5:
+		var motion := InputEventMouseMotion.new()
+		motion.position = start_pos + Vector2(10.0 * float(i + 1), -2.0)
+		motion.relative = Vector2(10.0, -2.0)
+		controller._handle_mouse_motion(motion)
+	_require(fish.jaw_calls == 0, "head handle drag should defer rebuild-heavy mutation until _process; calls=%d" % fish.jaw_calls)
+	_require(emitted[0] == 0, "head handle drag should not emit during motion; emitted=%d" % emitted[0])
+
+	controller._process(0.016)
+	_require(fish.jaw_calls == 1, "head handle drag should apply once per process frame; calls=%d" % fish.jaw_calls)
+	_require(fish.jaw_delta.length() > 0.0, "head handle drag should accumulate nonzero world delta")
+
+	for i in 3:
+		var motion2 := InputEventMouseMotion.new()
+		motion2.position = start_pos + Vector2(70.0 + 8.0 * float(i), -5.0)
+		motion2.relative = Vector2(8.0, -1.0)
+		controller._handle_mouse_motion(motion2)
+	controller._process(0.016)
+	_require(fish.jaw_calls == 2, "head handle drag should coalesce more motion into one more process call; calls=%d" % fish.jaw_calls)
+
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = start_pos + Vector2(100.0, -5.0)
+	controller._handle_mouse_button(release)
+	_require(emitted[0] == 1, "head handle drag should emit once on release; emitted=%d" % emitted[0])
+	_require(not camera_controller.suppressed, "head handle drag should release camera suppression")
+	_free_head_drag_setup(setup)
+
 func _test_body_ring_controller_throttles_live_drag() -> void:
 	var fish := StubBodyRingFish.new()
 	add_child(fish)
@@ -192,6 +308,90 @@ func _test_body_ring_controller_throttles_live_drag() -> void:
 	input.queue_free()
 	camera.queue_free()
 	fish.queue_free()
+
+func _test_body_ring_click_only_does_not_emit_parameters() -> void:
+	var fish := StubBodyRingFish.new()
+	add_child(fish)
+	var camera := Camera3D.new()
+	add_child(camera)
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 2.0
+	camera.position = Vector3(0.0, 0.0, 6.0)
+	camera.look_at(Vector3.ZERO, Vector3.UP)
+	var input := Control.new()
+	input.size = Vector2(512, 512)
+	add_child(input)
+	var controller = BodyRingDragControllerScript.new()
+	add_child(controller)
+	controller.bind_fish(fish)
+	controller.bind_camera(camera)
+	controller.bind_input_control(input)
+	await get_tree().process_frame
+
+	var selected := [0]
+	var emitted := [0]
+	controller.ring_handle_selected.connect(func(_ring_id: String) -> void:
+		selected[0] += 1
+	)
+	controller.parameters_changed.connect(func(_parameters: Dictionary) -> void:
+		emitted[0] += 1
+	)
+	var start_pos := camera.unproject_position(fish.get_body_ring_handles()["mid_body"]["top"])
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = start_pos
+	controller._handle_mouse_button(press)
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = start_pos
+	controller._handle_mouse_button(release)
+	_require(selected[0] == 1, "body ring click should still select ring once; selected=%d" % selected[0])
+	_require(emitted[0] == 0, "body ring click without motion should not emit parameters; emitted=%d" % emitted[0])
+	controller.queue_free()
+	input.queue_free()
+	camera.queue_free()
+	fish.queue_free()
+
+func _make_head_drag_setup() -> Dictionary:
+	var fish := StubHeadHandleFish.new()
+	add_child(fish)
+	fish.parameters = {}
+	var camera := Camera3D.new()
+	add_child(camera)
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 2.0
+	camera.position = Vector3(0.0, 0.0, 6.0)
+	camera.look_at(Vector3.ZERO, Vector3.UP)
+	var input := Control.new()
+	input.size = Vector2(512, 512)
+	add_child(input)
+	var camera_controller := StubCameraController.new()
+	add_child(camera_controller)
+	var controller = FishFinDragControllerScript.new()
+	add_child(controller)
+	controller.bind_fish(fish)
+	controller.bind_camera(camera)
+	controller.bind_camera_controller(camera_controller)
+	controller.bind_input_control(input)
+	controller.allowed_handle_filter = func(handle_id: String) -> bool:
+		return handle_id == "jaw_hinge"
+	await get_tree().process_frame
+	return {
+		"fish": fish,
+		"camera": camera,
+		"input": input,
+		"camera_controller": camera_controller,
+		"controller": controller
+	}
+
+func _free_head_drag_setup(setup: Dictionary) -> void:
+	(setup["controller"] as Node).queue_free()
+	(setup["camera_controller"] as Node).queue_free()
+	(setup["input"] as Node).queue_free()
+	(setup["camera"] as Node).queue_free()
+	(setup["fish"] as Node).queue_free()
 
 func _find_head_slider(panel: Node, key: String) -> HSlider:
 	var numeric_sliders: Dictionary = panel.get("numeric_sliders")

@@ -21,6 +21,7 @@ var hovered_part := ""
 
 var _previous_mouse_pos := Vector2.ZERO
 var _accumulated_world_delta := Vector3.ZERO
+var _drag_changed := false
 
 func _ready() -> void:
 	set_process(true)
@@ -68,6 +69,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		if selected_ring_id != "" and selected_part != "":
 			_previous_mouse_pos = event.position
 			_accumulated_world_delta = Vector3.ZERO
+			_drag_changed = false
 			ring_handle_selected.emit(selected_ring_id)
 			_set_camera_suppressed(true)
 			if input_control:
@@ -75,8 +77,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	else:
 		if selected_ring_id != "":
 			_apply_accumulated_drag()
-			var params: Dictionary = fish.get("parameters")
-			parameters_changed.emit(params.duplicate(true))
+			if _drag_changed:
+				var params: Dictionary = fish.get("parameters")
+				parameters_changed.emit(params.duplicate(true))
 			if input_control:
 				input_control.accept_event()
 		_release()
@@ -129,6 +132,7 @@ func _apply_accumulated_drag() -> void:
 		return
 	fish.call("drag_ring_handle", selected_ring_id, selected_part, _accumulated_world_delta)
 	_accumulated_world_delta = Vector3.ZERO
+	_drag_changed = true
 
 func _release() -> void:
 	selected_ring_id = ""
@@ -136,6 +140,7 @@ func _release() -> void:
 	hovered_ring_id = ""
 	hovered_part = ""
 	_accumulated_world_delta = Vector3.ZERO
+	_drag_changed = false
 	_set_camera_suppressed(false)
 	if input_control:
 		input_control.mouse_default_cursor_shape = Control.CURSOR_ARROW

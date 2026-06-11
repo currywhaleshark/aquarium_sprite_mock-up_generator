@@ -80,13 +80,10 @@ var options_container: VBoxContainer
 var slider_container: VBoxContainer
 var current_editor_mode := ""
 
-var head_option: OptionButton
-var mouth_option: OptionButton
 var snout_appendage_option: OptionButton
 var head_ornament_option: OptionButton
 var gill_mark_option: OptionButton
 var barbel_style_option: OptionButton
-var eye_style_option: OptionButton
 var mouth_detail_option: OptionButton
 var ray_head_shape_option: OptionButton
 var head_shape_grid

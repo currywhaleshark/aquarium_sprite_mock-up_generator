@@ -44,76 +44,76 @@
 
 테스트 용이성을 위해 마우스 이벤트 합성 대신 공개 조작 API를 두고, `_gui_input`은 그 API를 호출하는 얇은 층으로 만든다.
 
-- [ ] **Step 1: 실패하는 테스트.** `BodySilhouetteEditorTest.gd`:
+- [x] **Step 1: 실패하는 테스트.** `BodySilhouetteEditorTest.gd`:
   - `editor.set_rings(BodyProfileScript.ensure_body_profile({})["rings"])` 후 `editor.handle_norm_position("mid_body", "top")`이 매핑 계약대로 (`x`, `y_offset + upper_height`) 반환.
   - `editor.apply_handle_drag("mid_body", "top", Vector2(0.0, 0.1))` 호출 시 `signal ring_value_changed(ring_id, key, value)`가 `upper_height` 키로 emit되고 다른 키로는 emit되지 않음.
   - `"center"` 드래그는 `x`·`y_offset` 두 번의 `ring_value_changed`로 emit, `x`가 이웃 사이로 clamp.
   - `editor.request_select("head")` → `signal ring_pick_requested(ring_id)` emit.
   - `editor.request_add_at(0.5)` → `signal ring_add_requested(x)` emit; `editor.request_delete("mid_body")` → `signal ring_delete_requested(ring_id)` emit. (추가/삭제 판단·실행은 패널 몫.)
-- [ ] **Step 2: 구현.**
+- [x] **Step 2: 구현.**
   - 상태: `rings: Array`(읽기 전용 사본), `selected_ring_id: String`, `view_mode: String`("side"/"top" — 이 Task에서는 side만).
   - 좌표 변환: `FinVectorEditor._to_pixel/_to_norm` 패턴. 세로 정규화 범위는 `RING_KEY_RANGES` 기반 고정 범위([-1.6, 1.6] 권장: `y_offset` ±0.8 + `upper/lower_height` 최대 1.4의 실용 범위를 덮되 일반 형상이 잘 보이는 스케일).
   - 그리기: 링 스테이션별 top/bottom/center 핸들(선택 링 강조), 인접 스테이션의 top끼리·bottom끼리 폴리라인으로 실루엣 윤곽, 배경 그리드 (`FinVectorEditor._draw` 스타일 재사용).
   - 입력: 핸들 드래그 → `apply_handle_drag`, 빈 윤곽 세그먼트 클릭 → `request_add_at`, 핸들 우클릭 → `request_delete`, 핸들/스테이션 클릭 → `request_select`. 드래그 시작 시 자동으로 `request_select` 선행.
   - `custom_minimum_size = Vector2(260, 150)` 수준.
-- [ ] **Step 3:** `-Filter BodySilhouetteEditorTest` 통과 → 커밋 `"Add body silhouette editor control (side view)"`
+- [x] **Step 3:** `-Filter BodySilhouetteEditorTest` 통과 → 커밋 `"Add body silhouette editor control (side view)"`
 
 ### Task 2: BodyEditorPanel 통합
 
 **Files:** `scripts/ui/BodyEditorPanel.gd`, `scripts/tools/BodyEditorPanelTest.gd`
 
-- [ ] **Step 1: 실패하는 테스트.** `BodyEditorPanelTest.gd`에 추가:
+- [x] **Step 1: 실패하는 테스트.** `BodyEditorPanelTest.gd`에 추가:
   - 패널 생성 후 `panel.silhouette_editor != null`이고 패널의 첫 번째 컨트롤 영역에 존재.
   - `panel.silhouette_editor.ring_value_changed`를 수동 emit(`"mid_body", "upper_height", 0.6`)하면 rings의 해당 값이 0.6이 되고 `parameters_changed` 1회 emit.
   - `ring_add_requested(0.5)` emit 시 링이 하나 늘고 x≈0.5 위치에 삽입, `ring_delete_requested` emit 시 `MIN_RING_COUNT` 위에서만 삭제됨.
   - 슬라이더로 `upper_height` 변경 시 에디터의 `handle_norm_position`이 따라 갱신됨(역방향 동기화).
-- [ ] **Step 2: 구현.**
+- [x] **Step 2: 구현.**
   - `_ready` 최상단(타이틀 아래)에 에디터 추가. 시그널 연결: `ring_value_changed` → (해당 링 선택 보장 후) `set_ring_parameter(key, value)`; `ring_pick_requested` → `select_ring_by_id`; `ring_add_requested(x)` → `add_ring_after_selected` 변형 — x 지정 삽입을 위해 기존 메서드를 `add_ring_at_x(x: float)`로 일반화(기존 버튼은 이를 호출); `ring_delete_requested` → 대상 링 선택 후 `delete_selected_ring`.
   - `_refresh_controls`에서 `silhouette_editor.set_rings(...)` + `selected_ring_id` 동기화. `_updating` 가드로 루프 차단.
   - 주의: `ring_value_changed`가 드래그 중 연속 emit되므로 `set_ring_parameter` → `_emit_and_refresh` → `set_rings` 재진입이 일어난다. 에디터는 드래그 중 `set_rings`를 받아도 드래그 상태(잡고 있는 핸들)를 유지해야 한다 — 드래그 중에는 rings 사본 갱신만 하고 핸들 인덱스는 ring_id로 추적.
-- [ ] **Step 3:** `-Filter BodyEditorPanelTest`, `-Filter BodyEditorModelTest`, `-Filter EditorApplyCoalescingTest` 통과 → 커밋 `"Embed silhouette editor in body panel"`
+- [x] **Step 3:** `-Filter BodyEditorPanelTest`, `-Filter BodyEditorModelTest`, `-Filter EditorApplyCoalescingTest` 통과 → 커밋 `"Embed silhouette editor in body panel"`
 
 ### Task 3: 폭 뷰 (상/하 반원 폭)
 
 **Files:** `scripts/ui/BodySilhouetteEditor.gd`, `scripts/ui/BodyEditorPanel.gd`, `scripts/ui/UiText.gd`, 테스트 2종
 
-- [ ] **Step 1: 실패하는 테스트.** `BodySilhouetteEditorTest.gd`에 추가:
+- [x] **Step 1: 실패하는 테스트.** `BodySilhouetteEditorTest.gd`에 추가:
   - `editor.view_mode = "width"`에서 `handle_norm_position("mid_body", "top_width")`가 (`x`, `+top_width`), `"bottom_width"`가 (`x`, `-bottom_width`) 반환.
   - `apply_handle_drag(..., "top_width", Vector2(0, 0.1))` → `ring_value_changed("mid_body", "top_width", ...)`만 emit. 아래쪽도 대칭 확인.
-- [ ] **Step 2: 구현.** view_mode `"width"`: 세로 정규화 범위 [-1.2, 1.2] (`top_width`/`bottom_width` max 1.2). 핸들은 링별 top_width/bottom_width/center(center 가로 드래그 = `x`). 패널에 뷰 전환 버튼 2개("측면"/"폭", `UiText`에 라벨 추가). 추가/삭제 인터랙션은 양 뷰 공통.
-- [ ] **Step 3:** 테스트 통과 → 커밋 `"Add width view for upper and lower body width editing"`
+- [x] **Step 2: 구현.** view_mode `"width"`: 세로 정규화 범위 [-1.2, 1.2] (`top_width`/`bottom_width` max 1.2). 핸들은 링별 top_width/bottom_width/center(center 가로 드래그 = `x`). 패널에 뷰 전환 버튼 2개("측면"/"폭", `UiText`에 라벨 추가). 추가/삭제 인터랙션은 양 뷰 공통.
+- [x] **Step 3:** 테스트 통과 → 커밋 `"Add width view for upper and lower body width editing"`
 
 ### Task 4: 썸네일 생성 도구
 
 **Files:** `scripts/tools/OptionThumbShot.gd` + tscn, `assets/option_thumbs/`
 
-- [ ] **Step 1: 도구 작성.** `MouthShot.gd` 패턴 복제: SubViewport(128×128, 투명 배경) + 머리 클로즈업 직교 카메라. 생성 대상과 변형 파라미터:
+- [x] **Step 1: 도구 작성.** `MouthShot.gd` 패턴 복제: SubViewport(128×128, 투명 배경) + 머리 클로즈업 직교 카메라. 생성 대상과 변형 파라미터:
   - `head_shape`: `HeadEditorPanel.HEAD_SHAPES` 9종 — `{"head_shape": value}`만 바꿔 렌더.
   - `mouth_type`: 5종 — 입 영역 줌, `mouth_open: 0.6`으로 차이 강조.
   - `eye_style`: 5종 — 눈 영역 줌.
-  - `gill_mark`: 5종, `head_ornament`: 5종.
+  - `gill_mark`·`head_ornament`는 생성 후 식별성이 부족해 보류하고 체크인 에셋에서 제거.
   - 저장 경로 `res://assets/option_thumbs/<key>/<value>.png`, 각 샷 후 `print("THUMB_SAVED <key>/<value>")`.
-- [ ] **Step 2: 실행 및 체크인.** 비-headless로 실행(GPU 필요): `& <godot 실행파일> --path . res://scenes/OptionThumbShot.tscn`. 생성된 PNG 전수를 육안 확인 — 형태 차이가 식별되는지. 식별이 안 되는 카테고리는 카메라/파라미터를 조정하거나 해당 카테고리 썸네일을 보류(폴백 경로가 처리).
-- [ ] **Step 3: 커밋.** PNG + `.import` 파일 포함 `"Add option thumbnail shots"`
+- [x] **Step 2: 실행 및 체크인.** 비-headless로 실행(GPU 필요): `& <godot 실행파일> --path . res://scenes/OptionThumbShot.tscn`. 생성된 PNG 전수를 육안 확인 — 형태 차이가 식별되는지. 식별이 안 되는 카테고리는 카메라/파라미터를 조정하거나 해당 카테고리 썸네일을 보류(폴백 경로가 처리).
+- [x] **Step 3: 커밋.** PNG + `.import` 파일 포함 `"Add option thumbnail shots"`
 
 ### Task 5: ThumbnailOptionGrid + HeadEditorPanel 교체
 
 **Files:** `scripts/ui/ThumbnailOptionGrid.gd`, `scripts/ui/HeadEditorPanel.gd`, `scripts/tools/ThumbnailOptionGridTest.gd` + tscn, `scripts/tools/HeadEditorPanelTest.gd`
 
-- [ ] **Step 1: 실패하는 테스트.** `ThumbnailOptionGridTest.gd`:
+- [x] **Step 1: 실패하는 테스트.** `ThumbnailOptionGridTest.gd`:
   - `grid.setup("head_shape", ["rounded", "pointed"], "res://assets/option_thumbs/head_shape")` 후 자식 버튼 2개, 캡션이 `UiText.option(value)`.
   - 존재하지 않는 텍스처 경로로 setup 시 텍스트-온리 버튼으로 폴백, 오류 없음.
   - `grid.select_value("pointed")` 후 해당 버튼만 pressed; 버튼 pressed 시 `value_selected("pointed")` emit.
-- [ ] **Step 2: 구현.** `ThumbnailOptionGrid` (Control): GridContainer(열 3~4) + 토글 Button들(`toggle_mode`, 버튼 그룹으로 단일 선택). 각 버튼: 위 TextureRect(64×64, 텍스처 있으면) + 아래 캡션 Label. API: `setup(key, values, thumb_dir)`, `select_value(value)`, `signal value_selected(value)`.
-- [ ] **Step 3: 패널 교체.** `HeadEditorPanel._rebuild_controls_for_mode`에서 `head_option`(형태)을 그리드로 교체: `value_selected` → `set_head_shape`. `_refresh_controls`의 `_select_option(head_option, ...)`을 `grid.select_value(...)`로. `eye_style`·`mouth_type`은 Task 4에서 썸네일이 합격한 경우에만 교체하고, 나머지 enum은 드롭다운 유지.
+- [x] **Step 2: 구현.** `ThumbnailOptionGrid` (Control): GridContainer(열 3~4) + 토글 Button들(`toggle_mode`, 버튼 그룹으로 단일 선택). 각 버튼: 위 TextureRect(64×64, 텍스처 있으면) + 아래 캡션 Label. API: `setup(key, values, thumb_dir)`, `select_value(value)`, `signal value_selected(value)`.
+- [x] **Step 3: 패널 교체.** `HeadEditorPanel._rebuild_controls_for_mode`에서 `head_shape`·`mouth_type`·`eye_style`을 썸네일 그리드로 교체: `value_selected` → `set_head_shape`/`set_mouth_type`/`set_option_parameter`. `_refresh_controls`는 `grid.select_value(...)`로 동기화한다. `gill_mark`·`head_ornament` 등 식별성이 부족하거나 썸네일이 보류된 enum은 드롭다운 유지.
   - `HeadEditorPanelTest.gd`가 `head_option` OptionButton을 직접 참조한다면 그리드 API 기준으로 갱신. `set_head_shape` 등 공개 setter 경유 assert는 그대로 유효.
-- [ ] **Step 4:** `-Filter ThumbnailOptionGridTest`, `-Filter HeadEditorPanelTest` 통과 → 커밋 `"Replace head shape dropdown with thumbnail grid"`
+- [x] **Step 4:** `-Filter ThumbnailOptionGridTest`, `-Filter HeadEditorPanelTest` 통과 → 커밋 `"Replace head shape dropdown with thumbnail grid"`
 
 ### Task 6: 최종 검증
 
-- [ ] 신규 테스트 2종 + `BodyEditorPanelTest`, `BodyEditorModelTest`, `HeadEditorPanelTest`, `EditorApplyCoalescingTest`, `EditorParameterSyncTest`, `PresetNormalizationTest` 개별 통과.
-- [ ] 전체 스위트 `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1` 통과.
-- [ ] 수동 확인: 실루엣 에디터에서 드래그한 형상이 프리뷰 메시·슬라이더 값과 일치하는가, 프리셋 로드 시 에디터가 올바로 갱신되는가, 썸네일 그리드에서 형태 전환이 드롭다운과 동일하게 동작하는가.
+- [x] 신규 테스트 2종 + `BodyEditorPanelTest`, `BodyEditorModelTest`, `HeadEditorPanelTest`, `EditorApplyCoalescingTest`, `EditorParameterSyncTest`, `PresetNormalizationTest` 개별 통과.
+- [x] 전체 스위트 `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1` 통과.
+- [x] 수동 확인: 실루엣 에디터에서 드래그한 형상이 프리뷰 메시·슬라이더 값과 일치하는가, 프리셋 로드 시 에디터가 올바로 갱신되는가, 썸네일 그리드에서 형태 전환이 드롭다운과 동일하게 동작하는가.
 
 ## Out of Scope
 

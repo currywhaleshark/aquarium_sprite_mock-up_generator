@@ -1355,32 +1355,6 @@ func _is_fish() -> bool:
 func _is_ray() -> bool:
 	return String(current_preset.get("creature_type", "fish")) == "ray"
 
-func _on_preview_gui_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton):
-		return
-	var mouse_event := event as InputEventMouseButton
-	if not mouse_event.pressed or mouse_event.button_index != MOUSE_BUTTON_LEFT:
-		return
-	if body_edit_toggle == null or not body_edit_toggle.button_pressed:
-		return
-	if current_rig == null or not current_rig.has_method("get_body_ring_global_points"):
-		return
-	var ring_points: Dictionary = current_rig.call("get_body_ring_global_points")
-	var best_id := ""
-	var best_distance := INF
-	var scale := Vector2.ONE
-	if viewport.size.x > 0 and viewport.size.y > 0:
-		scale = Vector2(viewport_container.size.x / float(viewport.size.x), viewport_container.size.y / float(viewport.size.y))
-	for ring_id in ring_points.keys():
-		var world_point: Vector3 = ring_points[ring_id]
-		var screen_point := camera.unproject_position(world_point) * scale
-		var distance := screen_point.distance_to(mouse_event.position)
-		if distance < best_distance:
-			best_distance = distance
-			best_id = String(ring_id)
-	if best_id != "" and best_distance <= 42.0:
-		body_editor_panel.call("select_ring_by_id", best_id)
-
 func _on_preview_handle_clicked(handle_id: String) -> void:
 	var row: Control = null
 	match handle_id:
@@ -1435,7 +1409,8 @@ func _active_fin_drag_handle_filter() -> Callable:
 	if fin_edit_toggle != null and fin_edit_toggle.button_pressed:
 		return func(handle_id: String) -> bool:
 			return not _is_head_drag_handle(handle_id)
-	return Callable()
+	return func(_handle_id: String) -> bool:
+		return false
 
 func _is_head_drag_handle(handle_id: String) -> bool:
 	return handle_id.begins_with("eye") or handle_id == "operculum" or handle_id == "jaw_hinge" or handle_id == "head_bump"
