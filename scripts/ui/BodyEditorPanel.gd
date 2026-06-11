@@ -9,6 +9,7 @@ signal numeric_slider_hovered(key: String)
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const BodySilhouetteEditorScript := preload("res://scripts/ui/BodySilhouetteEditor.gd")
 
 const RING_NUMERIC_KEYS := BodyProfileScript.RING_KEY_RANGES
 
@@ -17,6 +18,7 @@ var selected_ring_id := ""
 var ring_buttons := {}
 var ring_list: VBoxContainer
 var selected_label: Label
+var silhouette_editor
 var numeric_sliders := {}
 var search_edit: LineEdit
 var search_text := ""
@@ -31,6 +33,14 @@ func _ready() -> void:
 	title.text = "선택 링 설정"
 	title.add_theme_font_size_override("font_size", 15)
 	add_child(title)
+
+	silhouette_editor = BodySilhouetteEditorScript.new()
+	silhouette_editor.name = "BodySilhouetteEditor"
+	silhouette_editor.ring_value_changed.connect(_on_silhouette_ring_value_changed)
+	silhouette_editor.ring_pick_requested.connect(select_ring_by_id)
+	silhouette_editor.ring_add_requested.connect(add_ring_at_x)
+	silhouette_editor.ring_delete_requested.connect(_on_silhouette_ring_delete_requested)
+	add_child(silhouette_editor)
 
 	var nav := HBoxContainer.new()
 	add_child(nav)
@@ -188,12 +198,24 @@ func add_ring_after_selected() -> void:
 		return
 	var index := BodyProfileScript.find_ring_index(rings, selected_ring_id)
 	index = maxi(index, 0)
-	var source: Dictionary = rings[index].duplicate(true)
 	var next_x := 1.0 if index >= rings.size() - 1 else float(rings[index + 1].get("x", 1.0))
+	add_ring_at_x(clampf((float(rings[index].get("x", 0.5)) + next_x) * 0.5, 0.0, 1.0))
+
+func add_ring_at_x(x: float) -> void:
+	var rings := _rings()
+	if rings.is_empty():
+		parameters["body_profile"]["rings"] = BodyProfileScript.default_fish_rings()
+		selected_ring_id = String(_rings()[0].get("id", ""))
+		_emit_and_refresh()
+		return
+	var source_index := BodyProfileScript.find_ring_index(rings, selected_ring_id)
+	if source_index < 0:
+		source_index = _nearest_ring_index(x)
+	var source: Dictionary = rings[source_index].duplicate(true)
 	source["id"] = "ring_%d" % Time.get_ticks_msec()
 	source["label"] = "새 링"
-	source["x"] = clampf((float(source.get("x", 0.5)) + next_x) * 0.5, 0.0, 1.0)
-	rings.insert(index + 1, source)
+	source["x"] = clampf(x, 0.0, 1.0)
+	rings.append(source)
 	_sort_rings_by_x(rings)
 	selected_ring_id = String(source["id"])
 	parameters["body_profile"]["rings"] = rings
@@ -248,6 +270,9 @@ func _refresh_controls() -> void:
 	if ring_list == null:
 		return
 	_updating = true
+	if silhouette_editor != null:
+		silhouette_editor.set_rings(_rings())
+		silhouette_editor.selected_ring_id = selected_ring_id
 	for child in ring_list.get_children():
 		child.queue_free()
 	ring_buttons.clear()
@@ -284,6 +309,25 @@ func _emit_and_refresh() -> void:
 	parameters["selected_body_ring_id"] = selected_ring_id
 	parameters_changed.emit(parameters.duplicate(true))
 	_refresh_controls()
+
+func _on_silhouette_ring_value_changed(ring_id: String, key: String, value: float) -> void:
+	if not _select_ring_for_edit(ring_id):
+		return
+	set_ring_parameter(key, value)
+
+func _on_silhouette_ring_delete_requested(ring_id: String) -> void:
+	if not _select_ring_for_edit(ring_id):
+		return
+	delete_selected_ring()
+
+func _select_ring_for_edit(ring_id: String) -> bool:
+	if BodyProfileScript.find_ring_index(_rings(), ring_id) < 0:
+		return false
+	if selected_ring_id != ring_id:
+		selected_ring_id = ring_id
+		parameters["selected_body_ring_id"] = selected_ring_id
+		ring_selected.emit(selected_ring_id)
+	return true
 
 func _selected_ring() -> Dictionary:
 	for ring in _rings():
@@ -324,6 +368,17 @@ func _rings() -> Array:
 		parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 	var body_profile: Dictionary = parameters["body_profile"]
 	return body_profile.get("rings", [])
+
+func _nearest_ring_index(x: float) -> int:
+	var rings := _rings()
+	var best_index := 0
+	var best_distance := INF
+	for i in rings.size():
+		var distance := absf(float(rings[i].get("x", 0.0)) - x)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = i
+	return best_index
 
 func _sort_rings_by_x(rings: Array) -> void:
 	rings.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:

@@ -10,8 +10,10 @@ func _ready() -> void:
 	assert(BodyEditorPanelScript.RING_NUMERIC_KEYS == BodyProfileScript.RING_KEY_RANGES)
 	var seen := [{}]
 	var selected := [""]
+	var emission_count := [0]
 	panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		seen[0] = parameters
+		emission_count[0] += 1
 	)
 	panel.ring_selected.connect(func(ring_id: String) -> void:
 		selected[0] = ring_id
@@ -30,7 +32,28 @@ func _ready() -> void:
 	})
 	panel.select_ring_by_id("mid_body")
 	assert(selected[0] == "mid_body")
+	var silhouette_editor = panel.get("silhouette_editor")
+	assert(silhouette_editor != null)
+	assert(panel.get_child(1) == silhouette_editor)
+	emission_count[0] = 0
+	silhouette_editor.ring_value_changed.emit("mid_body", "upper_height", 0.6)
+	assert(emission_count[0] == 1)
+	var silhouette_changed_ring := _ring_by_id(_panel_rings(panel), "mid_body")
+	assert(abs(float(silhouette_changed_ring.get("upper_height", 0.0)) - 0.6) < 0.001)
+
+	var size_before_add := _panel_rings(panel).size()
+	silhouette_editor.ring_add_requested.emit(0.5)
+	var rings_after_add := _panel_rings(panel)
+	assert(rings_after_add.size() == size_before_add + 1)
+	var added_ring := _ring_by_id(rings_after_add, panel.get("selected_ring_id"))
+	assert(abs(float(added_ring.get("x", 0.0)) - 0.5) < 0.001)
+	silhouette_editor.ring_delete_requested.emit(String(added_ring.get("id", "")))
+	assert(_panel_rings(panel).size() == size_before_add)
+	panel.select_ring_by_id("mid_body")
+
 	panel.set_ring_parameter("upper_height", 0.72)
+	var synced_top: Vector2 = silhouette_editor.handle_norm_position("mid_body", "top")
+	assert(abs(synced_top.y - 0.72) < 0.001)
 	panel.set_ring_parameter("lower_height", 0.61)
 	panel.set_ring_parameter("top_width", 0.71)
 	panel.set_ring_parameter("bottom_width", 0.29)
@@ -59,6 +82,12 @@ func _ready() -> void:
 	assert(selected[0] == "rear_body")
 	panel.select_previous_ring()
 	assert(selected[0] == "mid_body")
+	var min_rings := BodyProfileScript.default_fish_rings().slice(0, BodyProfileScript.MIN_RING_COUNT)
+	panel.set_parameters({"body_profile": {"rings": min_rings}})
+	panel.select_ring_by_id(String(min_rings[1].get("id", "")))
+	var min_count := _panel_rings(panel).size()
+	silhouette_editor.ring_delete_requested.emit(String(min_rings[1].get("id", "")))
+	assert(_panel_rings(panel).size() == min_count)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/body_editor_panel.ok", FileAccess.WRITE)
@@ -69,6 +98,17 @@ func _ready() -> void:
 
 func _default_ring(ring_id: String) -> Dictionary:
 	for ring in BodyProfileScript.default_fish_rings():
+		if String(ring.get("id", "")) == ring_id:
+			return ring
+	return {}
+
+func _panel_rings(panel: Node) -> Array:
+	var parameters: Dictionary = panel.get("parameters")
+	var body_profile: Dictionary = parameters.get("body_profile", {})
+	return body_profile.get("rings", [])
+
+func _ring_by_id(rings: Array, ring_id: String) -> Dictionary:
+	for ring in rings:
 		if String(ring.get("id", "")) == ring_id:
 			return ring
 	return {}
