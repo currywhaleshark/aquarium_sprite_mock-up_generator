@@ -54,14 +54,23 @@ static func add_labeled_slider(parent: Node, label_text: String, config: Diction
 		value_label.text = "%.2f" % float(config["value"])
 	row.add_child(value_label)
 
+	var widgets := {"row": row, "slider": slider, "value_label": value_label, "name_label": label}
+
+	row.mouse_entered.connect(func() -> void:
+		UiRows.set_row_hovered(widgets, true)
+	)
+	row.mouse_exited.connect(func() -> void:
+		UiRows.set_row_hovered(widgets, false)
+	)
+
 	slider.gui_input.connect(func(event: InputEvent) -> void:
 		var mouse := event as InputEventMouseButton
 		if mouse != null and mouse.button_index == MOUSE_BUTTON_LEFT and mouse.double_click:
-			UiRows.reset_row_to_default({"row": row, "slider": slider, "value_label": value_label, "name_label": label})
+			UiRows.reset_row_to_default(widgets)
 	)
 
 	parent.add_child(row)
-	return {"row": row, "slider": slider, "value_label": value_label, "name_label": label}
+	return widgets
 
 static func add_filter_row(parent: Node, placeholder: String) -> LineEdit:
 	var search := LineEdit.new()
@@ -116,11 +125,26 @@ static func is_changed_from_default(widgets: Dictionary) -> bool:
 	var step := maxf(float(row.get_meta("slider_step", slider.step)), 0.000001)
 	return absf(slider.value - float(row.get_meta("default_value"))) > step * 0.5
 
+static func set_row_hovered(widgets: Dictionary, hovered: bool) -> void:
+	if not widgets.has("row"):
+		return
+	var row := widgets["row"] as Control
+	if row == null:
+		return
+	if hovered:
+		row.set_meta("hovered", true)
+	elif row.has_meta("hovered"):
+		row.remove_meta("hovered")
+	update_changed_marker(widgets)
+
 static func update_changed_marker(widgets: Dictionary) -> void:
 	if not widgets.has("name_label") or not widgets["name_label"] is Label:
 		return
 	var name_label := widgets["name_label"] as Label
-	if is_changed_from_default(widgets):
+	var row := widgets.get("row") as Control
+	if row != null and bool(row.get_meta("hovered", false)):
+		name_label.add_theme_color_override("font_color", Color(0.27, 0.77, 0.81))
+	elif is_changed_from_default(widgets):
 		name_label.add_theme_color_override("font_color", Color(1.0, 0.74, 0.28))
 	else:
 		name_label.remove_theme_color_override("font_color")

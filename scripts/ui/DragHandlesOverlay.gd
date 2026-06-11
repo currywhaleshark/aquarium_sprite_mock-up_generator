@@ -124,7 +124,7 @@ func _draw() -> void:
 			
 			# Draw background capsule for text readability
 			var rect := Rect2(text_pos - Vector2(6, 16), text_size + Vector2(12, 6))
-			draw_rect(rect, Color(0, 0, 0, 0.7), true, 4.0)
+			draw_rect(rect, Color(0, 0, 0, 0.7), true)
 			draw_rect(rect, main_color, false, 1.0, 4.0)
 			
 			# Draw text
@@ -153,7 +153,7 @@ func _draw() -> void:
 			var lsize: Vector2 = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 			var lpos := hp + Vector2(16, 4)
 			var lrect := Rect2(lpos - Vector2(6, 16), lsize + Vector2(12, 6))
-			draw_rect(lrect, Color(0, 0, 0, 0.7), true, 4.0)
+			draw_rect(lrect, Color(0, 0, 0, 0.7), true)
 			draw_rect(lrect, amber, false, 1.0, 4.0)
 			draw_string(font, lpos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 

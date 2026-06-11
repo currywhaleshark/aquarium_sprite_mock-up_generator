@@ -32,6 +32,7 @@ var camera_controller: Node
 var fin_drag_controller: Node
 var drag_handles_overlay: Control
 var indicator_timer: Timer
+var hovered_slider_key := ""
 var preview_bg: ColorRect
 var world_root: Node3D
 var current_rig: CreatureRig
@@ -420,6 +421,7 @@ func _build_ui() -> void:
 		_apply_parameters_from_editor(parameters)
 	)
 	fin_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
+	fin_editor_panel.numeric_slider_hovered.connect(_on_editor_numeric_slider_hovered)
 	fin_editor_panel.vector_edit_target_changed.connect(func(slot: String) -> void:
 		if slot == "" or not fin_editor_panel.visible:
 			_set_vector_edit_marker_slot("")
@@ -435,6 +437,7 @@ func _build_ui() -> void:
 		_apply_parameters_from_editor(parameters)
 	)
 	head_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
+	head_editor_panel.numeric_slider_hovered.connect(_on_editor_numeric_slider_hovered)
 	head_editor_panel.vector_edit_target_changed.connect(func(slot: String) -> void:
 		if slot == "" or not head_editor_panel.visible:
 			_set_vector_edit_marker_slot("")
@@ -450,6 +453,7 @@ func _build_ui() -> void:
 		_apply_parameters_from_editor(parameters)
 	)
 	body_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
+	body_editor_panel.numeric_slider_hovered.connect(_on_editor_numeric_slider_hovered)
 	body_editor_panel.ring_selected.connect(func(ring_id: String) -> void:
 		var fish_rig := current_rig as FishRig
 		if fish_rig:
@@ -1267,9 +1271,24 @@ func _set_vector_edit_preview_marker(slot: String, active: bool, norm_position: 
 func _on_editor_numeric_slider_changed(key: String) -> void:
 	if drag_handles_overlay == null:
 		return
+	if key == "":
+		drag_handles_overlay.indicator_key = ""
+		if indicator_timer:
+			indicator_timer.stop()
+		_update_overlay_visibility()
+		return
 	drag_handles_overlay.indicator_key = key
-	if indicator_timer:
+	if indicator_timer and hovered_slider_key != key:
 		indicator_timer.start()
+	_update_overlay_visibility()
+
+func _on_editor_numeric_slider_hovered(key: String) -> void:
+	hovered_slider_key = key
+	if drag_handles_overlay == null:
+		return
+	if indicator_timer:
+		indicator_timer.stop()
+	drag_handles_overlay.indicator_key = key
 	_update_overlay_visibility()
 
 func _set_body_edit_enabled(enabled: bool) -> void:

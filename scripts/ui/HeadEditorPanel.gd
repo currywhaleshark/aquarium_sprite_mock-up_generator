@@ -5,6 +5,7 @@ signal parameters_changed(parameters: Dictionary)
 # Emitted when the user drags a numeric slider (not on programmatic sync), with the key.
 # Lets the preview show context indicators (e.g. the jaw-hinge marker) for the active key.
 signal numeric_slider_changed(key: String)
+signal numeric_slider_hovered(key: String)
 signal vector_edit_target_changed(slot: String)
 signal vector_edit_preview_changed(slot: String, active: bool, norm_position: Vector2, ghost: bool)
 
@@ -286,8 +287,15 @@ func _add_numeric_row(parent: VBoxContainer, key: String, config: Dictionary) ->
 	var widgets := UiRows.add_labeled_slider(parent, UiText.parameter(key), slider_config)
 	var slider := widgets["slider"] as HSlider
 	var value_label := widgets["value_label"] as Label
+	var row := widgets["row"] as Control
 	widgets["label"] = value_label
 	numeric_sliders[key] = widgets
+	row.mouse_entered.connect(func() -> void:
+		numeric_slider_hovered.emit(key)
+	)
+	row.mouse_exited.connect(func() -> void:
+		numeric_slider_hovered.emit("")
+	)
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
 		UiRows.update_changed_marker(widgets)

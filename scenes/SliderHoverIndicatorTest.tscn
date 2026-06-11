@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/SliderHoverIndicatorTest.gd" id="1_slider_hover_indicator"]
+
+[node name="SliderHoverIndicatorTest" type="Node"]
+script = ExtResource("1_slider_hover_indicator")
