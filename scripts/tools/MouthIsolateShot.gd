@@ -86,11 +86,25 @@ func _ready() -> void:
 		for n in MOUTH_NODES:
 			variants.append({"name": "no_%s" % n, "hide": [n]})
 		variants.append({"name": "lip_off", "hide": ["MouthLipUpper"]})
+		# Gape sweep (closed-mouth shading must shrink with gape) and true side views
+		# (floor thickness / lining rim sawtooth show edge-on), with floor/cavity
+		# isolation on the side view to attribute them.
+		for gape in [0.05, 0.3]:
+			var suffix := "g%03d" % int(round(gape * 100.0))
+			variants.append({"name": "full_%s" % suffix, "hide": [], "gape": gape})
+		for gape in [0.3, 1.0]:
+			var suffix2 := "g%03d" % int(round(gape * 100.0))
+			variants.append({"name": "side_%s" % suffix2, "hide": [], "gape": gape, "yaw": 0.0})
+		variants.append({"name": "side_no_MouthFloor", "hide": ["MouthFloor"], "yaw": 0.0})
+		variants.append({"name": "side_no_MouthCavity", "hide": ["MouthCavity"], "yaw": 0.0})
 		for variant in variants:
-			fish.set_parameters(params.duplicate(true))
+			var shot_params: Dictionary = params.duplicate(true)
+			if variant.has("gape"):
+				shot_params["mouth_open"] = variant["gape"]
+			fish.set_parameters(shot_params)
 			await get_tree().process_frame
 			fish.apply_pose(0.0)
-			fish.rotation_degrees.y = 30.0
+			fish.rotation_degrees.y = float(variant.get("yaw", 30.0))
 			await get_tree().process_frame
 			var head := fish.get_node_or_null("BodyPivot/Head") as Node3D
 			for hide_name in variant["hide"]:

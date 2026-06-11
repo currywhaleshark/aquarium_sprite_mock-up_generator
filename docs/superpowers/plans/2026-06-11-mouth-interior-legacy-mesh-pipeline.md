@@ -186,6 +186,44 @@ powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter M
 - [ ] 비-headless `MouthShot` + `MouthIsolateShot` 실행, 셔터 샷 전체 육안: 음영이 입 내부에만, 실루엣 밖 무돌출, 찢김/계단/톱니 없음, floor-안감 무틈.
 - [ ] `git status --short` — 이 계획에 명시된 파일만 변경.
 
+---
+
+## 2차 후속: 통합 안감 1차 구현(커밋 aa8c532~3c74fd9)의 시각 회귀 (2026-06-11 격리 렌더 재진단)
+
+Task 1~6 구현 후 세 가지 시각 회귀가 관찰·재현됐다 (`exports/_shots/isolate/`의 게이프 스윕 + 옆모습 격리 샷, `MouthIsolateShot` 확장판):
+
+- **(A) 림 톱니/가시:** 안감이 18×24 그리드 셀을 통째로 방출/스킵해서, 카브 falloff의 임계 등고선(0.012)이 보이는 볼록면 위를 지나는 곳에서 림이 셀 단위 삼각 이빨로 양자화된다. 열린 입의 뾰족 돌출(`pale_full`)과 옆모습의 지그재그 띠가 같은 원인이다 — 옆모습 격리에서 `side_no_MouthFloor`는 무변화, `side_no_MouthCavity`에서 띠가 소멸했으므로 **"아래턱 음영 두께"로 보였던 것의 주범도 MouthFloor가 아니라 안감 림 띠**다 (pale/sculpt 두 세트 모두).
+- **(B) 게이프 무응답:** 블록 6 카브는 영구 형상이라 `carve_back_x`에 게이프 항이 없고, 방출 임계가 상수라서 `mouth_open` 0.02~1.0 전 구간에서 카브 천장 음영이 풀사이즈다 (`full_g005`에서도 검은 띠 선명, `full_g030` ≈ `full_g100`). 레거시 `_mouth_upper_interior_mesh`는 높이가 `lerpf(0.34, 0.76, g)`로 게이프에 비례했었다. t=0.01 게이트에서 풀사이즈→소멸 불연속도 있다.
+- 봉쇄 테스트(`MouthInteriorContainmentTest`)가 못 잡은 이유: 세 증상 모두 원표면 안쪽에서 일어나는 **커버리지 형상/게이프 응답** 문제라 봉쇄 계약을 위반하지 않는다.
+
+### Task 7: 진단 도구 확장판 + 사이드카 커밋
+
+**Files:** `scripts/tools/MouthIsolateShot.gd`(작업 트리에 수정본 존재), 미추적 `.uid` 3개
+
+- [ ] **Step 1:** 작업 트리의 `MouthIsolateShot.gd` 확장(게이프 스윕 `full_g005/g030`, 옆모습 `side_g030/g100`, `side_no_MouthFloor`/`side_no_MouthCavity` 격리)과 미추적 `.uid` 사이드카(`MouthInteriorContainmentTest.gd.uid`, `MouthIsolateShot.gd.uid`, `MouthLipBurialTest.gd.uid`)를 커밋: `"Extend mouth isolation shots with gape sweep and side views"`
+
+### Task 8: 카브 커버리지 게이프 게이팅 (회귀 B)
+
+**Files:** `scripts/creature/PrimitiveFactory.gd`, `scripts/tools/MouthInteriorContainmentTest.gd`
+
+- [ ] **Step 1: 게이프 응답 테스트 추가 (실패 입증).** `MouthInteriorContainmentTest`에 추가: pale 세트에서 `MouthCavity` 메쉬의 y-extent(head-local)를 게이프 0.05/0.3/1.0에서 측정해 `extent_y(0.05) < 0.35 × extent_y(1.0)` 그리고 `extent_y(0.3) < 0.9 × extent_y(1.0)` assert (수치는 구현 전 실측으로 보정하되 "근사 닫힘에서 띠가 사라질 것"이라는 의도 유지). 현재 코드로 실패 확인.
+- [ ] **Step 2: 방출 게이팅.** `mouth_interior_lining_mesh`에서 카브 셀 판정에만 게이프를 반영한다 — `precomputed["jaw_gape"]`(이미 존재, `sculpt["mouth_open"]` 유래)로 `var reveal := smoothstep(0.0, MOUTH_LINING_REVEAL_GAPE, jaw_gape)` (신규 상수, 초기값 0.6), 판정을 `min_carve_back * reveal >= MOUTH_LINING_MIN_CARVE`로. **띄움 계산(`_mouth_lining_vertex`)은 실제 패임 그대로 둔다** — 방출된 셀의 실제 카브가 `0.012 / reveal ≥ 0.012`이므로 최소 이격 0.006이 오히려 강화되고 봉쇄·z-fight 계약 불변. 구덩이(`pit_inset_x`)는 자체적으로 게이프 비례라 게이팅하지 않는다.
+- [ ] **Step 3: 검증.** Step 1 테스트 통과, `-Filter MouthCavityFitTest`/`-Filter HeadEditorModelTest` 통과(통합 안감 extent assert가 게이프 1.0 기준이면 영향 없음 — 깨지면 해당 assert의 게이프를 1.0으로 고정), `MouthIsolateShot`에서 `full_g005`에 검은 띠가 사실상 안 보이고 g030→g100으로 자연스럽게 커지는지 육안. `MOUTH_LINING_REVEAL_GAPE`가 유일한 튜닝 노브.
+- [ ] **Step 4: 커밋.** `"Reveal the carve lining proportionally to the gape"`
+
+### Task 9: 림 등고선 보간 (회귀 A — 뾰족 가시 + 옆모습 톱니)
+
+**Files:** `scripts/creature/PrimitiveFactory.gd`
+
+- [ ] **Step 1: marching-squares 부분 셀 방출.** 셀 통째 방출/스킵 대신, 모서리별 스칼라 필드 `field := maxf(pit_inset_x / MOUTH_LINING_MIN_INSET, carve_eff / MOUTH_LINING_MIN_CARVE) - 1.0`(`carve_eff = carve_back_x * reveal`, Task 8)로 등고선 `field = 0`을 셀 변 위에서 선형 보간해 부분 폴리곤(3~6각)을 팬 삼각분할로 방출한다. 보간 정점의 샘플 값(point, pit_inset_x, carve_back_x, carve_up_y)도 같은 비율로 lerp한 뒤 `_mouth_lining_vertex`에 넣는다 — 등고선 위 정점의 패임이 정확히 임계값이므로 띄움이 0.003~0.006으로 보장돼 z-fight 계약 유지. 4모서리 전부 통과/전부 미달 셀은 기존과 동일 동작(전량 방출/스킵).
+- [ ] **Step 2: 검증.** `-Filter MouthInteriorContainmentTest`(보간 정점도 두 안쪽 점의 lerp이므로 봉쇄 유지 — 통과해야 정상), `-Filter MouthCavityFitTest`, `-Filter HeadEditorModelTest`. `MouthIsolateShot` 육안: 열린 입 림의 삼각 이빨 소멸, 옆모습(`side_g100`) 턱선의 지그재그 띠가 매끈한 곡선 띠로.
+- [ ] **Step 3: 커밋.** `"Interpolate the mouth lining rim to the emission isoline"`
+
+### Task 10: 최종 검증 + 조건부 MouthFloor 박형화
+
+- [ ] 전체 스위트 + `MouthShot`/`MouthIsolateShot` 육안 (Task 6 체크리스트 재실행).
+- [ ] **조건부:** Task 8~9 후에도 사용자 조합에서 "아래턱 음영 두께"가 남으면 그때만 `MouthFloor` 돔을 박형화(깊이 ×0.3 별도 인자) + 리프트 `(0.06 + 0.38t)` 재조정. 격리 렌더에서는 floor가 옆모습에 기여하지 않았으므로(증거: `side_no_MouthFloor` 무변화) 선제 작업하지 않는다.
+
 ## Out of Scope (후속 후보)
 
 - 입형 틸트(superior/inferior/subterminal)와 구덩이/안감의 정합 — 구덩이 자체가 틸트되지 않는 기존 동작 유지. 틸트 입형에서 안감이 어긋나 보이면 블록 6c에 틸트를 넣는 별도 작업.
