@@ -231,6 +231,9 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 		z = HeadProfile.flat_cap_value(z, left_target, -1.0, head_left_flatness)
 		z = HeadProfile.flat_cap_value(z, right_target, 1.0, head_right_flatness)
 
+	var carve_back_x := 0.0
+	var carve_up_y := 0.0
+
 	# 6. Upper-jaw silhouette: the head mesh ITSELF is the upper jaw, and its
 	# underside is carved into a defined biting plane ALWAYS - not only when the
 	# mouth opens. This is the base shape (the teardrop "head+upper jaw" of the
@@ -248,8 +251,10 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 		var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, y)
 		var center_w := 1.0 - clampf(absf(z) / carve_half_width, 0.0, 1.0)
 		var carve_w := front_w * lower_w * center_w
-		x += UPPER_JAW_CARVE_BACK * lower_jaw_scale * upper_carve_size_scale * carve_w
-		y += UPPER_JAW_CARVE_UP * lower_jaw_scale * upper_carve_size_scale * carve_w
+		carve_back_x = UPPER_JAW_CARVE_BACK * lower_jaw_scale * upper_carve_size_scale * carve_w
+		carve_up_y = UPPER_JAW_CARVE_UP * lower_jaw_scale * upper_carve_size_scale * carve_w
+		x += carve_back_x
+		y += carve_up_y
 
 	# 6b. Premaxilla protrusion: as the mouth opens, the upper jaw is thrown
 	# forward (the teleost protrusible-jaw tube). Pushes the snout-front region
@@ -284,7 +289,13 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 		y += pit.y
 		z += pit.z
 
-	return {"point": Vector3(x, y, z), "pit_weight": pit_weight, "pit_inset_x": pit_inset_x}
+	return {
+		"point": Vector3(x, y, z),
+		"pit_weight": pit_weight,
+		"pit_inset_x": pit_inset_x,
+		"carve_back_x": carve_back_x,
+		"carve_up_y": carve_up_y,
+	}
 
 static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}) -> ArrayMesh:
 	var st := SurfaceTool.new()
