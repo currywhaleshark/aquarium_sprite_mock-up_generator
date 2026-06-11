@@ -9,6 +9,21 @@ const RING_KEYS := [
 	"top_flatness", "bottom_flatness", "left_flatness", "right_flatness",
 	"roundness", "sway_weight"
 ]
+const RING_KEY_RANGES := {
+	"x": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"y_offset": {"min": -0.8, "max": 0.8, "step": 0.005},
+	"upper_height": {"min": 0.02, "max": 1.4, "step": 0.005},
+	"lower_height": {"min": 0.02, "max": 1.4, "step": 0.005},
+	"width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"top_width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"bottom_width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"top_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"bottom_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"left_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"right_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"roundness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"sway_weight": {"min": 0.0, "max": 1.5, "step": 0.005}
+}
 const RING_EXTRA_DEFAULTS := {
 	"top_flatness": 0.0,
 	"bottom_flatness": 0.0,

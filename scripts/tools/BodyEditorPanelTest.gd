@@ -6,6 +6,8 @@ const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 func _ready() -> void:
 	var panel := BodyEditorPanelScript.new()
 	add_child(panel)
+	assert(BodyProfileScript.RING_KEY_RANGES.has("upper_height"))
+	assert(BodyEditorPanelScript.RING_NUMERIC_KEYS == BodyProfileScript.RING_KEY_RANGES)
 	var seen := [{}]
 	var selected := [""]
 	panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
