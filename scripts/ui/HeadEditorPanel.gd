@@ -164,6 +164,27 @@ func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
 	_refresh_controls()
 
+func focus_key(key: String) -> Control:
+	if String(parameters.get("creature_type", "fish")) == "ray":
+		return null
+	if not numeric_sliders.has(key) or not _should_show_fish_numeric_key(key):
+		return null
+	var title := _section_title_for_key(key)
+	if title != "":
+		var header := section_headers.get(title) as Button
+		var body := section_bodies.get(title) as Control
+		section_expanded[title] = true
+		if header != null:
+			header.button_pressed = true
+			header.text = "  ▼  " + title
+		if body != null:
+			body.visible = true
+	var widgets: Dictionary = numeric_sliders[key]
+	var row := widgets.get("row") as Control
+	if row != null:
+		row.visible = true
+	return row
+
 func set_search_text(text: String) -> void:
 	search_text = text
 	if search_edit != null and search_edit.text != search_text:
@@ -542,6 +563,13 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 	if key.begins_with("operculum_"):
 		return String(parameters.get("gill_mark", "none")) == "operculum"
 	return true
+
+func _section_title_for_key(key: String) -> String:
+	for section in FISH_SECTIONS:
+		var keys: Array = section.get("keys", [])
+		if keys.has(key):
+			return String(section.get("title", ""))
+	return ""
 
 func _same_key_list(left: Array[String], right: Array[String]) -> bool:
 	if left.size() != right.size():

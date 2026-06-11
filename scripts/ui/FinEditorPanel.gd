@@ -200,6 +200,16 @@ func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
 	_refresh_controls()
 
+func select_slot(slot_id: String) -> void:
+	selected_slot = slot_id
+	_refresh_controls()
+	if slot_option == null:
+		return
+	for i in slot_option.item_count:
+		if String(slot_option.get_item_metadata(i)) == selected_slot:
+			slot_option.select(i)
+			return
+
 func set_search_text(text: String) -> void:
 	search_text = text
 	if search_edit != null and search_edit.text != search_text:

@@ -696,6 +696,7 @@ func _build_preview_world() -> void:
 	fin_drag_controller.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
+	fin_drag_controller.handle_clicked.connect(_on_preview_handle_clicked)
 	body_ring_drag_controller.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
@@ -1379,6 +1380,43 @@ func _on_preview_gui_input(event: InputEvent) -> void:
 			best_id = String(ring_id)
 	if best_id != "" and best_distance <= 42.0:
 		body_editor_panel.call("select_ring_by_id", best_id)
+
+func _on_preview_handle_clicked(handle_id: String) -> void:
+	var row: Control = null
+	match handle_id:
+		"eye_l", "eye_r":
+			row = _focus_head_editor_key("eye_position_x")
+		"operculum":
+			row = _focus_head_editor_key("operculum_position_x")
+		"jaw_hinge":
+			row = _focus_head_editor_key("jaw_hinge_x")
+		"head_bump":
+			row = _focus_head_editor_key("head_bump_pos")
+		"dorsal", "dorsal_1":
+			_select_fin_editor_slot("dorsal_1")
+		"dorsal_2":
+			_select_fin_editor_slot("dorsal_2")
+		"anal":
+			_select_fin_editor_slot("anal")
+		"pelvic":
+			_select_fin_editor_slot("pelvic")
+		"pectoral":
+			_select_fin_editor_slot("pectoral")
+	if row != null and editor_panel_scroll != null:
+		editor_panel_scroll.ensure_control_visible(row)
+
+func _focus_head_editor_key(key: String) -> Control:
+	if head_edit_toggle and not head_edit_toggle.button_pressed:
+		head_edit_toggle.button_pressed = true
+	if head_editor_panel == null or not head_editor_panel.has_method("focus_key"):
+		return null
+	return head_editor_panel.call("focus_key", key) as Control
+
+func _select_fin_editor_slot(slot_id: String) -> void:
+	if fin_edit_toggle and not fin_edit_toggle.button_pressed:
+		fin_edit_toggle.button_pressed = true
+	if fin_editor_panel and fin_editor_panel.has_method("select_slot"):
+		fin_editor_panel.call("select_slot", slot_id)
 
 func _sync_edit_input_state() -> void:
 	if camera_controller:

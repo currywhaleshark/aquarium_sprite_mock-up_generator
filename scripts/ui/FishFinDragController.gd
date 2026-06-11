@@ -2,11 +2,13 @@ class_name FishFinDragController
 extends Node
 
 signal parameters_changed(parameters: Dictionary)
+signal handle_clicked(handle_id: String)
 
 const ScreenDragProjectorScript := preload("res://scripts/ui/ScreenDragProjector.gd")
 
 const DRAG_WORLD_PER_PIXEL := 0.004
 const PICK_RADIUS_PX := 28.0
+const CLICK_DISTANCE_PX := 4.0
 
 var fish: FishRig
 var camera: Camera3D
@@ -16,6 +18,8 @@ var enabled := true
 var selected_handle := ""
 var allowed_handle_filter := Callable()
 var _previous_mouse_pos := Vector2.ZERO
+var _press_mouse_pos := Vector2.ZERO
+var _drag_distance_px := 0.0
 
 func bind_fish(new_fish: FishRig) -> void:
 	fish = new_fish
@@ -106,19 +110,25 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.pressed:
 		selected_handle = _pick_handle(event.position)
 		if selected_handle != "":
+			_press_mouse_pos = event.position
 			_previous_mouse_pos = event.position
+			_drag_distance_px = 0.0
 			_set_camera_suppressed(true)
 			input_control.accept_event()
 	else:
 		if selected_handle != "":
-			# Commit the drag once on release so the preset and editor panels
-			# only rebuild a single time instead of on every mouse motion.
-			parameters_changed.emit(fish.parameters.duplicate(true))
+			if _drag_distance_px <= CLICK_DISTANCE_PX:
+				handle_clicked.emit(selected_handle)
+			else:
+				# Commit the drag once on release so the preset and editor panels
+				# only rebuild a single time instead of on every mouse motion.
+				parameters_changed.emit(fish.parameters.duplicate(true))
 			input_control.accept_event()
 		_release()
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 	if selected_handle != "":
+		_drag_distance_px = maxf(_drag_distance_px, event.position.distance_to(_press_mouse_pos))
 		if selected_handle == "jaw_hinge" or selected_handle == "head_bump":
 			_drag_head_live(selected_handle, event.position)
 		else:
@@ -133,6 +143,7 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 
 func _release() -> void:
 	selected_handle = ""
+	_drag_distance_px = 0.0
 	_set_camera_suppressed(false)
 	if input_control:
 		input_control.mouse_default_cursor_shape = Control.CURSOR_ARROW
