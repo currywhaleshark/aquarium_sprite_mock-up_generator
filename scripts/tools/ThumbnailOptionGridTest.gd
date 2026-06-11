@@ -34,6 +34,15 @@ func _ready() -> void:
 	_require(selected_values == ["rounded"], "button press should emit selected value")
 	_require(buttons[0].button_pressed and not buttons[1].button_pressed, "button press should update selected state")
 
+	grid.setup("head_shape", [
+		"rounded", "tapered", "pointed",
+		"blunt", "broad", "flattened",
+		"hump", "steep_forehead", "cephalofoil"
+	], "res://assets/option_thumbs/head_shape")
+	var minimum_size := grid.get_combined_minimum_size()
+	_require(minimum_size.y >= 330.0, "grid should report enough minimum height for all thumbnail rows")
+	_require(minimum_size.x >= 300.0, "grid should report enough minimum width for readable thumbnail cards")
+
 	if _failed:
 		get_tree().quit(1)
 		return
