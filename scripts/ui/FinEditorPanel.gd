@@ -2,6 +2,7 @@ class_name FinEditorPanel
 extends VBoxContainer
 
 signal parameters_changed(parameters: Dictionary)
+signal numeric_slider_changed(key: String)
 signal vector_edit_target_changed(slot: String)
 signal vector_edit_preview_changed(slot: String, active: bool, norm_position: Vector2, ghost: bool)
 
@@ -108,6 +109,8 @@ var shape_option: OptionButton
 var numeric_container: VBoxContainer
 var numeric_sliders := {}
 var vector_editor: Control
+var changed_only_check: CheckBox
+var show_changed_only := false
 var _updating := false
 
 func _ready() -> void:
@@ -157,6 +160,14 @@ func _ready() -> void:
 		set_slot_shape(selected_slot, String(shape_option.get_item_metadata(index)))
 	)
 	add_child(shape_option)
+
+	changed_only_check = CheckBox.new()
+	changed_only_check.text = UiText.changed_only_filter()
+	changed_only_check.toggled.connect(func(enabled: bool) -> void:
+		show_changed_only = enabled
+		_apply_row_filter()
+	)
+	add_child(changed_only_check)
 
 	numeric_container = VBoxContainer.new()
 	numeric_container.add_theme_constant_override("separation", 1)
@@ -335,14 +346,17 @@ func _rebuild_numeric_controls() -> void:
 			var slider := widgets["slider"] as HSlider
 			var label := widgets["label"] as Label
 			var value := _numeric_value(String(key), slot_keys[key])
+			UiRows.set_row_default(widgets, _numeric_default(String(key), slot_keys[key]))
 			slider.value = value
 			label.text = "%.2f" % value
+			UiRows.update_changed_marker(widgets)
 	else:
 		for child in numeric_container.get_children():
 			child.queue_free()
 		numeric_sliders.clear()
 		for key in slot_keys.keys():
 			_add_numeric_row(String(key), slot_keys[key])
+	_apply_row_filter()
 
 func _add_numeric_row(key: String, config: Dictionary) -> void:
 	var widgets := UiRows.add_labeled_slider(numeric_container, UiText.fin_parameter(key), {
@@ -350,14 +364,19 @@ func _add_numeric_row(key: String, config: Dictionary) -> void:
 		"min": float(config.get("min", 0.0)),
 		"max": float(config.get("max", 1.0)),
 		"step": float(config.get("step", 0.005)),
+		"default": _numeric_default(key, config),
 		"value": _numeric_value(key, config),
 	})
 	var slider := widgets["slider"] as HSlider
 	var value_label := widgets["value_label"] as Label
-	numeric_sliders[key] = {"slider": slider, "label": value_label}
+	widgets["label"] = value_label
+	numeric_sliders[key] = widgets
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
+		UiRows.update_changed_marker(widgets)
+		_apply_row_filter()
 		if not _updating:
+			numeric_slider_changed.emit(key)
 			set_numeric_parameter(key, value)
 	)
 
@@ -368,6 +387,25 @@ func _numeric_value(key: String, config: Dictionary) -> float:
 	if fallback_key != "" and parameters.has(fallback_key):
 		return float(parameters[fallback_key])
 	return float(config.get("fallback", 0.0))
+
+func _numeric_default(_key: String, config: Dictionary) -> float:
+	var fallback_key := String(config.get("fallback_key", ""))
+	if fallback_key != "" and parameters.has(fallback_key):
+		return float(parameters[fallback_key])
+	return float(config.get("fallback", 0.0))
+
+func is_row_changed(key: String) -> bool:
+	if not numeric_sliders.has(key):
+		return false
+	return UiRows.is_changed_from_default(numeric_sliders[key])
+
+func _apply_row_filter() -> void:
+	for key in numeric_sliders.keys():
+		var widgets: Dictionary = numeric_sliders[key]
+		var row := widgets.get("row") as Control
+		if row == null:
+			continue
+		row.visible = (not show_changed_only) or UiRows.is_changed_from_default(widgets)
 
 func _numeric_config_for_key(key: String) -> Dictionary:
 	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {})

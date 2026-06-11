@@ -1,6 +1,7 @@
 extends Node
 
 const BodyEditorPanelScript := preload("res://scripts/ui/BodyEditorPanel.gd")
+const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 func _ready() -> void:
 	var panel := BodyEditorPanelScript.new()
@@ -47,6 +48,10 @@ func _ready() -> void:
 	assert(abs(float(rings[3].get("top_flatness", 0.0)) - 0.8) < 0.001)
 	assert(abs(float(rings[3].get("right_flatness", 0.0)) - 0.55) < 0.001)
 	assert(abs(float(rings[3].get("sway_weight", 0.0)) - 0.5) < 0.001)
+	assert(panel.is_row_changed("upper_height"))
+	var default_mid_body := _default_ring("mid_body")
+	panel.set_ring_parameter("upper_height", float(default_mid_body.get("upper_height", 0.0)))
+	assert(not panel.is_row_changed("upper_height"))
 
 	panel.select_next_ring()
 	assert(selected[0] == "rear_body")
@@ -59,3 +64,9 @@ func _ready() -> void:
 	file.close()
 	print("BODY_EDITOR_PANEL_TEST_OK")
 	get_tree().quit(0)
+
+func _default_ring(ring_id: String) -> Dictionary:
+	for ring in BodyProfileScript.default_fish_rings():
+		if String(ring.get("id", "")) == ring_id:
+			return ring
+	return {}

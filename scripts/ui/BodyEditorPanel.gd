@@ -3,6 +3,7 @@ extends VBoxContainer
 
 signal parameters_changed(parameters: Dictionary)
 signal ring_selected(ring_id: String)
+signal numeric_slider_changed(key: String)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
@@ -30,6 +31,8 @@ var ring_buttons := {}
 var ring_list: VBoxContainer
 var selected_label: Label
 var numeric_sliders := {}
+var changed_only_check: CheckBox
+var show_changed_only := false
 var _updating := false
 
 func _ready() -> void:
@@ -59,6 +62,14 @@ func _ready() -> void:
 	selected_label.text = "링: -"
 	selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(selected_label)
+
+	changed_only_check = CheckBox.new()
+	changed_only_check.text = UiText.changed_only_filter()
+	changed_only_check.toggled.connect(func(enabled: bool) -> void:
+		show_changed_only = enabled
+		_apply_row_filter()
+	)
+	add_child(changed_only_check)
 
 	for key in RING_NUMERIC_KEYS.keys():
 		_add_numeric_row(key)
@@ -215,10 +226,14 @@ func _add_numeric_row(key: String) -> void:
 	})
 	var slider := widgets["slider"] as HSlider
 	var value_label := widgets["value_label"] as Label
-	numeric_sliders[key] = {"slider": slider, "label": value_label}
+	widgets["label"] = value_label
+	numeric_sliders[key] = widgets
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
+		UiRows.update_changed_marker(widgets)
+		_apply_row_filter()
 		if not _updating:
+			numeric_slider_changed.emit(key)
 			set_ring_parameter(key, value)
 	)
 
@@ -240,15 +255,22 @@ func _refresh_controls() -> void:
 		ring_buttons[ring_id] = button
 
 	var ring := _selected_ring()
+	var default_ring := _default_ring(selected_ring_id)
 	selected_label.text = "링: %s" % UiText.body_ring(String(ring.get("id", "")), String(ring.get("label", "-")))
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]
 		var slider := widgets["slider"] as HSlider
 		var label := widgets["label"] as Label
 		var value := float(ring.get(key, 0.0))
+		if default_ring.has(key):
+			UiRows.set_row_default(widgets, float(default_ring[key]))
+		else:
+			UiRows.clear_row_default(widgets)
 		slider.value = value
 		label.text = "%.2f" % value
+		UiRows.update_changed_marker(widgets)
 	_updating = false
+	_apply_row_filter()
 
 func _emit_and_refresh() -> void:
 	parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
@@ -261,6 +283,25 @@ func _selected_ring() -> Dictionary:
 		if String(ring.get("id", "")) == selected_ring_id:
 			return ring
 	return {}
+
+func is_row_changed(key: String) -> bool:
+	if not numeric_sliders.has(key):
+		return false
+	return UiRows.is_changed_from_default(numeric_sliders[key])
+
+func _default_ring(ring_id: String) -> Dictionary:
+	for ring in BodyProfileScript.default_fish_rings():
+		if String(ring.get("id", "")) == ring_id:
+			return ring
+	return {}
+
+func _apply_row_filter() -> void:
+	for key in numeric_sliders.keys():
+		var widgets: Dictionary = numeric_sliders[key]
+		var row := widgets.get("row") as Control
+		if row == null:
+			continue
+		row.visible = (not show_changed_only) or UiRows.is_changed_from_default(widgets)
 
 func _rings() -> Array:
 	if not parameters.has("body_profile"):

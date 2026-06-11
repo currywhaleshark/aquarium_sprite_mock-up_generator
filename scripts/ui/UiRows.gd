@@ -28,23 +28,25 @@ static func add_labeled_slider(parent: Node, label_text: String, config: Diction
 		slider.value = float(config["value"])
 	row.add_child(slider)
 
+	row.set_meta("slider_step", slider.step)
 	if config.has("default"):
 		row.set_meta("default_value", float(config["default"]))
-		row.set_meta("slider_step", slider.step)
-		slider.draw.connect(func() -> void:
-			var span := slider.max_value - slider.min_value
-			if span <= 0.0:
-				return
-			var t := clampf((float(row.get_meta("default_value")) - slider.min_value) / span, 0.0, 1.0)
-			var x := slider.size.x * t
-			var center_y := slider.size.y * 0.5
-			slider.draw_line(
-				Vector2(x, center_y - 4.0),
-				Vector2(x, center_y + 4.0),
-				Color(1.0, 1.0, 1.0, 0.55),
-				2.0
-			)
+	slider.draw.connect(func() -> void:
+		if not row.has_meta("default_value"):
+			return
+		var span := slider.max_value - slider.min_value
+		if span <= 0.0:
+			return
+		var t := clampf((float(row.get_meta("default_value")) - slider.min_value) / span, 0.0, 1.0)
+		var x := slider.size.x * t
+		var center_y := slider.size.y * 0.5
+		slider.draw_line(
+			Vector2(x, center_y - 4.0),
+			Vector2(x, center_y + 4.0),
+			Color(1.0, 1.0, 1.0, 0.55),
+			2.0
 		)
+	)
 
 	var value_label := Label.new()
 	value_label.custom_minimum_size = Vector2(float(config.get("value_width", 44.0)), 0)
@@ -52,12 +54,11 @@ static func add_labeled_slider(parent: Node, label_text: String, config: Diction
 		value_label.text = "%.2f" % float(config["value"])
 	row.add_child(value_label)
 
-	if config.has("default"):
-		slider.gui_input.connect(func(event: InputEvent) -> void:
-			var mouse := event as InputEventMouseButton
-			if mouse != null and mouse.button_index == MOUSE_BUTTON_LEFT and mouse.double_click:
-				UiRows.reset_row_to_default({"row": row, "slider": slider, "value_label": value_label, "name_label": label})
-		)
+	slider.gui_input.connect(func(event: InputEvent) -> void:
+		var mouse := event as InputEventMouseButton
+		if mouse != null and mouse.button_index == MOUSE_BUTTON_LEFT and mouse.double_click:
+			UiRows.reset_row_to_default({"row": row, "slider": slider, "value_label": value_label, "name_label": label})
+	)
 
 	parent.add_child(row)
 	return {"row": row, "slider": slider, "value_label": value_label, "name_label": label}
@@ -72,6 +73,29 @@ static func reset_row_to_default(widgets: Dictionary) -> void:
 	slider.value = float(row.get_meta("default_value"))
 	if widgets.has("value_label") and widgets["value_label"] is Label:
 		(widgets["value_label"] as Label).text = "%.2f" % slider.value
+	update_changed_marker(widgets)
+
+static func set_row_default(widgets: Dictionary, value: float) -> void:
+	if not widgets.has("row"):
+		return
+	var row := widgets["row"] as Control
+	if row == null:
+		return
+	row.set_meta("default_value", value)
+	if widgets.has("slider") and widgets["slider"] is HSlider:
+		(widgets["slider"] as HSlider).queue_redraw()
+	update_changed_marker(widgets)
+
+static func clear_row_default(widgets: Dictionary) -> void:
+	if not widgets.has("row"):
+		return
+	var row := widgets["row"] as Control
+	if row == null:
+		return
+	if row.has_meta("default_value"):
+		row.remove_meta("default_value")
+	if widgets.has("slider") and widgets["slider"] is HSlider:
+		(widgets["slider"] as HSlider).queue_redraw()
 	update_changed_marker(widgets)
 
 static func is_changed_from_default(widgets: Dictionary) -> bool:

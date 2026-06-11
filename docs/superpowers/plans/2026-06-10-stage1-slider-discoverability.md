@@ -64,15 +64,15 @@
 
 **Files:** `scripts/ui/HeadEditorPanel.gd`, `scripts/ui/BodyEditorPanel.gd`, `scripts/ui/FinEditorPanel.gd`, 기존 패널 테스트들
 
-- [ ] **Step 1: 패널 테스트 확장 (실패 확인).**
+- [x] **Step 1: 패널 테스트 확장 (실패 확인).**
   - `HeadEditorPanelTest.gd`: `panel.set_numeric_parameter("head_size", 0.9)` 후 `panel.is_row_changed("head_size") == true`, `_default_numeric("head_size")` 값으로 리셋 후 `false`.
   - `BodyEditorPanelTest.gd`: 동일 패턴을 `upper_height`로.
-- [ ] **Step 2: HeadEditorPanel.** `_add_numeric_row`에서 config에 `"default": _default_numeric(key)` 전달. `_refresh_controls`의 슬라이더 동기화 루프 끝에서 각 행에 `UiRows.update_changed_marker` 호출. 테스트용 공개 헬퍼 `func is_row_changed(key: String) -> bool` 추가.
+- [x] **Step 2: HeadEditorPanel.** `_add_numeric_row`에서 config에 `"default": _default_numeric(key)` 전달. `_refresh_controls`의 슬라이더 동기화 루프 끝에서 각 행에 `UiRows.update_changed_marker` 호출. 테스트용 공개 헬퍼 `func is_row_changed(key: String) -> bool` 추가.
   - 주의: `NUMERIC_KEYS`의 min이 0이 아닌 키(`head_size` 등)는 `_default_numeric` fallback이 0.0을 반환하면 min 미만이 된다. `_default_numeric`이 0.0을 반환하면서 min > 0.0인 키는 default를 생략한다(또는 `_default_numeric`에 해당 키 기본값을 보강한다 — `snout_curve`, `head_top_curve` 등 0이 유효한 키와 구분할 것).
-- [ ] **Step 3: BodyEditorPanel.** 기본값 출처는 `BodyProfileScript.default_fish_rings()`에서 `selected_ring_id`와 같은 `id`를 가진 링. 링 선택이 바뀔 때마다 default가 달라지므로, `_add_numeric_row`에서 정적으로 넣지 말고 `_refresh_controls`에서 행 메타의 `default_value`를 갱신한 뒤 마커를 업데이트한다 (UiRows에 `set_row_default(widgets, value)` 헬퍼 추가). 사용자 추가 링(`id`가 default에 없음)은 default 생략.
-- [ ] **Step 4: FinEditorPanel.** `_numeric_value`가 사용하는 키별 fallback과 같은 출처로 default 공급. 구조는 HeadEditorPanel과 동일.
-- [ ] **Step 5: "변경만 보기" 토글.** 각 패널(Head/Body/Fin) 슬라이더 영역 상단에 CheckBox(`UiText` 신규 라벨 `"변경된 항목만"`). 켜면 `is_changed_from_default`가 false인 행 숨김. HeadEditorPanel은 섹션 body가 전부 숨겨지면 해당 섹션 header도 숨김. 토글 해제 시 원상 복구(섹션 펼침 상태 `section_expanded` 보존).
-- [ ] **Step 6: 테스트.** `-Filter HeadEditorPanelTest`, `-Filter BodyEditorPanelTest`, `-Filter FinEditorPanelTest` 모두 통과. 커밋 `"Supply slider defaults and changed markers per panel"`
+- [x] **Step 3: BodyEditorPanel.** 기본값 출처는 `BodyProfileScript.default_fish_rings()`에서 `selected_ring_id`와 같은 `id`를 가진 링. 링 선택이 바뀔 때마다 default가 달라지므로, `_add_numeric_row`에서 정적으로 넣지 말고 `_refresh_controls`에서 행 메타의 `default_value`를 갱신한 뒤 마커를 업데이트한다 (UiRows에 `set_row_default(widgets, value)` 헬퍼 추가). 사용자 추가 링(`id`가 default에 없음)은 default 생략.
+- [x] **Step 4: FinEditorPanel.** `_numeric_value`가 사용하는 키별 fallback과 같은 출처로 default 공급. 구조는 HeadEditorPanel과 동일.
+- [x] **Step 5: "변경만 보기" 토글.** 각 패널(Head/Body/Fin) 슬라이더 영역 상단에 CheckBox(`UiText` 신규 라벨 `"변경된 항목만"`). 켜면 `is_changed_from_default`가 false인 행 숨김. HeadEditorPanel은 섹션 body가 전부 숨겨지면 해당 섹션 header도 숨김. 토글 해제 시 원상 복구(섹션 펼침 상태 `section_expanded` 보존).
+- [x] **Step 6: 테스트.** `-Filter HeadEditorPanelTest`, `-Filter BodyEditorPanelTest`, `-Filter FinEditorPanelTest` 모두 통과. 커밋 `"Supply slider defaults and changed markers per panel"`
 
 ### Task 3: 슬라이더 검색 필터
 

@@ -494,5 +494,8 @@ static func reference_label(key: String) -> String:
 static func ring_parameter(key: String) -> String:
 	return String(RING_PARAMETER_LABELS.get(key, parameter(key)))
 
+static func changed_only_filter() -> String:
+	return "변경된 항목만"
+
 static func _humanize(value: String) -> String:
 	return value.replace("_", " ")

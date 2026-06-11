@@ -91,6 +91,8 @@ var ray_head_shape_option: OptionButton
 var numeric_sliders := {}
 var current_numeric_keys: Array[String] = []
 var operculum_editor: Control
+var changed_only_check: CheckBox
+var show_changed_only := false
 var _updating := false
 
 # Collapsible groupings for the (many) fish head sliders. Keys not listed in any
@@ -110,6 +112,7 @@ const RAY_SECTIONS := [
 ]
 
 var section_bodies := {}
+var section_headers := {}
 var section_expanded := {}
 
 func _ready() -> void:
@@ -120,6 +123,14 @@ func _ready() -> void:
 
 	options_container = VBoxContainer.new()
 	add_child(options_container)
+
+	changed_only_check = CheckBox.new()
+	changed_only_check.text = UiText.changed_only_filter()
+	changed_only_check.toggled.connect(func(enabled: bool) -> void:
+		show_changed_only = enabled
+		_apply_row_filter()
+	)
+	add_child(changed_only_check)
 
 	slider_container = VBoxContainer.new()
 	add_child(slider_container)
@@ -249,18 +260,25 @@ func _add_option_row(parent: VBoxContainer, label_text: String, values: Array) -
 	return option
 
 func _add_numeric_row(parent: VBoxContainer, key: String, config: Dictionary) -> void:
-	var widgets := UiRows.add_labeled_slider(parent, UiText.parameter(key), {
+	var slider_config := {
 		"row_height": 0.0,
 		"label_width": 112,
 		"min": float(config["min"]),
 		"max": float(config["max"]),
 		"step": float(config["step"]),
-	})
+	}
+	var default_value := _default_numeric(key)
+	if default_value >= float(config["min"]) and default_value <= float(config["max"]):
+		slider_config["default"] = default_value
+	var widgets := UiRows.add_labeled_slider(parent, UiText.parameter(key), slider_config)
 	var slider := widgets["slider"] as HSlider
 	var value_label := widgets["value_label"] as Label
-	numeric_sliders[key] = {"slider": slider, "label": value_label}
+	widgets["label"] = value_label
+	numeric_sliders[key] = widgets
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
+		UiRows.update_changed_marker(widgets)
+		_apply_row_filter()
 		if not _updating:
 			numeric_slider_changed.emit(key)
 			set_numeric_parameter(key, value)
@@ -295,8 +313,10 @@ func _refresh_controls() -> void:
 		var value := float(parameters.get(key, _default_numeric(key)))
 		slider.value = value
 		label.text = "%.2f" % value
+		UiRows.update_changed_marker(widgets)
 	_position_operculum_editor()
 	_updating = false
+	_apply_row_filter()
 
 # The operculum silhouette editor lives inside the "아가미" section body (added in
 # _add_section). It is a persistent node, so we detach it before a slider rebuild
@@ -331,6 +351,7 @@ func _sync_numeric_controls(is_ray: bool) -> void:
 		child.queue_free()
 	numeric_sliders.clear()
 	section_bodies.clear()
+	section_headers.clear()
 	current_numeric_keys = visible_keys.duplicate()
 	var source: Dictionary = RAY_HEAD_KEYS if is_ray else NUMERIC_KEYS
 	var sections: Array = RAY_SECTIONS if is_ray else FISH_SECTIONS
@@ -424,6 +445,7 @@ func _add_section(title: String, keys: Array[String], source: Dictionary) -> voi
 			operculum_editor.get_parent().remove_child(operculum_editor)
 		body.add_child(operculum_editor)
 	section_bodies[title] = body
+	section_headers[title] = header
 
 	var apply := func(expanded: bool) -> void:
 		section_expanded[title] = expanded
@@ -431,6 +453,33 @@ func _add_section(title: String, keys: Array[String], source: Dictionary) -> voi
 		header.text = ("  ▼  " if expanded else "  ▶  ") + title
 	apply.call(header.button_pressed)
 	header.toggled.connect(func(pressed: bool) -> void: apply.call(pressed))
+	_apply_row_filter()
+
+func is_row_changed(key: String) -> bool:
+	if not numeric_sliders.has(key):
+		return false
+	return UiRows.is_changed_from_default(numeric_sliders[key])
+
+func _apply_row_filter() -> void:
+	for key in numeric_sliders.keys():
+		var widgets: Dictionary = numeric_sliders[key]
+		var row := widgets.get("row") as Control
+		if row == null:
+			continue
+		row.visible = (not show_changed_only) or UiRows.is_changed_from_default(widgets)
+	for title in section_bodies.keys():
+		var body := section_bodies[title] as Control
+		var header := section_headers.get(title) as Control
+		if body == null:
+			continue
+		var any_visible := false
+		for child in body.get_children():
+			if child is HBoxContainer and (child as Control).visible:
+				any_visible = true
+				break
+		if header != null:
+			header.visible = (not show_changed_only) or any_visible
+		body.visible = bool(section_expanded.get(title, false)) and ((not show_changed_only) or any_visible)
 
 func _visible_numeric_keys(is_ray: bool) -> Array[String]:
 	var result: Array[String] = []
