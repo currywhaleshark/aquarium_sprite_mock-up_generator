@@ -221,8 +221,8 @@ Task 1~6 구현 후 세 가지 시각 회귀가 관찰·재현됐다 (`exports/_
 
 ### Task 10: 최종 검증 + 조건부 MouthFloor 박형화
 
-- [ ] 전체 스위트 + `MouthShot`/`MouthIsolateShot` 육안 (Task 6 체크리스트 재실행).
-- [ ] **조건부:** Task 8~9 후에도 사용자 조합에서 "아래턱 음영 두께"가 남으면 그때만 `MouthFloor` 돔을 박형화(깊이 ×0.3 별도 인자) + 리프트 `(0.06 + 0.38t)` 재조정. 격리 렌더에서는 floor가 옆모습에 기여하지 않았으므로(증거: `side_no_MouthFloor` 무변화) 선제 작업하지 않는다.
+- [x] 전체 스위트 + `MouthShot`/`MouthIsolateShot` 육안 (Task 6 체크리스트 재실행). 2026-06-11 전체 Godot CLI 스위트 47개 통과(승인 권한; 샌드박스에서는 `UserPreset*`의 `user://` 쓰기가 error 13으로 막혔고, 두 테스트 모두 승인 권한 focused 재실행에서 통과). `MouthIsolateShot`은 자동 저장 완료.
+- [x] **조건부:** Task 8~9 후에도 사용자 조합에서 "아래턱 음영 두께"가 남으면 그때만 `MouthFloor` 돔을 박형화(깊이 ×0.3 별도 인자) + 리프트 `(0.06 + 0.38t)` 재조정. 격리 렌더에서는 `side_no_MouthFloor`가 `side_g100`과 거의 동일하고 `side_no_MouthCavity`에서 검은 림이 사라져, 이번 범위에서는 `MouthFloor` 박형화를 하지 않는다.
 
 ## Out of Scope (후속 후보)
 
