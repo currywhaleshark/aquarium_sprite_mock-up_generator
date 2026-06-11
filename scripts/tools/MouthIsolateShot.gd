@@ -8,8 +8,6 @@ const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 
 const MOUTH_NODES := [
 	"MouthCavity",
-	"MouthUpperInterior",
-	"MouthSideAperture",
 	"MouthFloor",
 	"MouthLowerJaw",
 	"MouthLipUpper",
@@ -83,11 +81,11 @@ func _ready() -> void:
 	for s in sets:
 		var tag := String(s["tag"])
 		var params: Dictionary = s["params"]
-		# Full render, then hide one mouth node at a time, then legacy meshes all off.
+		# Full render, then hide one mouth node at a time, then the remaining lip frame off.
 		var variants := [{"name": "full", "hide": []}]
 		for n in MOUTH_NODES:
 			variants.append({"name": "no_%s" % n, "hide": [n]})
-		variants.append({"name": "legacy_off", "hide": ["MouthUpperInterior", "MouthSideAperture", "MouthLipUpper"]})
+		variants.append({"name": "lip_off", "hide": ["MouthLipUpper"]})
 		for variant in variants:
 			fish.set_parameters(params.duplicate(true))
 			await get_tree().process_frame

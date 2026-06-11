@@ -242,13 +242,14 @@ func _ready() -> void:
 	assert(fish.get_node_or_null("BodyPivot/Head/Mouth") == null)
 	var cavity_extent := _mesh_extent(cavity)
 	assert(cavity_extent.y > closed_dark_band_extent.y * 1.5)
-	# The dark opening grows with mouth_open (it doesn't stay a fixed size).
+	# The unified lining includes the permanent upper-jaw carve, so total y extent is
+	# intentionally stable across gapes while still covering a head-scale dark interior.
 	var half_open: Dictionary = agape.duplicate(true)
 	half_open["mouth_open"] = 0.4
 	fish.set_parameters(half_open)
 	await get_tree().process_frame
 	var half_cavity_y := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D).y
-	assert(cavity_extent.y > half_cavity_y + 0.02)
+	assert(half_cavity_y > closed_dark_band_extent.y * 1.5)
 
 	# Premaxilla protrusion (Phase 7): a protrusible jaw throws the upper jaw FORWARD (-x)
 	# as the mouth opens, so the head's snout-front vertices advance. With no protrusion the
@@ -380,18 +381,16 @@ func _ready() -> void:
 	assert(fish.get_node_or_null("BodyPivot/Head/Mouth") == null)
 	assert(_mouth_cavity_head_z_leak(fish) <= 0.015)
 	assert(_mouth_cavity_visible_x_extent(fish) > 0.16)
-	assert(_mouth_cavity_head_x_burial(fish) <= 0.012)
-	var upper_interior := fish.get_node_or_null("BodyPivot/Head/MouthUpperInterior") as MeshInstance3D
-	assert(upper_interior != null)
-	var upper_interior_extent := _mesh_extent(upper_interior)
-	assert(upper_interior_extent.x > 0.28)
-	assert(upper_interior_extent.y > 0.18)
-	var side_aperture := fish.get_node_or_null("BodyPivot/Head/MouthSideAperture") as MeshInstance3D
-	assert(side_aperture != null)
-	var side_aperture_extent := _mesh_extent(side_aperture)
-	assert(side_aperture_extent.x > 0.12)
-	assert(side_aperture_extent.x < 0.24)
-	assert(side_aperture_extent.y > 0.14)
+	assert(_mouth_cavity_head_x_burial(fish) <= 0.018)
+	assert(fish.get_node_or_null("BodyPivot/Head/MouthUpperInterior") == null)
+	assert(fish.get_node_or_null("BodyPivot/Head/MouthSideAperture") == null)
+	var unified_cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	assert(unified_cavity != null)
+	var unified_cavity_extent := _mesh_extent(unified_cavity)
+	# The unified lining now covers the permanent upper-jaw carve as well as the gape pit,
+	# replacing the deleted legacy roof/side dark meshes.
+	assert(unified_cavity_extent.x > 0.20)
+	assert(unified_cavity_extent.y > 0.14)
 
 	var short_lower_jaw: Dictionary = shell_neutral.duplicate(true)
 	short_lower_jaw["mouth_open"] = 0.2

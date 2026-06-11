@@ -2202,7 +2202,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	if t > 0.01:
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
-		cavity.mesh = PF.mouth_pit_lining_mesh(
+		cavity.mesh = PF.mouth_interior_lining_mesh(
 			String(parameters.get("head_shape", "rounded")),
 			param_float("snout_length", 0.0),
 			param_float("forehead_slope", 0.35),
@@ -2216,26 +2216,6 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		cavity.material_override = cavity_mat
 		cavity.position = Vector3.ZERO
 		head.add_child(cavity)
-
-		var upper_interior := MeshInstance3D.new()
-		upper_interior.name = "MouthUpperInterior"
-		upper_interior.mesh = _mouth_upper_interior_mesh(mouth_position, mouth_size, t, lower_jaw_scale, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, head_verts)
-		var upper_interior_mat := dark_mat.duplicate()
-		if upper_interior_mat is BaseMaterial3D:
-			upper_interior_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		upper_interior.material_override = upper_interior_mat
-		upper_interior.position = mouth_position
-		head.add_child(upper_interior)
-
-		var side_aperture := MeshInstance3D.new()
-		side_aperture.name = "MouthSideAperture"
-		side_aperture.mesh = _mouth_side_aperture_mesh(mouth_position, mouth_size, t, lower_jaw_scale, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, head_verts)
-		var side_aperture_mat := dark_mat.duplicate()
-		if side_aperture_mat is BaseMaterial3D:
-			side_aperture_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		side_aperture.material_override = side_aperture_mat
-		side_aperture.position = mouth_position
-		head.add_child(side_aperture)
 
 		# Dark mouth floor: a dark lining over the lower jaw's upper (inner) face that HINGES
 		# down with the jaw (same open angle/hinge), so the mouth interior is dark on the floor
@@ -2331,98 +2311,6 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 		var p11: Vector3 = grid[1][j + 1]
 		st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
 		st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
-	st.generate_normals()
-	return st.commit()
-
-func _mouth_upper_interior_mesh(origin: Vector3, mouth_size: float, gape_t: float, jaw_scale: float, tilt_deg: float, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, head_verts: PackedVector3Array = PackedVector3Array()) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var g := clampf(gape_t, 0.0, 1.0)
-	var hinge_pt := _lower_jaw_hinge_local(origin, jaw_scale, hinge_x_off, hinge_y_off)
-	var rear_x := hinge_pt.x - 0.025
-	var front_x := origin.x - front_extend * 0.25 + mouth_size * 0.03
-	var length_mul := clampf(length_scale, 0.6, 1.6)
-	rear_x = front_x + (rear_x - front_x) * length_mul
-	rear_x = maxf(rear_x, front_x + mouth_size * 1.35)
-	var top_front_y := origin.y + mouth_size * 0.08
-	var top_rear_y := origin.y + mouth_size * 0.02
-	var bottom_front_y := origin.y - mouth_size * lerpf(0.34, 0.76, g)
-	var bottom_rear_y := origin.y - mouth_size * lerpf(0.22, 0.54, g)
-	var half_z := maxf(mouth_size * 0.18, 0.018)
-	var tilt_r := deg_to_rad(tilt_deg)
-	var rows := 4
-	var cols := 4
-	var grid := []
-	for i in range(rows + 1):
-		var v := float(i) / float(rows)
-		var x := lerpf(front_x, rear_x, v)
-		var top_y := lerpf(top_front_y, top_rear_y, v)
-		var bottom_y := lerpf(bottom_front_y, bottom_rear_y, v)
-		var line := []
-		for j in range(cols + 1):
-			var h := float(j) / float(cols)
-			var y := lerpf(top_y, bottom_y, h)
-			var side := (h - 0.5) * 2.0
-			var z := side * half_z * sin(PI * v)
-			var p := Vector3(x, y, z)
-			if not head_verts.is_empty():
-				p.x = minf(p.x, _head_mesh_front_x(head_verts, p.y, p.z, 0.006))
-			if tilt_r != 0.0:
-				p = _rotate_mouth_point(p, origin, tilt_r)
-			line.append(p - origin)
-		grid.append(line)
-	for i in range(rows):
-		for j in range(cols):
-			var p00: Vector3 = grid[i][j]
-			var p01: Vector3 = grid[i][j + 1]
-			var p10: Vector3 = grid[i + 1][j]
-			var p11: Vector3 = grid[i + 1][j + 1]
-			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
-			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
-	st.generate_normals()
-	return st.commit()
-
-func _mouth_side_aperture_mesh(origin: Vector3, mouth_size: float, gape_t: float, jaw_scale: float, tilt_deg: float, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, head_verts: PackedVector3Array = PackedVector3Array()) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var g := clampf(gape_t, 0.0, 1.0)
-	var front_x := origin.x - front_extend * 0.22 + mouth_size * 0.02
-	var rear_x := front_x + mouth_size * 0.72 * clampf(length_scale, 0.7, 1.25)
-	var top_front_y := origin.y + mouth_size * 0.07
-	var bottom_front_y := origin.y - mouth_size * lerpf(0.30, 0.74, g)
-	var rear_mid_y := origin.y - mouth_size * lerpf(0.08, 0.18, g)
-	var tilt_r := deg_to_rad(tilt_deg)
-	var rows := 5
-	var cols := 5
-	for side in [-1.0, 1.0]:
-		var grid := []
-		for i in range(rows + 1):
-			var v := float(i) / float(rows)
-			var rear_fade := pow(v, 1.4)
-			var x := lerpf(front_x, rear_x, v)
-			var top_y := lerpf(top_front_y, rear_mid_y + mouth_size * 0.018, rear_fade)
-			var bottom_y := lerpf(bottom_front_y, rear_mid_y - mouth_size * 0.018, rear_fade)
-			var line := []
-			for j in range(cols + 1):
-				var h := float(j) / float(cols)
-				var y := lerpf(top_y, bottom_y, h)
-				var p := Vector3(x, y, _head_mesh_side_z(head_verts, x, y, side, 0.012))
-				if tilt_r != 0.0:
-					p = _rotate_mouth_point(p, origin, tilt_r)
-				line.append(p - origin)
-			grid.append(line)
-		for i in range(rows):
-			for j in range(cols):
-				var p00: Vector3 = grid[i][j]
-				var p01: Vector3 = grid[i][j + 1]
-				var p10: Vector3 = grid[i + 1][j]
-				var p11: Vector3 = grid[i + 1][j + 1]
-				if side > 0.0:
-					st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
-					st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
-				else:
-					st.add_vertex(p00); st.add_vertex(p01); st.add_vertex(p10)
-					st.add_vertex(p01); st.add_vertex(p11); st.add_vertex(p10)
 	st.generate_normals()
 	return st.commit()
 
@@ -2524,26 +2412,6 @@ func _head_mesh_front_x(verts: PackedVector3Array, y: float, z: float, outset: f
 	if best_x == INF:
 		return _head_front_surface_x(y, z, outset)
 	return best_x - outset
-
-func _head_mesh_side_z(verts: PackedVector3Array, x: float, y: float, side: float, outset: float, max_sample_x: float = 0.25) -> float:
-	var best_d := INF
-	var best_z := 0.0
-	for v in verts:
-		if side > 0.0 and v.z < 0.0:
-			continue
-		if side < 0.0 and v.z > 0.0:
-			continue
-		if v.x > max_sample_x:
-			continue
-		var dx := v.x - x
-		var dy := v.y - y
-		var d := dx * dx + dy * dy
-		if d < best_d:
-			best_d = d
-			best_z = v.z
-	if best_d == INF:
-		return side * _head_side_surface_z(x, y, outset)
-	return best_z + side * outset
 
 func _head_side_surface_z(local_x: float, local_y: float, outset: float = 0.025) -> float:
 	var radius := 0.5

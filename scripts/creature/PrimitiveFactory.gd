@@ -356,8 +356,9 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 # triangles). The skipped rim ring is sub-pixel shallow, so the dark edge still reads as
 # the pit boundary.
 const MOUTH_LINING_MIN_INSET := 0.006
+const MOUTH_LINING_MIN_CARVE := 0.012
 
-static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int, segments: int, sculpt: Dictionary, proud: float = 0.02) -> ArrayMesh:
+static func mouth_interior_lining_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int, segments: int, sculpt: Dictionary, proud: float = 0.02) -> ArrayMesh:
 	var precomputed := _head_mesh_precompute(shape, snout_length, forehead_slope, sculpt)
 	var grid := []
 	for i in range(rings + 1):
@@ -377,11 +378,15 @@ static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_s
 			var s01: Dictionary = grid[i][j + 1]
 			var s10: Dictionary = grid[i + 1][j]
 			var s11: Dictionary = grid[i + 1][j + 1]
-			var min_inset := minf(
+			var min_pit_inset := minf(
 				minf(float(s00["pit_inset_x"]), float(s01["pit_inset_x"])),
 				minf(float(s10["pit_inset_x"]), float(s11["pit_inset_x"]))
 			)
-			if min_inset < MOUTH_LINING_MIN_INSET:
+			var min_carve_back := minf(
+				minf(float(s00["carve_back_x"]), float(s01["carve_back_x"])),
+				minf(float(s10["carve_back_x"]), float(s11["carve_back_x"]))
+			)
+			if min_pit_inset < MOUTH_LINING_MIN_INSET and min_carve_back < MOUTH_LINING_MIN_CARVE:
 				continue
 			var p00 := _mouth_lining_vertex(s00, proud)
 			var p01 := _mouth_lining_vertex(s01, proud)
@@ -397,13 +402,16 @@ static func mouth_pit_lining_mesh(shape: String, snout_length: float, forehead_s
 
 static func _mouth_lining_vertex(sample: Dictionary, proud: float) -> Vector3:
 	var point := sample["point"] as Vector3
-	# Float at half the local dent depth (capped at `proud`): always far enough in front
-	# of the dented shell to win the depth test cleanly, yet always behind the un-dented
-	# surface (outset < inset), so the lining can never poke out of the silhouette at any
-	# gape. A fixed micro-offset is NOT enough here - it shrinks below depth-buffer
-	# precision near the rim and z-fights as a jagged star.
-	var outset := minf(float(sample["pit_inset_x"]) * 0.5, proud)
-	return point + Vector3(-outset, 0.0, 0.0)
+	# Float at half the local dent/carve vector (capped at `proud`): enough to win the
+	# depth test cleanly while staying inside the original, uncarved head surface.
+	var back := Vector3(
+		-(float(sample["pit_inset_x"]) + float(sample["carve_back_x"])) * 0.5,
+		-float(sample["carve_up_y"]) * 0.5,
+		0.0
+	)
+	if back.length() > proud:
+		back = back.normalized() * proud
+	return point + back
 
 static func deformed_head(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
