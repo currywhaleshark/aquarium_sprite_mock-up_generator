@@ -25,7 +25,7 @@
 - **고정 미세 띄움 금지** — 띄움은 반드시 국소 패임량 비례(상한 0.02). 림에서 깊이 버퍼 정밀도 아래로 내려가는 톱니 별 z-fight 회귀(2026-06-11 실측)의 재발 방지. 얕은 셀(아래 임계 미만)은 방출하지 않아 최소 이격을 보장한다: 구덩이 `pit_inset_x >= 0.006`(기존), 카브 `carve_back_x >= 0.012`.
 - `mouth_open <= 0.01`이면 안감(`MouthCavity`)이 생성되지 않는 기존 동작 유지. 카브는 영구 형상이지만 닫힌 입에서는 아래턱이 카브를 채우므로 안감도 필요 없다 — FishRig의 `t > 0.01` 게이트가 그대로 이를 보장한다.
 - 입 모양 틸트(`_mouth_angle_for_type`)는 안감에 적용하지 않는다 (구덩이/카브 자체가 틸트되지 않음 — 전 계획과 동일).
-- 윗입술 recess의 시각적 의도(큰 입에서 입술 띠를 표면 쪽으로 후퇴)는 보존하되, 어떤 mouth_size에서도 정점이 표면 뒤로 묻히지 않아야 한다 (유효 outset 하한 0.004).
+- 윗입술 recess의 시각적 의도(큰 입에서 입술 띠를 표면 쪽으로 후퇴)는 보존하되, 어떤 mouth_size에서도 정점이 표면 뒤로 묻히지 않아야 한다 (유효 outset 하한 0.012 — 0.004는 비매몰 테스트는 통과하지만 비스듬한 격리 샷에서 깊이/가림 조각이 남았다).
 - `MOUTH_DECOR_ENABLED` 분기, 닫힌 입 슬릿(`Mouth` 노드, t<=0.01) 동작 불변.
 - 머리/셸 이음새 계약 불변: `HeadShellSeamTest`의 `_max_escape` 한계를 깨지 않는다.
 - `_head_front_surface_x`는 `_mouth_position_for_type`과 `_mouth_band_mesh`가 계속 쓰므로 유지. `_head_mesh_side_z`는 side aperture 전용이므로 함께 삭제. `_head_mesh_front_x`는 `_mouth_band_mesh`(슬릿+입술)가 남아 유지.
@@ -167,7 +167,7 @@ powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter M
 
 **Files:** `scripts/creature/FishRig.gd`
 
-- [ ] **Step 1: `_mouth_band_mesh` 수정.** 클램프 후 `p.x += recess_x`를 더하는 대신, recess를 클램프의 유효 outset으로 흡수한다: `clamp_surface`일 때 `p.x = _head_mesh_front_x(head_verts, p.y, p.z, maxf(outset - recess_x, 0.004))`, 별도의 `p.x += recess_x` 라인은 비클램프 경로에서만 적용(현재 비클램프 호출부는 recess 0이므로 사실상 제거). 시각 효과는 동일 방향(입술이 표면 쪽으로 후퇴)이되 하한 0.004로 절대 묻히지 않는다.
+- [ ] **Step 1: `_mouth_band_mesh` 수정.** 클램프 후 `p.x += recess_x`를 더하는 대신, recess를 클램프의 유효 outset으로 흡수한다: `clamp_surface`일 때 `p.x = _head_mesh_front_x(head_verts, p.y, p.z, maxf(outset - recess_x, 0.012))`, 별도의 `p.x += recess_x` 라인은 비클램프 경로에서만 적용(현재 비클램프 호출부는 recess 0이므로 사실상 제거). 시각 효과는 동일 방향(입술이 표면 쪽으로 후퇴)이되 하한 0.012로 절대 묻히지 않고 비스듬한 샷에서 깊이 조각이 남지 않게 한다.
 - [ ] **Step 2: 테스트 + 육안.** `-Filter MouthInteriorContainmentTest`와 `-Filter MouthLipBurialTest` 모두 통과. `MouthIsolateShot` 재실행 — 주둥이 위 회색 찢김 자국이 사라지고 입술 띠가 연속인지. 닫힌 입(`zoom_closed`, MouthShot)에서 슬릿/입술이 기존과 동일한지.
 - [ ] **Step 3: 커밋.** `"Keep the upper lip band proud of the head surface"`
 
