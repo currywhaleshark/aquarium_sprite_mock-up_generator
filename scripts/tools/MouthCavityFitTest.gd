@@ -107,6 +107,28 @@ func _assert_floor_overlaps_cavity(fish: FishRig, params: Dictionary, gape: floa
 			return _fail("MouthFloor does not overlap MouthCavity at gape %.2f z=%.4f: floor_y=%.5f required=%.5f" % [gape, z_center, max_floor_y, required_y])
 	return true
 
+func _first_mesh_vertex_in_parent_space(node: MeshInstance3D) -> Vector3:
+	var arrays := node.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	assert(not verts.is_empty())
+	return node.transform * verts[0]
+
+func _assert_floor_uses_lower_jaw_hinge(fish: FishRig, lower_jaw_scale: float, gape: float) -> bool:
+	var jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
+	if jaw == null or jaw.mesh == null:
+		return _fail("MouthLowerJaw is missing for hinge check at gape %.2f" % gape)
+	var floor := fish.get_node_or_null("BodyPivot/Head/MouthFloor") as MeshInstance3D
+	if floor == null or floor.mesh == null:
+		return _fail("MouthFloor is missing for hinge check at gape %.2f" % gape)
+
+	var jaw_top := _first_mesh_vertex_in_parent_space(jaw)
+	var floor_top := _first_mesh_vertex_in_parent_space(floor)
+	var expected_lift := PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * (0.06 + 0.38 * gape)
+	var actual_lift := floor_top.y - jaw_top.y
+	if absf(actual_lift - expected_lift) > 0.001:
+		return _fail("MouthFloor rotates around a different hinge at gape %.2f: actual_lift=%.5f expected_lift=%.5f" % [gape, actual_lift, expected_lift])
+	return true
+
 func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
@@ -117,12 +139,13 @@ func _ready() -> void:
 		"snout_length": 0.45,
 		"snout_taper": 0.7,
 		"snout_thickness": 0.6,
-		"head_belly_curve": -0.7,
+		"head_belly_curve": 1.0,
 		"head_bottom_flatness": 0.8,
 		"head_bump_height": 0.3,
 		"mouth_open": 1.0,
 		"mouth_size": 0.14,
 	}
+	var lower_jaw_scale := 1.45
 	fish.set_parameters(params)
 	await get_tree().process_frame
 	if not _assert_cavity_fits_head(fish):
@@ -134,6 +157,8 @@ func _ready() -> void:
 		fish.set_parameters(open_params)
 		await get_tree().process_frame
 		if not _assert_floor_overlaps_cavity(fish, open_params, gape):
+			return
+		if not _assert_floor_uses_lower_jaw_hinge(fish, lower_jaw_scale, gape):
 			return
 
 	var closed_params := params.duplicate(true)

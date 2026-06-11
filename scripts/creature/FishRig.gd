@@ -2222,7 +2222,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		# too, not just the roof. A shallower dome nested just above the jaw's inner surface.
 		var floor := MeshInstance3D.new()
 		floor.name = "MouthFloor"
-		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip)
+		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip, 7, 18, lower_jaw_scale)
 		var floor_mat := dark_mat.duplicate()
 		if floor_mat is BaseMaterial3D:
 			floor_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -2315,7 +2315,7 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 	st.generate_normals()
 	return st.commit()
 
-func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, thickness_scale: float = 1.0, tip_shape: float = 0.0, ring_count: int = 7, segments: int = 18) -> ArrayMesh:
+func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, thickness_scale: float = 1.0, tip_shape: float = 0.0, ring_count: int = 7, segments: int = 18, hinge_scale: float = -1.0) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var scale := clampf(jaw_scale, 0.45, 1.8)
@@ -2327,7 +2327,8 @@ func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, m
 	# hinge_x_off lengthens the jaw (hinge further back -> bigger x_radius); hinge_y_off
 	# raises/lowers the whole jaw with its pivot. Phase 7 jaw_hinge_x/_y controls. The pivot
 	# comes from the shared helper so the editor's hinge marker lands on the real pivot.
-	var hinge_pt := _lower_jaw_hinge_local(origin, jaw_scale, hinge_x_off, hinge_y_off)
+	var hinge_basis := jaw_scale if hinge_scale < 0.0 else hinge_scale
+	var hinge_pt := _lower_jaw_hinge_local(origin, hinge_basis, hinge_x_off, hinge_y_off)
 	var top_y := hinge_pt.y
 	# front_extend reaches the jaw tip forward (toward the protruded premaxilla) while the
 	# hinge stays fixed, so the lower jaw lengthens into the tube rather than translating.
