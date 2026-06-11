@@ -364,7 +364,9 @@ func _ready() -> void:
 	var large_open_cavity_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D)
 	var large_open_lower_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
 	assert(large_upper_recess > small_upper_recess + 0.03)
-	assert(large_upper_lip_x > small_upper_lip_x + 0.02)
+	# Larger mouths still request more recess, but the band clamps to a minimum surface
+	# outset so it does not bury behind the head.
+	assert(absf(large_upper_lip_x - small_upper_lip_x) < 0.01)
 	assert(large_open_cavity_extent.z < large_open_lower_jaw_extent.z * 0.92)
 
 	# Arowana preset regression: its long, tapered snout makes the real upper-jaw surface
