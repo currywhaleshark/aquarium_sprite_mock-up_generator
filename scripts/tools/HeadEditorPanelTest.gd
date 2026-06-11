@@ -18,6 +18,7 @@ func _ready() -> void:
 		"mouth_type": "terminal",
 		"snout_appendage": "none",
 		"gill_mark": "none",
+		"eye_style": "bead",
 		"head_offset": -0.58,
 		"eye_position_y": 0.12,
 		"snout_length": 0.0,
@@ -27,6 +28,36 @@ func _ready() -> void:
 		"lower_jaw_thickness": 1.0,
 		"lower_jaw_tip": 0.0
 	})
+	var head_shape_grid = panel.get("head_shape_grid")
+	var mouth_type_grid = panel.get("mouth_type_grid")
+	var eye_style_grid = panel.get("eye_style_grid")
+	assert(head_shape_grid != null)
+	assert(mouth_type_grid != null)
+	assert(eye_style_grid != null)
+	head_shape_grid.value_selected.emit("pointed")
+	assert(String(seen[0].get("head_shape", "")) == "pointed")
+	mouth_type_grid.value_selected.emit("superior")
+	assert(String(seen[0].get("mouth_type", "")) == "superior")
+	eye_style_grid.value_selected.emit("large")
+	assert(String(seen[0].get("eye_style", "")) == "large")
+	panel.set_parameters({
+		"head_shape": "rounded",
+		"mouth_type": "inferior",
+		"eye_style": "telescope",
+		"snout_appendage": "none",
+		"gill_mark": "none",
+		"head_offset": -0.58,
+		"eye_position_y": 0.12,
+		"snout_length": 0.0,
+		"mouth_size": 0.08,
+		"lower_jaw_length": 1.0,
+		"lower_jaw_angle": 0.0,
+		"lower_jaw_thickness": 1.0,
+		"lower_jaw_tip": 0.0
+	})
+	assert(_grid_value_pressed(head_shape_grid, "rounded"))
+	assert(_grid_value_pressed(mouth_type_grid, "inferior"))
+	assert(_grid_value_pressed(eye_style_grid, "telescope"))
 	assert(not _has_numeric_slider(panel, "forehead_slope"))
 	assert(not _has_numeric_slider(panel, "snout_appendage_length"))
 	assert(_has_numeric_slider(panel, "head_top_flatness"))
@@ -150,3 +181,10 @@ func _slider_for_key(panel: Node, key: String) -> HSlider:
 	if not sliders.has(key):
 		return null
 	return sliders[key]["slider"] as HSlider
+
+func _grid_value_pressed(grid: Node, value: String) -> bool:
+	var buttons: Dictionary = grid.get("buttons_by_value")
+	if not buttons.has(value):
+		return false
+	var button := buttons[value] as Button
+	return button != null and button.button_pressed

@@ -12,6 +12,7 @@ signal vector_edit_preview_changed(slot: String, active: bool, norm_position: Ve
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
 const FinVectorEditorScript := preload("res://scripts/ui/FinVectorEditor.gd")
+const ThumbnailOptionGridScript := preload("res://scripts/ui/ThumbnailOptionGrid.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 
 const HEAD_SHAPES := ["rounded", "tapered", "pointed", "blunt", "broad", "flattened", "hump", "steep_forehead", "cephalofoil"]
@@ -88,6 +89,9 @@ var barbel_style_option: OptionButton
 var eye_style_option: OptionButton
 var mouth_detail_option: OptionButton
 var ray_head_shape_option: OptionButton
+var head_shape_grid
+var mouth_type_grid
+var eye_style_grid
 
 var numeric_sliders := {}
 var current_numeric_keys: Array[String] = []
@@ -231,16 +235,16 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 				set_option_parameter("ray_head_shape", String(ray_head_shape_option.get_item_metadata(index)))
 		)
 	else:
-		head_option = _add_option_row(options_container, "형태", HEAD_SHAPES)
-		head_option.item_selected.connect(func(index: int) -> void:
+		head_shape_grid = _add_thumbnail_option_grid(options_container, "형태", "head_shape", HEAD_SHAPES)
+		head_shape_grid.value_selected.connect(func(value: String) -> void:
 			if not _updating:
-				set_head_shape(String(head_option.get_item_metadata(index)))
+				set_head_shape(value)
 		)
 
-		mouth_option = _add_option_row(options_container, "입", MOUTH_TYPES)
-		mouth_option.item_selected.connect(func(index: int) -> void:
+		mouth_type_grid = _add_thumbnail_option_grid(options_container, "입", "mouth_type", MOUTH_TYPES)
+		mouth_type_grid.value_selected.connect(func(value: String) -> void:
 			if not _updating:
-				set_mouth_type(String(mouth_option.get_item_metadata(index)))
+				set_mouth_type(value)
 		)
 
 		head_ornament_option = _add_option_row(options_container, UiText.parameter("head_ornament"), HEAD_ORNAMENTS)
@@ -261,10 +265,10 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 				set_option_parameter("barbel_style", String(barbel_style_option.get_item_metadata(index)))
 		)
 
-		eye_style_option = _add_option_row(options_container, UiText.parameter("eye_style"), EYE_STYLES)
-		eye_style_option.item_selected.connect(func(index: int) -> void:
+		eye_style_grid = _add_thumbnail_option_grid(options_container, UiText.parameter("eye_style"), "eye_style", EYE_STYLES)
+		eye_style_grid.value_selected.connect(func(value: String) -> void:
 			if not _updating:
-				set_option_parameter("eye_style", String(eye_style_option.get_item_metadata(index)))
+				set_option_parameter("eye_style", value)
 		)
 
 		mouth_detail_option = _add_option_row(options_container, UiText.parameter("mouth_detail"), MOUTH_DETAILS)
@@ -293,6 +297,17 @@ func _add_option_row(parent: VBoxContainer, label_text: String, values: Array) -
 	row.add_child(option)
 	parent.add_child(row)
 	return option
+
+func _add_thumbnail_option_grid(parent: VBoxContainer, label_text: String, key: String, values: Array) -> Control:
+	var row := VBoxContainer.new()
+	var label := Label.new()
+	label.text = label_text
+	row.add_child(label)
+	var grid = ThumbnailOptionGridScript.new()
+	grid.setup(key, values, "res://assets/option_thumbs/%s" % key)
+	row.add_child(grid)
+	parent.add_child(row)
+	return grid
 
 func _add_numeric_row(parent: VBoxContainer, key: String, config: Dictionary) -> void:
 	var slider_config := {
@@ -339,12 +354,12 @@ func _refresh_controls() -> void:
 	if is_ray:
 		_select_option(ray_head_shape_option, String(parameters.get("ray_head_shape", "manta")))
 	else:
-		_select_option(head_option, String(parameters.get("head_shape", "rounded")))
-		_select_option(mouth_option, String(parameters.get("mouth_type", "terminal")))
+		head_shape_grid.select_value(String(parameters.get("head_shape", "rounded")))
+		mouth_type_grid.select_value(String(parameters.get("mouth_type", "terminal")))
 		_select_option(head_ornament_option, String(parameters.get("head_ornament", "none")))
 		_select_option(gill_mark_option, String(parameters.get("gill_mark", "none")))
 		_select_option(barbel_style_option, String(parameters.get("barbel_style", "none")))
-		_select_option(eye_style_option, String(parameters.get("eye_style", "bead")))
+		eye_style_grid.select_value(String(parameters.get("eye_style", "bead")))
 		_select_option(mouth_detail_option, String(parameters.get("mouth_detail", "dot")))
 		_select_option(snout_appendage_option, String(parameters.get("snout_appendage", "none")))
 	_sync_numeric_controls(is_ray)
