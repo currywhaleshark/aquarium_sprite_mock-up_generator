@@ -2300,8 +2300,9 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 				p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
 				p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
 			if clamp_surface:
-				p.x = _head_mesh_front_x(head_verts, p.y, p.z, outset)
-			p.x += recess_x
+				p.x = _head_mesh_front_x(head_verts, p.y, p.z, maxf(outset - recess_x, 0.004))
+			else:
+				p.x += recess_x
 			line.append(p - origin)
 		grid.append(line)
 	for j in range(z_segs):
