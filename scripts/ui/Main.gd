@@ -7,6 +7,7 @@ const ExportPanelScript := preload("res://scripts/ui/ExportPanel.gd")
 const PreviewControlsScript := preload("res://scripts/ui/PreviewControls.gd")
 const PreviewCameraControllerScript := preload("res://scripts/ui/PreviewCameraController.gd")
 const FishFinDragControllerScript := preload("res://scripts/ui/FishFinDragController.gd")
+const BodyRingDragControllerScript := preload("res://scripts/ui/BodyRingDragController.gd")
 const FinEditorPanelScript := preload("res://scripts/ui/FinEditorPanel.gd")
 const HeadEditorPanelScript := preload("res://scripts/ui/HeadEditorPanel.gd")
 const BodyEditorPanelScript := preload("res://scripts/ui/BodyEditorPanel.gd")
@@ -30,6 +31,7 @@ var reference_overlay_source_size := Vector2.ZERO
 var camera: Camera3D
 var camera_controller: Node
 var fin_drag_controller: Node
+var body_ring_drag_controller: Node
 var drag_handles_overlay: Control
 var indicator_timer: Timer
 var hovered_slider_key := ""
@@ -167,7 +169,6 @@ func _build_ui() -> void:
 	viewport_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	viewport_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	viewport_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	viewport_container.gui_input.connect(_on_preview_gui_input)
 	preview_stack.add_child(viewport_container)
 
 	viewport = SubViewport.new()
@@ -681,11 +682,26 @@ func _build_preview_world() -> void:
 	fin_drag_controller.call("bind_camera", camera)
 	fin_drag_controller.call("bind_camera_controller", camera_controller)
 	fin_drag_controller.call("bind_input_control", viewport_container)
+	body_ring_drag_controller = BodyRingDragControllerScript.new()
+	body_ring_drag_controller.name = "BodyRingDragController"
+	add_child(body_ring_drag_controller)
+	body_ring_drag_controller.call("bind_camera", camera)
+	body_ring_drag_controller.call("bind_camera_controller", camera_controller)
+	body_ring_drag_controller.call("bind_input_control", viewport_container)
+	body_ring_drag_controller.call("set_enabled", false)
 	if drag_handles_overlay:
 		drag_handles_overlay.camera = camera
 		drag_handles_overlay.fin_drag_controller = fin_drag_controller
+		drag_handles_overlay.body_ring_drag_controller = body_ring_drag_controller
 	fin_drag_controller.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
+	)
+	body_ring_drag_controller.parameters_changed.connect(func(parameters: Dictionary) -> void:
+		_apply_parameters_from_editor(parameters)
+	)
+	body_ring_drag_controller.ring_handle_selected.connect(func(ring_id: String) -> void:
+		if body_editor_panel:
+			body_editor_panel.call("select_ring_by_id", ring_id)
 	)
 	camera_controller.camera_changed.connect(func(_state: Dictionary) -> void:
 		_update_reference_overlay_transform()
@@ -944,6 +960,8 @@ func _bind_fin_editor_for_current_rig() -> void:
 	if _is_fish():
 		fin_drag_controller.call("bind_fish", current_rig)
 		fin_drag_controller.call("set_enabled", true)
+		if body_ring_drag_controller:
+			body_ring_drag_controller.call("bind_fish", current_rig)
 		if drag_handles_overlay:
 			drag_handles_overlay.fish = current_rig as FishRig
 			_update_overlay_visibility()
@@ -956,6 +974,9 @@ func _bind_fin_editor_for_current_rig() -> void:
 	elif _is_ray():
 		fin_drag_controller.call("bind_fish", null)
 		fin_drag_controller.call("set_enabled", false)
+		if body_ring_drag_controller:
+			body_ring_drag_controller.call("bind_fish", null)
+			body_ring_drag_controller.call("set_enabled", false)
 		if drag_handles_overlay:
 			drag_handles_overlay.fish = null
 			_update_overlay_visibility()
@@ -968,6 +989,9 @@ func _bind_fin_editor_for_current_rig() -> void:
 	else:
 		fin_drag_controller.call("bind_fish", null)
 		fin_drag_controller.call("set_enabled", false)
+		if body_ring_drag_controller:
+			body_ring_drag_controller.call("bind_fish", null)
+			body_ring_drag_controller.call("set_enabled", false)
 		if drag_handles_overlay:
 			drag_handles_overlay.fish = null
 			_update_overlay_visibility()
@@ -1299,6 +1323,9 @@ func _set_body_edit_enabled(enabled: bool) -> void:
 		current_rig.call("set_ring_editor_enabled", enabled)
 	if enabled:
 		_select_exclusive_edit_toggle(body_edit_toggle)
+	if drag_handles_overlay:
+		drag_handles_overlay.draw_body_rings = enabled and _is_fish()
+		_update_overlay_visibility()
 	_sync_edit_input_state()
 
 func _select_exclusive_edit_toggle(active_toggle: CheckButton) -> void:
@@ -1356,10 +1383,15 @@ func _on_preview_gui_input(event: InputEvent) -> void:
 func _sync_edit_input_state() -> void:
 	if camera_controller:
 		camera_controller.set("input_enabled", true)
+	var body_active := body_edit_toggle != null and body_edit_toggle.button_pressed and _is_fish()
+	if fin_drag_controller:
+		fin_drag_controller.call("set_enabled", _is_fish() and not body_active)
+	if body_ring_drag_controller:
+		body_ring_drag_controller.call("set_enabled", body_active)
 
 func _update_overlay_visibility() -> void:
 	if drag_handles_overlay:
-		drag_handles_overlay.visible = _is_fish() and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head or drag_handles_overlay.vector_edit_marker_active or String(drag_handles_overlay.indicator_key) != "")
+		drag_handles_overlay.visible = _is_fish() and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head or drag_handles_overlay.draw_body_rings or drag_handles_overlay.vector_edit_marker_active or String(drag_handles_overlay.indicator_key) != "")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:

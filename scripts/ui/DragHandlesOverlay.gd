@@ -8,9 +8,11 @@ const PICK_RADIUS_PX := 28.0
 var camera: Camera3D
 var fish: FishRig
 var fin_drag_controller: Node
+var body_ring_drag_controller: Node
 
 var draw_fins := false
 var draw_head := false
+var draw_body_rings := false
 # Set by Main while a numeric editor slider is being adjusted. The fish resolves
 # the key to a world-space point and the overlay draws a temporary crosshair there.
 var indicator_key := ""
@@ -34,7 +36,7 @@ func _process(_delta: float) -> void:
 
 func _update_hovered_handle() -> void:
 	hovered_handle = ""
-	if camera == null or fish == null or not (draw_fins or draw_head or vector_edit_marker_active):
+	if camera == null or fish == null or not (draw_fins or draw_head or draw_body_rings or vector_edit_marker_active):
 		return
 		
 	var mouse_pos := get_local_mouse_position()
@@ -58,6 +60,20 @@ func _update_hovered_handle() -> void:
 			best_distance = distance
 			hovered_handle = String(handle_id)
 
+	if draw_body_rings and fish.has_method("get_body_ring_handles"):
+		var ring_points: Dictionary = fish.call("get_body_ring_handles")
+		for ring_id in ring_points.keys():
+			var ring_handles: Dictionary = ring_points[ring_id]
+			for part in ["top", "bottom", "center"]:
+				if not ring_handles.has(part):
+					continue
+				var world_pos: Vector3 = ring_handles[part]
+				var screen_pos := camera.unproject_position(world_pos) * scale_factor
+				var distance := screen_pos.distance_to(mouse_pos)
+				if distance < best_distance:
+					best_distance = distance
+					hovered_handle = "%s:%s" % [String(ring_id), String(part)]
+
 func _should_draw_handle(handle_id: String) -> bool:
 	if handle_id.begins_with("eye") or handle_id == "operculum":
 		return draw_head
@@ -65,7 +81,7 @@ func _should_draw_handle(handle_id: String) -> bool:
 		return draw_fins
 
 func _draw() -> void:
-	if camera == null or fish == null or not (draw_fins or draw_head or vector_edit_marker_active or indicator_key != ""):
+	if camera == null or fish == null or not (draw_fins or draw_head or draw_body_rings or vector_edit_marker_active or indicator_key != ""):
 		return
 		
 	var font := get_theme_font("font")
@@ -130,6 +146,46 @@ func _draw() -> void:
 			# Draw text
 			draw_string(font, text_pos, label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
+	if draw_body_rings and fish.has_method("get_body_ring_handles"):
+		var selected_ring_id := String(body_ring_drag_controller.get("selected_ring_id") if body_ring_drag_controller else "")
+		var selected_part := String(body_ring_drag_controller.get("selected_part") if body_ring_drag_controller else "")
+		var ring_points: Dictionary = fish.call("get_body_ring_handles")
+		for ring_id in ring_points.keys():
+			var ring_handles: Dictionary = ring_points[ring_id]
+			for part in ["top", "bottom", "center"]:
+				if not ring_handles.has(part):
+					continue
+				var screen_pos := camera.unproject_position(ring_handles[part]) * scale_factor
+				var ring_handle_id := "%s:%s" % [String(ring_id), String(part)]
+				var is_hovered := ring_handle_id == hovered_handle
+				var is_selected := String(ring_id) == selected_ring_id and String(part) == selected_part
+				var outer_radius := 10.0
+				var inner_radius := 4.5
+				var main_color := Color(1.0, 0.78, 0.18, 0.9)
+				var outer_color := Color(1.0, 0.78, 0.18, 0.25)
+				if is_selected:
+					main_color = Color(1.0, 0.45, 0.0, 0.95)
+					outer_color = Color(1.0, 0.45, 0.0, 0.35)
+					outer_radius = 13.0
+					inner_radius = 6.0
+				elif is_hovered:
+					main_color = Color(0.15, 0.9, 0.4, 0.9)
+					outer_color = Color(0.15, 0.9, 0.4, 0.3)
+					outer_radius = 12.0
+					inner_radius = 5.5
+				draw_circle(screen_pos, outer_radius, outer_color)
+				draw_circle(screen_pos, inner_radius, main_color)
+				draw_circle(screen_pos, 1.8, Color.WHITE)
+				draw_arc(screen_pos, outer_radius, 0.0, TAU, 16, Color(1, 1, 1, 0.5 if is_hovered or is_selected else 0.2), 1.0)
+				if is_hovered or is_selected:
+					var label_text := _body_ring_handle_label(part)
+					var text_size: Vector2 = font.get_string_size(label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+					var text_pos := screen_pos + Vector2(15, 4)
+					var rect := Rect2(text_pos - Vector2(6, 16), text_size + Vector2(12, 6))
+					draw_rect(rect, Color(0, 0, 0, 0.7), true)
+					draw_rect(rect, main_color, false, 1.0, 4.0)
+					draw_string(font, text_pos, label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+
 	if vector_edit_marker_active and vector_edit_slot != "" and fish.has_method("get_vector_edit_marker_world"):
 		var world_pos: Vector3 = fish.call("get_vector_edit_marker_world", vector_edit_slot, vector_edit_marker_norm)
 		if not is_inf(world_pos.x):
@@ -193,3 +249,13 @@ func _get_handle_label(handle_id: String) -> String:
 		"dorsal_2":
 			return "등지느러미 2"
 	return handle_id.capitalize()
+
+func _body_ring_handle_label(part: String) -> String:
+	match part:
+		"top":
+			return "링 상단"
+		"bottom":
+			return "링 하단"
+		"center":
+			return "링 중심"
+	return "링"
