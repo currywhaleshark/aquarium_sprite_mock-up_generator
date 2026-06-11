@@ -12,6 +12,28 @@
 
 ---
 
+## Handoff 2026-06-11
+
+- Branch: `codex/stage1-slider-discoverability`
+- Base state: `main` was fast-forwarded through `codex/directional-body-head-sculpt-controls` before this branch was created.
+- Completed through Task 2 only. Stop here per user request; Task 3+ are intentionally untouched for a later session.
+- Commits:
+  - `eb9f6db Add slider default tick, reset, changed marker`
+  - `7d0aee1 Supply slider defaults and changed markers per panel`
+- Verified after Task 2:
+  - `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter UiRowsDefaultsTest`
+  - `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter HeadEditorPanelTest`
+  - `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter BodyEditorPanelTest`
+  - `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter FinEditorPanelTest`
+- Resume point: Task 3, "슬라이더 검색 필터". Start with the failing `SliderSearchFilterTest` before changing production code.
+- Implementation notes:
+  - `UiRows.add_labeled_slider` still preserves `[Label, HSlider, value Label]` child order.
+  - Panel `numeric_sliders` entries still keep existing `"slider"` and `"label"` keys; new widget keys are additive.
+  - `BodyEditorPanel` and `FinEditorPanel` now emit `numeric_slider_changed(key)` in preparation for Task 4 indicator wiring, but Task 4 itself has not been implemented.
+  - "변경된 항목만" exists for Head/Body/Fin; `ParameterPanel` filtering is not done yet and belongs to Task 3.
+
+---
+
 ## Scope Contract
 
 - 슬라이더 행의 자식 순서 `[Label, HSlider, value Label]`은 절대 변경하지 않는다. 여러 테스트가 `row.get_child(0)`/`get_child(1)` 순서에 의존한다 (`UiRows.gd` 상단 주석 참고). 눈금은 슬라이더의 `draw` 콜백으로 그리고, 변경 마커는 이름 Label의 테마 색 오버라이드로 표현한다. 행에 자식 노드를 추가하지 않는다.
