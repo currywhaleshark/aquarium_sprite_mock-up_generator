@@ -13,6 +13,8 @@ const HANDLE_RADIUS := 6.0
 const HOVER_RADIUS := 11.0
 const SIDE_Y_MIN := -1.6
 const SIDE_Y_MAX := 1.6
+const WIDTH_Y_MIN := -1.2
+const WIDTH_Y_MAX := 1.2
 const CENTER_X_MARGIN := 0.005
 
 var rings: Array = []:
@@ -59,6 +61,15 @@ func handle_norm_position(ring_id: String, handle: String) -> Vector2:
 		return Vector2.ZERO
 	var x := float(ring.get("x", 0.0))
 	var y_offset := float(ring.get("y_offset", 0.0))
+	if view_mode == "width":
+		match handle:
+			"top_width":
+				return Vector2(x, float(ring.get("top_width", ring.get("width", 0.0))))
+			"bottom_width":
+				return Vector2(x, -float(ring.get("bottom_width", ring.get("width", 0.0))))
+			"center":
+				return Vector2(x, 0.0)
+		return Vector2(x, 0.0)
 	match handle:
 		"top":
 			return Vector2(x, y_offset + float(ring.get("upper_height", 0.0)))
@@ -80,11 +91,18 @@ func apply_handle_drag(ring_id: String, handle: String, delta_norm: Vector2) -> 
 		"bottom":
 			var next_lower := _clamp_ring_key("lower_height", float(ring.get("lower_height", 0.0)) - delta_norm.y)
 			ring_value_changed.emit(ring_id, "lower_height", next_lower)
+		"top_width":
+			var next_top_width := _clamp_ring_key("top_width", float(ring.get("top_width", ring.get("width", 0.0))) + delta_norm.y)
+			ring_value_changed.emit(ring_id, "top_width", next_top_width)
+		"bottom_width":
+			var next_bottom_width := _clamp_ring_key("bottom_width", float(ring.get("bottom_width", ring.get("width", 0.0))) - delta_norm.y)
+			ring_value_changed.emit(ring_id, "bottom_width", next_bottom_width)
 		"center":
 			var next_x := _clamp_center_x(index, float(ring.get("x", 0.0)) + delta_norm.x)
-			var next_y := _clamp_ring_key("y_offset", float(ring.get("y_offset", 0.0)) + delta_norm.y)
 			ring_value_changed.emit(ring_id, "x", next_x)
-			ring_value_changed.emit(ring_id, "y_offset", next_y)
+			if view_mode == "side":
+				var next_y := _clamp_ring_key("y_offset", float(ring.get("y_offset", 0.0)) + delta_norm.y)
+				ring_value_changed.emit(ring_id, "y_offset", next_y)
 
 func request_select(ring_id: String) -> void:
 	if ring_id == "":
@@ -172,9 +190,9 @@ func _clamp_center_x(index: int, value: float) -> float:
 func _handles_for_ring(ring: Dictionary) -> Array[Dictionary]:
 	var ring_id := String(ring.get("id", ""))
 	return [
-		{"ring_id": ring_id, "handle": "top", "position": handle_norm_position(ring_id, "top")},
+		{"ring_id": ring_id, "handle": _top_handle_name(), "position": handle_norm_position(ring_id, _top_handle_name())},
 		{"ring_id": ring_id, "handle": "center", "position": handle_norm_position(ring_id, "center")},
-		{"ring_id": ring_id, "handle": "bottom", "position": handle_norm_position(ring_id, "bottom")}
+		{"ring_id": ring_id, "handle": _bottom_handle_name(), "position": handle_norm_position(ring_id, _bottom_handle_name())}
 	]
 
 func _update_hover_at(mouse_pos: Vector2) -> void:
@@ -193,8 +211,8 @@ func _update_hover_at(mouse_pos: Vector2) -> void:
 	if hovered_ring_id != "":
 		queue_redraw()
 		return
-	var top_positions := _ordered_handle_positions("top")
-	var bottom_positions := _ordered_handle_positions("bottom")
+	var top_positions := _ordered_handle_positions(_top_handle_name())
+	var bottom_positions := _ordered_handle_positions(_bottom_handle_name())
 	hovered_segment = _nearest_segment(mouse_pos, top_positions)
 	if hovered_segment == -1:
 		hovered_segment = _nearest_segment(mouse_pos, bottom_positions)
@@ -223,11 +241,25 @@ func _ordered_handle_positions(handle: String) -> Array[Vector2]:
 		positions.append(handle_norm_position(String(ring.get("id", "")), handle))
 	return positions
 
+func _top_handle_name() -> String:
+	return "top_width" if view_mode == "width" else "top"
+
+func _bottom_handle_name() -> String:
+	return "bottom_width" if view_mode == "width" else "bottom"
+
+func _y_min() -> float:
+	return WIDTH_Y_MIN if view_mode == "width" else SIDE_Y_MIN
+
+func _y_max() -> float:
+	return WIDTH_Y_MAX if view_mode == "width" else SIDE_Y_MAX
+
 func _to_pixel(norm: Vector2) -> Vector2:
 	var w := maxf(size.x - PADDING * 2.0, 1.0)
 	var h := maxf(size.y - PADDING * 2.0, 1.0)
 	var px := PADDING + clampf(norm.x, 0.0, 1.0) * w
-	var ty := (clampf(norm.y, SIDE_Y_MIN, SIDE_Y_MAX) - SIDE_Y_MIN) / (SIDE_Y_MAX - SIDE_Y_MIN)
+	var min_y := _y_min()
+	var max_y := _y_max()
+	var ty := (clampf(norm.y, min_y, max_y) - min_y) / (max_y - min_y)
 	var py := PADDING + (1.0 - ty) * h
 	return Vector2(px, py)
 
@@ -236,26 +268,26 @@ func _to_norm(pix: Vector2) -> Vector2:
 	var h := maxf(size.y - PADDING * 2.0, 1.0)
 	var nx := clampf((pix.x - PADDING) / w, 0.0, 1.0)
 	var ty := 1.0 - clampf((pix.y - PADDING) / h, 0.0, 1.0)
-	var ny := lerpf(SIDE_Y_MIN, SIDE_Y_MAX, ty)
+	var ny := lerpf(_y_min(), _y_max(), ty)
 	return Vector2(nx, ny)
 
 func _pixel_delta_to_norm(delta: Vector2) -> Vector2:
 	var w := maxf(size.x - PADDING * 2.0, 1.0)
 	var h := maxf(size.y - PADDING * 2.0, 1.0)
-	return Vector2(delta.x / w, -delta.y / h * (SIDE_Y_MAX - SIDE_Y_MIN))
+	return Vector2(delta.x / w, -delta.y / h * (_y_max() - _y_min()))
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color.html("#16161a"), true)
 	_draw_grid()
 	if rings.is_empty():
 		return
-	_draw_polyline(_ordered_handle_positions("top"), Color.html("#00d5ff"), 2.0)
-	_draw_polyline(_ordered_handle_positions("bottom"), Color.html("#00d5ff"), 2.0)
+	_draw_polyline(_ordered_handle_positions(_top_handle_name()), Color.html("#00d5ff"), 2.0)
+	_draw_polyline(_ordered_handle_positions(_bottom_handle_name()), Color.html("#00d5ff"), 2.0)
 	for ring in rings:
 		var ring_id := String(ring.get("id", ""))
 		var center := _to_pixel(handle_norm_position(ring_id, "center"))
-		var top := _to_pixel(handle_norm_position(ring_id, "top"))
-		var bottom := _to_pixel(handle_norm_position(ring_id, "bottom"))
+		var top := _to_pixel(handle_norm_position(ring_id, _top_handle_name()))
+		var bottom := _to_pixel(handle_norm_position(ring_id, _bottom_handle_name()))
 		draw_line(top, bottom, Color(1.0, 1.0, 1.0, 0.12), 1.0)
 		for handle_info in _handles_for_ring(ring):
 			_draw_handle(String(handle_info["ring_id"]), String(handle_info["handle"]), _to_pixel(handle_info["position"]))

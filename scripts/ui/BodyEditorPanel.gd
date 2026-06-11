@@ -19,6 +19,8 @@ var ring_buttons := {}
 var ring_list: VBoxContainer
 var selected_label: Label
 var silhouette_editor
+var silhouette_side_button: Button
+var silhouette_width_button: Button
 var numeric_sliders := {}
 var search_edit: LineEdit
 var search_text := ""
@@ -41,6 +43,28 @@ func _ready() -> void:
 	silhouette_editor.ring_add_requested.connect(add_ring_at_x)
 	silhouette_editor.ring_delete_requested.connect(_on_silhouette_ring_delete_requested)
 	add_child(silhouette_editor)
+
+	var silhouette_view_nav := HBoxContainer.new()
+	silhouette_view_nav.name = "BodySilhouetteViewMode"
+	add_child(silhouette_view_nav)
+	var silhouette_view_group := ButtonGroup.new()
+	silhouette_side_button = Button.new()
+	silhouette_side_button.text = UiText.body_silhouette_side_view()
+	silhouette_side_button.toggle_mode = true
+	silhouette_side_button.button_group = silhouette_view_group
+	silhouette_side_button.button_pressed = true
+	silhouette_side_button.pressed.connect(func() -> void:
+		_set_silhouette_view_mode("side")
+	)
+	silhouette_view_nav.add_child(silhouette_side_button)
+	silhouette_width_button = Button.new()
+	silhouette_width_button.text = UiText.body_silhouette_width_view()
+	silhouette_width_button.toggle_mode = true
+	silhouette_width_button.button_group = silhouette_view_group
+	silhouette_width_button.pressed.connect(func() -> void:
+		_set_silhouette_view_mode("width")
+	)
+	silhouette_view_nav.add_child(silhouette_width_button)
 
 	var nav := HBoxContainer.new()
 	add_child(nav)
@@ -328,6 +352,15 @@ func _select_ring_for_edit(ring_id: String) -> bool:
 		parameters["selected_body_ring_id"] = selected_ring_id
 		ring_selected.emit(selected_ring_id)
 	return true
+
+func _set_silhouette_view_mode(mode: String) -> void:
+	if silhouette_editor == null:
+		return
+	silhouette_editor.view_mode = mode
+	if silhouette_side_button != null:
+		silhouette_side_button.button_pressed = mode == "side"
+	if silhouette_width_button != null:
+		silhouette_width_button.button_pressed = mode == "width"
 
 func _selected_ring() -> Dictionary:
 	for ring in _rings():

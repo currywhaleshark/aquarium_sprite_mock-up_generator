@@ -61,6 +61,32 @@ func _ready() -> void:
 	editor.request_delete("mid_body")
 	_require(delete_requests == ["mid_body"], "request_delete should emit ring_delete_requested")
 
+	editor.view_mode = "width"
+	var width_top_pos: Vector2 = editor.handle_norm_position("mid_body", "top_width")
+	_require(width_top_pos.distance_to(Vector2(
+		float(mid_ring.get("x", 0.0)),
+		float(mid_ring.get("top_width", mid_ring.get("width", 0.0)))
+	)) < 0.001, "width top handle must map to x and top_width")
+	var width_bottom_pos: Vector2 = editor.handle_norm_position("mid_body", "bottom_width")
+	_require(width_bottom_pos.distance_to(Vector2(
+		float(mid_ring.get("x", 0.0)),
+		-float(mid_ring.get("bottom_width", mid_ring.get("width", 0.0)))
+	)) < 0.001, "width bottom handle must map to x and -bottom_width")
+
+	changes.clear()
+	editor.apply_handle_drag("mid_body", "top_width", Vector2(0.0, 0.1))
+	_require(changes.size() == 1, "top_width drag should emit one value")
+	if changes.size() == 1:
+		_require(String(changes[0].get("key", "")) == "top_width", "top_width drag should emit top_width only")
+		_require(abs(float(changes[0].get("value", 0.0)) - 0.48) < 0.001, "top_width drag should increase top_width")
+
+	changes.clear()
+	editor.apply_handle_drag("mid_body", "bottom_width", Vector2(0.0, -0.1))
+	_require(changes.size() == 1, "bottom_width drag should emit one value")
+	if changes.size() == 1:
+		_require(String(changes[0].get("key", "")) == "bottom_width", "bottom_width drag should emit bottom_width only")
+		_require(abs(float(changes[0].get("value", 0.0)) - 0.48) < 0.001, "bottom_width drag should increase when dragged downward")
+
 	if _failed:
 		get_tree().quit(1)
 		return

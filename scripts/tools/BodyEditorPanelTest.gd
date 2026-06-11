@@ -2,6 +2,7 @@ extends Node
 
 const BodyEditorPanelScript := preload("res://scripts/ui/BodyEditorPanel.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const UiText := preload("res://scripts/ui/UiText.gd")
 
 func _ready() -> void:
 	var panel := BodyEditorPanelScript.new()
@@ -35,6 +36,16 @@ func _ready() -> void:
 	var silhouette_editor = panel.get("silhouette_editor")
 	assert(silhouette_editor != null)
 	assert(panel.get_child(1) == silhouette_editor)
+	var side_button = panel.get("silhouette_side_button")
+	var width_button = panel.get("silhouette_width_button")
+	assert(side_button != null)
+	assert(width_button != null)
+	assert(side_button.text == UiText.body_silhouette_side_view())
+	assert(width_button.text == UiText.body_silhouette_width_view())
+	width_button.pressed.emit()
+	assert(silhouette_editor.view_mode == "width")
+	side_button.pressed.emit()
+	assert(silhouette_editor.view_mode == "side")
 	emission_count[0] = 0
 	silhouette_editor.ring_value_changed.emit("mid_body", "upper_height", 0.6)
 	assert(emission_count[0] == 1)

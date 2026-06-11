@@ -500,5 +500,11 @@ static func changed_only_filter() -> String:
 static func slider_search_placeholder() -> String:
 	return "슬라이더 검색"
 
+static func body_silhouette_side_view() -> String:
+	return "측면"
+
+static func body_silhouette_width_view() -> String:
+	return "폭"
+
 static func _humanize(value: String) -> String:
 	return value.replace("_", " ")
