@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/CreatureModeRegistryTest.gd" id="1_mode_registry"]
+
+[node name="CreatureModeRegistryTest" type="Node"]
+script = ExtResource("1_mode_registry")

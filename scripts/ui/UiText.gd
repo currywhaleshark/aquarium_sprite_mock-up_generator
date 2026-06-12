@@ -12,12 +12,14 @@ const PRESET_NAMES := {
 	"high_body_fish": "높은 체형 물고기",
 	"goldfish": "금붕어",
 	"basic_ray": "기본 가오리",
-	"manta_ray": "만타가오리"
+	"manta_ray": "만타가오리",
+	"basic_shark": "기본 상어"
 }
 
 const CREATURE_TYPES := {
 	"fish": "물고기",
-	"ray": "가오리"
+	"ray": "가오리",
+	"shark": "상어"
 }
 
 const CAMERA_PRESETS := {
