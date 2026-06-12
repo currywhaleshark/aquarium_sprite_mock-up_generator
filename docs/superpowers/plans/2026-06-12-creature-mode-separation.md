@@ -4,7 +4,7 @@
 
 **Goal:** Separate ordinary fish, rays, and sharks into explicit top-level creature modes so presets, rig creation, editor controls, archetypes, overlays, and future species-specific behavior do not bleed into each other.
 
-**Architecture:** Add a small mode registry and rig factory as the single source of truth for `fish`, `ray`, and `shark`. `Main.gd` keeps one workbench UI, but delegates mode selection, preset filtering, rig creation, and editor capability checks to mode-aware helpers. `SharkRig` starts as a thin `FishRig` subclass so shark work is fully separated at the app and preset level without duplicating the whole fish renderer on day one, while shark-only gill slits are rendered outside the existing fish operculum path.
+**Architecture:** Add a small mode registry and rig factory as the single source of truth for `fish`, `ray`, and `shark`. `Main.gd` keeps one workbench UI, but delegates mode selection, preset filtering, rig creation, and editor capability checks to mode-aware helpers. `SharkRig` starts as a thin `FishRig` subclass so shark work is fully separated at the app and preset level without duplicating the whole fish renderer on day one, while shark-only gill slits and shark-only mouth/jaw markings are rendered outside the existing fish operculum and fish mouth-detail paths.
 
 **Tech Stack:** Godot 4 GDScript, existing JSON presets, existing `tools/run_godot_cli_tests.ps1` Godot CLI runner.
 
@@ -45,11 +45,14 @@ Filter the dropdown by mode but leave rig creation and editor capability checks 
 - Ordinary fish mode must not show ray-only parameters such as `disc_width`, `ray_disc_shape`, or `ray_tail_style`.
 - Ray mode must not show fish-only fin/body controls that do not affect `RayRig`.
 - Shark mode must not show ray-only controls. It may reuse fish body/head/fin controls where they directly affect `SharkRig`.
+- Shark mouth controls must not be visible until a shark-only renderer and tests exist in the same task, so no exposed shark mouth slider is allowed to be a no-op.
 - Saving a user preset preserves the active `creature_type`.
 - Normalization and profile splitting must stop writing irrelevant mode keys into saved presets.
 - Existing fish/ray exports continue to work.
 
 ## Anatomy Basis
+
+### Shark and Ray Gill Basis
 
 Research summary for shark/ray gill handling:
 
@@ -67,6 +70,28 @@ Implementation conclusions:
 - Sixgill/sevengill support is not part of the first implementation, but the count slider/schema must allow future 6 or 7 slit presets without reusing fish operculum controls.
 - Fish `gill_mark` and `operculum_*` remain fish-only. Shark and ray modes use external gill slit anatomy instead of the existing fish gill-cover path.
 - Ray mode must not reuse fish `operculum_*`, and must not share the shark lateral five-slit renderer directly. Ray gills stay as a separate future ventral gill slit plan because ray/skate gill slits are displayed on the underside of a flattened disc body, not as shark-style lateral slits.
+
+### Shark Mouth and Jaw Basis
+
+Research summary for shark mouth/jaw handling:
+
+- Britannica describes sharks as typically having a pointed snout extending over a crescentic mouth with sharp triangular teeth. Source: [Britannica, Shark](https://www.britannica.com/animal/shark).
+- Florida Museum's shark anatomy diagrams separate shark head measurements into lateral, dorsal, and ventral views. This supports placing shark mouth work from shark-specific head references instead of reusing the fish mouth row as the anatomical contract. Source: [Florida Museum, Shark Anatomy](https://www.floridamuseum.ufl.edu/discover-fish/sharks/anatomy/).
+- Florida Museum's fish mouth anatomy page defines generic fish mouth categories such as terminal, superior, inferior, and protrusible. These are useful fish controls, but they are not enough to describe the default predatory shark mouth. Source: [Florida Museum, Mouth Types](https://www.floridamuseum.ufl.edu/discover-fish/fish/anatomy/mouth-types/).
+- Florida Museum's shortfin mako profile describes a parabolic U-shaped mouth profile, visible lower-jaw teeth when the jaw is closed, and upper teeth that stay partly hidden until the upper jaw projects outward while biting. Source: [Florida Museum, Shortfin Mako](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/shortfin-mako/).
+- Florida Museum's white shark profile lists a conical snout and large, erect, triangular, serrated teeth, with lower-jaw teeth more slender than upper-jaw teeth. Source: [Florida Museum, White Shark](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/white-shark/).
+- Florida Museum's tiger shark profile documents species-level mouth details such as labial furrows and specialized cutting teeth, so these should be optional later extensions rather than assumptions baked into the default shark mouth. Source: [Florida Museum, Tiger Shark](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/tiger-shark/).
+- Florida Museum's nurse shark profile shows another exception path: a sub-terminal mouth near the snout with nasal barbels, small-mouth suction feeding, and independent dentition. Source: [Florida Museum, Nurse Shark](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/nurse-shark/).
+- NOAA Fisheries notes that sharks are cartilaginous elasmobranchs and that shark teeth differ by species, including pointed mako teeth and triangular serrated white shark teeth. Source: [NOAA Fisheries, 12 Shark Facts That May Surprise You](https://www.fisheries.noaa.gov/feature-story/12-shark-facts-may-surprise-you).
+
+Implementation conclusions:
+
+- Shark mode default mouth profile is `shark_mouth_profile = "predatory_u"`.
+- Draw the default shark mouth as a ventral/subterminal crescent or parabolic U-shaped dark mouth under the snout, not as a fish terminal/protrusible mouth on the snout tip.
+- Treat shark jaws and teeth as shark-only renderer state. Lower teeth may be visible at rest; upper teeth are revealed mainly by `shark_mouth_gape` and `shark_jaw_projection`.
+- Add shark-specific `shark_mouth_*`, `shark_jaw_*`, and `shark_tooth_*` controls under `머리 편집 > 입`, next to where users already expect mouth controls.
+- Existing fish `mouth_type`, `mouth_detail`, `jaw_*`, `lower_jaw_*`, and fish lip/detail renderers remain fish-only after the shark mouth task lands. Do not expose shark mouth controls before the shark mouth renderer and visibility tests are added in the same task.
+- Ray mouth remains a separate future `ray_ventral_mouth_*` plan. Do not share the shark mouth renderer with ray mode.
 
 ## Mode Slider Matrix
 
@@ -86,7 +111,7 @@ These controls may appear in fish, ray, and shark modes:
 Fish mode keeps the teleost-style editor:
 
 - Body: `body_length`, `body_height`, `body_width`, `shell_enabled`, `shell_expand`, `shell_color_mix`, `shell_opacity`, `shell_roundness`. `body_profile` remains stored rig/editor data and is handled by `BodyEditorPanel`, not as a generic `ParameterPanel` slider row.
-- Head and mouth: `head_shape`, `head_size`, `head_offset`, `snout_*`, `forehead_slope`, `jaw_*`, `mouth_*`, `barbel_style`, `eye_*`.
+- Head and mouth: `head_shape`, `head_size`, `head_offset`, `snout_*`, `forehead_slope`, fish `mouth_type`, fish `mouth_detail`, fish `jaw_*`, fish `mouth_*`, `lower_jaw_*`, `lower_upper_ratio`, `barbel_style`, `eye_*`.
 - Existing operculum/gill-cover controls: `gill_mark`, `operculum_*`. These are fish-only because rays and sharks need different gill anatomy.
 - Paired/median/caudal fins: `dorsal_*`, `anal_*`, `pectoral_*`, `pelvic_*`, `caudal_*`, `tail_length`, `tail_fin_size`, `caudal_shape`, `caudal_height_scale`.
 - Teleost-only fin structures: `fin_ray_*`, `fin_spine_*`, `fin_softness`, `fin_rigidity`, slot softness/rigidity keys, `adipose_fin_*`, `finlet_*`.
@@ -96,6 +121,7 @@ Fish mode must not expose:
 
 - Ray-only shape controls: `disc_*`, `wing_*`, `ray_head_shape`, `ray_disc_shape`, `ray_tail_style`, `ray_tail_spine_enabled`, `ray_dorsal_tail_fins`, `ray_locomotion_mode`, `flap_amplitude`, `flap_speed`, `wing_phase_offset`, `tail_follow_amount`, `glide_bob_amount`.
 - Shark-only gill controls: `shark_gill_*`.
+- Shark-only mouth/jaw/tooth controls: `shark_mouth_*`, `shark_jaw_*`, `shark_tooth_*`, `shark_labial_furrow_length`.
 
 ### Ray Mode (`ray`)
 
@@ -112,6 +138,7 @@ Ray mode must not expose:
 
 - Existing fish operculum/gill-cover controls: `gill_mark`, `operculum_*`.
 - Shark-only lateral gill controls: `shark_gill_*`.
+- Shark-only mouth/jaw/tooth controls: `shark_mouth_*`, `shark_jaw_*`, `shark_tooth_*`, `shark_labial_furrow_length`.
 - Fish fin slots and fish fin placement controls: `dorsal_1_*`, `dorsal_2_*`, `dorsal_fin_*`, `anal_*`, `anal_fin_*`, `pectoral_attach_t`, `pectoral_fin_*`, `pectoral_shape`, `caudal_shape`, `caudal_height_scale`.
 - Teleost-only fin structures: `fin_ray_*`, `fin_spine_*`, `adipose_fin_*`, `finlet_*`.
 - Fish swim presets: `swim_mode`, `body_wave_*`, `tail_fin_extra_swing`, `median_fin_flap_*`, `inside_pectoral_fold`, `outside_pectoral_brace`.
@@ -121,7 +148,8 @@ Ray mode must not expose:
 Shark mode starts on a `FishRig`-derived body but has its own cartilaginous-fish slider contract:
 
 - Body: `body_length`, `body_height`, `body_width`, `shell_enabled`, `shell_expand`, `shell_color_mix`, `shell_opacity`, `shell_roundness`. `body_profile` remains stored rig/editor data and is handled by `BodyEditorPanel`, not as a generic `ParameterPanel` slider row.
-- Shark head and mouth: `head_shape`, `head_size`, `head_offset`, `snout_*`, `forehead_slope`, `jaw_*`, `mouth_*`, `eye_*`.
+- Shark head shape: `head_shape`, `head_size`, `head_offset`, `snout_*`, `forehead_slope`, `eye_*`.
+- Shark mouth and jaw, introduced together with the renderer in Task 5B: option/toggle keys `shark_mouth_profile`, `shark_lower_teeth_visible`; slider keys `shark_mouth_position_x`, `shark_mouth_position_y`, `shark_mouth_width`, `shark_mouth_curve`, `shark_mouth_gape`, `shark_jaw_projection`, `shark_lower_jaw_drop`, `shark_tooth_visible_count`, `shark_tooth_size`, `shark_tooth_angle`, `shark_labial_furrow_length`. The default profile is `predatory_u`, drawn as a ventral/subterminal crescent or parabolic U under the snout.
 - Shark gill slits: `shark_gill_slit_count`, `shark_gill_slit_length`, `shark_gill_slit_spacing`, `shark_gill_slit_angle`, `shark_gill_slit_depth`, `shark_gill_slit_position_x`, `shark_gill_slit_position_y`. The default count is `5`; the renderer draws dark vertical or slightly diagonal external slits on the lateral head/body surface instead of an operculum.
 - Shark fins: `dorsal_1_*`, `dorsal_2_*`, `dorsal_fin_*`, `anal_*`, `pectoral_*`, `pelvic_*`, `tail_length`, `tail_fin_size`, `caudal_shape`, `caudal_height_scale`.
 - Shark caudal shapes: `shark_heterocercal`, `thresher`, plus generic `pointed`, `lunate`, `forked_shallow`, and `forked_deep`.
@@ -130,6 +158,7 @@ Shark mode starts on a `FishRig`-derived body but has its own cartilaginous-fish
 Shark mode must not expose:
 
 - Existing fish operculum/gill-cover controls: `gill_mark`, `operculum_*`. Shark gill slits are owned by the `shark_gill_*` contract above.
+- Fish mouth controls after Task 5B: `mouth_type`, `mouth_detail`, fish `jaw_*`, fish `mouth_*`, `lower_jaw_*`, `lower_upper_ratio`. Shark mouth is owned by the `shark_mouth_*`, `shark_jaw_*`, and `shark_tooth_*` contract above.
 - Teleost-only fin structures: `fin_ray_*`, `fin_spine_*`, `adipose_fin_*`, `finlet_*`.
 - Ray-only disc/wing controls: `disc_*`, `wing_*`, `ray_head_shape`, `ray_disc_shape`, `ray_tail_style`, `ray_tail_spine_enabled`, `ray_dorsal_tail_fins`, `cephalic_horns`, `ray_locomotion_mode`, `flap_amplitude`, `flap_speed`, `wing_phase_offset`, `tail_follow_amount`, `glide_bob_amount`.
 - Fish-only ornamentation that does not map to sharks: `barbel_style`, `adipose_fin_shape`, `finlet_shape`.
@@ -138,19 +167,20 @@ Shark mode must not expose:
 
 - Create `scripts/creature/CreatureMode.gd`: mode ids, default preset names, camera defaults, capability flags, and helper methods. UI labels stay in `UiText.gd`.
 - Create `scripts/creature/CreatureRigFactory.gd`: create `FishRig`, `RayRig`, or `SharkRig` from a mode id.
-- Create `scripts/creature/SharkRig.gd`: thin subclass of `FishRig` that normalizes `creature_type` to `shark` and owns shark-only lateral gill slit markings through `SharkRig` or a shark-only helper, without reusing the `FishRig` operculum mesh.
+- Create `scripts/creature/SharkRig.gd`: thin subclass of `FishRig` that normalizes `creature_type` to `shark` and owns shark-only lateral gill slit and mouth/jaw markings through `SharkRig` or shark-only helpers, without reusing the `FishRig` operculum mesh or fish mouth detail renderer.
 - Create `scripts/creature/SharkGillSlitMarking.gd`: shark-only helper that draws lateral gill slit mesh/marking nodes from `shark_gill_slit_*` parameters.
+- Create `scripts/creature/SharkMouthMarking.gd`: shark-only helper that draws the ventral/subterminal U-shaped mouth, projected jaw state, lower/upper tooth rows, and optional labial furrow marks from `shark_mouth_*`, `shark_jaw_*`, and `shark_tooth_*` parameters.
 - Create `scenes/creatures/SharkRig.tscn`: scene wrapper for parity with existing `FishRig.tscn` and `RayRig.tscn`.
 - Modify `scripts/presets/PresetStore.gd`: mode-filtered loading, default selection helpers, and stricter mode normalization.
 - Modify `scripts/creature/BodyProfile.gd`: mode-aware profile splitting and parameter reconstruction.
-- Create `scripts/creature/CreatureParameterSchema.gd`: explicit mode-key visibility schema, including shark-only `shark_gill_*` controls and fish/ray denial rules.
+- Create `scripts/creature/CreatureParameterSchema.gd`: explicit mode-key visibility schema, including shark-only `shark_gill_*` controls, shark mouth controls introduced in Task 5B, and fish/ray denial rules.
 - Modify `scripts/ui/Main.gd`: add mode selector, mode roots, mode-aware rig loading, mode-aware editor capability checks, and per-mode last selection state.
 - Modify `scripts/ui/ParameterPanel.gd`: add `creature_type` or `visible_keys` filtering so shared panels do not show irrelevant controls.
-- Modify `scripts/ui/FinEditorPanel.gd`, `HeadEditorPanel.gd`, `BodyEditorPanel.gd`: add `set_creature_type(mode)` and use mode capabilities instead of hardcoded fish/ray assumptions.
-- Modify `scripts/ui/UiText.gd`: labels for mode selector, shark mode, `basic_shark`, and shark gill slit parameters.
+- Modify `scripts/ui/FinEditorPanel.gd`, `HeadEditorPanel.gd`, `BodyEditorPanel.gd`: add `set_creature_type(mode)` and use mode capabilities instead of hardcoded fish/ray assumptions. Shark gill controls live under `머리 편집 > 아가미`; shark mouth controls live under `머리 편집 > 입`.
+- Modify `scripts/ui/UiText.gd`: labels for mode selector, shark mode, `basic_shark`, shark gill slit parameters, and shark mouth/jaw/tooth parameters.
 - Modify `presets/장.json`: migrate to `creature_type: "shark"` and `type: "shark"`.
 - Add `presets/basic_shark.json`: compact built-in shark preset used as the default shark mode preset.
-- Add tests: `CreatureModeRegistryTest`, `PresetStoreModeFilterTest`, `MainCreatureModeTest`, `ParameterModeVisibilityTest`, `SharkGillSlitRenderingTest`, and extend `PresetNormalizationTest` / `RigImmediateRebuildTest`.
+- Add tests: `CreatureModeRegistryTest`, `PresetStoreModeFilterTest`, `MainCreatureModeTest`, `ParameterModeVisibilityTest`, `SharkGillSlitRenderingTest`, `SharkMouthRenderingTest`, and extend `HeadEditorPanelTest`, `PresetNormalizationTest`, and `RigImmediateRebuildTest`.
 
 ---
 
@@ -360,7 +390,7 @@ Use this `mode` for fish/ray/shark-specific normalization. Do not prune cross-mo
 
 - [ ] **Step 6: Migrate shark built-ins**
 
-Update `presets/장.json` top-level `creature_type` and `type` to `"shark"`. Add `presets/basic_shark.json` using the same core shark silhouette parameters but a clear `name: "basic_shark"`, `creature_type: "shark"`, `type: "shark"`, `camera_preset: "shark_side_quarter"`, shark-tail-friendly defaults, and these shark gill defaults inside the preset parameter dictionary:
+Update `presets/장.json` top-level `creature_type` and `type` to `"shark"`. Add `presets/basic_shark.json` using the same core shark silhouette parameters but a clear `name: "basic_shark"`, `creature_type: "shark"`, `type: "shark"`, `camera_preset: "shark_side_quarter"`, shark-tail-friendly defaults, and these shark gill and shark mouth defaults inside the preset parameter dictionary. Shark mouth defaults may be stored in Task 2, but must stay hidden until Task 5B adds the renderer and visibility tests:
 
 ```json
 "shark_gill_slit_count": 5,
@@ -369,7 +399,20 @@ Update `presets/장.json` top-level `creature_type` and `type` to `"shark"`. Add
 "shark_gill_slit_angle": -8.0,
 "shark_gill_slit_depth": 0.65,
 "shark_gill_slit_position_x": -0.28,
-"shark_gill_slit_position_y": 0.08
+"shark_gill_slit_position_y": 0.08,
+"shark_mouth_profile": "predatory_u",
+"shark_mouth_position_x": -0.96,
+"shark_mouth_position_y": -0.13,
+"shark_mouth_width": 0.18,
+"shark_mouth_curve": 0.58,
+"shark_mouth_gape": 0.16,
+"shark_jaw_projection": 0.08,
+"shark_lower_jaw_drop": 0.10,
+"shark_lower_teeth_visible": true,
+"shark_tooth_visible_count": 11,
+"shark_tooth_size": 0.018,
+"shark_tooth_angle": -8.0,
+"shark_labial_furrow_length": 0.04
 ```
 
 - [ ] **Step 7: Verify**
@@ -529,6 +572,7 @@ fish_panel.set_parameters({
 	"gill_mark": "operculum",
 	"operculum_size": 1.0,
 	"shark_gill_slit_count": 5,
+	"shark_mouth_width": 0.18,
 	"fin_ray_count": 12.0,
 	"adipose_fin_enabled": true,
 	"finlet_enabled": true
@@ -539,6 +583,7 @@ assert(_find_option_for_key(fish_panel, "ray_disc_shape") == null)
 assert(_find_option_for_key(fish_panel, "gill_mark") != null)
 assert(_find_slider_for_key(fish_panel, "operculum_size") != null)
 assert(_find_slider_for_key(fish_panel, "shark_gill_slit_count") == null)
+assert(_find_slider_for_key(fish_panel, "shark_mouth_width") == null)
 assert(_find_slider_for_key(fish_panel, "fin_ray_count") != null)
 assert(_find_checkbox_for_key(fish_panel, "adipose_fin_enabled") != null)
 assert(_find_checkbox_for_key(fish_panel, "finlet_enabled") != null)
@@ -551,6 +596,7 @@ ray_panel.set_parameters({
 	"gill_mark": "operculum",
 	"operculum_size": 1.0,
 	"shark_gill_slit_count": 5,
+	"shark_mouth_width": 0.18,
 	"fin_ray_count": 12.0,
 	"adipose_fin_enabled": true,
 	"finlet_enabled": true
@@ -561,6 +607,7 @@ assert(_find_option_for_key(ray_panel, "swim_mode") == null)
 assert(_find_option_for_key(ray_panel, "gill_mark") == null)
 assert(_find_slider_for_key(ray_panel, "operculum_size") == null)
 assert(_find_slider_for_key(ray_panel, "shark_gill_slit_count") == null)
+assert(_find_slider_for_key(ray_panel, "shark_mouth_width") == null)
 assert(_find_slider_for_key(ray_panel, "fin_ray_count") == null)
 assert(_find_checkbox_for_key(ray_panel, "adipose_fin_enabled") == null)
 assert(_find_checkbox_for_key(ray_panel, "finlet_enabled") == null)
@@ -579,6 +626,9 @@ shark_panel.set_parameters({
 	"shark_gill_slit_depth": 0.65,
 	"shark_gill_slit_position_x": -0.28,
 	"shark_gill_slit_position_y": 0.08,
+	"shark_mouth_width": 0.18,
+	"shark_jaw_projection": 0.08,
+	"shark_tooth_size": 0.018,
 	"fin_ray_count": 12.0,
 	"adipose_fin_enabled": true,
 	"finlet_enabled": true
@@ -595,6 +645,9 @@ assert(_find_slider_for_key(shark_panel, "shark_gill_slit_angle") != null)
 assert(_find_slider_for_key(shark_panel, "shark_gill_slit_depth") != null)
 assert(_find_slider_for_key(shark_panel, "shark_gill_slit_position_x") != null)
 assert(_find_slider_for_key(shark_panel, "shark_gill_slit_position_y") != null)
+assert(_find_slider_for_key(shark_panel, "shark_mouth_width") == null)
+assert(_find_slider_for_key(shark_panel, "shark_jaw_projection") == null)
+assert(_find_slider_for_key(shark_panel, "shark_tooth_size") == null)
 assert(_find_slider_for_key(shark_panel, "fin_ray_count") == null)
 assert(_find_checkbox_for_key(shark_panel, "adipose_fin_enabled") == null)
 assert(_find_checkbox_for_key(shark_panel, "finlet_enabled") == null)
@@ -636,7 +689,7 @@ static func is_option_value_visible(mode: String, key: String, value: String) ->
 static func allowed_fin_slots(mode: String) -> Array[String]
 ```
 
-The functions must implement the full `Mode Slider Matrix` above. Do not infer visibility only by category text; use explicit key groups and prefix checks so ray keys cannot leak into fish/shark panels, shark `shark_gill_*` keys cannot leak into fish/ray panels, and fish operculum/fin-ray/adipose/finlet controls cannot leak into ray or shark panels. Shark mode must allow exactly the shark gill keys listed in the matrix and use `shark_gill_slit_count = 5` as the default baseline.
+The functions must implement the `Mode Slider Matrix` above for keys introduced through Task 4. Do not infer visibility only by category text; use explicit key groups and prefix checks so ray keys cannot leak into fish/shark panels, shark `shark_gill_*` keys cannot leak into fish/ray panels, and fish operculum/fin-ray/adipose/finlet controls cannot leak into ray or shark panels. Shark mode must allow exactly the shark gill keys listed in the matrix and use `shark_gill_slit_count = 5` as the default baseline. Shark mouth keys from the matrix (`shark_mouth_*`, `shark_jaw_*`, `shark_tooth_*`, `shark_labial_furrow_length`) must remain hidden in Task 4 and are only exposed by Task 5B after the shark mouth renderer and tests land.
 
 - [ ] **Step 5: Add shark gill UI labels**
 
@@ -846,6 +899,186 @@ Expected: both pass. Shark mode now exposes seven shark gill sliders because the
 
 ---
 
+### Task 5B: Shark Mouth/Jaw Rendering and Controls
+
+**Files:**
+- Modify: `scripts/creature/SharkRig.gd`
+- Create: `scripts/creature/SharkMouthMarking.gd`
+- Modify: `scripts/creature/CreatureParameterSchema.gd`
+- Modify: `scripts/ui/HeadEditorPanel.gd`
+- Modify: `scripts/ui/UiText.gd`
+- Modify: `presets/basic_shark.json`
+- Modify: `presets/장.json`
+- Modify: `scripts/tools/ParameterModeVisibilityTest.gd`
+- Modify: `scripts/tools/HeadEditorPanelTest.gd`
+- Create: `scripts/tools/SharkMouthRenderingTest.gd`
+- Create: `scenes/SharkMouthRenderingTest.tscn`
+
+- [ ] **Step 1: Write failing shark mouth rendering test**
+
+`SharkMouthRenderingTest.gd` should instantiate `SharkRig`, set shark mouth parameters, and assert that shark-only mouth nodes are rendered while fish mouth detail nodes are absent:
+
+```gdscript
+extends Node
+
+const SharkRigScript := preload("res://scripts/creature/SharkRig.gd")
+
+func _ready() -> void:
+	var shark := SharkRigScript.new()
+	add_child(shark)
+	var parameters := {
+		"creature_type": "shark",
+		"body_length": 5.8,
+		"body_height": 0.72,
+		"body_width": 0.42,
+		"head_shape": "pointed",
+		"head_size": 0.62,
+		"head_offset": -0.58,
+		"mouth_type": "terminal",
+		"mouth_detail": "smile",
+		"jaw_offset": 0.4,
+		"lower_jaw_length": 0.4,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_position_x": -0.96,
+		"shark_mouth_position_y": -0.13,
+		"shark_mouth_width": 0.18,
+		"shark_mouth_curve": 0.58,
+		"shark_mouth_gape": 0.16,
+		"shark_jaw_projection": 0.08,
+		"shark_lower_jaw_drop": 0.10,
+		"shark_lower_teeth_visible": true,
+		"shark_tooth_visible_count": 11,
+		"shark_tooth_size": 0.018,
+		"shark_tooth_angle": -8.0,
+		"shark_labial_furrow_length": 0.04
+	}
+	shark.set_parameters(parameters)
+	await get_tree().process_frame
+
+	var root := shark.get_node_or_null("BodyPivot/SharkMouth")
+	assert(root != null)
+	assert(root.get_node_or_null("MouthCrescent") != null)
+	assert(root.get_node_or_null("LowerTeeth") != null)
+	assert(root.get_node_or_null("UpperTeeth") != null)
+	assert(shark.get_node_or_null("BodyPivot/Mouth") == null)
+	assert(shark.get_node_or_null("BodyPivot/MouthLowerJaw") == null)
+	assert(shark.get_node_or_null("BodyPivot/MouthCavity") == null)
+	assert(shark.get_node_or_null("BodyPivot/MouthDetail_smile") == null)
+
+	parameters["shark_mouth_gape"] = 0.32
+	parameters["shark_jaw_projection"] = 0.16
+	shark.set_parameters(parameters)
+	await get_tree().process_frame
+	var moved_root := shark.get_node_or_null("BodyPivot/SharkMouth")
+	assert(moved_root != null)
+	assert(moved_root.get_node_or_null("ProjectedUpperJaw") != null)
+	print("SHARK_MOUTH_RENDERING_TEST_OK")
+	get_tree().quit(0)
+```
+
+- [ ] **Step 2: Run test and verify it fails**
+
+Run: `powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter SharkMouthRenderingTest`
+
+Expected: fail because `SharkMouthMarking.gd` does not exist and `SharkRig` does not add `BodyPivot/SharkMouth`.
+
+- [ ] **Step 3: Add shark mouth visibility and UI labels**
+
+Add these shark-only keys to `CreatureParameterSchema` in the same task that adds rendering:
+
+```gdscript
+const SHARK_MOUTH_OPTION_KEYS := ["shark_mouth_profile"]
+const SHARK_MOUTH_TOGGLE_KEYS := ["shark_lower_teeth_visible"]
+const SHARK_MOUTH_SLIDER_KEYS := [
+	"shark_mouth_position_x",
+	"shark_mouth_position_y",
+	"shark_mouth_width",
+	"shark_mouth_curve",
+	"shark_mouth_gape",
+	"shark_jaw_projection",
+	"shark_lower_jaw_drop",
+	"shark_tooth_visible_count",
+	"shark_tooth_size",
+	"shark_tooth_angle",
+	"shark_labial_furrow_length"
+]
+```
+
+Extend `ParameterModeVisibilityTest` so shark mode shows `shark_mouth_profile`, `shark_mouth_width`, `shark_jaw_projection`, `shark_tooth_size`, and `shark_lower_teeth_visible`, while fish and ray modes hide them. In the same assertions, shark mode must hide fish mouth controls: `mouth_type`, `mouth_detail`, fish `jaw_*`, fish `mouth_*`, `lower_jaw_*`, and `lower_upper_ratio`.
+
+Add `UiText.PARAMETER_LABELS` entries for the shark mouth keys. Suggested Korean labels:
+
+```gdscript
+"shark_mouth_profile": "상어 입 형태",
+"shark_mouth_position_x": "상어 입 X 위치",
+"shark_mouth_position_y": "상어 입 Y 위치",
+"shark_mouth_width": "상어 입 너비",
+"shark_mouth_curve": "상어 입 곡률",
+"shark_mouth_gape": "상어 입 벌림",
+"shark_jaw_projection": "상어 위턱 돌출",
+"shark_lower_jaw_drop": "상어 아래턱 내림",
+"shark_lower_teeth_visible": "상어 아래 이빨 표시",
+"shark_tooth_visible_count": "상어 이빨 수",
+"shark_tooth_size": "상어 이빨 크기",
+"shark_tooth_angle": "상어 이빨 각도",
+"shark_labial_furrow_length": "상어 입꼬리 주름 길이",
+```
+
+- [ ] **Step 4: Place controls in `HeadEditorPanel` mouth section**
+
+Update `HeadEditorPanel.gd` so shark mouth controls appear under `머리 편집 > 입`, not in a generic misc section and not beside fish `mouth_type` thumbnails. Extend `HeadEditorPanelTest` to assert:
+
+- Fish mode shows the existing fish mouth controls and does not show `shark_mouth_width`.
+- Shark mode shows shark mouth controls in the `입` section and does not show fish `mouth_type`, fish `mouth_detail`, or fish lower-jaw controls.
+- Ray mode does not show shark mouth controls.
+
+- [ ] **Step 5: Create `SharkMouthMarking.gd`**
+
+Implement a shark-only helper. It must build a `BodyPivot/SharkMouth` root and render:
+
+- `MouthCrescent`: a dark ventral/subterminal U-shaped or crescent mark under the snout.
+- `ProjectedUpperJaw`: a small upper-jaw mark whose visibility/offset responds to `shark_mouth_gape` and `shark_jaw_projection`.
+- `LowerJaw`: a lower-jaw mark responding to `shark_lower_jaw_drop`.
+- `LowerTeeth`: triangular teeth visible at rest when `shark_lower_teeth_visible` is true.
+- `UpperTeeth`: triangular teeth revealed more strongly as gape/projection increase.
+- Optional `LabialFurrowLeft` / `LabialFurrowRight` marks controlled by `shark_labial_furrow_length`.
+
+Do not reuse or call fish mouth detail renderers. The helper owns all `SharkMouth` children and clears/rebuilds them on parameter changes.
+
+- [ ] **Step 6: Hook shark mouth rendering from `SharkRig`**
+
+Extend `SharkRig` to load `SharkMouthMarking.gd` and call it from `rebuild()` after `super.rebuild()`. Because `FishRig` may still create default fish mouth nodes even when fish mouth parameters are stripped, `SharkRig` must remove or suppress fish mouth nodes before adding `SharkMouth`. At minimum, remove these fish-only nodes when present:
+
+```gdscript
+[
+	"Mouth",
+	"MouthLowerJaw",
+	"MouthCavity",
+	"MouthFloor",
+	"MouthLipUpper"
+]
+```
+
+Also remove any direct child whose name begins with `MouthDetail_`. Do not reuse fish `mouth_type`, `mouth_detail`, `jaw_*`, `lower_jaw_*`, or fish lip/cavity meshes for shark rendering.
+
+- [ ] **Step 7: Update shark presets and profile splitting**
+
+Ensure `basic_shark.json` and `장.json` include the shark mouth defaults listed in Task 2. Extend Task 6's profile splitting work so `SHARK_MOUTH_KEYS` are selected only for shark mode, fish/ray in-memory normalization drops them, and shark normalization preserves them.
+
+- [ ] **Step 8: Verify**
+
+Run:
+
+`powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter SharkMouthRenderingTest`
+
+`powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter ParameterModeVisibilityTest`
+
+`powershell -ExecutionPolicy Bypass -File tools\run_godot_cli_tests.ps1 -Filter HeadEditorPanelTest`
+
+Expected: all pass. Shark mouth sliders are visible only after they affect rendered `SharkMouth` nodes.
+
+---
+
 ### Task 6: Mode-Aware Save/Normalize/Profile Split
 
 **Files:**
@@ -865,20 +1098,27 @@ var fish_split := BodyProfileScript.split_parameters_into_profiles({
 	"body_length": 1.4,
 	"ray_disc_shape": "manta",
 	"ray_tail_style": "whip",
-	"shark_gill_slit_count": 5
+	"shark_gill_slit_count": 5,
+	"shark_mouth_width": 0.18
 }, {"name": "fish_split_check", "creature_type": "fish"})
 assert(not (fish_split.get("fin_profile", {}) as Dictionary).has("ray_disc_shape"))
 assert(not (fish_split.get("tail_profile", {}) as Dictionary).has("ray_tail_style"))
 assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_gill_slit_count"))
+assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_mouth_width"))
 
 var shark_split := BodyProfileScript.split_parameters_into_profiles({
 	"creature_type": "shark",
 	"body_length": 5.8,
 	"caudal_shape": "shark_heterocercal",
 	"shark_gill_slit_count": 5,
+	"shark_mouth_width": 0.18,
+	"shark_tooth_size": 0.018,
 	"ray_disc_shape": "diamond",
 	"gill_mark": "operculum",
 	"operculum_size": 1.0,
+	"mouth_type": "terminal",
+	"mouth_detail": "smile",
+	"jaw_offset": 0.4,
 	"fin_ray_count": 12.0,
 	"adipose_fin_enabled": true,
 	"finlet_enabled": true
@@ -888,16 +1128,22 @@ assert(String(shark_split.get("type", "")) == "shark")
 assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("ray_disc_shape"))
 assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("gill_mark"))
 assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("operculum_size"))
+assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("mouth_type"))
+assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("mouth_detail"))
+assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("jaw_offset"))
 assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("fin_ray_count"))
 assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("adipose_fin_enabled"))
 assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("finlet_enabled"))
 assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_gill_slit_count", 0.0)) == 5.0)
+assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_mouth_width", 0.0)) == 0.18)
+assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_tooth_size", 0.0)) == 0.018)
 
 var ray_split := BodyProfileScript.split_parameters_into_profiles({
 	"creature_type": "ray",
 	"disc_width": 1.2,
 	"ray_disc_shape": "manta",
 	"shark_gill_slit_count": 5,
+	"shark_mouth_width": 0.18,
 	"gill_mark": "operculum",
 	"operculum_size": 1.0,
 	"fin_ray_count": 12.0,
@@ -911,6 +1157,7 @@ assert(not (ray_split.get("fin_profile", {}) as Dictionary).has("fin_ray_count")
 assert(not (ray_split.get("fin_profile", {}) as Dictionary).has("adipose_fin_enabled"))
 assert(not (ray_split.get("fin_profile", {}) as Dictionary).has("finlet_enabled"))
 assert(not (ray_split.get("parameters", {}) as Dictionary).has("shark_gill_slit_count"))
+assert(not (ray_split.get("parameters", {}) as Dictionary).has("shark_mouth_width"))
 assert(String((ray_split.get("fin_profile", {}) as Dictionary).get("ray_disc_shape", "")) == "manta")
 
 var polluted_loaded := PresetStoreScript.normalize_preset({
@@ -922,6 +1169,7 @@ var polluted_loaded := PresetStoreScript.normalize_preset({
 		"disc_width": 1.2,
 		"ray_disc_shape": "manta",
 		"shark_gill_slit_count": 5,
+		"shark_mouth_width": 0.18,
 		"body_profile": {"rings": BodyProfileScript.default_fish_rings()}
 	}
 })
@@ -930,6 +1178,7 @@ assert(loaded_params.has("body_profile"))
 assert(not loaded_params.has("disc_width"))
 assert(not loaded_params.has("ray_disc_shape"))
 assert(not loaded_params.has("shark_gill_slit_count"))
+assert(not loaded_params.has("shark_mouth_width"))
 ```
 
 - [ ] **Step 2: Run test and verify it fails**
@@ -952,11 +1201,12 @@ In `BodyProfile.gd`, add `const CreatureModeScript := preload("res://scripts/cre
 - `RAY_MOTION_KEYS`
 - `SHARK_HEAD_FIN_KEYS`
 - `SHARK_GILL_KEYS`
+- `SHARK_MOUTH_KEYS`
 - `SHARK_TAIL_KEYS`
 - `SHARK_MOTION_KEYS`
 - `COMMON_VISUAL_KEYS`
 
-Use the active mode to choose which arrays `_pick` uses. `SHARK_GILL_KEYS` contains the seven `shark_gill_slit_*` keys from the matrix and is selected only for shark mode.
+Use the active mode to choose which arrays `_pick` uses. `SHARK_GILL_KEYS` contains the seven `shark_gill_slit_*` keys from the matrix and is selected only for shark mode. `SHARK_MOUTH_KEYS` contains `shark_mouth_*`, `shark_jaw_*`, `shark_tooth_*`, and `shark_labial_furrow_length`, and is also selected only for shark mode.
 
 - [ ] **Step 4: Preserve mode in saved presets**
 
@@ -1049,8 +1299,9 @@ Expected: all pass. Treat `Failed to read the root certificate store` as non-fat
 3. `Add mode selector and separate mode roots`
 4. `Filter editor controls by creature mode`
 5. `Render shark gill slits`
-6. `Split preset profiles by creature mode`
-7. `Add end-to-end creature mode smoke coverage`
+6. `Render shark mouth and jaw controls`
+7. `Split preset profiles by creature mode`
+8. `Add end-to-end creature mode smoke coverage`
 
 ## Final Verification
 
