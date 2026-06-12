@@ -105,6 +105,7 @@ func _ready() -> void:
 	var fish_split := BodyProfileScript.split_parameters_into_profiles({
 		"creature_type": "fish",
 		"body_length": 1.4,
+		"pectoral_fin_spacing": 0.86,
 		"ray_disc_shape": "manta",
 		"ray_tail_style": "whip",
 		"shark_gill_slit_count": 5,
@@ -113,6 +114,8 @@ func _ready() -> void:
 	}, {"name": "fish_split_check", "creature_type": "fish"})
 	assert(not (fish_split.get("fin_profile", {}) as Dictionary).has("ray_disc_shape"))
 	assert(not (fish_split.get("tail_profile", {}) as Dictionary).has("ray_tail_style"))
+	assert(abs(float((fish_split.get("fin_profile", {}) as Dictionary).get("pectoral_fin_spacing", 0.0)) - 0.86) < 0.001)
+	assert(abs(float((fish_split.get("parameters", {}) as Dictionary).get("pectoral_fin_spacing", 0.0)) - 0.86) < 0.001)
 	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_gill_slit_count"))
 	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_mouth_width"))
 	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_lower_teeth_visible"))

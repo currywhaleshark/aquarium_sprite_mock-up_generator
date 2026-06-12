@@ -59,6 +59,7 @@ const NUMERIC_KEYS := {
 	"pectoral": {
 		"pectoral_fin_size": {"min": 0.04, "max": 0.6, "step": 0.005, "fallback": 0.16},
 		"pectoral_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0},
+		"pectoral_fin_spacing": {"min": 0.5, "max": 1.5, "step": 0.005, "fallback": 1.0},
 		"pectoral_fin_yaw": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": 25.0},
 		"pectoral_fin_pitch": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": 0.0},
 		"pectoral_fin_roll": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": -28.0},

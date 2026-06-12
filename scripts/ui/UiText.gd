@@ -303,6 +303,7 @@ const PARAMETER_LABELS := {
 	"anal_attach_t": "뒷지느러미 부착 위치",
 	"dorsal_fin_offset_x": "등지느러미 X 오프셋",
 	"pectoral_fin_offset_x": "가슴지느러미 X 오프셋",
+	"pectoral_fin_spacing": "가슴지느러미 간격",
 	"pectoral_fin_yaw": "가슴지느러미 벌림 각도",
 	"pectoral_fin_pitch": "가슴지느러미 비틀림 각도",
 	"pectoral_fin_roll": "가슴지느러미 수평 각도",

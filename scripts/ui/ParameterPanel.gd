@@ -75,6 +75,7 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"anal_fin_offset_x": true,
 	"pectoral_fin_offset_x": true,
 	"pectoral_offset_y": true,
+	"pectoral_fin_spacing": true,
 	"pectoral_fin_yaw": true,
 	"pectoral_fin_pitch": true,
 	"pectoral_fin_roll": true,

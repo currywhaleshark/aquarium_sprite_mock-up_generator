@@ -43,7 +43,6 @@ const RAY_ONLY_KEYS := {
 	"wing_phase_offset": true,
 	"tail_follow_amount": true,
 	"glide_bob_amount": true,
-	"pectoral_flap_sync": true,
 	"cephalic_horns": true,
 	"eye_spacing": true,
 	"underside_color": true
@@ -143,6 +142,7 @@ const COMMON_KEYS := {
 	"tail_sway_multiplier": true,
 	"fin_flap_amount": true,
 	"fin_yaw_follow_strength": true,
+	"pectoral_flap_sync": true,
 	"turn_rate": true,
 	"turn_radius": true,
 	"camera_preset": true,
@@ -169,6 +169,7 @@ const FISH_FIN_KEYS := {
 	"anal_fin_offset_x": true,
 	"pectoral_fin_offset_x": true,
 	"pectoral_offset_y": true,
+	"pectoral_fin_spacing": true,
 	"pectoral_fin_yaw": true,
 	"pectoral_fin_pitch": true,
 	"pectoral_fin_roll": true,

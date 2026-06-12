@@ -585,6 +585,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 	updated["fin_profile"] = _pick(normalized_parameters, [
 		"dorsal_fin_size", "anal_fin_size", "pectoral_fin_size",
 		"dorsal_fin_offset_x", "anal_fin_offset_x", "pectoral_fin_offset_x",
+		"pectoral_fin_spacing",
 		"dorsal_1_attach_t", "dorsal_1_shape", "dorsal_1_length", "dorsal_1_height",
 		"dorsal_2_enabled", "dorsal_2_attach_t", "dorsal_2_shape", "dorsal_2_length", "dorsal_2_height",
 		"pectoral_attach_t", "pectoral_shape", "pelvic_enabled", "pelvic_attach_t", "pelvic_shape",

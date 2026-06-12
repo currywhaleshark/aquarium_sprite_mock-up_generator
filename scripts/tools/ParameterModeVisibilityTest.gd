@@ -27,7 +27,8 @@ func _ready() -> void:
 		"shark_lower_teeth_visible": true,
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
-		"finlet_enabled": true
+		"finlet_enabled": true,
+		"pectoral_flap_sync": "alternating"
 	})
 	assert(_find_slider_for_key(fish_panel, "body_length") != null)
 	assert(_find_option_for_key(fish_panel, "mouth_type") != null)
@@ -44,6 +45,7 @@ func _ready() -> void:
 	assert(_find_slider_for_key(fish_panel, "fin_ray_count") != null)
 	assert(_find_checkbox_for_key(fish_panel, "adipose_fin_enabled") != null)
 	assert(_find_checkbox_for_key(fish_panel, "finlet_enabled") != null)
+	assert(_find_option_for_key(fish_panel, "pectoral_flap_sync") != null)
 
 	ray_panel.set_creature_type("ray")
 	ray_panel.set_parameters({
@@ -61,7 +63,8 @@ func _ready() -> void:
 		"shark_lower_teeth_visible": true,
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
-		"finlet_enabled": true
+		"finlet_enabled": true,
+		"pectoral_flap_sync": "synchronous"
 	})
 	assert(_find_slider_for_key(ray_panel, "disc_width") != null)
 	assert(_find_option_for_key(ray_panel, "ray_disc_shape") != null)
@@ -78,6 +81,7 @@ func _ready() -> void:
 	assert(_find_slider_for_key(ray_panel, "fin_ray_count") == null)
 	assert(_find_checkbox_for_key(ray_panel, "adipose_fin_enabled") == null)
 	assert(_find_checkbox_for_key(ray_panel, "finlet_enabled") == null)
+	assert(_find_option_for_key(ray_panel, "pectoral_flap_sync") != null)
 
 	shark_panel.set_creature_type("shark")
 	shark_panel.set_parameters({
@@ -112,7 +116,8 @@ func _ready() -> void:
 		"shark_lower_teeth_visible": true,
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
-		"finlet_enabled": true
+		"finlet_enabled": true,
+		"pectoral_flap_sync": "alternating"
 	})
 	assert(_find_slider_for_key(shark_panel, "body_length") != null)
 	assert(_find_slider_for_key(shark_panel, "head_size") != null)
@@ -146,6 +151,7 @@ func _ready() -> void:
 	assert(_find_slider_for_key(shark_panel, "fin_ray_count") == null)
 	assert(_find_checkbox_for_key(shark_panel, "adipose_fin_enabled") == null)
 	assert(_find_checkbox_for_key(shark_panel, "finlet_enabled") == null)
+	assert(_find_option_for_key(shark_panel, "pectoral_flap_sync") != null)
 
 	print("PARAMETER_MODE_VISIBILITY_TEST_OK")
 	get_tree().quit(0)

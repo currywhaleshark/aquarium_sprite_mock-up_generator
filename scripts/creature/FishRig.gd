@@ -288,7 +288,7 @@ func rebuild() -> void:
 		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, paired_horizontal_fin_mat)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-	var pectoral_z := _surface_radius_z(pectoral_attach_t)
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) * _pectoral_spacing_scale()
 	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -pectoral_z)
 	pectoral_l.position = pectoral_l_base_position
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
@@ -992,7 +992,7 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		_animate_blade_fin(pelvic_l, pelvic_base_points, loop_phase, 0.0)
 		_animate_blade_fin(pelvic_r, pelvic_base_points, loop_phase, PI)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
-	var pectoral_z := _surface_radius_z(pectoral_attach_t)
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) * _pectoral_spacing_scale()
 	var pectoral_yaw := _fin_follow_yaw(pectoral_attach_t, yaws)
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	var p_sync := String(parameters.get("pectoral_flap_sync", "alternating"))
@@ -1595,7 +1595,7 @@ func _apply_fin_offsets() -> void:
 	var pectoral_offset_y := param_float("pectoral_offset_y", 0.0)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-	var pectoral_z := _surface_radius_z(pectoral_attach_t)
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) * _pectoral_spacing_scale()
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	var p_yaw := param_float("pectoral_fin_yaw", 25.0)
 	var p_pitch := param_float("pectoral_fin_pitch", 0.0)
@@ -1663,6 +1663,9 @@ func _surface_position(side: String, attach_t: float, margin: float) -> Vector3:
 
 func _surface_radius_z(attach_t: float) -> float:
 	return _sample_shell_profile(attach_t).z
+
+func _pectoral_spacing_scale() -> float:
+	return clampf(param_float("pectoral_fin_spacing", 1.0), 0.5, 1.5)
 
 func _surface_radius_z_for_vertical_half(attach_t: float, vertical_sign: float) -> float:
 	return _surface_radius_z_for_vertical_fraction(attach_t, -1.0 if vertical_sign < 0.0 else 1.0)
