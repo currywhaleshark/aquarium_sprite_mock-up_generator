@@ -50,6 +50,13 @@ func _pectoral_positions(fish: Node) -> Dictionary:
 	assert(right != null)
 	return {"left_z": left.position.z, "right_z": right.position.z}
 
+func _load_preset_parameters(path: String) -> Dictionary:
+	var file := FileAccess.open(path, FileAccess.READ)
+	assert(file != null)
+	var parsed = JSON.parse_string(file.get_as_text())
+	assert(typeof(parsed) == TYPE_DICTIONARY)
+	return (parsed as Dictionary).get("parameters", {})
+
 func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
@@ -145,6 +152,15 @@ func _ready() -> void:
 	var op_lower := fish.get_vector_edit_marker_world("operculum", Vector2(0.5, -0.55))
 	var op_upper := fish.get_vector_edit_marker_world("operculum", Vector2(0.5, 0.55))
 	assert(absf(op_lower.z) > absf(op_upper.z) + 0.006)
+
+	var arowana_params := _load_preset_parameters("res://presets/아로와나.json")
+	fish.set_parameters(arowana_params)
+	await get_tree().process_frame
+	var arowana_pectoral := _pectoral_positions(fish)
+	var arowana_attach_t := float(arowana_params.get("pectoral_attach_t", 0.32))
+	var arowana_surface_z := fish._surface_radius_z(arowana_attach_t)
+	assert(absf(absf(arowana_pectoral["right_z"]) - arowana_surface_z) < 0.002)
+	assert(absf(absf(arowana_pectoral["left_z"]) - arowana_surface_z) < 0.002)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/ring_width_flatness.ok", FileAccess.WRITE)

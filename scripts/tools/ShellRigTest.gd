@@ -32,7 +32,8 @@ func _ready() -> void:
 	assert(dorsal != null)
 	assert(pectoral_l != null)
 	assert(dorsal.position.y > 0.34)
-	assert(abs(pectoral_l.position.z) > 0.25)
+	var pectoral_attach_t := float(fish.parameters.get("pectoral_attach_t", 0.32))
+	assert(absf(absf(pectoral_l.position.z) - fish._surface_radius_z(pectoral_attach_t)) < 0.002)
 
 	for mode in BodyProfileScript.swim_mode_names():
 		var mode_fish: FishRig = FishRigScript.new()
