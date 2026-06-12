@@ -14,6 +14,22 @@ const SHARK_GILL_KEYS := {
 	"shark_gill_slit_position_y": true
 }
 
+const SHARK_MOUTH_KEYS := {
+	"shark_mouth_profile": true,
+	"shark_mouth_position_x": true,
+	"shark_mouth_position_y": true,
+	"shark_mouth_width": true,
+	"shark_mouth_curve": true,
+	"shark_mouth_gape": true,
+	"shark_jaw_projection": true,
+	"shark_lower_jaw_drop": true,
+	"shark_lower_teeth_visible": true,
+	"shark_tooth_visible_count": true,
+	"shark_tooth_size": true,
+	"shark_tooth_angle": true,
+	"shark_labial_furrow_length": true
+}
+
 const RAY_ONLY_KEYS := {
 	"ray_head_shape": true,
 	"ray_disc_shape": true,
@@ -40,6 +56,22 @@ const RAY_PREFIXES := [
 
 const FISH_GILL_KEYS := {
 	"gill_mark": true
+}
+
+const FISH_MOUTH_KEYS := {
+	"jaw_offset": true,
+	"jaw_hinge_x": true,
+	"jaw_hinge_y": true,
+	"jaw_protrusion": true,
+	"mouth_type": true,
+	"mouth_detail": true,
+	"mouth_size": true,
+	"mouth_open": true,
+	"lower_jaw_length": true,
+	"lower_jaw_angle": true,
+	"lower_jaw_thickness": true,
+	"lower_jaw_tip": true,
+	"lower_upper_ratio": true
 }
 
 const FISH_ONLY_KEYS := {
@@ -84,10 +116,7 @@ const COMMON_KEYS := {
 	"head_offset": true,
 	"snout_length": true,
 	"forehead_slope": true,
-	"jaw_offset": true,
-	"mouth_type": true,
-	"mouth_size": true,
-	"mouth_open": true,
+	"mouth_carve_enabled": false,
 	"eye_size": true,
 	"eye_position_x": true,
 	"eye_position_y": true,
@@ -185,7 +214,11 @@ static func is_parameter_visible(mode: String, key: String) -> bool:
 		return bool(COMMON_KEYS[key])
 	if SHARK_GILL_KEYS.has(key):
 		return normalized_mode == CreatureModeScript.SHARK
+	if SHARK_MOUTH_KEYS.has(key):
+		return normalized_mode == CreatureModeScript.SHARK
 	if FISH_GILL_KEYS.has(key) or key.begins_with("operculum_"):
+		return normalized_mode == CreatureModeScript.FISH
+	if FISH_MOUTH_KEYS.has(key):
 		return normalized_mode == CreatureModeScript.FISH
 	if RAY_ONLY_KEYS.has(key) or _has_any_prefix(key, RAY_PREFIXES):
 		return normalized_mode == CreatureModeScript.RAY

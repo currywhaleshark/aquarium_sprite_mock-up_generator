@@ -331,7 +331,7 @@ func _header_text(section_name: String, opened: bool) -> String:
 	return ("  %s  %s" % ["▼" if opened else "▶", UiText.section(section_name)])
 
 func _is_boolean_parameter(key: String) -> bool:
-	return key.ends_with("_enabled") or key == "ray_dorsal_tail_fins" or key.begins_with("show_")
+	return key.ends_with("_enabled") or key == "shark_lower_teeth_visible" or key == "ray_dorsal_tail_fins" or key.begins_with("show_")
 
 func _add_boolean_row(parent: VBoxContainer, key: String, checked: bool) -> void:
 	var row := HBoxContainer.new()
@@ -491,9 +491,29 @@ func _add_marking_layer_editor(parent: VBoxContainer, layers_value: Array) -> vo
 func _min_for_key(key: String, value: float) -> float:
 	if key == "shark_gill_slit_count":
 		return 1.0
+	if key == "shark_gill_slit_length":
+		return 0.01
+	if key == "shark_gill_slit_spacing":
+		return 0.0
 	if key == "shark_gill_slit_angle":
 		return -45.0
 	if key == "shark_gill_slit_depth":
+		return 0.0
+	if key == "shark_gill_slit_position_x":
+		return -1.0
+	if key == "shark_gill_slit_position_y":
+		return -0.3
+	if key == "shark_mouth_position_x":
+		return -1.5
+	if key == "shark_mouth_position_y":
+		return -0.5
+	if key == "shark_tooth_angle":
+		return -45.0
+	if key == "shark_tooth_visible_count":
+		return 0.0
+	if key == "shark_tooth_size":
+		return 0.004
+	if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":
 		return 0.0
 	if key == "scale_size":
 		return 4.0
@@ -512,10 +532,36 @@ func _min_for_key(key: String, value: float) -> float:
 func _max_for_key(key: String, value: float) -> float:
 	if key == "shark_gill_slit_count":
 		return 7.0
+	if key == "shark_gill_slit_length":
+		return 0.18
+	if key == "shark_gill_slit_spacing":
+		return 0.12
 	if key == "shark_gill_slit_angle":
 		return 45.0
 	if key == "shark_gill_slit_depth":
 		return 1.0
+	if key == "shark_gill_slit_position_x":
+		return 0.3
+	if key == "shark_gill_slit_position_y":
+		return 0.3
+	if key == "shark_mouth_position_x":
+		return 0.2
+	if key == "shark_mouth_position_y":
+		return 0.3
+	if key == "shark_mouth_width":
+		return 0.5
+	if key == "shark_mouth_curve" or key == "shark_mouth_gape":
+		return 1.0
+	if key == "shark_jaw_projection" or key == "shark_lower_jaw_drop":
+		return 0.4
+	if key == "shark_tooth_visible_count":
+		return 24.0
+	if key == "shark_tooth_size":
+		return 0.06
+	if key == "shark_tooth_angle":
+		return 45.0
+	if key == "shark_labial_furrow_length":
+		return 0.2
 	if key == "scale_size":
 		return 64.0
 	if key == "disc_thickness":
@@ -559,6 +605,12 @@ func _step_for_key(key: String, max_value: float) -> float:
 		return 1.0
 	if key == "shark_gill_slit_angle":
 		return 1.0
+	if key == "shark_tooth_visible_count" or key == "shark_tooth_angle":
+		return 1.0
+	if key == "shark_tooth_size":
+		return 0.001
+	if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":
+		return 0.005
 	return 0.005 if max_value <= 3.0 else 0.1
 
 func _is_signed_parameter(key: String) -> bool:
@@ -569,6 +621,8 @@ func _category_for_key(key: String) -> String:
 		return "Pattern Settings"
 	if key.begins_with("shark_gill_"):
 		return "Shark Gills"
+	if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_teeth_visible" or key == "shark_labial_furrow_length":
+		return "Shark Mouth"
 	if key.contains("scale") or key == "lateral_line_strength":
 		return "Scale Settings"
 	if key.begins_with("pattern"):
@@ -601,6 +655,8 @@ func _should_hide_key(key: String) -> bool:
 	return SPECIALIZED_EDITOR_KEYS.has(key) and not _should_show_specialized_key(key)
 
 func _should_show_specialized_key(key: String) -> bool:
+	if creature_type == CreatureModeScript.FISH and CreatureParameterSchemaScript.FISH_MOUTH_KEYS.has(key):
+		return true
 	if creature_type == CreatureModeScript.RAY and key == "ray_disc_shape":
 		return true
 	if creature_type == CreatureModeScript.SHARK and key == "caudal_shape":
@@ -633,9 +689,15 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "gill_mark" or key == "caudal_shape" or key == "swim_mode" or key == "pattern_type" or key == "palette_scheme" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style" or key == "fin_ray_style"
+	return key == "mouth_type" or key == "mouth_detail" or key == "shark_mouth_profile" or key == "gill_mark" or key == "caudal_shape" or key == "swim_mode" or key == "pattern_type" or key == "palette_scheme" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style" or key == "fin_ray_style"
 
 func _options_for_key(key: String) -> Array[String]:
+	if key == "mouth_type":
+		return _filter_options_for_mode(key, ["terminal", "superior", "inferior", "subterminal", "protrusible"] as Array[String])
+	if key == "mouth_detail":
+		return _filter_options_for_mode(key, ["dot", "lip", "beak", "sucker", "downturned"] as Array[String])
+	if key == "shark_mouth_profile":
+		return _filter_options_for_mode(key, ["predatory_u"] as Array[String])
 	if key == "gill_mark":
 		return _filter_options_for_mode(key, ["none", "line", "crescent", "plate", "operculum"] as Array[String])
 	if key == "caudal_shape":

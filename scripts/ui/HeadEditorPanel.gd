@@ -78,12 +78,26 @@ const RAY_HEAD_KEYS := {
 
 const SHARK_GILL_NUMERIC_KEYS := {
 	"shark_gill_slit_count": {"min": 1.0, "max": 7.0, "step": 1.0},
-	"shark_gill_slit_length": {"min": 0.01, "max": 0.5, "step": 0.005},
-	"shark_gill_slit_spacing": {"min": 0.0, "max": 0.2, "step": 0.005},
+	"shark_gill_slit_length": {"min": 0.01, "max": 0.18, "step": 0.005},
+	"shark_gill_slit_spacing": {"min": 0.0, "max": 0.12, "step": 0.005},
 	"shark_gill_slit_angle": {"min": -45.0, "max": 45.0, "step": 1.0},
 	"shark_gill_slit_depth": {"min": 0.0, "max": 1.0, "step": 0.01},
-	"shark_gill_slit_position_x": {"min": -1.0, "max": 1.0, "step": 0.005},
-	"shark_gill_slit_position_y": {"min": -0.8, "max": 0.8, "step": 0.005}
+	"shark_gill_slit_position_x": {"min": -1.0, "max": 0.3, "step": 0.005},
+	"shark_gill_slit_position_y": {"min": -0.3, "max": 0.3, "step": 0.005}
+}
+
+const SHARK_MOUTH_NUMERIC_KEYS := {
+	"shark_mouth_position_x": {"min": -1.5, "max": 0.2, "step": 0.005},
+	"shark_mouth_position_y": {"min": -0.5, "max": 0.3, "step": 0.005},
+	"shark_mouth_width": {"min": 0.02, "max": 0.5, "step": 0.005},
+	"shark_mouth_curve": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"shark_mouth_gape": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"shark_jaw_projection": {"min": 0.0, "max": 0.4, "step": 0.005},
+	"shark_lower_jaw_drop": {"min": 0.0, "max": 0.4, "step": 0.005},
+	"shark_tooth_visible_count": {"min": 0.0, "max": 24.0, "step": 1.0},
+	"shark_tooth_size": {"min": 0.004, "max": 0.06, "step": 0.001},
+	"shark_tooth_angle": {"min": -45.0, "max": 45.0, "step": 1.0},
+	"shark_labial_furrow_length": {"min": 0.0, "max": 0.2, "step": 0.005}
 }
 
 var parameters: Dictionary = {}
@@ -97,6 +111,7 @@ var head_ornament_option: OptionButton
 var gill_mark_option: OptionButton
 var barbel_style_option: OptionButton
 var mouth_detail_option: OptionButton
+var shark_mouth_profile_option: OptionButton
 var ray_head_shape_option: OptionButton
 var head_shape_grid
 var mouth_type_grid
@@ -120,7 +135,7 @@ const FISH_SECTIONS := [
 	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length"]},
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
 	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},
-	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio"]},
+	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio", "shark_mouth_position_x", "shark_mouth_position_y", "shark_mouth_width", "shark_mouth_curve", "shark_mouth_gape", "shark_jaw_projection", "shark_lower_jaw_drop", "shark_tooth_visible_count", "shark_tooth_size", "shark_tooth_angle", "shark_labial_furrow_length"]},
 	{"title": "아가미", "keys": ["operculum_position_x", "operculum_position_y", "operculum_size", "operculum_height", "operculum_open", "operculum_ridge", "shark_gill_slit_count", "shark_gill_slit_length", "shark_gill_slit_spacing", "shark_gill_slit_angle", "shark_gill_slit_depth", "shark_gill_slit_position_x", "shark_gill_slit_position_y"]},
 	{"title": "눈", "keys": ["eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]},
 ]
@@ -235,7 +250,11 @@ func set_numeric_parameter(key: String, value: float) -> void:
 	if not keys.has(key):
 		return
 	var config: Dictionary = keys[key]
-	parameters[key] = clampf(value, float(config.get("min", 0.0)), float(config.get("max", 1.0)))
+	var step := float(config.get("step", 0.005))
+	var clamped := clampf(value, float(config.get("min", 0.0)), float(config.get("max", 1.0)))
+	if step >= 1.0:
+		clamped = round(clamped / step) * step
+	parameters[key] = clamped
 	_emit_and_refresh()
 
 func set_boolean_parameter(key: String, value: bool) -> void:
@@ -257,7 +276,11 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 	gill_mark_option = null
 	barbel_style_option = null
 	mouth_detail_option = null
+	shark_mouth_profile_option = null
 	ray_head_shape_option = null
+	mouth_type_grid = null
+	eye_style_grid = null
+	head_shape_grid = null
 
 	if is_ray:
 		ray_head_shape_option = _add_option_row(options_container, UiText.parameter("ray_head_shape"), ["manta", "eagle", "cownose"])
@@ -272,13 +295,13 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 				set_head_shape(value)
 		)
 
-		mouth_type_grid = _add_thumbnail_option_grid(options_container, "입", "mouth_type", MOUTH_TYPES)
-		mouth_type_grid.value_selected.connect(func(value: String) -> void:
-			if not _updating:
-				set_mouth_type(value)
-		)
-
 		if creature_type == CreatureModeScript.FISH:
+			mouth_type_grid = _add_thumbnail_option_grid(options_container, "입", "mouth_type", MOUTH_TYPES)
+			mouth_type_grid.value_selected.connect(func(value: String) -> void:
+				if not _updating:
+					set_mouth_type(value)
+			)
+
 			head_ornament_option = _add_option_row(options_container, UiText.parameter("head_ornament"), HEAD_ORNAMENTS)
 			head_ornament_option.item_selected.connect(func(index: int) -> void:
 				if not _updating:
@@ -303,13 +326,13 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 				set_option_parameter("eye_style", value)
 		)
 
-		mouth_detail_option = _add_option_row(options_container, UiText.parameter("mouth_detail"), MOUTH_DETAILS)
-		mouth_detail_option.item_selected.connect(func(index: int) -> void:
-			if not _updating:
-				set_option_parameter("mouth_detail", String(mouth_detail_option.get_item_metadata(index)))
-		)
-
 		if creature_type == CreatureModeScript.FISH:
+			mouth_detail_option = _add_option_row(options_container, UiText.parameter("mouth_detail"), MOUTH_DETAILS)
+			mouth_detail_option.item_selected.connect(func(index: int) -> void:
+				if not _updating:
+					set_option_parameter("mouth_detail", String(mouth_detail_option.get_item_metadata(index)))
+			)
+
 			snout_appendage_option = _add_option_row(options_container, UiText.parameter("snout_appendage"), ["none", "swordfish_bill", "sawfish_saw", "barbels"])
 			snout_appendage_option.item_selected.connect(func(index: int) -> void:
 				if not _updating:
@@ -417,19 +440,25 @@ func _refresh_controls() -> void:
 	if is_ray:
 		_select_option(ray_head_shape_option, String(parameters.get("ray_head_shape", "manta")))
 	else:
-		head_shape_grid.select_value(String(parameters.get("head_shape", "rounded")))
-		mouth_type_grid.select_value(String(parameters.get("mouth_type", "terminal")))
+		if head_shape_grid != null:
+			head_shape_grid.select_value(String(parameters.get("head_shape", "rounded")))
+		if mouth_type_grid != null:
+			mouth_type_grid.select_value(String(parameters.get("mouth_type", "terminal")))
 		if head_ornament_option != null:
 			_select_option(head_ornament_option, String(parameters.get("head_ornament", "none")))
 		if gill_mark_option != null:
 			_select_option(gill_mark_option, String(parameters.get("gill_mark", "none")))
 		if barbel_style_option != null:
 			_select_option(barbel_style_option, String(parameters.get("barbel_style", "none")))
-		eye_style_grid.select_value(String(parameters.get("eye_style", "bead")))
-		_select_option(mouth_detail_option, String(parameters.get("mouth_detail", "dot")))
+		if eye_style_grid != null:
+			eye_style_grid.select_value(String(parameters.get("eye_style", "bead")))
+		if mouth_detail_option != null:
+			_select_option(mouth_detail_option, String(parameters.get("mouth_detail", "dot")))
 		if snout_appendage_option != null:
 			_select_option(snout_appendage_option, String(parameters.get("snout_appendage", "none")))
 	_sync_numeric_controls(is_ray)
+	if shark_mouth_profile_option != null:
+		_select_option(shark_mouth_profile_option, String(parameters.get("shark_mouth_profile", "predatory_u")))
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]
 		var slider := widgets["slider"] as HSlider
@@ -568,6 +597,13 @@ func _add_section(title: String, keys: Array[String], source: Dictionary) -> voi
 	slider_container.add_child(body)
 	if title == "아가미" and creature_type == CreatureModeScript.SHARK:
 		_add_boolean_row(body, "shark_gill_slit_enabled", bool(parameters.get("shark_gill_slit_enabled", true)))
+	if title == "입" and creature_type == CreatureModeScript.SHARK:
+		shark_mouth_profile_option = _add_option_row(body, UiText.parameter("shark_mouth_profile"), ["predatory_u"])
+		shark_mouth_profile_option.item_selected.connect(func(index: int) -> void:
+			if not _updating:
+				set_option_parameter("shark_mouth_profile", String(shark_mouth_profile_option.get_item_metadata(index)))
+		)
+		_add_boolean_row(body, "shark_lower_teeth_visible", bool(parameters.get("shark_lower_teeth_visible", true)))
 	for key in keys:
 		_add_numeric_row(body, key, source[key])
 	# Embed the operculum silhouette editor at the bottom of the gill section.
@@ -657,14 +693,20 @@ func _numeric_source_for_mode() -> Dictionary:
 	if creature_type == CreatureModeScript.SHARK:
 		for key in SHARK_GILL_NUMERIC_KEYS.keys():
 			source[key] = SHARK_GILL_NUMERIC_KEYS[key]
+		for key in SHARK_MOUTH_NUMERIC_KEYS.keys():
+			source[key] = SHARK_MOUTH_NUMERIC_KEYS[key]
 	return source
 
 func _is_boolean_key_visible(key: String) -> bool:
-	return creature_type == CreatureModeScript.SHARK and key == "shark_gill_slit_enabled"
+	return creature_type == CreatureModeScript.SHARK and (key == "shark_gill_slit_enabled" or key == "shark_lower_teeth_visible")
 
 func _should_show_fish_numeric_key(key: String) -> bool:
 	if key.begins_with("shark_gill_"):
 		return creature_type == CreatureModeScript.SHARK
+	if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":
+		return creature_type == CreatureModeScript.SHARK
+	if _is_fish_mouth_numeric_key(key):
+		return creature_type == CreatureModeScript.FISH
 	if key == "forehead_slope":
 		var shape := String(parameters.get("head_shape", "rounded"))
 		return shape == "hump" or shape == "steep_forehead"
@@ -682,6 +724,9 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 	if key.begins_with("operculum_"):
 		return creature_type == CreatureModeScript.FISH and String(parameters.get("gill_mark", "none")) == "operculum"
 	return true
+
+func _is_fish_mouth_numeric_key(key: String) -> bool:
+	return key == "jaw_offset" or key == "mouth_size" or key == "mouth_open" or key == "lower_jaw_length" or key == "lower_jaw_angle" or key == "lower_jaw_thickness" or key == "lower_jaw_tip" or key == "jaw_hinge_x" or key == "jaw_hinge_y" or key == "jaw_protrusion" or key == "lower_upper_ratio"
 
 func _section_title_for_key(key: String) -> String:
 	for section in FISH_SECTIONS:
@@ -734,9 +779,9 @@ func _default_numeric(key: String) -> float:
 		"shark_gill_slit_count":
 			return 5.0
 		"shark_gill_slit_length":
-			return 0.22
+			return 0.09
 		"shark_gill_slit_spacing":
-			return 0.055
+			return 0.045
 		"shark_gill_slit_angle":
 			return -8.0
 		"shark_gill_slit_depth":
@@ -745,6 +790,28 @@ func _default_numeric(key: String) -> float:
 			return -0.28
 		"shark_gill_slit_position_y":
 			return 0.08
+		"shark_mouth_position_x":
+			return -0.96
+		"shark_mouth_position_y":
+			return -0.13
+		"shark_mouth_width":
+			return 0.18
+		"shark_mouth_curve":
+			return 0.58
+		"shark_mouth_gape":
+			return 0.16
+		"shark_jaw_projection":
+			return 0.08
+		"shark_lower_jaw_drop":
+			return 0.10
+		"shark_tooth_visible_count":
+			return 11.0
+		"shark_tooth_size":
+			return 0.018
+		"shark_tooth_angle":
+			return -8.0
+		"shark_labial_furrow_length":
+			return 0.04
 		"eye_size":
 			return 0.055
 		"eye_position_x":
@@ -781,6 +848,8 @@ func _default_numeric(key: String) -> float:
 
 func _default_boolean(key: String) -> bool:
 	if key == "shark_gill_slit_enabled":
+		return true
+	if key == "shark_lower_teeth_visible":
 		return true
 	return false
 

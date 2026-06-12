@@ -164,7 +164,8 @@ const OPTION_LABELS := {
 	"ctenoid": "빗비늘 (Ctenoid)",
 	"ganoid": "굳비늘 (Ganoid)",
 	"placoid": "방패비늘 (Placoid)",
-	"pearlscale": "진주비늘 (Pearlscale)"
+	"pearlscale": "진주비늘 (Pearlscale)",
+	"predatory_u": "포식자형 U자 입"
 }
 
 const PARAMETER_LABELS := {
@@ -210,6 +211,19 @@ const PARAMETER_LABELS := {
 	"shark_gill_slit_depth": "상어 아가미틈 진하기",
 	"shark_gill_slit_position_x": "상어 아가미틈 X 위치",
 	"shark_gill_slit_position_y": "상어 아가미틈 Y 위치",
+	"shark_mouth_profile": "상어 입 형태",
+	"shark_mouth_position_x": "상어 입 X 위치",
+	"shark_mouth_position_y": "상어 입 Y 위치",
+	"shark_mouth_width": "상어 입 너비",
+	"shark_mouth_curve": "상어 입 곡률",
+	"shark_mouth_gape": "상어 입 벌림",
+	"shark_jaw_projection": "상어 위턱 돌출",
+	"shark_lower_jaw_drop": "상어 아래턱 내림",
+	"shark_lower_teeth_visible": "상어 아래 이빨 표시",
+	"shark_tooth_visible_count": "상어 이빨 수",
+	"shark_tooth_size": "상어 이빨 크기",
+	"shark_tooth_angle": "상어 이빨 각도",
+	"shark_labial_furrow_length": "상어 입꼬리 주름 길이",
 	"barbel_style": "수염 형태",
 	"eye_style": "눈 형태",
 	"mouth_detail": "입 디테일",
@@ -387,6 +401,7 @@ const SECTION_LABELS := {
 	"Pattern Settings": "무늬 설정",
 	"Scale Settings": "비늘 설정",
 	"Shark Gills": "상어 아가미",
+	"Shark Mouth": "상어 입",
 	"Visual Settings": "시각 설정",
 	"Global Settings": "전체 설정",
 	"Export": "출력",

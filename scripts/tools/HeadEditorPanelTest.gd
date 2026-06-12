@@ -175,6 +175,9 @@ func _ready() -> void:
 		"creature_type": "shark",
 		"head_shape": "pointed",
 		"mouth_type": "terminal",
+		"mouth_detail": "lip",
+		"mouth_size": 0.08,
+		"lower_jaw_length": 1.0,
 		"eye_style": "bead",
 		"gill_mark": "operculum",
 		"operculum_size": 1.0,
@@ -185,8 +188,23 @@ func _ready() -> void:
 		"shark_gill_slit_angle": -8.0,
 		"shark_gill_slit_depth": 0.65,
 		"shark_gill_slit_position_x": -0.28,
-		"shark_gill_slit_position_y": 0.08
+		"shark_gill_slit_position_y": 0.08,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_position_x": -0.96,
+		"shark_mouth_position_y": -0.13,
+		"shark_mouth_width": 0.18,
+		"shark_mouth_curve": 0.58,
+		"shark_mouth_gape": 0.16,
+		"shark_jaw_projection": 0.08,
+		"shark_lower_jaw_drop": 0.10,
+		"shark_lower_teeth_visible": true,
+		"shark_tooth_visible_count": 11,
+		"shark_tooth_size": 0.018,
+		"shark_tooth_angle": -8.0,
+		"shark_labial_furrow_length": 0.04
 	})
+	assert(shark_panel.get("mouth_type_grid") == null)
+	assert(shark_panel.get("mouth_detail_option") == null)
 	assert(_has_boolean_control(shark_panel, "shark_gill_slit_enabled"))
 	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_count"))
 	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_length"))
@@ -197,14 +215,37 @@ func _ready() -> void:
 	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_position_y"))
 	assert(not _has_numeric_slider(shark_panel, "operculum_size"))
 	assert(not _has_numeric_slider(shark_panel, "operculum_height"))
+	assert(not _has_numeric_slider(shark_panel, "mouth_size"))
+	assert(not _has_numeric_slider(shark_panel, "lower_jaw_length"))
+	assert(_has_boolean_control(shark_panel, "shark_lower_teeth_visible"))
+	assert(_has_numeric_slider(shark_panel, "shark_mouth_position_x"))
+	assert(_has_numeric_slider(shark_panel, "shark_mouth_width"))
+	assert(_has_numeric_slider(shark_panel, "shark_jaw_projection"))
+	assert(_has_numeric_slider(shark_panel, "shark_tooth_size"))
+	var shark_mouth_x_slider := _slider_for_key(shark_panel, "shark_mouth_position_x")
+	var shark_tooth_angle_slider := _slider_for_key(shark_panel, "shark_tooth_angle")
+	assert(shark_mouth_x_slider != null)
+	assert(absf(shark_mouth_x_slider.min_value + 1.5) < 0.001)
+	assert(absf(shark_mouth_x_slider.max_value - 0.2) < 0.001)
+	assert(shark_tooth_angle_slider != null)
+	assert(absf(shark_tooth_angle_slider.min_value + 45.0) < 0.001)
+	assert(absf(shark_tooth_angle_slider.max_value - 45.0) < 0.001)
 	var shark_gill_body := _section_body_for_title(shark_panel, "아가미")
+	var shark_mouth_body := _section_body_for_title(shark_panel, "입")
 	assert(shark_gill_body != null)
+	assert(shark_mouth_body != null)
 	assert(_control_parent(shark_panel, "shark_gill_slit_enabled") == shark_gill_body)
 	assert(_control_parent(shark_panel, "shark_gill_slit_count") == shark_gill_body)
+	assert(_control_parent(shark_panel, "shark_lower_teeth_visible") == shark_mouth_body)
+	assert(_control_parent(shark_panel, "shark_mouth_width") == shark_mouth_body)
 	shark_panel.set_boolean_parameter("shark_gill_slit_enabled", false)
 	assert(not bool(shark_seen[0].get("shark_gill_slit_enabled", true)))
 	shark_panel.set_numeric_parameter("shark_gill_slit_count", 7)
 	assert(abs(float(shark_seen[0].get("shark_gill_slit_count", 0.0)) - 7.0) < 0.001)
+	shark_panel.set_boolean_parameter("shark_lower_teeth_visible", false)
+	assert(not bool(shark_seen[0].get("shark_lower_teeth_visible", true)))
+	shark_panel.set_numeric_parameter("shark_tooth_visible_count", 13.6)
+	assert(abs(float(shark_seen[0].get("shark_tooth_visible_count", 0.0)) - 14.0) < 0.001)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_panel.ok", FileAccess.WRITE)

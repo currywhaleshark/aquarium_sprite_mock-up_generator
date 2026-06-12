@@ -103,6 +103,7 @@ static func _head_mesh_precompute(shape: String, snout_length: float, forehead_s
 	var jaw_gape := clampf(float(sculpt.get("mouth_open", 0.0)), 0.0, 1.0)
 	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, jaw_gape)
 	return {
+		"mouth_carve_enabled": bool(sculpt.get("mouth_carve_enabled", true)),
 		"snout_base": float(sculpt.get("snout_base", HeadProfile.SNOUT_BLEND_HALF)),
 		"snout_thickness": float(sculpt.get("snout_thickness", 1.0)),
 		"snout_taper": float(sculpt.get("snout_taper", 0.0)),
@@ -159,6 +160,7 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 	var jaw_gape := float(precomputed["jaw_gape"])
 	var jaw_lm: Dictionary = precomputed["jaw_lm"]
 	var premax_fwd := float(precomputed["premax_fwd"])
+	var mouth_carve_enabled := bool(precomputed.get("mouth_carve_enabled", true))
 
 	var x := -0.5 * cos(phi)
 	var y := 0.5 * sin(phi) * sin(theta)
@@ -243,7 +245,7 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 	# region when closed (mouth_open = 0) so the head still reads as whole.
 	# front_w stretches the cut back along the snout (jaw plane length); center_w
 	# widens it across the mouth's z so it spans the mouth width, not a notch.
-	if shape != "cephalofoil" and x < 0.04:
+	if mouth_carve_enabled and shape != "cephalofoil" and x < 0.04:
 		var front_w := smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
 		var carve_depth := UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * upper_carve_size_scale
 		var carve_half_width := UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * upper_carve_size_scale
@@ -259,7 +261,7 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 	# 6b. Premaxilla protrusion: as the mouth opens, the upper jaw is thrown
 	# forward (the teleost protrusible-jaw tube). Pushes the snout-front region
 	# (-x) weighted by how close it is to the tip; no-op when jaw_protrusion = 0.
-	if shape != "cephalofoil" and premax_fwd > 0.0 and x < 0.1:
+	if mouth_carve_enabled and shape != "cephalofoil" and premax_fwd > 0.0 and x < 0.1:
 		x -= premax_fwd * smoothstep(UPPER_JAW_CARVE_LENGTH, 0.0, u)
 
 	var pit_weight := 0.0
@@ -269,7 +271,7 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 	# a concave socket (a true silhouette concavity visible from the side). The socket
 	# grows taller/wider with gape; 0 when closed so the resting head is untouched. The
 	# dark socket lining (FishRig) uses the same HeadProfile.mouth_pit math to stay flush.
-	if shape != "cephalofoil" and jaw_gape > 0.0 and x < 0.1:
+	if mouth_carve_enabled and shape != "cephalofoil" and jaw_gape > 0.0 and x < 0.1:
 		var mouth_width_scale := mouth_size_scale
 		var mouth_depth_scale := lerpf(0.85, 1.25, clampf((mouth_width_scale - 0.65) / 1.55, 0.0, 1.0))
 

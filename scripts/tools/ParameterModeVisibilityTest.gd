@@ -14,23 +14,33 @@ func _ready() -> void:
 	fish_panel.set_creature_type("fish")
 	fish_panel.set_parameters({
 		"body_length": 1.4,
+		"mouth_type": "terminal",
+		"mouth_size": 0.08,
 		"disc_width": 1.2,
 		"ray_disc_shape": "diamond",
 		"gill_mark": "operculum",
 		"operculum_size": 1.0,
 		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_width": 0.18,
+		"shark_lower_teeth_visible": true,
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
 		"finlet_enabled": true
 	})
 	assert(_find_slider_for_key(fish_panel, "body_length") != null)
+	assert(_find_option_for_key(fish_panel, "mouth_type") != null)
+	assert(_find_slider_for_key(fish_panel, "mouth_size") != null)
 	assert(_find_slider_for_key(fish_panel, "disc_width") == null)
 	assert(_find_option_for_key(fish_panel, "ray_disc_shape") == null)
 	assert(_find_option_for_key(fish_panel, "gill_mark") != null)
 	assert(_find_slider_for_key(fish_panel, "operculum_size") != null)
 	assert(_find_checkbox_for_key(fish_panel, "shark_gill_slit_enabled") == null)
 	assert(_find_slider_for_key(fish_panel, "shark_gill_slit_count") == null)
+	assert(_find_option_for_key(fish_panel, "shark_mouth_profile") == null)
+	assert(_find_slider_for_key(fish_panel, "shark_mouth_width") == null)
+	assert(_find_checkbox_for_key(fish_panel, "shark_lower_teeth_visible") == null)
 	assert(_find_slider_for_key(fish_panel, "fin_ray_count") != null)
 	assert(_find_checkbox_for_key(fish_panel, "adipose_fin_enabled") != null)
 	assert(_find_checkbox_for_key(fish_panel, "finlet_enabled") != null)
@@ -39,22 +49,32 @@ func _ready() -> void:
 	ray_panel.set_parameters({
 		"disc_width": 1.2,
 		"ray_disc_shape": "manta",
+		"mouth_type": "terminal",
+		"mouth_size": 0.08,
 		"swim_mode": "eel",
 		"gill_mark": "operculum",
 		"operculum_size": 1.0,
 		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_width": 0.18,
+		"shark_lower_teeth_visible": true,
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
 		"finlet_enabled": true
 	})
 	assert(_find_slider_for_key(ray_panel, "disc_width") != null)
 	assert(_find_option_for_key(ray_panel, "ray_disc_shape") != null)
+	assert(_find_option_for_key(ray_panel, "mouth_type") == null)
+	assert(_find_slider_for_key(ray_panel, "mouth_size") == null)
 	assert(_find_option_for_key(ray_panel, "swim_mode") == null)
 	assert(_find_option_for_key(ray_panel, "gill_mark") == null)
 	assert(_find_slider_for_key(ray_panel, "operculum_size") == null)
 	assert(_find_checkbox_for_key(ray_panel, "shark_gill_slit_enabled") == null)
 	assert(_find_slider_for_key(ray_panel, "shark_gill_slit_count") == null)
+	assert(_find_option_for_key(ray_panel, "shark_mouth_profile") == null)
+	assert(_find_slider_for_key(ray_panel, "shark_mouth_width") == null)
+	assert(_find_checkbox_for_key(ray_panel, "shark_lower_teeth_visible") == null)
 	assert(_find_slider_for_key(ray_panel, "fin_ray_count") == null)
 	assert(_find_checkbox_for_key(ray_panel, "adipose_fin_enabled") == null)
 	assert(_find_checkbox_for_key(ray_panel, "finlet_enabled") == null)
@@ -64,6 +84,9 @@ func _ready() -> void:
 		"body_length": 5.8,
 		"ray_disc_shape": "diamond",
 		"caudal_shape": "shark_heterocercal",
+		"mouth_type": "terminal",
+		"mouth_size": 0.08,
+		"lower_jaw_length": 1.0,
 		"gill_mark": "operculum",
 		"operculum_size": 1.0,
 		"shark_gill_slit_enabled": true,
@@ -74,6 +97,11 @@ func _ready() -> void:
 		"shark_gill_slit_depth": 0.65,
 		"shark_gill_slit_position_x": -0.28,
 		"shark_gill_slit_position_y": 0.08,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_width": 0.18,
+		"shark_jaw_projection": 0.08,
+		"shark_tooth_size": 0.018,
+		"shark_lower_teeth_visible": true,
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
 		"finlet_enabled": true
@@ -81,6 +109,9 @@ func _ready() -> void:
 	assert(_find_slider_for_key(shark_panel, "body_length") != null)
 	assert(_find_option_for_key(shark_panel, "ray_disc_shape") == null)
 	assert(_find_option_for_key(shark_panel, "caudal_shape") != null)
+	assert(_find_option_for_key(shark_panel, "mouth_type") == null)
+	assert(_find_slider_for_key(shark_panel, "mouth_size") == null)
+	assert(_find_slider_for_key(shark_panel, "lower_jaw_length") == null)
 	assert(_find_option_for_key(shark_panel, "gill_mark") == null)
 	assert(_find_slider_for_key(shark_panel, "operculum_size") == null)
 	assert(_find_checkbox_for_key(shark_panel, "shark_gill_slit_enabled") != null)
@@ -91,6 +122,11 @@ func _ready() -> void:
 	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_depth") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_position_x") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_position_y") != null)
+	assert(_find_option_for_key(shark_panel, "shark_mouth_profile") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_mouth_width") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_jaw_projection") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_tooth_size") != null)
+	assert(_find_checkbox_for_key(shark_panel, "shark_lower_teeth_visible") != null)
 	assert(_find_slider_for_key(shark_panel, "fin_ray_count") == null)
 	assert(_find_checkbox_for_key(shark_panel, "adipose_fin_enabled") == null)
 	assert(_find_checkbox_for_key(shark_panel, "finlet_enabled") == null)

@@ -2,6 +2,7 @@ extends Node
 
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const RayRigScript := preload("res://scripts/creature/RayRig.gd")
+const SharkRigScript := preload("res://scripts/creature/SharkRig.gd")
 const MainScript := preload("res://scripts/ui/Main.gd")
 
 func _ready() -> void:
@@ -55,6 +56,33 @@ func _ready() -> void:
 	await get_tree().process_frame
 	assert(_count_named_children(ray, "DiscBody") == 1)
 	assert(_count_named_descendants(ray, "BodyMesh") == 1)
+
+	var shark: Node = SharkRigScript.new()
+	add_child(shark)
+	var shark_parameters := {
+		"creature_type": "shark",
+		"body_length": 5.8,
+		"body_height": 0.72,
+		"body_width": 0.42,
+		"head_shape": "pointed",
+		"head_size": 0.62,
+		"head_offset": -0.58,
+		"shark_gill_slit_enabled": true,
+		"shark_gill_slit_count": 5,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_width": 0.18,
+		"shark_mouth_gape": 0.16,
+		"shark_jaw_projection": 0.08,
+		"shark_lower_teeth_visible": true
+	}
+	shark.call("set_parameters", shark_parameters)
+	assert(shark.get_node_or_null("BodyPivot/SharkGillSlits") != null)
+	assert(shark.get_node_or_null("BodyPivot/Head/SharkMouth") != null)
+	shark.call("rebuild")
+	await get_tree().process_frame
+	assert(_count_named_children(shark, "BodyPivot") == 1)
+	assert(shark.get_node_or_null("BodyPivot/SharkGillSlits") != null)
+	assert(shark.get_node_or_null("BodyPivot/Head/SharkMouth") != null)
 
 	var main := MainScript.new()
 	add_child(main)

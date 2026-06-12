@@ -2056,6 +2056,7 @@ func _head_sculpt_params() -> Dictionary:
 		"head_bottom_flatness": param_float("head_bottom_flatness", 0.0),
 		"head_left_flatness": param_float("head_left_flatness", 0.0),
 		"head_right_flatness": param_float("head_right_flatness", 0.0),
+		"mouth_carve_enabled": bool(parameters.get("mouth_carve_enabled", true)),
 		"mouth_open": param_float("mouth_open", 0.25),
 		"mouth_size": param_float("mouth_size", 0.08),
 		"mouth_center_y": mouth_base_y + _snout_tip_displacement(),
