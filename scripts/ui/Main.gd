@@ -12,6 +12,8 @@ const FinEditorPanelScript := preload("res://scripts/ui/FinEditorPanel.gd")
 const HeadEditorPanelScript := preload("res://scripts/ui/HeadEditorPanel.gd")
 const BodyEditorPanelScript := preload("res://scripts/ui/BodyEditorPanel.gd")
 const ReferenceImagePanelScript := preload("res://scripts/ui/ReferenceImagePanel.gd")
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
+const CreatureRigFactoryScript := preload("res://scripts/creature/CreatureRigFactory.gd")
 const SpriteExporterScript := preload("res://scripts/export/SpriteExporter.gd")
 const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 const SpeciesArchetypeStoreScript := preload("res://scripts/species/SpeciesArchetypeStore.gd")
@@ -41,7 +43,12 @@ var current_rig: CreatureRig
 var presets: Array[Dictionary] = []
 var species_archetypes: Array[Dictionary] = []
 var current_preset: Dictionary = {}
+var active_creature_mode := CreatureModeScript.FISH
 var preset_option: OptionButton
+var creature_mode_option: OptionButton
+var mode_roots := {}
+var last_preset_path_by_mode := {}
+var last_session_preset_by_mode := {}
 var archetype_option: OptionButton
 var archetype_strength_slider: HSlider
 var archetype_read_label: Label
@@ -236,6 +243,26 @@ func _build_ui() -> void:
 	title.text = "절차적 스프라이트 생성기"
 	title.add_theme_font_size_override("font_size", 18)
 	side.add_child(title)
+
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 6)
+	side.add_child(mode_row)
+
+	var mode_label := Label.new()
+	mode_label.text = "모드"
+	mode_label.custom_minimum_size = Vector2(52, 0)
+	mode_row.add_child(mode_label)
+
+	creature_mode_option = OptionButton.new()
+	creature_mode_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for mode in CreatureModeScript.mode_ids():
+		creature_mode_option.add_item(UiText.creature_type(mode))
+		creature_mode_option.set_item_metadata(creature_mode_option.item_count - 1, mode)
+	creature_mode_option.item_selected.connect(func(index: int) -> void:
+		var mode := String(creature_mode_option.get_item_metadata(index))
+		_select_creature_mode(mode)
+	)
+	mode_row.add_child(creature_mode_option)
 
 	var preset_row := HBoxContainer.new()
 	preset_row.add_theme_constant_override("separation", 6)
@@ -668,6 +695,14 @@ func _build_preview_world() -> void:
 	fill.position = Vector3(-1.2, 1.1, 2.0)
 	world_root.add_child(fill)
 
+	mode_roots.clear()
+	for mode in CreatureModeScript.mode_ids():
+		var root := Node3D.new()
+		root.name = "%sModeRoot" % String(mode).capitalize()
+		root.visible = mode == active_creature_mode
+		world_root.add_child(root)
+		mode_roots[mode] = root
+
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
 	viewport.add_child(camera)
@@ -808,11 +843,14 @@ func _make_variant_seed(previous_seed: int) -> int:
 func _apply_archetype_parameters(parameters: Dictionary) -> void:
 	current_preset["creature_type"] = "fish"
 	current_preset["type"] = "fish"
+	active_creature_mode = CreatureModeScript.FISH
 	if (current_rig as FishRig) == null:
 		_discard_current_rig()
 		current_rig = FishRigScript.new()
 		current_rig.name = "ActiveRig"
-		world_root.add_child(current_rig)
+		_set_active_mode_root(CreatureModeScript.FISH)
+		var fish_root := mode_roots.get(CreatureModeScript.FISH, world_root) as Node
+		fish_root.add_child(current_rig)
 		_bind_fin_editor_for_current_rig()
 	_apply_parameters_from_editor(parameters)
 	_sync_archetype_controls(parameters)
@@ -823,14 +861,16 @@ func _load_preset(index: int) -> void:
 	_clear_pending_editor_apply()
 	current_preset = presets[index].duplicate(true)
 	_discard_current_rig()
-	var creature_type := String(current_preset.get("creature_type", "fish"))
-	if creature_type == "ray":
-		current_rig = RayRigScript.new()
-	else:
-		current_rig = FishRigScript.new()
+	var creature_type := CreatureModeScript.normalize(String(current_preset.get("creature_type", active_creature_mode)))
+	active_creature_mode = creature_type
+	current_preset["creature_type"] = creature_type
+	current_preset["type"] = creature_type
+	_set_active_mode_root(creature_type)
+	current_rig = CreatureRigFactoryScript.create(creature_type)
 	current_rig.name = "ActiveRig"
-	world_root.add_child(current_rig)
+	(mode_roots.get(creature_type, world_root) as Node).add_child(current_rig)
 	current_rig.set_parameters(current_preset.get("parameters", {}))
+	_select_mode_option(creature_type)
 	_reset_preview_direction()
 	if playback_toggle:
 		current_rig.auto_animate = playback_toggle.button_pressed
@@ -865,20 +905,48 @@ func _discard_current_rig() -> void:
 			current_rig.get_parent().remove_child(current_rig)
 		current_rig.queue_free()
 		current_rig = null
-	if world_root:
-		for child in world_root.get_children():
-			if child.name == "ActiveRig":
-				world_root.remove_child(child)
-				child.queue_free()
+	for root in mode_roots.values():
+		var mode_root := root as Node
+		if mode_root == null:
+			continue
+		for child in mode_root.get_children():
+			mode_root.remove_child(child)
+			child.queue_free()
+
+func _set_active_mode_root(mode: String) -> void:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	for key in mode_roots.keys():
+		var root := mode_roots[key] as Node3D
+		if root == null:
+			continue
+		for child in root.get_children():
+			root.remove_child(child)
+			child.queue_free()
+		root.visible = String(key) == normalized_mode
+
+func _select_mode_option(mode: String) -> void:
+	if creature_mode_option == null:
+		return
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	for i in creature_mode_option.item_count:
+		if String(creature_mode_option.get_item_metadata(i)) == normalized_mode:
+			creature_mode_option.select(i)
+			return
 
 func _reload_presets(select_path: String = "") -> void:
-	presets = PresetStoreScript.load_all()
+	var mode := CreatureModeScript.normalize(active_creature_mode)
+	presets = PresetStoreScript.load_all(mode)
 	preset_option.clear()
 	for preset in presets:
 		preset_option.add_item(_preset_option_label(preset))
 	if presets.is_empty():
 		return
 	var selected_index := 0
+	var default_name := CreatureModeScript.default_preset(mode)
+	for i in presets.size():
+		if String(presets[i].get("name", "")) == default_name:
+			selected_index = i
+			break
 	if select_path != "":
 		for i in presets.size():
 			if String(presets[i].get("_preset_path", "")) == select_path:
@@ -886,6 +954,19 @@ func _reload_presets(select_path: String = "") -> void:
 				break
 	preset_option.select(selected_index)
 	_load_preset(selected_index)
+
+func _select_creature_mode(mode: String) -> void:
+	var next_mode := CreatureModeScript.normalize(mode)
+	if next_mode == active_creature_mode and not current_preset.is_empty():
+		return
+	if not current_preset.is_empty():
+		last_session_preset_by_mode[active_creature_mode] = current_preset.duplicate(true)
+		var current_path := String(current_preset.get("_preset_path", ""))
+		if current_path != "":
+			last_preset_path_by_mode[active_creature_mode] = current_path
+	active_creature_mode = next_mode
+	_select_mode_option(next_mode)
+	_reload_presets(String(last_preset_path_by_mode.get(next_mode, "")))
 
 func _preset_option_label(preset: Dictionary) -> String:
 	var preset_name := String(preset.get("name", "unnamed"))

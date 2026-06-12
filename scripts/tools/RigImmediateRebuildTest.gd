@@ -59,18 +59,11 @@ func _ready() -> void:
 	var main := MainScript.new()
 	add_child(main)
 	await get_tree().process_frame
-	var presets: Array = main.get("presets")
-	var ray_index := -1
-	for i in presets.size():
-		if String(presets[i].get("creature_type", "fish")) == "ray":
-			ray_index = i
-			break
-	assert(ray_index >= 0)
-	main.call("_load_preset", ray_index)
-	assert(_count_named_children(main.get("world_root"), "ActiveRig") == 1)
+	main.call("_select_creature_mode", "ray")
+	assert(_count_named_children(_active_mode_root(main), "ActiveRig") == 1)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	assert(_count_named_children(main.get("world_root"), "ActiveRig") == 1)
+	assert(_count_named_children(_active_mode_root(main), "ActiveRig") == 1)
 	var main_ray: Node = main.get("current_rig")
 	var editor_parameters: Dictionary = main_ray.get("parameters").duplicate(true)
 	editor_parameters["wing_width"] = float(editor_parameters.get("wing_width", 1.2)) + 0.1
@@ -90,7 +83,7 @@ func _ready() -> void:
 	main.call("_start_preview_turn", 1)
 	for frame in 5:
 		await get_tree().process_frame
-		assert(_count_named_children(main.get("world_root"), "ActiveRig") == 1)
+		assert(_count_named_children(_active_mode_root(main), "ActiveRig") == 1)
 		assert(_count_named_children(main_ray, "DiscBody") == 1)
 		assert(_count_named_descendants(main_ray, "BodyMesh") == 1)
 
@@ -107,6 +100,10 @@ func _count_named_children(node: Node, child_name: String) -> int:
 		if child.name == child_name:
 			count += 1
 	return count
+
+func _active_mode_root(main: Node) -> Node:
+	var roots: Dictionary = main.get("mode_roots")
+	return roots.get(main.get("active_creature_mode")) as Node
 
 func _count_named_descendants(node: Node, child_name: String) -> int:
 	var count := 0
