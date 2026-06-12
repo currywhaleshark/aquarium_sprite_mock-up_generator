@@ -650,6 +650,8 @@ func _category_for_key(key: String) -> String:
 func _should_hide_key(key: String) -> bool:
 	if HIDDEN_BODY_PROFILE_KEYS.has(key):
 		return true
+	if creature_type == CreatureModeScript.SHARK and _is_shark_hidden_head_key(key):
+		return true
 	if not CreatureParameterSchemaScript.is_parameter_visible(creature_type, key):
 		return true
 	return SPECIALIZED_EDITOR_KEYS.has(key) and not _should_show_specialized_key(key)
@@ -659,9 +661,28 @@ func _should_show_specialized_key(key: String) -> bool:
 		return true
 	if creature_type == CreatureModeScript.RAY and key == "ray_disc_shape":
 		return true
+	if creature_type == CreatureModeScript.SHARK and key in ["head_size", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
+		return true
 	if creature_type == CreatureModeScript.SHARK and key == "caudal_shape":
 		return true
 	return false
+
+func _is_shark_hidden_head_key(key: String) -> bool:
+	return key == "head_shape" \
+		or key == "head_flattening" \
+		or key == "head_bump_height" \
+		or key == "head_bump_pos" \
+		or key == "head_bump_width" \
+		or key == "head_bump_angle" \
+		or key == "head_bump_round" \
+		or key == "head_top_flatness" \
+		or key == "head_bottom_flatness" \
+		or key == "head_left_flatness" \
+		or key == "head_right_flatness" \
+		or key == "snout_base" \
+		or key == "snout_thickness" \
+		or key == "snout_taper" \
+		or key == "snout_curve"
 
 func _is_color_value(value: Variant) -> bool:
 	if value is Color:

@@ -203,8 +203,15 @@ func _ready() -> void:
 		"shark_tooth_angle": -8.0,
 		"shark_labial_furrow_length": 0.04
 	})
+	assert(shark_panel.get("head_shape_grid") == null)
 	assert(shark_panel.get("mouth_type_grid") == null)
 	assert(shark_panel.get("mouth_detail_option") == null)
+	for hidden_key in ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round", "head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness", "snout_base", "snout_thickness", "snout_taper", "snout_curve"]:
+		assert(not _has_numeric_slider(shark_panel, hidden_key))
+	assert(_has_numeric_slider(shark_panel, "head_size"))
+	assert(_has_numeric_slider(shark_panel, "head_offset"))
+	assert(_has_numeric_slider(shark_panel, "snout_length"))
+	assert(_has_numeric_slider(shark_panel, "forehead_slope"))
 	assert(_has_boolean_control(shark_panel, "shark_gill_slit_enabled"))
 	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_count"))
 	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_length"))

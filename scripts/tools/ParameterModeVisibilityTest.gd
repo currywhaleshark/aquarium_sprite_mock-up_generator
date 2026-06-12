@@ -82,6 +82,14 @@ func _ready() -> void:
 	shark_panel.set_creature_type("shark")
 	shark_panel.set_parameters({
 		"body_length": 5.8,
+		"head_size": 0.42,
+		"head_offset": -0.78,
+		"snout_length": 0.22,
+		"forehead_slope": 0.2,
+		"head_bump_height": 0.4,
+		"head_bump_pos": -0.1,
+		"head_top_flatness": 0.5,
+		"head_left_flatness": 0.5,
 		"ray_disc_shape": "diamond",
 		"caudal_shape": "shark_heterocercal",
 		"mouth_type": "terminal",
@@ -107,6 +115,14 @@ func _ready() -> void:
 		"finlet_enabled": true
 	})
 	assert(_find_slider_for_key(shark_panel, "body_length") != null)
+	assert(_find_slider_for_key(shark_panel, "head_size") != null)
+	assert(_find_slider_for_key(shark_panel, "head_offset") != null)
+	assert(_find_slider_for_key(shark_panel, "snout_length") != null)
+	assert(_find_slider_for_key(shark_panel, "forehead_slope") != null)
+	assert(_find_slider_for_key(shark_panel, "head_bump_height") == null)
+	assert(_find_slider_for_key(shark_panel, "head_bump_pos") == null)
+	assert(_find_slider_for_key(shark_panel, "head_top_flatness") == null)
+	assert(_find_slider_for_key(shark_panel, "head_left_flatness") == null)
 	assert(_find_option_for_key(shark_panel, "ray_disc_shape") == null)
 	assert(_find_option_for_key(shark_panel, "caudal_shape") != null)
 	assert(_find_option_for_key(shark_panel, "mouth_type") == null)

@@ -180,7 +180,7 @@ func rebuild() -> void:
 	var head_mat := body_mat.duplicate() as ShaderMaterial
 	head_mat.set_shader_parameter("is_head", true)
 	
-	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, head_mat, _head_sculpt_params())
+	head_node = _create_head_node("Head", head_shape, head_scale, snout_len, forehead_slope, head_mat, _head_sculpt_params())
 	head_node.position = Vector3(head_offset, _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
@@ -497,6 +497,9 @@ func _head_shell_metrics(rings: Array, body_height: float, body_width: float, bo
 		"radius_y": maxf(head_scale.y * 0.5 + shell_expand * 0.72, 0.04),
 		"radius_z": maxf(head_scale.z * 0.5 + shell_expand * 0.72, 0.035),
 	}
+
+func _create_head_node(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
+	return PF.deformed_head(name, shape, head_scale, snout_length, forehead_slope, material, sculpt)
 
 func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float, snout_base: float = HeadProfile.SNOUT_BLEND_HALF, snout_thickness: float = 1.0, snout_taper: float = 0.0) -> Vector2:
 	var x := clampf(x_local_unscaled, -0.499 - snout_length, 0.499)

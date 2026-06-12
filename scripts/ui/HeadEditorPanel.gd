@@ -289,13 +289,13 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 				set_option_parameter("ray_head_shape", String(ray_head_shape_option.get_item_metadata(index)))
 		)
 	else:
-		head_shape_grid = _add_thumbnail_option_grid(options_container, "형태", "head_shape", HEAD_SHAPES)
-		head_shape_grid.value_selected.connect(func(value: String) -> void:
-			if not _updating:
-				set_head_shape(value)
-		)
-
 		if creature_type == CreatureModeScript.FISH:
+			head_shape_grid = _add_thumbnail_option_grid(options_container, "형태", "head_shape", HEAD_SHAPES)
+			head_shape_grid.value_selected.connect(func(value: String) -> void:
+				if not _updating:
+					set_head_shape(value)
+			)
+
 			mouth_type_grid = _add_thumbnail_option_grid(options_container, "입", "mouth_type", MOUTH_TYPES)
 			mouth_type_grid.value_selected.connect(func(value: String) -> void:
 				if not _updating:
@@ -701,6 +701,14 @@ func _is_boolean_key_visible(key: String) -> bool:
 	return creature_type == CreatureModeScript.SHARK and (key == "shark_gill_slit_enabled" or key == "shark_lower_teeth_visible")
 
 func _should_show_fish_numeric_key(key: String) -> bool:
+	if creature_type == CreatureModeScript.SHARK:
+		if key in ["head_size", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
+			return true
+		if key.begins_with("shark_gill_"):
+			return true
+		if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":
+			return true
+		return false
 	if key.begins_with("shark_gill_"):
 		return creature_type == CreatureModeScript.SHARK
 	if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":

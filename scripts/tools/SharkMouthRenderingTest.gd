@@ -1,12 +1,61 @@
 extends Node
 
-const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const SharkRigScript := preload("res://scripts/creature/SharkRig.gd")
+
+var _failed := false
 
 func _ready() -> void:
 	var shark := SharkRigScript.new()
 	add_child(shark)
-	var parameters := {
+	var parameters := _base_parameters()
+	shark.set_parameters(parameters)
+	await get_tree().process_frame
+
+	_assert_shark_mouth_attachment_contract(shark)
+	if _failed:
+		return
+	_assert_no_fish_mouth_nodes(shark)
+	if _failed:
+		return
+	_assert_attachments_near_head_mesh(shark)
+	if _failed:
+		return
+
+	parameters["shark_mouth_gape"] = 0.32
+	parameters["shark_jaw_projection"] = 0.16
+	shark.set_parameters(parameters)
+	await get_tree().process_frame
+	_assert_shark_mouth_attachment_contract(shark)
+	if _failed:
+		return
+	_assert_attachments_near_head_mesh(shark)
+	if _failed:
+		return
+
+	parameters["mouth_open"] = 0.0
+	parameters["shark_mouth_gape"] = 0.0
+	parameters["shark_jaw_projection"] = 0.0
+	shark.set_parameters(parameters)
+	await get_tree().process_frame
+	_assert_no_fish_mouth_nodes(shark)
+	if _failed:
+		return
+
+	shark.rebuild()
+	await get_tree().process_frame
+	if not _require(shark.get_node_or_null("BodyPivot/Head/SharkMouth/AttachmentSocket") != null, "shark mouth socket must survive rebuild"):
+		return
+	if not _require(shark.get_node_or_null("BodyPivot/SharkGillSlits") != null, "shark gills must survive rebuild"):
+		return
+	_assert_no_fish_mouth_nodes(shark)
+	if _failed:
+		return
+
+	print("SHARK_MOUTH_RENDERING_TEST_OK")
+	get_tree().quit(0)
+
+func _base_parameters() -> Dictionary:
+	return {
 		"creature_type": "shark",
 		"body_length": 5.8,
 		"body_height": 0.42,
@@ -38,116 +87,92 @@ func _ready() -> void:
 		"shark_tooth_angle": -8.0,
 		"shark_labial_furrow_length": 0.04
 	}
-	shark.set_parameters(parameters)
-	await get_tree().process_frame
 
-	var root := shark.get_node_or_null("BodyPivot/Head/SharkMouth")
-	assert(root != null)
-	assert(root.get_node_or_null("MouthCrescent") != null)
-	assert(root.get_node_or_null("LowerTeeth") != null)
-	assert(root.get_node_or_null("UpperTeeth") != null)
-	assert(root.get_node_or_null("ProjectedUpperJaw") == null)
-	_assert_mouth_hugs_head_surface(shark)
-	_assert_no_fish_mouth_nodes(shark)
-	_assert_head_carve_suppressed(shark, parameters)
-
-	parameters["shark_mouth_gape"] = 0.32
-	parameters["shark_jaw_projection"] = 0.16
-	shark.set_parameters(parameters)
-	await get_tree().process_frame
-	var moved_root := shark.get_node_or_null("BodyPivot/Head/SharkMouth")
-	assert(moved_root != null)
-	assert(moved_root.get_node_or_null("ProjectedUpperJaw") != null)
-	_assert_mouth_hugs_head_surface(shark)
-
-	parameters["mouth_open"] = 0.0
-	parameters["shark_mouth_gape"] = 0.0
-	parameters["shark_jaw_projection"] = 0.0
-	shark.set_parameters(parameters)
-	await get_tree().process_frame
-	_assert_no_fish_mouth_nodes(shark)
-
-	shark.rebuild()
-	await get_tree().process_frame
-	assert(shark.get_node_or_null("BodyPivot/Head/SharkMouth") != null)
-	assert(shark.get_node_or_null("BodyPivot/SharkGillSlits") != null)
-	_assert_no_fish_mouth_nodes(shark)
-
-	print("SHARK_MOUTH_RENDERING_TEST_OK")
-	get_tree().quit(0)
+func _assert_shark_mouth_attachment_contract(shark: Node) -> void:
+	var head := shark.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	if not _require(head != null, "shark head must exist"):
+		return
+	var root := head.get_node_or_null("SharkMouth") as Node3D
+	if not _require(root != null, "SharkMouth root must be under Head"):
+		return
+	if not _require(root.get_parent() == head, "SharkMouth root must be a Head child"):
+		return
+	var socket := root.get_node_or_null("AttachmentSocket") as Node3D
+	if not _require(socket != null, "inverse-scale attachment socket must exist"):
+		return
+	if not _require(_near(socket.scale.x, 1.0 / maxf(absf(head.scale.x), 0.001)), "socket x scale must cancel head scale"):
+		return
+	if not _require(_near(socket.scale.y, 1.0 / maxf(absf(head.scale.y), 0.001)), "socket y scale must cancel head scale"):
+		return
+	if not _require(_near(socket.scale.z, 1.0 / maxf(absf(head.scale.z), 0.001)), "socket z scale must cancel head scale"):
+		return
+	if not _require(socket.get_node_or_null("LowerTeeth") != null, "LowerTeeth must be under AttachmentSocket"):
+		return
+	if not _require(socket.get_node_or_null("UpperTeeth") != null, "UpperTeeth must be under AttachmentSocket"):
+		return
+	if not _require(socket.get_node_or_null("LabialFurrowLeft") != null, "LabialFurrowLeft must be under AttachmentSocket"):
+		return
+	if not _require(socket.get_node_or_null("LabialFurrowRight") != null, "LabialFurrowRight must be under AttachmentSocket"):
+		return
+	if not _require(root.get_node_or_null("MouthInteriorShadow") != null, "MouthInteriorShadow must exist under the head-scaled root"):
+		return
+	if not _require(socket.get_node_or_null("MouthInteriorShadow") == null, "MouthInteriorShadow must not be inverse-scaled"):
+		return
+	for old_name in ["MouthCrescent", "LowerJaw", "ProjectedUpperJaw"]:
+		if not _require(root.find_child(old_name, true, false) == null, "old overlay node must be absent: %s" % old_name):
+			return
 
 func _assert_no_fish_mouth_nodes(shark: Node) -> void:
 	var body := shark.get_node_or_null("BodyPivot")
-	assert(body != null)
 	var head := shark.get_node_or_null("BodyPivot/Head")
-	assert(head != null)
+	if not _require(body != null and head != null, "body/head must exist"):
+		return
 	for node_name in ["Mouth", "MouthLowerJaw", "MouthCavity", "MouthFloor", "MouthLipUpper", "MouthDetail_lip"]:
-		assert(body.get_node_or_null(node_name) == null)
-		assert(head.get_node_or_null(node_name) == null)
-		assert(shark.find_child(node_name, true, false) == null)
+		if not _require(body.get_node_or_null(node_name) == null, "fish mouth node must not be under BodyPivot: %s" % node_name):
+			return
+		if not _require(head.get_node_or_null(node_name) == null, "fish mouth node must not be under Head: %s" % node_name):
+			return
+		if not _require(shark.find_child(node_name, true, false) == null, "fish mouth descendant must be absent: %s" % node_name):
+			return
 
-func _assert_mouth_hugs_head_surface(shark: Node) -> void:
+func _assert_attachments_near_head_mesh(shark: Node) -> void:
 	var head := shark.get_node_or_null("BodyPivot/Head") as MeshInstance3D
-	assert(head != null)
-	var root := head.get_node_or_null("SharkMouth")
-	assert(root != null)
-	assert(root.get_parent() == head)
-	var mouth := root.get_node_or_null("MouthCrescent") as MeshInstance3D
-	assert(mouth != null)
-	var bounds := _mesh_y_bounds(head)
-	assert(mouth.position.y >= bounds.x - 0.01)
-	assert(mouth.position.y <= bounds.y + 0.01)
-	var surface_z := _positive_head_surface_z(head, mouth.position.x, mouth.position.y)
-	assert(mouth.position.z >= surface_z - 0.005)
-	assert(mouth.position.z <= surface_z + 0.06)
+	var socket := shark.get_node_or_null("BodyPivot/Head/SharkMouth/AttachmentSocket") as Node3D
+	if not _require(head != null and socket != null, "head/socket must exist for attachment distance checks"):
+		return
+	var checked := 0
+	for node in _mesh_descendants(socket):
+		var mesh_node := node as MeshInstance3D
+		var local := head.to_local(mesh_node.global_position)
+		if not _require(_nearest_vertex_distance(head, local) <= 0.11, "attachment floats too far from head mesh: %s" % mesh_node.name):
+			return
+		checked += 1
+	if not _require(checked > 0, "attachment distance check must inspect mesh descendants"):
+		return
 
-func _assert_head_carve_suppressed(shark: Node, parameters: Dictionary) -> void:
-	var fish := FishRigScript.new()
-	add_child(fish)
-	var fish_params := parameters.duplicate(true)
-	fish_params["creature_type"] = "fish"
-	fish_params["mouth_open"] = 0.0
-	fish.set_parameters(fish_params)
-	var shark_front := _mouth_region_average_x(shark.get_node("BodyPivot/Head") as MeshInstance3D)
-	var fish_front := _mouth_region_average_x(fish.get_node("BodyPivot/Head") as MeshInstance3D)
-	assert(shark_front < fish_front - 0.004)
-	remove_child(fish)
-	fish.free()
+func _mesh_descendants(node: Node) -> Array[Node]:
+	var result: Array[Node] = []
+	for child in node.get_children():
+		if child is MeshInstance3D:
+			result.append(child)
+		result.append_array(_mesh_descendants(child))
+	return result
 
-func _mouth_region_average_x(head: MeshInstance3D) -> float:
+func _nearest_vertex_distance(head: MeshInstance3D, local_position: Vector3) -> float:
 	var arrays := head.mesh.surface_get_arrays(0)
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var sum := 0.0
-	var count := 0
+	var best := INF
 	for vertex in verts:
-		if vertex.x < 0.1 and absf(vertex.z) < 0.09 and vertex.y > -0.22 and vertex.y < -0.02:
-			sum += vertex.x
-			count += 1
-	assert(count > 0)
-	return sum / float(count)
+		best = minf(best, vertex.distance_to(local_position))
+	return best
 
-func _positive_head_surface_z(head: MeshInstance3D, local_x: float, local_y: float) -> float:
-	var arrays := head.mesh.surface_get_arrays(0)
-	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var best_distance := INF
-	var best_z := 0.0
-	for vertex in verts:
-		if vertex.z < 0.0:
-			continue
-		var dx := vertex.x - local_x
-		var dy := vertex.y - local_y
-		var distance := dx * dx + dy * dy
-		if distance < best_distance:
-			best_distance = distance
-			best_z = vertex.z
-	return best_z
+func _near(a: float, b: float) -> bool:
+	return absf(a - b) < 0.001
 
-func _mesh_y_bounds(mesh_instance: MeshInstance3D) -> Vector2:
-	var arrays := mesh_instance.mesh.surface_get_arrays(0)
-	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var min_y := INF
-	var max_y := -INF
-	for vertex in verts:
-		min_y = minf(min_y, vertex.y)
-		max_y = maxf(max_y, vertex.y)
-	return Vector2(min_y, max_y)
+func _require(condition: bool, message: String) -> bool:
+	if condition:
+		return true
+	_failed = true
+	push_error(message)
+	get_tree().quit(1)
+	return false

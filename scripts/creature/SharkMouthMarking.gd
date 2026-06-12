@@ -1,6 +1,8 @@
 class_name SharkMouthMarking
 extends RefCounted
 
+const SharkHeadProfile := preload("res://scripts/creature/SharkHeadProfile.gd")
+
 static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 	var head := parent.get_node_or_null("Head") as MeshInstance3D
 	var root_parent := head if head != null else parent
@@ -12,104 +14,86 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 	for child in root.get_children():
 		child.free()
 
-	var position_x := _head_local_x(head, float(parameters.get("shark_mouth_position_x", -0.96)))
-	var position_y := _head_local_y(head, float(parameters.get("shark_mouth_position_y", -0.13)))
-	var width := maxf(float(parameters.get("shark_mouth_width", 0.18)), 0.02)
-	var curve := clampf(float(parameters.get("shark_mouth_curve", 0.58)), 0.0, 1.0)
 	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
 	var projection := clampf(float(parameters.get("shark_jaw_projection", 0.08)), 0.0, 0.4)
+	var projection_signal := maxf(gape, projection * 2.0)
 	var jaw_drop := clampf(float(parameters.get("shark_lower_jaw_drop", 0.10)), 0.0, 0.4)
 	var tooth_count := clampi(int(round(float(parameters.get("shark_tooth_visible_count", 11)))), 0, 24)
 	var tooth_size := clampf(float(parameters.get("shark_tooth_size", 0.018)), 0.004, 0.06)
 	var tooth_angle := float(parameters.get("shark_tooth_angle", -8.0))
 	var furrow_length := clampf(float(parameters.get("shark_labial_furrow_length", 0.04)), 0.0, 0.2)
-	var z_outset := _head_local_outset(head, 0.004)
-	var mouth_position := _head_surface_point(head, position_x, position_y, z_outset)
 	var dark_mat := _flat_material(Color(0.015, 0.018, 0.022, 0.92))
 	var tooth_mat := _flat_material(Color(0.92, 0.9, 0.78, 0.95))
 
-	var mouth := _box("MouthCrescent", Vector3(width, 0.012 + curve * 0.018, 0.014), dark_mat)
-	mouth.position = mouth_position
-	mouth.rotation_degrees.z = -8.0 + curve * 16.0
-	root.add_child(mouth)
+	var shadow := SharkHeadProfile.build_mouth_interior_shadow(parameters, dark_mat)
+	root.add_child(shadow)
 
-	var lower_jaw := _box("LowerJaw", Vector3(width * 0.86, 0.01 + jaw_drop * 0.045, 0.012), dark_mat)
-	lower_jaw.position = _head_surface_point(head, position_x + projection * 0.10, position_y - jaw_drop * 0.30 - gape * 0.04, z_outset + 0.012)
-	lower_jaw.rotation_degrees.z = 4.0 + jaw_drop * 18.0
-	root.add_child(lower_jaw)
-
-	var projection_signal := maxf(gape, projection * 2.0)
-	if projection_signal >= 0.24:
-		var upper := _box("ProjectedUpperJaw", Vector3(width * 0.58, 0.012, 0.012), dark_mat)
-		upper.position = _head_surface_point(head, position_x - projection * 0.18, position_y + 0.025 + gape * 0.02, z_outset + 0.014)
-		upper.rotation_degrees.z = -6.0
-		root.add_child(upper)
+	var socket := Node3D.new()
+	socket.name = "AttachmentSocket"
+	if head != null:
+		socket.scale = Vector3(
+			1.0 / maxf(absf(head.scale.x), 0.001),
+			1.0 / maxf(absf(head.scale.y), 0.001),
+			1.0 / maxf(absf(head.scale.z), 0.001)
+		)
+	root.add_child(socket)
 
 	var lower_teeth := Node3D.new()
 	lower_teeth.name = "LowerTeeth"
-	root.add_child(lower_teeth)
-	if bool(parameters.get("shark_lower_teeth_visible", true)):
-		_add_teeth(lower_teeth, tooth_count, width * 0.72, tooth_size, tooth_angle, _head_surface_point(head, position_x, position_y - 0.018 - jaw_drop * 0.12, z_outset + 0.024), tooth_mat, false)
-
+	socket.add_child(lower_teeth)
 	var upper_teeth := Node3D.new()
 	upper_teeth.name = "UpperTeeth"
-	root.add_child(upper_teeth)
+	socket.add_child(upper_teeth)
+
+	if bool(parameters.get("shark_lower_teeth_visible", true)):
+		for side in [-1.0, 1.0]:
+			var anchor := SharkHeadProfile.mouth_anchor(parameters, float(side))
+			anchor.y -= 0.018 + jaw_drop * 0.12 + gape * 0.035
+			_add_teeth(lower_teeth, tooth_count, _mouth_width_for_side(parameters, head, float(side)) * 0.72, tooth_size, tooth_angle, _socket_position_for_head_anchor(anchor, head), tooth_mat, false)
 	var upper_count := clampi(int(round(float(tooth_count) * maxf(0.35, projection_signal))), 0, tooth_count)
-	_add_teeth(upper_teeth, upper_count, width * 0.58, tooth_size * 0.82, -tooth_angle, _head_surface_point(head, position_x - projection * 0.08, position_y + 0.014 + gape * 0.018, z_outset + 0.026), tooth_mat, true)
+	for side in [-1.0, 1.0]:
+		var anchor := SharkHeadProfile.mouth_anchor(parameters, float(side))
+		anchor.x -= projection * 0.08
+		anchor.y += 0.014 + gape * 0.018
+		_add_teeth(upper_teeth, upper_count, _mouth_width_for_side(parameters, head, float(side)) * 0.58, tooth_size * 0.82, -tooth_angle, _socket_position_for_head_anchor(anchor, head), tooth_mat, true)
 
 	if furrow_length > 0.001:
-		var left := _box("LabialFurrowLeft", Vector3(furrow_length, 0.006, 0.01), dark_mat)
-		left.position = _head_surface_point(head, position_x + width * 0.48, position_y - 0.01, z_outset + 0.014)
+		var right_corners := SharkHeadProfile.mouth_corners(parameters, 1.0)
+		var left := _box("LabialFurrowLeft", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
+		left.position = _socket_position_for_head_anchor(right_corners[0], head)
 		left.rotation_degrees.z = -24.0
-		root.add_child(left)
-		var right := _box("LabialFurrowRight", Vector3(furrow_length, 0.006, 0.01), dark_mat)
-		right.position = _head_surface_point(head, position_x - width * 0.48, position_y - 0.01, z_outset + 0.014)
+		socket.add_child(left)
+		var right := _box("LabialFurrowRight", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
+		right.position = _socket_position_for_head_anchor(right_corners[1], head)
 		right.rotation_degrees.z = 24.0
-		root.add_child(right)
+		socket.add_child(right)
+		for side in [-1.0]:
+			var mirror_corners := SharkHeadProfile.mouth_corners(parameters, float(side))
+			var mirror_left := _box("LabialFurrowLeftMirror", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
+			mirror_left.position = _socket_position_for_head_anchor(mirror_corners[0], head)
+			mirror_left.rotation_degrees.z = -24.0
+			socket.add_child(mirror_left)
+			var mirror_right := _box("LabialFurrowRightMirror", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
+			mirror_right.position = _socket_position_for_head_anchor(mirror_corners[1], head)
+			mirror_right.rotation_degrees.z = 24.0
+			socket.add_child(mirror_right)
 
 	return root
 
-static func _head_local_x(head: MeshInstance3D, value: float) -> float:
-	var bounds := _mesh_bounds(head)
-	return clampf(value * 0.5, bounds.position.x + 0.025, bounds.position.x + bounds.size.x - 0.025)
-
-static func _head_local_y(head: MeshInstance3D, value: float) -> float:
-	var bounds := _mesh_bounds(head)
-	return clampf(value, bounds.position.y + 0.025, bounds.position.y + bounds.size.y - 0.025)
-
-static func _head_surface_point(head: MeshInstance3D, local_x: float, local_y: float, local_outset: float) -> Vector3:
-	var bounds := _mesh_bounds(head)
-	var x := clampf(local_x, bounds.position.x + 0.015, bounds.position.x + bounds.size.x - 0.015)
-	var y := clampf(local_y, bounds.position.y + 0.015, bounds.position.y + bounds.size.y - 0.015)
-	return Vector3(x, y, _positive_head_surface_z(head, x, y) + local_outset)
-
-static func _positive_head_surface_z(head: MeshInstance3D, local_x: float, local_y: float) -> float:
-	if head == null or head.mesh == null:
-		return 0.0
-	var arrays := head.mesh.surface_get_arrays(0)
-	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var best_distance := INF
-	var best_z := 0.0
-	for vertex in verts:
-		if vertex.z < 0.0:
-			continue
-		var dx := vertex.x - local_x
-		var dy := vertex.y - local_y
-		var distance := dx * dx + dy * dy
-		if distance < best_distance:
-			best_distance = distance
-			best_z = vertex.z
-	return best_z
-
-static func _head_local_outset(head: MeshInstance3D, world_outset: float) -> float:
+static func _socket_position_for_head_anchor(anchor: Vector3, head: MeshInstance3D) -> Vector3:
 	if head == null:
-		return world_outset
-	return clampf(world_outset / maxf(absf(head.scale.z), 0.001), 0.018, 0.05)
+		return anchor
+	return Vector3(anchor.x * head.scale.x, anchor.y * head.scale.y, anchor.z * head.scale.z)
 
-static func _mesh_bounds(head: MeshInstance3D) -> AABB:
-	if head == null or head.mesh == null:
-		return AABB(Vector3(-0.5, -0.5, -0.5), Vector3.ONE)
-	return head.mesh.get_aabb()
+static func _mouth_width_for_side(parameters: Dictionary, head: MeshInstance3D, side: float) -> float:
+	var corners := SharkHeadProfile.mouth_corners(parameters, side)
+	var local_width := absf((corners[1] as Vector3).x - (corners[0] as Vector3).x)
+	return _scaled_x(local_width, head)
+
+static func _scaled_x(value: float, head: MeshInstance3D) -> float:
+	if head == null:
+		return value
+	return value * maxf(absf(head.scale.x), 0.001)
 
 static func _box(name: String, size: Vector3, material: Material) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
