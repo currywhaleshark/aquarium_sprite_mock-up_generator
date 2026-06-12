@@ -19,6 +19,9 @@ static func direction_names(direction_count: int) -> Array[String]:
 static func direction_yaw_degrees(direction_index: int) -> float:
 	return ExportDirectionsScript.direction_yaw_degrees(direction_index)
 
+static func export_yaw_degrees(direction_count: int, direction_index: int, original_yaw: float) -> float:
+	return ExportDirectionsScript.export_yaw_degrees(direction_count, direction_index, original_yaw)
+
 func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) -> void:
 	var preset_name := String(preset.get("name", "unnamed"))
 	var export_settings: Dictionary = preset.get("export_settings", {})
@@ -61,10 +64,7 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 		var direction_dir := frames_dir if directions.size() == 1 else "%s/%s" % [frames_dir, direction_name]
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(direction_dir))
 		var target_rotation := original_rotation
-		if directions.size() > 1:
-			target_rotation.y = direction_yaw_degrees(direction_index)
-		else:
-			target_rotation.y = original_rotation.y + direction_yaw_degrees(direction_index)
+		target_rotation.y = export_yaw_degrees(directions.size(), direction_index, original_rotation.y)
 		rig.rotation_degrees = target_rotation
 		var frame_paths := PackedStringArray()
 		for i in frame_count:

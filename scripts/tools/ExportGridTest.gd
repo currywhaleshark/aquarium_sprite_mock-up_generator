@@ -41,8 +41,12 @@ func _ready() -> void:
 	assert(directions.size() == 8)
 	assert(String(directions[0]) == "east")
 	assert(String(directions[7]) == "south_east")
-	assert(SpriteExporterScript.direction_yaw_degrees(0) == 0.0)
-	assert(SpriteExporterScript.direction_yaw_degrees(7) == 315.0)
+	assert(SpriteExporterScript.direction_yaw_degrees(0) == 180.0)
+	assert(SpriteExporterScript.direction_yaw_degrees(7) == 135.0)
+	assert(SpriteExporterScript.export_yaw_degrees(1, 0, 45.0) == 45.0)
+	assert(SpriteExporterScript.export_yaw_degrees(8, 0, 45.0) == 180.0)
+	if not _assert_direction_yaws_match_facing_names():
+		return
 
 	await _test_exporter_rig_rotation()
 
@@ -101,7 +105,7 @@ func _test_exporter_rig_rotation() -> void:
 		if unique_yaws.is_empty() or unique_yaws[-1] != rounded:
 			unique_yaws.append(rounded)
 
-	var expected_yaws: Array[float] = [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]
+	var expected_yaws: Array[float] = [180.0, 225.0, 270.0, 315.0, 0.0, 45.0, 90.0, 135.0]
 	var match_idx := 0
 	for yaw in unique_yaws:
 		if match_idx < expected_yaws.size() and absf(float(yaw) - expected_yaws[match_idx]) < 1.0:
@@ -140,6 +144,31 @@ func _write_color_png(path: String, color: Color) -> String:
 
 func _same_rgb(left: Color, right: Color) -> bool:
 	return absf(left.r - right.r) < 0.01 and absf(left.g - right.g) < 0.01 and absf(left.b - right.b) < 0.01
+
+func _assert_direction_yaws_match_facing_names() -> bool:
+	var expected_headings := [
+		Vector3.RIGHT,
+		(Vector3.RIGHT + Vector3.FORWARD).normalized(),
+		Vector3.FORWARD,
+		(Vector3.LEFT + Vector3.FORWARD).normalized(),
+		Vector3.LEFT,
+		(Vector3.LEFT + Vector3.BACK).normalized(),
+		Vector3.BACK,
+		(Vector3.RIGHT + Vector3.BACK).normalized(),
+	]
+	for i in expected_headings.size():
+		var yaw := SpriteExporterScript.direction_yaw_degrees(i)
+		var heading := (Basis(Vector3.UP, deg_to_rad(yaw)) * Vector3.LEFT).normalized()
+		if heading.dot(expected_headings[i]) <= 0.99:
+			push_error("Direction %s yaw %.1f faces %s instead of %s" % [
+				String(SpriteExporterScript.direction_names(8)[i]),
+				yaw,
+				str(heading),
+				str(expected_headings[i])
+			])
+			get_tree().quit(1)
+			return false
+	return true
 
 class OverwriterNode extends Node:
 	var rig: Node3D

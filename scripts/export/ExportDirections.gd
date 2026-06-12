@@ -25,4 +25,9 @@ static func direction_names(direction_count: int) -> Array[String]:
 	return names
 
 static func direction_yaw_degrees(direction_index: int) -> float:
-	return float(posmod(direction_index, 8) * 45)
+	return float(posmod(180 + posmod(direction_index, 8) * 45, 360))
+
+static func export_yaw_degrees(direction_count: int, direction_index: int, original_yaw: float) -> float:
+	if normalized_direction_count(direction_count) == 8:
+		return direction_yaw_degrees(direction_index)
+	return original_yaw
