@@ -18,6 +18,7 @@ func _ready() -> void:
 		"ray_disc_shape": "diamond",
 		"gill_mark": "operculum",
 		"operculum_size": 1.0,
+		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
@@ -28,6 +29,7 @@ func _ready() -> void:
 	assert(_find_option_for_key(fish_panel, "ray_disc_shape") == null)
 	assert(_find_option_for_key(fish_panel, "gill_mark") != null)
 	assert(_find_slider_for_key(fish_panel, "operculum_size") != null)
+	assert(_find_checkbox_for_key(fish_panel, "shark_gill_slit_enabled") == null)
 	assert(_find_slider_for_key(fish_panel, "shark_gill_slit_count") == null)
 	assert(_find_slider_for_key(fish_panel, "fin_ray_count") != null)
 	assert(_find_checkbox_for_key(fish_panel, "adipose_fin_enabled") != null)
@@ -40,6 +42,7 @@ func _ready() -> void:
 		"swim_mode": "eel",
 		"gill_mark": "operculum",
 		"operculum_size": 1.0,
+		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
@@ -50,6 +53,7 @@ func _ready() -> void:
 	assert(_find_option_for_key(ray_panel, "swim_mode") == null)
 	assert(_find_option_for_key(ray_panel, "gill_mark") == null)
 	assert(_find_slider_for_key(ray_panel, "operculum_size") == null)
+	assert(_find_checkbox_for_key(ray_panel, "shark_gill_slit_enabled") == null)
 	assert(_find_slider_for_key(ray_panel, "shark_gill_slit_count") == null)
 	assert(_find_slider_for_key(ray_panel, "fin_ray_count") == null)
 	assert(_find_checkbox_for_key(ray_panel, "adipose_fin_enabled") == null)
@@ -62,6 +66,7 @@ func _ready() -> void:
 		"caudal_shape": "shark_heterocercal",
 		"gill_mark": "operculum",
 		"operculum_size": 1.0,
+		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
 		"shark_gill_slit_length": 0.22,
 		"shark_gill_slit_spacing": 0.055,
@@ -78,6 +83,7 @@ func _ready() -> void:
 	assert(_find_option_for_key(shark_panel, "caudal_shape") != null)
 	assert(_find_option_for_key(shark_panel, "gill_mark") == null)
 	assert(_find_slider_for_key(shark_panel, "operculum_size") == null)
+	assert(_find_checkbox_for_key(shark_panel, "shark_gill_slit_enabled") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_count") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_length") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_spacing") != null)

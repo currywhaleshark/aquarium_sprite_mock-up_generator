@@ -42,6 +42,7 @@
 		"tail_length": 0.92,
 		"tail_fin_size": 0.34,
 		"caudal_shape": "shark_heterocercal",
+		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
 		"shark_gill_slit_length": 0.22,
 		"shark_gill_slit_spacing": 0.055,

@@ -4,6 +4,7 @@ extends RefCounted
 const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
 
 const SHARK_GILL_KEYS := {
+	"shark_gill_slit_enabled": true,
 	"shark_gill_slit_count": true,
 	"shark_gill_slit_length": true,
 	"shark_gill_slit_spacing": true,

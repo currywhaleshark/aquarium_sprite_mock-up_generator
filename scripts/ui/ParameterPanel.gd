@@ -567,6 +567,8 @@ func _is_signed_parameter(key: String) -> bool:
 func _category_for_key(key: String) -> String:
 	if key == "marking_layers":
 		return "Pattern Settings"
+	if key.begins_with("shark_gill_"):
+		return "Shark Gills"
 	if key.contains("scale") or key == "lateral_line_strength":
 		return "Scale Settings"
 	if key.begins_with("pattern"):

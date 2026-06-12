@@ -12,6 +12,7 @@ func _ready() -> void:
 		"body_width": 0.42,
 		"head_size": 0.62,
 		"head_offset": -0.58,
+		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
 		"shark_gill_slit_length": 0.22,
 		"shark_gill_slit_spacing": 0.055,
@@ -43,6 +44,14 @@ func _ready() -> void:
 	var first := slits[0] as Node3D
 	assert(abs(first.rotation_degrees.z - -18.0) < 0.01)
 	assert(abs(first.position.x - -0.18) < 0.001)
+
+	parameters["shark_gill_slit_enabled"] = false
+	shark.set_parameters(parameters)
+	await get_tree().process_frame
+	root = shark.get_node_or_null("BodyPivot/SharkGillSlits")
+	assert(root != null)
+	assert(not (root as Node3D).visible)
+	assert(_slit_nodes(root).is_empty())
 	print("SHARK_GILL_SLIT_RENDERING_TEST_OK")
 	get_tree().quit(0)
 

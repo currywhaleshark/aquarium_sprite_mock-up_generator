@@ -165,6 +165,47 @@ func _ready() -> void:
 	assert(abs(float(seen[0].get("jaw_hinge_x", 0.0)) - 1.0) < 0.001)
 	assert(abs(float(seen[0].get("jaw_hinge_y", 0.0)) + 0.4) < 0.001)
 
+	var shark_panel := HeadEditorPanelScript.new()
+	add_child(shark_panel)
+	var shark_seen := [{}]
+	shark_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
+		shark_seen[0] = parameters
+	)
+	shark_panel.set_parameters({
+		"creature_type": "shark",
+		"head_shape": "pointed",
+		"mouth_type": "terminal",
+		"eye_style": "bead",
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"shark_gill_slit_enabled": true,
+		"shark_gill_slit_count": 5,
+		"shark_gill_slit_length": 0.22,
+		"shark_gill_slit_spacing": 0.055,
+		"shark_gill_slit_angle": -8.0,
+		"shark_gill_slit_depth": 0.65,
+		"shark_gill_slit_position_x": -0.28,
+		"shark_gill_slit_position_y": 0.08
+	})
+	assert(_has_boolean_control(shark_panel, "shark_gill_slit_enabled"))
+	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_count"))
+	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_length"))
+	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_spacing"))
+	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_angle"))
+	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_depth"))
+	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_position_x"))
+	assert(_has_numeric_slider(shark_panel, "shark_gill_slit_position_y"))
+	assert(not _has_numeric_slider(shark_panel, "operculum_size"))
+	assert(not _has_numeric_slider(shark_panel, "operculum_height"))
+	var shark_gill_body := _section_body_for_title(shark_panel, "아가미")
+	assert(shark_gill_body != null)
+	assert(_control_parent(shark_panel, "shark_gill_slit_enabled") == shark_gill_body)
+	assert(_control_parent(shark_panel, "shark_gill_slit_count") == shark_gill_body)
+	shark_panel.set_boolean_parameter("shark_gill_slit_enabled", false)
+	assert(not bool(shark_seen[0].get("shark_gill_slit_enabled", true)))
+	shark_panel.set_numeric_parameter("shark_gill_slit_count", 7)
+	assert(abs(float(shark_seen[0].get("shark_gill_slit_count", 0.0)) - 7.0) < 0.001)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_panel.ok", FileAccess.WRITE)
 	file.store_string("head editor panel parameters emitted")
@@ -181,6 +222,25 @@ func _slider_for_key(panel: Node, key: String) -> HSlider:
 	if not sliders.has(key):
 		return null
 	return sliders[key]["slider"] as HSlider
+
+func _has_boolean_control(panel: Node, key: String) -> bool:
+	var controls: Dictionary = panel.get("boolean_controls")
+	return controls.has(key)
+
+func _control_parent(panel: Node, key: String) -> Control:
+	var boolean_controls: Dictionary = panel.get("boolean_controls")
+	if boolean_controls.has(key):
+		var boolean_row := boolean_controls[key]["row"] as Control
+		return boolean_row.get_parent() as Control
+	var sliders: Dictionary = panel.get("numeric_sliders")
+	if sliders.has(key):
+		var slider_row := sliders[key]["row"] as Control
+		return slider_row.get_parent() as Control
+	return null
+
+func _section_body_for_title(panel: Node, title: String) -> Control:
+	var bodies: Dictionary = panel.get("section_bodies")
+	return bodies.get(title, null) as Control
 
 func _grid_value_pressed(grid: Node, value: String) -> bool:
 	var buttons: Dictionary = grid.get("buttons_by_value")

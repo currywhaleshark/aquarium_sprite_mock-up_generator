@@ -9,6 +9,9 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 		parent.add_child(root)
 	for child in root.get_children():
 		child.free()
+	root.visible = bool(parameters.get("shark_gill_slit_enabled", true))
+	if not root.visible:
+		return root
 
 	var count := clampi(int(round(float(parameters.get("shark_gill_slit_count", 5)))), 1, 7)
 	var length := maxf(float(parameters.get("shark_gill_slit_length", 0.22)), 0.01)
