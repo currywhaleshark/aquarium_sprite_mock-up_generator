@@ -10,6 +10,8 @@ signal vector_edit_preview_changed(slot: String, active: bool, norm_position: Ve
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
 const FinVectorEditorScript := preload("res://scripts/ui/FinVectorEditor.gd")
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
+const CreatureParameterSchemaScript := preload("res://scripts/creature/CreatureParameterSchema.gd")
 
 const SLOT_LABELS := {
 	"dorsal_1": "Dorsal 1",
@@ -101,6 +103,7 @@ const NUMERIC_KEYS := {
 }
 
 var parameters: Dictionary = {}
+var creature_type := CreatureModeScript.FISH
 var selected_slot := "dorsal_1"
 var slot_option: OptionButton
 var enabled_check: CheckBox
@@ -198,6 +201,15 @@ func _ready() -> void:
 
 func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
+	creature_type = CreatureModeScript.normalize(String(parameters.get("creature_type", creature_type)))
+	_refresh_controls()
+
+func set_creature_type(mode: String) -> void:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	if creature_type == normalized_mode:
+		return
+	creature_type = normalized_mode
+	parameters["creature_type"] = creature_type
 	_refresh_controls()
 
 func select_slot(slot_id: String) -> void:
@@ -244,12 +256,8 @@ func set_numeric_parameter(key: String, value: float) -> void:
 func _populate_slots() -> void:
 	if slot_option == null:
 		return
-	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
-	var expected_slots := []
-	if is_ray:
-		expected_slots = ["cephalic", "pelvic"]
-	else:
-		expected_slots = ["dorsal_1", "dorsal_2", "pectoral", "pelvic", "anal", "caudal", "adipose_fin", "finlet"]
+	var expected_slots := CreatureParameterSchemaScript.allowed_fin_slots(creature_type)
+	var is_ray := creature_type == CreatureModeScript.RAY
 	
 	var matches := true
 	if slot_option.item_count != expected_slots.size():
@@ -279,7 +287,7 @@ func _refresh_controls() -> void:
 	_updating = true
 	_populate_slots()
 	
-	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
+	var is_ray := creature_type == CreatureModeScript.RAY
 	if is_ray:
 		enabled_check.visible = false
 		attach_row_container.visible = false
@@ -294,7 +302,7 @@ func _refresh_controls() -> void:
 	attach_slider.editable = attach_key != ""
 	attach_slider.value = float(parameters.get(attach_key, _default_attach(selected_slot))) if attach_key != "" else 0.5
 	
-	var shapes: Array = SHAPES.get(selected_slot, ["single"])
+	var shapes: Array = _shape_options_for_slot(selected_slot)
 	var shape_items_match := true
 	if shape_option.item_count != shapes.size():
 		shape_items_match = false
@@ -459,6 +467,13 @@ func _numeric_config_for_key(key: String) -> Dictionary:
 		elif key.ends_with("p1_y") or key.ends_with("p2_y"):
 			return {"min": 0.0, "max": 2.0, "step": 0.01, "fallback": 1.0}
 	return {}
+
+func _shape_options_for_slot(slot_id: String) -> Array:
+	var result := []
+	for shape in SHAPES.get(slot_id, ["single"]):
+		if CreatureParameterSchemaScript.is_option_value_visible(creature_type, _shape_key(slot_id), String(shape)):
+			result.append(String(shape))
+	return result
 
 func _enabled_key(slot_id: String) -> String:
 	match slot_id:

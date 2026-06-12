@@ -10,10 +10,12 @@ const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const BodySilhouetteEditorScript := preload("res://scripts/ui/BodySilhouetteEditor.gd")
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
 
 const RING_NUMERIC_KEYS := BodyProfileScript.RING_KEY_RANGES
 
 var parameters: Dictionary = {}
+var creature_type := CreatureModeScript.FISH
 var selected_ring_id := ""
 var ring_buttons := {}
 var ring_list: VBoxContainer
@@ -128,6 +130,7 @@ func _ready() -> void:
 
 func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
+	creature_type = CreatureModeScript.normalize(String(parameters.get("creature_type", creature_type)))
 	parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 	var rings := _rings()
 	if selected_ring_id == "" and not rings.is_empty():
@@ -135,6 +138,10 @@ func set_parameters(new_parameters: Dictionary) -> void:
 	if BodyProfileScript.find_ring_index(rings, selected_ring_id) < 0 and not rings.is_empty():
 		selected_ring_id = String(rings[0].get("id", ""))
 	_refresh_controls()
+
+func set_creature_type(mode: String) -> void:
+	creature_type = CreatureModeScript.normalize(mode)
+	parameters["creature_type"] = creature_type
 
 func set_search_text(text: String) -> void:
 	search_text = text

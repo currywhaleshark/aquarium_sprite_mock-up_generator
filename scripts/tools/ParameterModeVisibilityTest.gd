@@ -1,0 +1,105 @@
+extends Node
+
+const ParameterPanelScript := preload("res://scripts/ui/ParameterPanel.gd")
+
+func _ready() -> void:
+	var fish_panel := ParameterPanelScript.new()
+	var ray_panel := ParameterPanelScript.new()
+	var shark_panel := ParameterPanelScript.new()
+	add_child(fish_panel)
+	add_child(ray_panel)
+	add_child(shark_panel)
+	await get_tree().process_frame
+
+	fish_panel.set_creature_type("fish")
+	fish_panel.set_parameters({
+		"body_length": 1.4,
+		"disc_width": 1.2,
+		"ray_disc_shape": "diamond",
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"shark_gill_slit_count": 5,
+		"fin_ray_count": 12.0,
+		"adipose_fin_enabled": true,
+		"finlet_enabled": true
+	})
+	assert(_find_slider_for_key(fish_panel, "body_length") != null)
+	assert(_find_slider_for_key(fish_panel, "disc_width") == null)
+	assert(_find_option_for_key(fish_panel, "ray_disc_shape") == null)
+	assert(_find_option_for_key(fish_panel, "gill_mark") != null)
+	assert(_find_slider_for_key(fish_panel, "operculum_size") != null)
+	assert(_find_slider_for_key(fish_panel, "shark_gill_slit_count") == null)
+	assert(_find_slider_for_key(fish_panel, "fin_ray_count") != null)
+	assert(_find_checkbox_for_key(fish_panel, "adipose_fin_enabled") != null)
+	assert(_find_checkbox_for_key(fish_panel, "finlet_enabled") != null)
+
+	ray_panel.set_creature_type("ray")
+	ray_panel.set_parameters({
+		"disc_width": 1.2,
+		"ray_disc_shape": "manta",
+		"swim_mode": "eel",
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"shark_gill_slit_count": 5,
+		"fin_ray_count": 12.0,
+		"adipose_fin_enabled": true,
+		"finlet_enabled": true
+	})
+	assert(_find_slider_for_key(ray_panel, "disc_width") != null)
+	assert(_find_option_for_key(ray_panel, "ray_disc_shape") != null)
+	assert(_find_option_for_key(ray_panel, "swim_mode") == null)
+	assert(_find_option_for_key(ray_panel, "gill_mark") == null)
+	assert(_find_slider_for_key(ray_panel, "operculum_size") == null)
+	assert(_find_slider_for_key(ray_panel, "shark_gill_slit_count") == null)
+	assert(_find_slider_for_key(ray_panel, "fin_ray_count") == null)
+	assert(_find_checkbox_for_key(ray_panel, "adipose_fin_enabled") == null)
+	assert(_find_checkbox_for_key(ray_panel, "finlet_enabled") == null)
+
+	shark_panel.set_creature_type("shark")
+	shark_panel.set_parameters({
+		"body_length": 5.8,
+		"ray_disc_shape": "diamond",
+		"caudal_shape": "shark_heterocercal",
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"shark_gill_slit_count": 5,
+		"shark_gill_slit_length": 0.22,
+		"shark_gill_slit_spacing": 0.055,
+		"shark_gill_slit_angle": -8.0,
+		"shark_gill_slit_depth": 0.65,
+		"shark_gill_slit_position_x": -0.28,
+		"shark_gill_slit_position_y": 0.08,
+		"fin_ray_count": 12.0,
+		"adipose_fin_enabled": true,
+		"finlet_enabled": true
+	})
+	assert(_find_slider_for_key(shark_panel, "body_length") != null)
+	assert(_find_option_for_key(shark_panel, "ray_disc_shape") == null)
+	assert(_find_option_for_key(shark_panel, "caudal_shape") != null)
+	assert(_find_option_for_key(shark_panel, "gill_mark") == null)
+	assert(_find_slider_for_key(shark_panel, "operculum_size") == null)
+	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_count") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_length") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_spacing") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_angle") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_depth") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_position_x") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_position_y") != null)
+	assert(_find_slider_for_key(shark_panel, "fin_ray_count") == null)
+	assert(_find_checkbox_for_key(shark_panel, "adipose_fin_enabled") == null)
+	assert(_find_checkbox_for_key(shark_panel, "finlet_enabled") == null)
+
+	print("PARAMETER_MODE_VISIBILITY_TEST_OK")
+	get_tree().quit(0)
+
+func _find_slider_for_key(panel: Control, key: String) -> HSlider:
+	var sliders: Dictionary = panel.get("sliders")
+	return sliders.get(key, null) as HSlider
+
+func _find_option_for_key(panel: Control, key: String) -> OptionButton:
+	var option_buttons: Dictionary = panel.get("option_buttons")
+	return option_buttons.get(key, null) as OptionButton
+
+func _find_checkbox_for_key(panel: Control, key: String) -> CheckBox:
+	var sliders: Dictionary = panel.get("sliders")
+	return sliders.get(key, null) as CheckBox

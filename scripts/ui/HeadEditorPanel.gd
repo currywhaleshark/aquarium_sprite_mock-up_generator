@@ -14,6 +14,7 @@ const UiRows := preload("res://scripts/ui/UiRows.gd")
 const FinVectorEditorScript := preload("res://scripts/ui/FinVectorEditor.gd")
 const ThumbnailOptionGridScript := preload("res://scripts/ui/ThumbnailOptionGrid.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
 
 const HEAD_SHAPES := ["rounded", "tapered", "pointed", "blunt", "broad", "flattened", "hump", "steep_forehead", "cephalofoil"]
 const MOUTH_TYPES := ["terminal", "superior", "inferior", "subterminal", "protrusible"]
@@ -76,6 +77,7 @@ const RAY_HEAD_KEYS := {
 }
 
 var parameters: Dictionary = {}
+var creature_type := CreatureModeScript.FISH
 var options_container: VBoxContainer
 var slider_container: VBoxContainer
 var current_editor_mode := ""
@@ -163,10 +165,19 @@ func _ready() -> void:
 
 func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
+	creature_type = CreatureModeScript.normalize(String(parameters.get("creature_type", creature_type)))
+	_refresh_controls()
+
+func set_creature_type(mode: String) -> void:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	if creature_type == normalized_mode:
+		return
+	creature_type = normalized_mode
+	parameters["creature_type"] = creature_type
 	_refresh_controls()
 
 func focus_key(key: String) -> Control:
-	if String(parameters.get("creature_type", "fish")) == "ray":
+	if creature_type == CreatureModeScript.RAY:
 		return null
 	if not numeric_sliders.has(key) or not _should_show_fish_numeric_key(key):
 		return null
@@ -209,7 +220,7 @@ func set_option_parameter(key: String, value: String) -> void:
 	_emit_and_refresh()
 
 func set_numeric_parameter(key: String, value: float) -> void:
-	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
+	var is_ray := creature_type == CreatureModeScript.RAY
 	var keys: Dictionary = RAY_HEAD_KEYS if is_ray else NUMERIC_KEYS
 	if not keys.has(key):
 		return
@@ -224,6 +235,12 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 		child.queue_free()
 	numeric_sliders.clear()
 	current_numeric_keys.clear()
+	snout_appendage_option = null
+	head_ornament_option = null
+	gill_mark_option = null
+	barbel_style_option = null
+	mouth_detail_option = null
+	ray_head_shape_option = null
 
 	if is_ray:
 		ray_head_shape_option = _add_option_row(options_container, UiText.parameter("ray_head_shape"), ["manta", "eagle", "cownose"])
@@ -244,23 +261,24 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 				set_mouth_type(value)
 		)
 
-		head_ornament_option = _add_option_row(options_container, UiText.parameter("head_ornament"), HEAD_ORNAMENTS)
-		head_ornament_option.item_selected.connect(func(index: int) -> void:
-			if not _updating:
-				set_option_parameter("head_ornament", String(head_ornament_option.get_item_metadata(index)))
-		)
+		if creature_type == CreatureModeScript.FISH:
+			head_ornament_option = _add_option_row(options_container, UiText.parameter("head_ornament"), HEAD_ORNAMENTS)
+			head_ornament_option.item_selected.connect(func(index: int) -> void:
+				if not _updating:
+					set_option_parameter("head_ornament", String(head_ornament_option.get_item_metadata(index)))
+			)
 
-		gill_mark_option = _add_option_row(options_container, UiText.parameter("gill_mark"), GILL_MARKS)
-		gill_mark_option.item_selected.connect(func(index: int) -> void:
-			if not _updating:
-				set_option_parameter("gill_mark", String(gill_mark_option.get_item_metadata(index)))
-		)
+			gill_mark_option = _add_option_row(options_container, UiText.parameter("gill_mark"), GILL_MARKS)
+			gill_mark_option.item_selected.connect(func(index: int) -> void:
+				if not _updating:
+					set_option_parameter("gill_mark", String(gill_mark_option.get_item_metadata(index)))
+			)
 
-		barbel_style_option = _add_option_row(options_container, UiText.parameter("barbel_style"), BARBEL_STYLES)
-		barbel_style_option.item_selected.connect(func(index: int) -> void:
-			if not _updating:
-				set_option_parameter("barbel_style", String(barbel_style_option.get_item_metadata(index)))
-		)
+			barbel_style_option = _add_option_row(options_container, UiText.parameter("barbel_style"), BARBEL_STYLES)
+			barbel_style_option.item_selected.connect(func(index: int) -> void:
+				if not _updating:
+					set_option_parameter("barbel_style", String(barbel_style_option.get_item_metadata(index)))
+			)
 
 		eye_style_grid = _add_thumbnail_option_grid(options_container, UiText.parameter("eye_style"), "eye_style", EYE_STYLES)
 		eye_style_grid.value_selected.connect(func(value: String) -> void:
@@ -274,11 +292,12 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 				set_option_parameter("mouth_detail", String(mouth_detail_option.get_item_metadata(index)))
 		)
 
-		snout_appendage_option = _add_option_row(options_container, UiText.parameter("snout_appendage"), ["none", "swordfish_bill", "sawfish_saw", "barbels"])
-		snout_appendage_option.item_selected.connect(func(index: int) -> void:
-			if not _updating:
-				set_snout_appendage(String(snout_appendage_option.get_item_metadata(index)))
-		)
+		if creature_type == CreatureModeScript.FISH:
+			snout_appendage_option = _add_option_row(options_container, UiText.parameter("snout_appendage"), ["none", "swordfish_bill", "sawfish_saw", "barbels"])
+			snout_appendage_option.item_selected.connect(func(index: int) -> void:
+				if not _updating:
+					set_snout_appendage(String(snout_appendage_option.get_item_metadata(index)))
+			)
 
 func _add_option_row(parent: VBoxContainer, label_text: String, values: Array) -> OptionButton:
 	var row := HBoxContainer.new()
@@ -342,8 +361,8 @@ func _refresh_controls() -> void:
 	if options_container == null:
 		return
 	_updating = true
-	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
-	var mode := "ray" if is_ray else "fish"
+	var is_ray := creature_type == CreatureModeScript.RAY
+	var mode := creature_type
 	if mode != current_editor_mode:
 		current_editor_mode = mode
 		_rebuild_controls_for_mode(is_ray)
@@ -353,12 +372,16 @@ func _refresh_controls() -> void:
 	else:
 		head_shape_grid.select_value(String(parameters.get("head_shape", "rounded")))
 		mouth_type_grid.select_value(String(parameters.get("mouth_type", "terminal")))
-		_select_option(head_ornament_option, String(parameters.get("head_ornament", "none")))
-		_select_option(gill_mark_option, String(parameters.get("gill_mark", "none")))
-		_select_option(barbel_style_option, String(parameters.get("barbel_style", "none")))
+		if head_ornament_option != null:
+			_select_option(head_ornament_option, String(parameters.get("head_ornament", "none")))
+		if gill_mark_option != null:
+			_select_option(gill_mark_option, String(parameters.get("gill_mark", "none")))
+		if barbel_style_option != null:
+			_select_option(barbel_style_option, String(parameters.get("barbel_style", "none")))
 		eye_style_grid.select_value(String(parameters.get("eye_style", "bead")))
 		_select_option(mouth_detail_option, String(parameters.get("mouth_detail", "dot")))
-		_select_option(snout_appendage_option, String(parameters.get("snout_appendage", "none")))
+		if snout_appendage_option != null:
+			_select_option(snout_appendage_option, String(parameters.get("snout_appendage", "none")))
 	_sync_numeric_controls(is_ray)
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]
@@ -378,7 +401,7 @@ func _refresh_controls() -> void:
 func _position_operculum_editor() -> void:
 	if operculum_editor == null:
 		return
-	var is_op := String(parameters.get("creature_type", "fish")) != "ray" \
+	var is_op := creature_type == CreatureModeScript.FISH \
 		and String(parameters.get("gill_mark", "none")) == "operculum"
 	operculum_editor.visible = is_op
 	if is_op:
@@ -564,6 +587,8 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 		var shape := String(parameters.get("head_shape", "rounded"))
 		return shape == "hump" or shape == "steep_forehead"
 	if key == "snout_appendage_length":
+		if creature_type != CreatureModeScript.FISH:
+			return false
 		var appendage := String(parameters.get("snout_appendage", "none"))
 		return appendage != "" and appendage != "none"
 	if key == "snout_base" or key == "snout_thickness" or key == "snout_taper" or key == "snout_curve":
@@ -573,7 +598,7 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 	if key == "head_bump_pos" or key == "head_bump_width" or key == "head_bump_angle" or key == "head_bump_round":
 		return float(parameters.get("head_bump_height", 0.0)) > 0.001
 	if key.begins_with("operculum_"):
-		return String(parameters.get("gill_mark", "none")) == "operculum"
+		return creature_type == CreatureModeScript.FISH and String(parameters.get("gill_mark", "none")) == "operculum"
 	return true
 
 func _section_title_for_key(key: String) -> String:

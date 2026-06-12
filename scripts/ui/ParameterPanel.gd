@@ -6,9 +6,12 @@ signal parameters_changed(parameters: Dictionary)
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
+const CreatureParameterSchemaScript := preload("res://scripts/creature/CreatureParameterSchema.gd")
 const MarkingLayerEditorScript := preload("res://scripts/ui/MarkingLayerEditor.gd")
 
 var parameters: Dictionary = {}
+var creature_type := CreatureModeScript.FISH
 var container: VBoxContainer
 var section_bodies: Dictionary = {}
 var collapsed_sections: Dictionary = {}
@@ -123,6 +126,14 @@ func _ready() -> void:
 	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	add_child(container)
 
+func set_creature_type(mode: String) -> void:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	if creature_type == normalized_mode:
+		return
+	creature_type = normalized_mode
+	if not parameters.is_empty() and container != null:
+		_build_controls()
+
 func set_parameters(new_parameters: Dictionary) -> void:
 	var keys_changed := false
 	if new_parameters.size() != parameters.size():
@@ -132,7 +143,11 @@ func set_parameters(new_parameters: Dictionary) -> void:
 			if not parameters.has(k):
 				keys_changed = true
 				break
-				
+	var incoming_mode := CreatureModeScript.normalize(String(new_parameters.get("creature_type", creature_type)))
+	if incoming_mode != creature_type:
+		creature_type = incoming_mode
+		keys_changed = true
+
 	parameters = new_parameters.duplicate(true)
 	if container == null:
 		return
@@ -351,7 +366,7 @@ func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
 		"value_width": 46,
 		"min": _min_for_key(key, value),
 		"max": max_value,
-		"step": 0.005 if max_value <= 3.0 else 0.1,
+		"step": _step_for_key(key, max_value),
 		"value": value,
 	})
 	var slider := widgets["slider"] as HSlider
@@ -474,6 +489,12 @@ func _add_marking_layer_editor(parent: VBoxContainer, layers_value: Array) -> vo
 	parent.add_child(editor)
 
 func _min_for_key(key: String, value: float) -> float:
+	if key == "shark_gill_slit_count":
+		return 1.0
+	if key == "shark_gill_slit_angle":
+		return -45.0
+	if key == "shark_gill_slit_depth":
+		return 0.0
 	if key == "scale_size":
 		return 4.0
 	if key == "wave_ripples":
@@ -489,6 +510,12 @@ func _min_for_key(key: String, value: float) -> float:
 	return 0.0
 
 func _max_for_key(key: String, value: float) -> float:
+	if key == "shark_gill_slit_count":
+		return 7.0
+	if key == "shark_gill_slit_angle":
+		return 45.0
+	if key == "shark_gill_slit_depth":
+		return 1.0
 	if key == "scale_size":
 		return 64.0
 	if key == "disc_thickness":
@@ -527,6 +554,13 @@ func _max_for_key(key: String, value: float) -> float:
 		return maxf(3.5, value * 2.0)
 	return maxf(2.0, value * 2.0)
 
+func _step_for_key(key: String, max_value: float) -> float:
+	if key == "shark_gill_slit_count":
+		return 1.0
+	if key == "shark_gill_slit_angle":
+		return 1.0
+	return 0.005 if max_value <= 3.0 else 0.1
+
 func _is_signed_parameter(key: String) -> bool:
 	return key.contains("offset") or key.contains("position") or key.ends_with("_x") or key.ends_with("_y") or key.ends_with("_z")
 
@@ -558,7 +592,18 @@ func _category_for_key(key: String) -> String:
 	return "Other"
 
 func _should_hide_key(key: String) -> bool:
-	return HIDDEN_BODY_PROFILE_KEYS.has(key) or SPECIALIZED_EDITOR_KEYS.has(key)
+	if HIDDEN_BODY_PROFILE_KEYS.has(key):
+		return true
+	if not CreatureParameterSchemaScript.is_parameter_visible(creature_type, key):
+		return true
+	return SPECIALIZED_EDITOR_KEYS.has(key) and not _should_show_specialized_key(key)
+
+func _should_show_specialized_key(key: String) -> bool:
+	if creature_type == CreatureModeScript.RAY and key == "ray_disc_shape":
+		return true
+	if creature_type == CreatureModeScript.SHARK and key == "caudal_shape":
+		return true
+	return false
 
 func _is_color_value(value: Variant) -> bool:
 	if value is Color:
@@ -586,29 +631,45 @@ func _looks_like_hex_color(text: String) -> bool:
 	return true
 
 func _is_option_parameter(key: String) -> bool:
-	return key == "swim_mode" or key == "pattern_type" or key == "palette_scheme" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style" or key == "fin_ray_style"
+	return key == "gill_mark" or key == "caudal_shape" or key == "swim_mode" or key == "pattern_type" or key == "palette_scheme" or key == "scale_type" or key == "pectoral_flap_sync" or key == "cephalic_horns" or key == "ray_locomotion_mode" or key == "ray_head_shape" or key == "ray_disc_shape" or key == "ray_tail_style" or key == "fin_ray_style"
 
 func _options_for_key(key: String) -> Array[String]:
+	if key == "gill_mark":
+		return _filter_options_for_mode(key, ["none", "line", "crescent", "plate", "operculum"] as Array[String])
+	if key == "caudal_shape":
+		return _filter_options_for_mode(key, [
+			"forked_shallow", "forked_deep", "truncate", "rounded", "pointed", "lunate",
+			"fan", "double_fan", "halfmoon", "veil", "crowntail", "spade", "lyre",
+			"top_sword", "bottom_sword", "double_sword", "butterfly",
+			"shark_heterocercal", "thresher", "custom"
+		] as Array[String])
 	if key == "swim_mode":
-		return BodyProfileScript.swim_mode_names()
+		return _filter_options_for_mode(key, BodyProfileScript.swim_mode_names())
 	if key == "pattern_type":
-		return BodyProfileScript.pattern_type_names()
+		return _filter_options_for_mode(key, BodyProfileScript.pattern_type_names())
 	if key == "palette_scheme":
-		return BodyProfileScript.palette_scheme_names()
+		return _filter_options_for_mode(key, BodyProfileScript.palette_scheme_names())
 	if key == "scale_type":
-		return BodyProfileScript.scale_type_names()
+		return _filter_options_for_mode(key, BodyProfileScript.scale_type_names())
 	if key == "pectoral_flap_sync":
-		return ["alternating", "synchronous"] as Array[String]
+		return _filter_options_for_mode(key, ["alternating", "synchronous"] as Array[String])
 	if key == "cephalic_horns":
-		return ["none", "rolled", "unfolded"] as Array[String]
+		return _filter_options_for_mode(key, ["none", "rolled", "unfolded"] as Array[String])
 	if key == "ray_locomotion_mode":
-		return ["rajiform", "mobuliform", "punting"] as Array[String]
+		return _filter_options_for_mode(key, ["rajiform", "mobuliform", "punting"] as Array[String])
 	if key == "ray_head_shape":
-		return ["manta", "eagle", "cownose"] as Array[String]
+		return _filter_options_for_mode(key, ["manta", "eagle", "cownose"] as Array[String])
 	if key == "ray_disc_shape":
-		return ["diamond", "round", "manta", "skate", "electric"] as Array[String]
+		return _filter_options_for_mode(key, ["diamond", "round", "manta", "skate", "electric"] as Array[String])
 	if key == "ray_tail_style":
-		return ["whip", "manta_thread", "stout_skate", "short_round"] as Array[String]
+		return _filter_options_for_mode(key, ["whip", "manta_thread", "stout_skate", "short_round"] as Array[String])
 	if key == "fin_ray_style":
-		return BodyProfileScript.fin_ray_style_names()
+		return _filter_options_for_mode(key, BodyProfileScript.fin_ray_style_names())
 	return []
+
+func _filter_options_for_mode(key: String, options: Array[String]) -> Array[String]:
+	var filtered: Array[String] = []
+	for option in options:
+		if CreatureParameterSchemaScript.is_option_value_visible(creature_type, key, option):
+			filtered.append(option)
+	return filtered
