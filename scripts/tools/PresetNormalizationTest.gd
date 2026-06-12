@@ -102,6 +102,77 @@ func _ready() -> void:
 	assert(bool(rebuilt_ray.get("ray_tail_spine_enabled", false)))
 	assert(bool(rebuilt_ray.get("ray_dorsal_tail_fins", false)))
 
+	var fish_split := BodyProfileScript.split_parameters_into_profiles({
+		"creature_type": "fish",
+		"body_length": 1.4,
+		"ray_disc_shape": "manta",
+		"ray_tail_style": "whip",
+		"shark_gill_slit_count": 5
+	}, {"name": "fish_split_check", "creature_type": "fish"})
+	assert(not (fish_split.get("fin_profile", {}) as Dictionary).has("ray_disc_shape"))
+	assert(not (fish_split.get("tail_profile", {}) as Dictionary).has("ray_tail_style"))
+	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_gill_slit_count"))
+
+	var shark_split := BodyProfileScript.split_parameters_into_profiles({
+		"creature_type": "shark",
+		"body_length": 5.8,
+		"caudal_shape": "shark_heterocercal",
+		"shark_gill_slit_count": 5,
+		"ray_disc_shape": "diamond",
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"fin_ray_count": 12.0,
+		"adipose_fin_enabled": true,
+		"finlet_enabled": true
+	}, {"name": "shark_split_check", "creature_type": "shark"})
+	assert(String(shark_split.get("creature_type", "")) == "shark")
+	assert(String(shark_split.get("type", "")) == "shark")
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("ray_disc_shape"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("gill_mark"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("operculum_size"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("fin_ray_count"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("adipose_fin_enabled"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("finlet_enabled"))
+	assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_gill_slit_count", 0.0)) == 5.0)
+
+	var polluted_ray_split := BodyProfileScript.split_parameters_into_profiles({
+		"creature_type": "ray",
+		"disc_width": 1.2,
+		"ray_disc_shape": "manta",
+		"shark_gill_slit_count": 5,
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"fin_ray_count": 12.0,
+		"adipose_fin_enabled": true,
+		"finlet_enabled": true
+	}, {"name": "ray_split_check", "creature_type": "ray"})
+	assert(String(polluted_ray_split.get("creature_type", "")) == "ray")
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("gill_mark"))
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("operculum_size"))
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("fin_ray_count"))
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("adipose_fin_enabled"))
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("finlet_enabled"))
+	assert(not (polluted_ray_split.get("parameters", {}) as Dictionary).has("shark_gill_slit_count"))
+	assert(String((polluted_ray_split.get("fin_profile", {}) as Dictionary).get("ray_disc_shape", "")) == "manta")
+
+	var polluted_loaded := PresetStoreScript.normalize_preset({
+		"name": "polluted_fish_load_check",
+		"creature_type": "fish",
+		"type": "fish",
+		"parameters": {
+			"body_length": 1.4,
+			"disc_width": 1.2,
+			"ray_disc_shape": "manta",
+			"shark_gill_slit_count": 5,
+			"body_profile": {"rings": BodyProfileScript.default_fish_rings()}
+		}
+	})
+	var loaded_params: Dictionary = polluted_loaded.get("parameters", {})
+	assert(loaded_params.has("body_profile"))
+	assert(not loaded_params.has("disc_width"))
+	assert(not loaded_params.has("ray_disc_shape"))
+	assert(not loaded_params.has("shark_gill_slit_count"))
+
 	var long_fish := _find_preset(presets, "long_fish")
 	assert(not long_fish.is_empty())
 	var long_parameters: Dictionary = long_fish.get("parameters", {})

@@ -127,11 +127,24 @@ static func normalize_preset(preset: Dictionary) -> Dictionary:
 			parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 			BodyProfileScript.normalize_motion_parameters(parameters)
 		BodyProfileScript.ensure_visual_parameters(parameters)
+		parameters = BodyProfileScript.sanitize_parameters_for_mode(parameters, mode)
 		normalized["parameters"] = parameters
+		_sanitize_profile_dictionaries(normalized, mode)
 		return normalized
 	var parameters := BodyProfileScript.make_parameters_from_structured_preset(normalized)
 	parameters["creature_type"] = mode
 	if mode == CreatureModeScript.FISH or mode == CreatureModeScript.SHARK:
 		parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 	normalized["parameters"] = parameters
+	_sanitize_profile_dictionaries(normalized, mode)
 	return normalized
+
+static func _sanitize_profile_dictionaries(preset: Dictionary, mode: String) -> void:
+	for profile_key in ["global", "tail_profile", "fin_profile", "motion_profile", "visual_profile"]:
+		if not preset.has(profile_key) or not (preset[profile_key] is Dictionary):
+			continue
+		var profile: Dictionary = (preset[profile_key] as Dictionary).duplicate(true)
+		profile["creature_type"] = mode
+		profile = BodyProfileScript.sanitize_parameters_for_mode(profile, mode)
+		profile.erase("creature_type")
+		preset[profile_key] = profile

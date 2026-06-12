@@ -20,6 +20,7 @@ const RAY_ONLY_KEYS := {
 	"ray_tail_spine_enabled": true,
 	"ray_dorsal_tail_fins": true,
 	"ray_locomotion_mode": true,
+	"wave_ripples": true,
 	"flap_amplitude": true,
 	"flap_speed": true,
 	"wing_phase_offset": true,

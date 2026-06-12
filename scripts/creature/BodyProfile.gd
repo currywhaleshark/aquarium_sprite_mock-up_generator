@@ -1,6 +1,9 @@
 class_name BodyProfile
 extends RefCounted
 
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
+const CreatureParameterSchemaScript := preload("res://scripts/creature/CreatureParameterSchema.gd")
+
 const MIN_RING_COUNT := 3
 const RING_KEYS := [
 	"x", "y_offset",
@@ -168,6 +171,15 @@ const UNUSED_PARAMETER_KEYS := [
 	"toon_steps",
 	"rim_light_strength"
 ]
+const PRESERVED_PARAMETER_KEYS := {
+	"creature_type": true,
+	"body_profile": true,
+	"selected_body_ring_id": true,
+	"archetype_id": true,
+	"archetype_strength": true,
+	"variant_seed": true,
+	"marking_layers": true
+}
 
 const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated", "whale_grid"]
 const SCALE_TYPE_NAMES := ["cycloid", "ctenoid", "ganoid", "placoid", "pearlscale"]
@@ -522,8 +534,21 @@ static func find_ring_index(rings: Array, ring_id: String) -> int:
 			return i
 	return -1
 
+static func sanitize_parameters_for_mode(parameters: Dictionary, mode: String) -> Dictionary:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	var sanitized := parameters.duplicate(true)
+	sanitized["creature_type"] = normalized_mode
+	for key in sanitized.keys():
+		var text_key := String(key)
+		if PRESERVED_PARAMETER_KEYS.has(text_key):
+			continue
+		if not CreatureParameterSchemaScript.is_parameter_visible(normalized_mode, text_key):
+			sanitized.erase(key)
+	return sanitized
+
 static func make_parameters_from_structured_preset(preset: Dictionary) -> Dictionary:
 	var parameters: Dictionary = {}
+	var mode := CreatureModeScript.normalize(String(preset.get("creature_type", preset.get("type", "fish"))))
 	_merge(parameters, _as_dictionary(preset.get("global", {})))
 	_merge(parameters, _as_dictionary(preset.get("tail_profile", {})))
 	_merge(parameters, _as_dictionary(preset.get("fin_profile", {})))
@@ -534,27 +559,30 @@ static func make_parameters_from_structured_preset(preset: Dictionary) -> Dictio
 	for key in ["archetype_id", "archetype_strength", "variant_seed", "marking_layers"]:
 		if preset.has(key):
 			parameters[key] = preset[key]
-	parameters["creature_type"] = String(preset.get("type", preset.get("creature_type", "fish")))
+	parameters["creature_type"] = mode
 	normalize_motion_parameters(parameters)
 	ensure_visual_parameters(parameters)
-	return parameters
+	return sanitize_parameters_for_mode(parameters, mode)
 
 static func split_parameters_into_profiles(parameters: Dictionary, preset: Dictionary) -> Dictionary:
 	var updated: Dictionary = preset.duplicate(true)
+	var mode := CreatureModeScript.normalize(String(parameters.get("creature_type", preset.get("creature_type", preset.get("type", "fish")))))
 	var normalized_parameters := parameters.duplicate(true)
+	normalized_parameters["creature_type"] = mode
 	normalize_motion_parameters(normalized_parameters)
-	updated["global"] = _pick(parameters, [
+	normalized_parameters = sanitize_parameters_for_mode(normalized_parameters, mode)
+	updated["global"] = _pick(normalized_parameters, [
 		"body_length", "body_height", "body_width", "projection_hint",
 		"show_ring_guides", "shell_enabled", "shell_expand",
 		"shell_color_mix", "shell_opacity", "shell_roundness", "head_size", "head_offset",
 		"eye_size", "eye_position_x", "eye_position_y", "eye_spacing"
 	])
-	updated["body_profile"] = parameters.get("body_profile", {})
-	updated["tail_profile"] = _pick(parameters, [
+	updated["body_profile"] = normalized_parameters.get("body_profile", {})
+	updated["tail_profile"] = _pick(normalized_parameters, [
 		"tail_length", "tail_fin_size", "caudal_shape", "caudal_height_scale",
 		"ray_tail_style", "ray_tail_spine_enabled", "ray_dorsal_tail_fins"
 	])
-	updated["fin_profile"] = _pick(parameters, [
+	updated["fin_profile"] = _pick(normalized_parameters, [
 		"dorsal_fin_size", "anal_fin_size", "pectoral_fin_size",
 		"dorsal_fin_offset_x", "anal_fin_offset_x", "pectoral_fin_offset_x",
 		"dorsal_1_attach_t", "dorsal_1_shape", "dorsal_1_length", "dorsal_1_height",
@@ -607,7 +635,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"outside_pectoral_brace", "turn_curve_bias", "turn_median_fin_bias", "turn_bank_roll",
 		"pectoral_flap_sync", "wave_ripples", "ray_locomotion_mode"
 	])
-	updated["visual_profile"] = _pick(parameters, [
+	updated["visual_profile"] = _pick(normalized_parameters, [
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
 		"highlight_strength", "shadow_strength",
 		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
@@ -619,8 +647,11 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"eye_iris_color", "eye_pupil_scale"
 	])
 	for key in ["archetype_id", "archetype_strength", "variant_seed", "marking_layers"]:
-		if parameters.has(key):
-			updated[key] = parameters[key]
+		if normalized_parameters.has(key):
+			updated[key] = normalized_parameters[key]
+	updated["creature_type"] = mode
+	updated["type"] = mode
+	normalized_parameters["creature_type"] = mode
 	updated["parameters"] = normalized_parameters
 	return updated
 
