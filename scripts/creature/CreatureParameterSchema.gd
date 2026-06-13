@@ -70,7 +70,8 @@ const FISH_MOUTH_KEYS := {
 	"lower_jaw_angle": true,
 	"lower_jaw_thickness": true,
 	"lower_jaw_tip": true,
-	"lower_upper_ratio": true
+	"lower_upper_ratio": true,
+	"lip_darken": true
 }
 
 const FISH_ONLY_KEYS := {

@@ -2065,7 +2065,7 @@ func _head_sculpt_params() -> Dictionary:
 		"mouth_carve_enabled": bool(parameters.get("mouth_carve_enabled", true)),
 		"mouth_open": param_float("mouth_open", 0.25),
 		"mouth_size": param_float("mouth_size", 0.08),
-		"mouth_center_y": mouth_base_y + _snout_tip_displacement(),
+		"mouth_center_y": _mouth_anchor_y(mouth_base_y),
 		"lower_jaw_scale": _head_lower_jaw_scale(),
 		"jaw_hinge_x": param_float("jaw_hinge_x", HeadProfile.JAW_DEFAULTS["jaw_hinge_x"]),
 		"jaw_hinge_y": param_float("jaw_hinge_y", jaw_hinge_y_def),
@@ -2080,6 +2080,16 @@ func _head_lower_jaw_scale() -> float:
 	var ring_scale := float(head_ring.get("lower_height", 0.36)) / 0.36
 	var belly_scale := 1.0 + clampf(param_float("head_belly_curve", 0.0), -1.0, 1.0) * 0.45
 	return clampf(ring_scale * belly_scale, 0.45, 1.8)
+
+# The deformed snout can push the mouth anchor past the head's vertical extent
+# (superior mouths on strongly sheared/curled snouts). Past the face band there is
+# no front surface left for the mouth bands to hug, so they drape across the top of
+# the skull as a dark cap. Clamp the anchor to the face band; the carve and the
+# band meshes share this through _head_sculpt_params and _mouth_position_for_type.
+const MOUTH_ANCHOR_Y_LIMIT := 0.38
+
+func _mouth_anchor_y(mouth_base_y: float) -> float:
+	return clampf(mouth_base_y + _snout_tip_displacement(), -MOUTH_ANCHOR_Y_LIMIT, MOUTH_ANCHOR_Y_LIMIT)
 
 # Linear jaw shear of the snout tip. Matches the mouth's own vertical offset from
 # its no-jaw baseline (see _mouth_position_for_type) so the snout geometry and the
@@ -2375,8 +2385,10 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# instead of the lower jaw lagging behind the protruded upper jaw.
 	var premax_fwd: float = HeadProfile.JAW_SNOUT_FRONT_X - jaw_lm["upper_tip"].x
 
+	# lip_darken keeps the lip/jaw tone readable on dark base colours (a fixed 0.34
+	# turned the whole snout near-black on deep reds); 0.34 reproduces legacy presets.
 	var lip_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
-	lip_mat.albedo_color = lip_mat.albedo_color.darkened(0.34)
+	lip_mat.albedo_color = lip_mat.albedo_color.darkened(clampf(param_float("lip_darken", 0.34), 0.0, 1.0))
 
 	# Clamp/sample against the ACTUAL head mesh where needed: snout taper / profile make the
 	# real surface recede from the radius-0.5 sphere, so a large band that wraps onto those
@@ -2984,9 +2996,15 @@ func _op_v(st: SurfaceTool, uv: Vector2, p: Vector3) -> void:
 func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material, snout_length: float) -> void:
 	if style == "none" or style == "":
 		return
+	# Anchor at the chin, just below the mouth, so the whiskers hang off the jaw tip.
+	# The mouth anchor already tracks the snout's jaw shear and curl; the old fixed
+	# offset (-0.12 + full tip displacement) drifted onto the forehead on strongly
+	# upturned snouts and read as horns.
+	var mouth_position := _mouth_position_for_type(String(parameters.get("mouth_type", "terminal")), head.scale, snout_length)
+	var chin_drop := maxf(param_float("mouth_size", 0.08) * 0.8, 0.05)
 	var root := Node3D.new()
 	root.name = "BarbelCluster_%s" % style
-	root.position = Vector3(-0.48 - snout_length * 0.18, -0.12 + _snout_tip_displacement(), 0.0)
+	root.position = Vector3(mouth_position.x, mouth_position.y - chin_drop, 0.0)
 	head.add_child(root)
 	var specs := []
 	match style:
@@ -3054,8 +3072,7 @@ func _mouth_position_for_type(mouth_type: String, _head_scale: Vector3, _snout_l
 			outset = 0.032
 		"protrusible":
 			outset = 0.10
-	var shift := _snout_tip_displacement()
-	return Vector3(_head_front_surface_x(base_y, 0.0, outset), base_y + shift, 0.0)
+	return Vector3(_head_front_surface_x(base_y, 0.0, outset), _mouth_anchor_y(base_y), 0.0)
 
 func _mouth_angle_for_type(mouth_type: String) -> float:
 	match mouth_type:

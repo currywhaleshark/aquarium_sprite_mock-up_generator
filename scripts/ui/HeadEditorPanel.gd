@@ -55,6 +55,7 @@ const NUMERIC_KEYS := {
 	"jaw_hinge_y": {"min": -0.4, "max": 0.4, "step": 0.01},
 	"jaw_protrusion": {"min": 0.0, "max": 0.3, "step": 0.01},
 	"lower_upper_ratio": {"min": 0.6, "max": 1.5, "step": 0.01},
+	"lip_darken": {"min": 0.0, "max": 0.8, "step": 0.01},
 	"operculum_size": {"min": 0.5, "max": 1.5, "step": 0.01},
 	"operculum_height": {"min": 0.5, "max": 1.5, "step": 0.01},
 	"operculum_open": {"min": 0.0, "max": 1.0, "step": 0.01},
@@ -135,7 +136,7 @@ const FISH_SECTIONS := [
 	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length"]},
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
 	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},
-	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio", "shark_mouth_position_x", "shark_mouth_position_y", "shark_mouth_width", "shark_mouth_curve", "shark_mouth_gape", "shark_jaw_projection", "shark_lower_jaw_drop", "shark_tooth_visible_count", "shark_tooth_size", "shark_tooth_angle", "shark_labial_furrow_length"]},
+	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio", "lip_darken", "shark_mouth_position_x", "shark_mouth_position_y", "shark_mouth_width", "shark_mouth_curve", "shark_mouth_gape", "shark_jaw_projection", "shark_lower_jaw_drop", "shark_tooth_visible_count", "shark_tooth_size", "shark_tooth_angle", "shark_labial_furrow_length"]},
 	{"title": "아가미", "keys": ["operculum_position_x", "operculum_position_y", "operculum_size", "operculum_height", "operculum_open", "operculum_ridge", "shark_gill_slit_count", "shark_gill_slit_length", "shark_gill_slit_spacing", "shark_gill_slit_angle", "shark_gill_slit_depth", "shark_gill_slit_position_x", "shark_gill_slit_position_y"]},
 	{"title": "눈", "keys": ["eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]},
 ]

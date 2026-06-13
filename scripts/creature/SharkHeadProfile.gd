@@ -8,6 +8,11 @@ const DEFAULT_THETA_SEGMENTS := 32
 const BASE_U_RINGS := 24
 const MOUTH_EDGE_HALF_WIDTH_U := 0.055
 const MOUTH_CREASE_EPSILON_U := 0.012
+# Head-local outward offset so mouth markings sit proud of the head surface and
+# are not occluded by it. head.scale.z (~0.20) maps this to ~0.006 world units,
+# matching the gill-slit clearance (surface_z + 0.006) that renders correctly.
+const MOUTH_SURFACE_CLEARANCE := 0.030
+const TOOTH_SURFACE_CLEARANCE := 0.044
 
 static func build_head(name: String, parameters: Dictionary, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
@@ -189,27 +194,36 @@ static func _base_radii(parameters: Dictionary, u: float, snout_length: float, f
 	return Vector2(radius_y, radius_z)
 
 static func _mouth_shadow_mesh(parameters: Dictionary) -> ArrayMesh:
+	# The dark mouth must sit PROUD of the head surface (like the gill slits at
+	# surface_z + clearance), otherwise the head mesh occludes it and the mouth
+	# is invisible. It is a continuous crescent on each side that dips in the
+	# middle (predatory U) and opens downward as gape/jaw-drop increase.
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var emitted := false
-	var segments := 12
+	var segments := 16
+	var snout := float(parameters.get("snout_length", 0.0))
 	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
+	var drop_norm := clampf(float(parameters.get("shark_lower_jaw_drop", 0.10)), 0.0, 0.4) / 0.4
+	var curve := clampf(float(parameters.get("shark_mouth_curve", 0.58)), 0.0, 1.0)
+	var mouth_y := _mouth_center_y(parameters)
 	for side in [-1.0, 1.0]:
 		var side_value := float(side)
 		var corners := mouth_corners(parameters, side_value)
-		var front: Vector3 = corners[0]
-		var rear: Vector3 = corners[1]
+		var front_u := _u_for_x((corners[0] as Vector3).x, snout)
+		var rear_u := _u_for_x((corners[1] as Vector3).x, snout)
 		var previous_top := Vector3.ZERO
 		var previous_bottom := Vector3.ZERO
 		for i in range(segments + 1):
 			var t := float(i) / float(segments)
-			var u := lerpf(_u_for_x(front.x, float(parameters.get("snout_length", 0.0))), _u_for_x(rear.x, float(parameters.get("snout_length", 0.0))), t)
-			var curve := sin(t * PI)
-			var y_center := lerpf(front.y, rear.y, t) - curve * (0.010 + gape * 0.020)
-			var z_surface := surface_z_at(parameters, u, y_center, side_value)
-			var inset := -side_value * (0.006 + gape * 0.010)
-			var top := Vector3(_x_at_u(u, float(parameters.get("snout_length", 0.0))), y_center + 0.006, z_surface + inset)
-			var bottom := Vector3(top.x + 0.006 + gape * 0.018, y_center - 0.018 - gape * 0.020, z_surface + inset * 1.3)
+			var dip := sin(t * PI)
+			var center_y := mouth_y - dip * lerpf(0.012, 0.040, curve)
+			var top_y := center_y + 0.010
+			var bottom_y := center_y - (0.014 + gape * 0.075 + drop_norm * gape * 0.05)
+			var u := lerpf(front_u, rear_u, t)
+			var x := _x_at_u(u, snout)
+			var top := Vector3(x, top_y, surface_z_at(parameters, u, top_y, side_value) + side_value * MOUTH_SURFACE_CLEARANCE)
+			var bottom := Vector3(x, bottom_y, surface_z_at(parameters, u, bottom_y, side_value) + side_value * MOUTH_SURFACE_CLEARANCE)
 			if i > 0:
 				st.add_vertex(previous_top)
 				st.add_vertex(previous_bottom)

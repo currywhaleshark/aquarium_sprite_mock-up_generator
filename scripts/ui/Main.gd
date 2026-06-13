@@ -1125,7 +1125,17 @@ func _export_resolution() -> Vector2i:
 func _frame_to_export() -> void:
 	if current_rig == null or camera_controller == null:
 		return
-	var framing: Dictionary = SpriteExporterScript.compute_fit_framing(current_rig, _export_resolution())
+	# Match the pitch the export will actually use: the fixed quarter camera for
+	# 8-direction exports, otherwise the current preview camera (when roll-free).
+	var pitch_for_fit := NAN
+	var direction_count := 1
+	if export_panel and export_panel.has_method("get_direction_count"):
+		direction_count = int(export_panel.call("get_direction_count"))
+	if SpriteExporterScript.uses_fixed_quarter_view_camera(direction_count):
+		pitch_for_fit = float(CameraPresetScript.get_preset(CameraPresetScript.SPRITE_QUARTER_2TO1).get("pitch", -30.0))
+	elif camera != null and absf(camera.rotation_degrees.z) < 0.01:
+		pitch_for_fit = camera.rotation_degrees.x
+	var framing: Dictionary = SpriteExporterScript.compute_fit_framing(current_rig, _export_resolution(), pitch_for_fit)
 	if float(framing.get("radius", 0.0)) <= 0.0001:
 		return
 	camera_controller.set("orthographic_size", float(framing.get("ortho_size", 2.25)))

@@ -9,6 +9,7 @@ const SpriteSheetBuilderScript := preload("res://scripts/export/SpriteSheetBuild
 const ExportMetadataScript := preload("res://scripts/export/ExportMetadata.gd")
 const ExportDirectionsScript := preload("res://scripts/export/ExportDirections.gd")
 const GifEncoderScript := preload("res://scripts/export/GifEncoder.gd")
+const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 
 static func normalized_direction_count(value: int) -> int:
 	return ExportDirectionsScript.normalized_direction_count(value)
@@ -22,16 +23,37 @@ static func direction_yaw_degrees(direction_index: int) -> float:
 static func export_yaw_degrees(direction_count: int, direction_index: int, original_yaw: float) -> float:
 	return ExportDirectionsScript.export_yaw_degrees(direction_count, direction_index, original_yaw)
 
+static func uses_fixed_quarter_view_camera(direction_count: int) -> bool:
+	return normalized_direction_count(direction_count) == 8
+
+static func export_camera_preset_name(direction_count: int, fallback_name: String = "aquarium_side_quarter") -> String:
+	return CameraPresetScript.SPRITE_QUARTER_2TO1 if uses_fixed_quarter_view_camera(direction_count) else fallback_name
+
+static func apply_export_camera(camera: Camera3D, direction_count: int) -> bool:
+	if camera == null or not uses_fixed_quarter_view_camera(direction_count):
+		return false
+	CameraPresetScript.apply_to_camera(camera, CameraPresetScript.SPRITE_QUARTER_2TO1)
+	return true
+
 func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) -> void:
 	var preset_name := String(preset.get("name", "unnamed"))
 	var export_settings: Dictionary = preset.get("export_settings", {})
 	var resolution_dict: Dictionary = export_settings.get("render_resolution", {"w": 256, "h": 256})
 	var resolution := Vector2i(int(resolution_dict.get("w", 256)), int(resolution_dict.get("h", 256)))
 	var frame_count := int(export_settings.get("frame_count", RenderSettingsScript.DEFAULT_FRAME_COUNT))
-	var directions := direction_names(normalized_direction_count(int(export_settings.get("direction_count", 1))))
+	var direction_count := normalized_direction_count(int(export_settings.get("direction_count", 1)))
+	var directions := direction_names(direction_count)
 	var output_dir := "res://exports/%s" % preset_name
 	var frames_dir := "%s/frames" % output_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
+	# A SubViewportContainer with stretch enabled re-imposes its own size on the
+	# viewport every frame, silently overriding render_resolution (the app's preview
+	# viewport lives in one, so in-app exports came out at window size). Suspend
+	# stretch for the duration of the export; restored with the rest of the state.
+	var stretch_container := viewport.get_parent() as SubViewportContainer
+	var suspended_stretch := stretch_container != null and stretch_container.stretch
+	if suspended_stretch:
+		stretch_container.stretch = false
 	viewport.size = resolution
 	var original_auto_animate := rig.auto_animate
 	var original_rotation := rig.rotation_degrees
@@ -49,7 +71,11 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	if camera != null:
 		original_cam_size = camera.size
 		original_cam_transform = camera.transform
-		var framing := compute_fit_framing(rig, resolution)
+		cam_adjusted = apply_export_camera(camera, direction_count)
+		# Roll-free cameras get the tighter pitch-aware fit; anything rolled falls
+		# back to the angle-independent sphere.
+		var pitch_for_fit := camera.rotation_degrees.x if absf(camera.rotation_degrees.z) < 0.01 else NAN
+		var framing := compute_fit_framing(rig, resolution, pitch_for_fit)
 		if float(framing.radius) > 0.0001:
 			camera.size = float(framing.ortho_size)
 			camera.global_position += Vector3(0.0, float(framing.center_y), 0.0)
@@ -76,7 +102,7 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 			var frame_path := "%s/frame_%03d.png" % [direction_dir, i]
 			var err := image.save_png(frame_path)
 			if err != OK:
-				_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted)
+				_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null)
 				export_failed.emit("Failed to save %s: %s" % [frame_path, error_string(err)])
 				return
 			frame_paths.append(frame_path)
@@ -92,14 +118,14 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	var sheet_path := "%s/%s_sheet.png" % [output_dir, preset_name]
 	var sheet_err := SpriteSheetBuilderScript.build_sheet_grid(frame_rows, sheet_path)
 	if sheet_err != OK:
-		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted)
+		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null)
 		export_failed.emit("Failed to build sheet: %s" % error_string(sheet_err))
 		return
 
 	var metadata := ExportMetadataScript.build(preset, resolution)
 	var metadata_file := FileAccess.open("%s/%s_metadata.json" % [output_dir, preset_name], FileAccess.WRITE)
 	if metadata_file == null:
-		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted)
+		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null)
 		export_failed.emit("Failed to write metadata JSON.")
 		return
 	metadata_file.store_string(JSON.stringify(metadata, "\t"))
@@ -124,30 +150,47 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 		push_warning("Sprite GIF export failed (%s): %s" % [gif_path, error_string(gif_err)])
 
 	export_progress.emit(1.0, "완료")
-	_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted)
+	_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null)
 	export_finished.emit(ProjectSettings.globalize_path(output_dir))
 
-func _restore_rig_state(rig: CreatureRig, auto_animate: bool, rotation_degrees: Vector3, camera: Camera3D = null, cam_size: float = 0.0, cam_transform: Transform3D = Transform3D.IDENTITY, cam_adjusted: bool = false) -> void:
+func _restore_rig_state(rig: CreatureRig, auto_animate: bool, rotation_degrees: Vector3, camera: Camera3D = null, cam_size: float = 0.0, cam_transform: Transform3D = Transform3D.IDENTITY, cam_adjusted: bool = false, stretch_container: SubViewportContainer = null) -> void:
 	rig.rotation_degrees = rotation_degrees
 	rig.auto_animate = auto_animate
 	if cam_adjusted and camera != null:
 		camera.size = cam_size
 		camera.transform = cam_transform
+	if stretch_container != null:
+		stretch_container.stretch = true
 
 # Orthographic framing that contains the whole creature with padding, shared by the
 # exporter and the editor's "export framing" preview so both match exactly. Returns
 # the orthographic size, the vertical centre to aim at, and the bounding radius.
-static func compute_fit_framing(rig: CreatureRig, resolution: Vector2i) -> Dictionary:
+#
+# When camera_pitch_degrees is given (a roll-free camera at a known pitch), the
+# vertical fit projects the measured extents through that pitch instead of using
+# the bounding sphere, which wasted a third of the frame on tall-ish bodies. NAN
+# keeps the angle-independent sphere fit (the editor preview orbits freely).
+static func compute_fit_framing(rig: CreatureRig, resolution: Vector2i, camera_pitch_degrees: float = NAN) -> Dictionary:
 	var metrics := _compute_fit_metrics(rig)
 	var radius: float = sqrt(metrics.r_h * metrics.r_h + metrics.r_v * metrics.r_v)
 	var aspect := float(resolution.x) / float(maxi(resolution.y, 1))
-	var ortho_size := 2.0 * radius * 1.08 * maxf(1.0, 1.0 / maxf(aspect, 0.0001))
+	var half_w: float = metrics.r_h
+	var half_h: float
+	if is_nan(camera_pitch_degrees):
+		half_w = radius
+		half_h = radius
+	else:
+		var pitch := absf(deg_to_rad(camera_pitch_degrees))
+		half_h = metrics.r_h * sin(pitch) + metrics.r_v * cos(pitch)
+	var ortho_size := 2.0 * 1.08 * maxf(half_h, half_w / maxf(aspect, 0.0001))
 	return {"ortho_size": maxf(ortho_size, 0.01), "center_y": metrics.cy, "radius": radius}
 
 # Measures the creature's extent in the rig's local frame and returns the radius
 # from the rotation (Y) axis (r_h), the vertical half-height (r_v) and vertical
 # centre (cy). Several swim phases are sampled so animation never clips. Local space
 # keeps the result invariant to the per-direction Y rotation applied during export.
+# Real mesh vertices are measured (not AABB corners, whose diagonals overshoot the
+# radius on elongated bodies and inflated every frame's margins).
 static func _compute_fit_metrics(rig: CreatureRig) -> Dictionary:
 	var inv := rig.global_transform.affine_inverse()
 	var meshes: Array[MeshInstance3D] = []
@@ -156,21 +199,23 @@ static func _compute_fit_metrics(rig: CreatureRig) -> Dictionary:
 	var y_min := INF
 	var y_max := -INF
 	var found := false
-	for phase in [0.0, 0.25, 0.5, 0.75]:
+	for phase in [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]:
 		rig.apply_pose(float(phase))
 		for mi in meshes:
 			if mi.mesh == null or not mi.is_visible_in_tree():
 				continue
-			var aabb := mi.mesh.get_aabb()
-			if aabb.size == Vector3.ZERO:
-				continue
 			var xf := inv * mi.global_transform
-			for c in 8:
-				var p := xf * aabb.get_endpoint(c)
-				r_h = maxf(r_h, sqrt(p.x * p.x + p.z * p.z))
-				y_min = minf(y_min, p.y)
-				y_max = maxf(y_max, p.y)
-				found = true
+			for surface in mi.mesh.get_surface_count():
+				var arrays := mi.mesh.surface_get_arrays(surface)
+				if arrays.is_empty():
+					continue
+				var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				for v in vertices:
+					var p := xf * v
+					r_h = maxf(r_h, sqrt(p.x * p.x + p.z * p.z))
+					y_min = minf(y_min, p.y)
+					y_max = maxf(y_max, p.y)
+					found = true
 	if not found:
 		return {"r_h": 0.0, "r_v": 0.0, "cy": 0.0}
 	return {"r_h": r_h, "r_v": (y_max - y_min) * 0.5, "cy": (y_min + y_max) * 0.5}

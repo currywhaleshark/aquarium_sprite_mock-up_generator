@@ -239,6 +239,7 @@ const PARAMETER_LABELS := {
 	"jaw_hinge_y": "경첩 높이",
 	"jaw_protrusion": "상악 돌출",
 	"lower_upper_ratio": "아래/위턱 비율",
+	"lip_darken": "입술 음영",
 	"head_flattening": "머리 납작함",
 	"eye_size": "눈 크기",
 	"eye_position_x": "눈 X 위치",

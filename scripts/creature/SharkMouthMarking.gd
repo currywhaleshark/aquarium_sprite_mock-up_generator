@@ -49,36 +49,44 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 		for side in [-1.0, 1.0]:
 			var anchor := SharkHeadProfile.mouth_anchor(parameters, float(side))
 			anchor.y -= 0.018 + jaw_drop * 0.12 + gape * 0.035
+			anchor = _proud(anchor, float(side))
 			_add_teeth(lower_teeth, tooth_count, _mouth_width_for_side(parameters, head, float(side)) * 0.72, tooth_size, tooth_angle, _socket_position_for_head_anchor(anchor, head), tooth_mat, false)
 	var upper_count := clampi(int(round(float(tooth_count) * maxf(0.35, projection_signal))), 0, tooth_count)
 	for side in [-1.0, 1.0]:
 		var anchor := SharkHeadProfile.mouth_anchor(parameters, float(side))
 		anchor.x -= projection * 0.08
 		anchor.y += 0.014 + gape * 0.018
+		anchor = _proud(anchor, float(side))
 		_add_teeth(upper_teeth, upper_count, _mouth_width_for_side(parameters, head, float(side)) * 0.58, tooth_size * 0.82, -tooth_angle, _socket_position_for_head_anchor(anchor, head), tooth_mat, true)
 
 	if furrow_length > 0.001:
 		var right_corners := SharkHeadProfile.mouth_corners(parameters, 1.0)
 		var left := _box("LabialFurrowLeft", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
-		left.position = _socket_position_for_head_anchor(right_corners[0], head)
+		left.position = _socket_position_for_head_anchor(_proud(right_corners[0], 1.0), head)
 		left.rotation_degrees.z = -24.0
 		socket.add_child(left)
 		var right := _box("LabialFurrowRight", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
-		right.position = _socket_position_for_head_anchor(right_corners[1], head)
+		right.position = _socket_position_for_head_anchor(_proud(right_corners[1], 1.0), head)
 		right.rotation_degrees.z = 24.0
 		socket.add_child(right)
 		for side in [-1.0]:
 			var mirror_corners := SharkHeadProfile.mouth_corners(parameters, float(side))
 			var mirror_left := _box("LabialFurrowLeftMirror", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
-			mirror_left.position = _socket_position_for_head_anchor(mirror_corners[0], head)
+			mirror_left.position = _socket_position_for_head_anchor(_proud(mirror_corners[0], float(side)), head)
 			mirror_left.rotation_degrees.z = -24.0
 			socket.add_child(mirror_left)
 			var mirror_right := _box("LabialFurrowRightMirror", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
-			mirror_right.position = _socket_position_for_head_anchor(mirror_corners[1], head)
+			mirror_right.position = _socket_position_for_head_anchor(_proud(mirror_corners[1], float(side)), head)
 			mirror_right.rotation_degrees.z = 24.0
 			socket.add_child(mirror_right)
 
 	return root
+
+static func _proud(anchor: Vector3, side: float) -> Vector3:
+	# Offset a head-surface anchor outward so the attachment sits proud of the
+	# head and is not occluded by it (mirrors the gill-slit surface_z + clearance).
+	anchor.z += side * SharkHeadProfile.TOOTH_SURFACE_CLEARANCE
+	return anchor
 
 static func _socket_position_for_head_anchor(anchor: Vector3, head: MeshInstance3D) -> Vector3:
 	if head == null:
