@@ -935,6 +935,8 @@ func _load_preset(index: int) -> void:
 	if export_panel:
 		var export_settings: Dictionary = current_preset.get("export_settings", {})
 		export_panel.call("set_direction_count", int(export_settings.get("direction_count", 1)))
+		if export_panel.has_method("set_include_turn_clips"):
+			export_panel.call("set_include_turn_clips", bool(export_settings.get("include_turn_clips", false)))
 	_apply_camera()
 	_update_display_preview_label()
 	_update_creature_type_label()
@@ -1358,6 +1360,8 @@ func _export_current() -> void:
 	var export_settings: Dictionary = current_preset.get("export_settings", {}).duplicate(true)
 	if export_panel and export_panel.has_method("get_direction_count"):
 		export_settings["direction_count"] = int(export_panel.call("get_direction_count"))
+	if export_panel and export_panel.has_method("get_include_turn_clips"):
+		export_settings["include_turn_clips"] = bool(export_panel.call("get_include_turn_clips"))
 	current_preset["export_settings"] = export_settings
 	export_panel.set_status("출력 중...")
 	_is_exporting = true

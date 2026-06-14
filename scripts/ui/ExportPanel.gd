@@ -4,13 +4,22 @@ extends VBoxContainer
 signal export_requested
 
 var direction_toggle: CheckButton
+var turn_clips_toggle: CheckButton
 var status_label: Label
 var progress_bar: ProgressBar
 
 func _ready() -> void:
 	direction_toggle = CheckButton.new()
 	direction_toggle.text = "8방향 추출"
+	direction_toggle.toggled.connect(func(_enabled: bool) -> void:
+		_sync_turn_clips_toggle()
+	)
 	add_child(direction_toggle)
+
+	turn_clips_toggle = CheckButton.new()
+	turn_clips_toggle.text = "선회 클립 포함"
+	turn_clips_toggle.tooltip_text = "8방향 출력에서 좌/우 45도 선회 클립을 추가합니다."
+	add_child(turn_clips_toggle)
 
 	var button := Button.new()
 	button.text = "PNG + 스프라이트시트 출력"
@@ -29,6 +38,7 @@ func _ready() -> void:
 	status_label.text = "준비됨"
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(status_label)
+	_sync_turn_clips_toggle()
 
 func set_status(text: String) -> void:
 	if status_label:
@@ -52,3 +62,23 @@ func get_direction_count() -> int:
 func set_direction_count(direction_count: int) -> void:
 	if direction_toggle:
 		direction_toggle.button_pressed = direction_count == 8
+	_sync_turn_clips_toggle()
+
+func get_include_turn_clips() -> bool:
+	if turn_clips_toggle == null:
+		return false
+	return get_direction_count() == 8 and turn_clips_toggle.button_pressed
+
+func set_include_turn_clips(enabled: bool) -> void:
+	if turn_clips_toggle:
+		turn_clips_toggle.button_pressed = enabled
+	_sync_turn_clips_toggle()
+
+func _sync_turn_clips_toggle() -> void:
+	if turn_clips_toggle == null:
+		return
+	var enabled := get_direction_count() == 8
+	if not enabled:
+		turn_clips_toggle.button_pressed = false
+	turn_clips_toggle.disabled = not enabled
+	turn_clips_toggle.tooltip_text = "8방향 출력에서 좌/우 45도 선회 클립을 추가합니다." if enabled else "선회 클립은 8방향 출력에서만 사용할 수 있습니다."

@@ -23,6 +23,30 @@ static func direction_yaw_degrees(direction_index: int) -> float:
 static func export_yaw_degrees(direction_count: int, direction_index: int, original_yaw: float) -> float:
 	return ExportDirectionsScript.export_yaw_degrees(direction_count, direction_index, original_yaw)
 
+static func include_turn_clips_enabled(direction_count: int, export_settings: Dictionary) -> bool:
+	return ExportDirectionsScript.include_turn_clips_enabled(direction_count, export_settings)
+
+static func animation_rows(direction_count: int, include_turn_clips: bool = false) -> Array:
+	return ExportDirectionsScript.animation_rows(direction_count, include_turn_clips)
+
+static func turn_export_t(frame_index: int, frame_count: int) -> float:
+	if frame_count <= 1:
+		return 1.0
+	return clampf(float(frame_index) / float(frame_count - 1), 0.0, 1.0)
+
+static func turn_export_yaw_degrees(direction_index: int, turn_step: int, t: float) -> float:
+	var from_yaw := direction_yaw_degrees(direction_index)
+	var target_yaw := from_yaw + float(turn_step) * float(ExportDirectionsScript.TURN_DELTA_DEGREES)
+	var rot_t := clampf((t - 0.15) / 0.85, 0.0, 1.0)
+	var eased := rot_t * rot_t * (3.0 - 2.0 * rot_t)
+	return lerpf(from_yaw, target_yaw, eased)
+
+static func gif_preview_row_indices(rows: Array) -> PackedInt32Array:
+	var indices := PackedInt32Array()
+	for i in rows.size():
+		indices.append(i)
+	return indices
+
 static func uses_fixed_quarter_view_camera(direction_count: int) -> bool:
 	return normalized_direction_count(direction_count) == 8
 
@@ -42,7 +66,8 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	var resolution := Vector2i(int(resolution_dict.get("w", 256)), int(resolution_dict.get("h", 256)))
 	var frame_count := int(export_settings.get("frame_count", RenderSettingsScript.DEFAULT_FRAME_COUNT))
 	var direction_count := normalized_direction_count(int(export_settings.get("direction_count", 1)))
-	var directions := direction_names(direction_count)
+	var include_turn_clips := include_turn_clips_enabled(direction_count, export_settings)
+	var rows := animation_rows(direction_count, include_turn_clips)
 	var output_dir := "res://exports/%s" % preset_name
 	var frames_dir := "%s/frames" % output_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
@@ -57,6 +82,7 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	viewport.size = resolution
 	var original_auto_animate := rig.auto_animate
 	var original_rotation := rig.rotation_degrees
+	var original_parameters := rig.parameters.duplicate(true)
 	rig.auto_animate = false
 
 	# Fit the camera so the whole creature stays in frame for every direction and
@@ -82,50 +108,44 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 			cam_adjusted = true
 
 	var frame_rows := []
-	var gif_images := []
-	var total_frames := maxi(directions.size() * frame_count, 1)
+	var gif_row_images := []
+	var total_frames := maxi(rows.size() * frame_count, 1)
 	var frames_done := 0
-	for direction_index in directions.size():
-		var direction_name := String(directions[direction_index])
-		var direction_dir := frames_dir if directions.size() == 1 else "%s/%s" % [frames_dir, direction_name]
-		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(direction_dir))
-		var target_rotation := original_rotation
-		target_rotation.y = export_yaw_degrees(directions.size(), direction_index, original_rotation.y)
-		rig.rotation_degrees = target_rotation
+	for row_value in rows:
+		var row: Dictionary = row_value
+		var row_dir := _frame_row_directory(frames_dir, row)
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(row_dir))
 		var frame_paths := PackedStringArray()
+		var row_gif_images := []
 		for i in frame_count:
-			var phase := float(i) / float(frame_count)
-			rig.apply_pose(phase)
+			_apply_export_row_pose(rig, original_rotation, original_parameters, row, i, frame_count, direction_count)
 			await RenderingServer.frame_post_draw
 			var image := viewport.get_texture().get_image()
 			image.convert(Image.FORMAT_RGBA8)
-			var frame_path := "%s/frame_%03d.png" % [direction_dir, i]
+			var frame_path := "%s/frame_%03d.png" % [row_dir, i]
 			var err := image.save_png(frame_path)
 			if err != OK:
-				_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null)
+				_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, original_parameters, true)
 				export_failed.emit("Failed to save %s: %s" % [frame_path, error_string(err)])
 				return
 			frame_paths.append(frame_path)
-			# Keep every direction's frames, in render order, for the preview GIF.
-			# For an 8-direction export this yields a single GIF that steps through
-			# all directions in sequence (each holding its swim animation before the
-			# fish turns to the next), then loops.
-			gif_images.append(image)
+			row_gif_images.append(image)
 			frames_done += 1
 			export_progress.emit(float(frames_done) / float(total_frames) * 0.9, "프레임 렌더링 %d/%d" % [frames_done, total_frames])
 		frame_rows.append(frame_paths)
+		gif_row_images.append(row_gif_images)
 
 	var sheet_path := "%s/%s_sheet.png" % [output_dir, preset_name]
 	var sheet_err := SpriteSheetBuilderScript.build_sheet_grid(frame_rows, sheet_path)
 	if sheet_err != OK:
-		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null)
+		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, original_parameters, true)
 		export_failed.emit("Failed to build sheet: %s" % error_string(sheet_err))
 		return
 
 	var metadata := ExportMetadataScript.build(preset, resolution)
 	var metadata_file := FileAccess.open("%s/%s_metadata.json" % [output_dir, preset_name], FileAccess.WRITE)
 	if metadata_file == null:
-		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null)
+		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, original_parameters, true)
 		export_failed.emit("Failed to write metadata JSON.")
 		return
 	metadata_file.store_string(JSON.stringify(metadata, "\t"))
@@ -137,6 +157,7 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	var delay_centiseconds := int(round(100.0 / frame_rate))
 	var gif_path := "%s/%s.gif" % [output_dir, preset_name]
 	export_progress.emit(0.92, "GIF 생성 중...")
+	var gif_images := _flatten_gif_preview_images(gif_row_images, rows)
 	# Encode the GIF on a worker thread so the LZW pass does not freeze the editor;
 	# the main loop keeps ticking (UI/progress responsive) until the thread finishes.
 	var gif_thread := Thread.new()
@@ -150,12 +171,64 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 		push_warning("Sprite GIF export failed (%s): %s" % [gif_path, error_string(gif_err)])
 
 	export_progress.emit(1.0, "완료")
-	_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null)
+	_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, original_parameters, true)
 	export_finished.emit(ProjectSettings.globalize_path(output_dir))
 
-func _restore_rig_state(rig: CreatureRig, auto_animate: bool, rotation_degrees: Vector3, camera: Camera3D = null, cam_size: float = 0.0, cam_transform: Transform3D = Transform3D.IDENTITY, cam_adjusted: bool = false, stretch_container: SubViewportContainer = null) -> void:
+func _frame_row_directory(frames_dir: String, row: Dictionary) -> String:
+	var frame_dir := String(row.get("frame_dir", ""))
+	return frames_dir if frame_dir == "" else "%s/%s" % [frames_dir, frame_dir]
+
+func _flatten_gif_preview_images(gif_row_images: Array, rows: Array) -> Array:
+	var images := []
+	for row_index in gif_preview_row_indices(rows):
+		if row_index < 0 or row_index >= gif_row_images.size():
+			continue
+		for image in gif_row_images[row_index]:
+			images.append(image)
+	return images
+
+func _apply_export_row_pose(rig: CreatureRig, original_rotation: Vector3, original_parameters: Dictionary, row: Dictionary, frame_index: int, frame_count: int, direction_count: int) -> void:
+	var target_rotation := original_rotation
+	var clip_name := String(row.get("clip", "swim"))
+	if clip_name.begins_with("turn_"):
+		var turn_step := int(row.get("turn_step", 1))
+		var t := turn_export_t(frame_index, frame_count)
+		var direction_index := int(row.get("from_direction_index", row.get("direction_index", 0)))
+		target_rotation.y = turn_export_yaw_degrees(direction_index, turn_step, t)
+		rig.rotation_degrees = target_rotation
+		rig.set("parameters", _turn_export_parameters(original_parameters, sin(t * PI), turn_step, t))
+	else:
+		var direction_index := int(row.get("direction_index", 0))
+		target_rotation.y = export_yaw_degrees(direction_count, direction_index, original_rotation.y)
+		rig.rotation_degrees = target_rotation
+		rig.set("parameters", original_parameters.duplicate(true))
+	var phase := float(frame_index) / float(frame_count)
+	rig.apply_pose(phase)
+
+func _turn_export_parameters(base_parameters: Dictionary, turn_amount: float, turn_step: int, turn_phase: float) -> Dictionary:
+	var parameters := base_parameters.duplicate(true)
+	parameters["turn_amount"] = clampf(turn_amount, 0.0, 1.0)
+	parameters["turn_direction"] = -1.0 if turn_step < 0 else 1.0
+	parameters["turn_phase"] = clampf(turn_phase, 0.0, 1.0)
+	if not parameters.has("turn_tail_lag"):
+		parameters["turn_tail_lag"] = 0.75
+	if not parameters.has("inside_pectoral_fold"):
+		parameters["inside_pectoral_fold"] = 0.8
+	if not parameters.has("outside_pectoral_brace"):
+		parameters["outside_pectoral_brace"] = 0.5
+	if not parameters.has("turn_curve_bias"):
+		parameters["turn_curve_bias"] = 0.5
+	if not parameters.has("turn_median_fin_bias"):
+		parameters["turn_median_fin_bias"] = 0.5
+	if not parameters.has("turn_bank_roll"):
+		parameters["turn_bank_roll"] = 10.0
+	return parameters
+
+func _restore_rig_state(rig: CreatureRig, auto_animate: bool, rotation_degrees: Vector3, camera: Camera3D = null, cam_size: float = 0.0, cam_transform: Transform3D = Transform3D.IDENTITY, cam_adjusted: bool = false, stretch_container: SubViewportContainer = null, parameters: Dictionary = {}, restore_parameters: bool = false) -> void:
 	rig.rotation_degrees = rotation_degrees
 	rig.auto_animate = auto_animate
+	if restore_parameters:
+		rig.set("parameters", parameters.duplicate(true))
 	if cam_adjusted and camera != null:
 		camera.size = cam_size
 		camera.transform = cam_transform

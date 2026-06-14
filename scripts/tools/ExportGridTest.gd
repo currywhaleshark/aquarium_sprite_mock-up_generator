@@ -38,6 +38,12 @@ func _ready() -> void:
 	assert(int(eight_direction_metadata.get("direction_count", 0)) == 8)
 	assert(int(eight_direction_metadata.get("sheet_columns", 0)) == 3)
 	assert(int(eight_direction_metadata.get("sheet_rows", 0)) == 8)
+	if not _assert_turn_clip_metadata_contract():
+		return
+	if not _test_turn_export_row_pose_without_viewport():
+		return
+	if not _test_turn_preview_gif_row_order():
+		return
 	if not _assert_fixed_quarter_view_export_metadata(eight_direction_metadata):
 		return
 	var directions: Array = eight_direction_metadata.get("directions", [])
@@ -54,6 +60,7 @@ func _ready() -> void:
 		return
 
 	await _test_exporter_rig_rotation()
+	await _test_exporter_turn_clip_sequence()
 
 	var file := FileAccess.open("res://exports/test_results/export_grid.ok", FileAccess.WRITE)
 	file.store_string("export grid sheet and metadata contract verified")
@@ -141,6 +148,223 @@ func _test_exporter_rig_rotation() -> void:
 	exporter.queue_free()
 	vp.queue_free()
 
+func _assert_turn_clip_metadata_contract() -> bool:
+	var metadata := ExportMetadataScript.build({
+		"name": "turns",
+		"export_settings": {
+			"frame_count": 3,
+			"direction_count": 8,
+			"include_turn_clips": true
+		}
+	}, Vector2i(4, 4))
+	if not _expect(bool(metadata.get("turn_clips_enabled", false)), "8-direction export with include_turn_clips must mark turn clips enabled."):
+		return false
+	if not _expect(int(metadata.get("sheet_columns", 0)) == 3, "Turn clip sheet columns must remain the frame count."):
+		return false
+	if not _expect(int(metadata.get("sheet_rows", 0)) == 24, "Turn clip export must add 16 rows after the 8 swim rows."):
+		return false
+	var rows: Array = metadata.get("animation_rows", [])
+	if not _expect(rows.size() == 24, "Turn clip metadata must include one row descriptor per sheet row."):
+		return false
+	var first_swim: Dictionary = rows[0]
+	if not _expect(int(first_swim.get("row", -1)) == 0, "First swim row must be row 0."):
+		return false
+	if not _expect(String(first_swim.get("clip", "")) == "swim", "First row must be the east swim clip."):
+		return false
+	if not _expect(String(first_swim.get("direction", "")) == "east", "First swim row must face east."):
+		return false
+	var first_left: Dictionary = rows[8]
+	if not _expect(int(first_left.get("row", -1)) == 8, "First left turn row must follow the 8 swim rows."):
+		return false
+	if not _expect(String(first_left.get("clip", "")) == "turn_left", "First left turn row must be tagged turn_left."):
+		return false
+	if not _expect(String(first_left.get("from_direction", "")) == "east", "First left turn row must start east."):
+		return false
+	if not _expect(String(first_left.get("to_direction", "")) == "north_east", "First left turn row must end north_east."):
+		return false
+	if not _expect(String(first_left.get("turn_direction", "")) == "left", "First left turn row must record left direction."):
+		return false
+	if not _expect(int(first_left.get("turn_step", 0)) == 1, "Left turn row must advance by +1 direction step."):
+		return false
+	if not _expect(int(first_left.get("delta_degrees", 0)) == 45, "Turn row must record a 45 degree delta."):
+		return false
+	if not _expect(bool(first_left.get("chainable", false)), "Turn rows must be marked chainable."):
+		return false
+	var first_right: Dictionary = rows[16]
+	if not _expect(int(first_right.get("row", -1)) == 16, "First right turn row must follow the left turn rows."):
+		return false
+	if not _expect(String(first_right.get("clip", "")) == "turn_right", "First right turn row must be tagged turn_right."):
+		return false
+	if not _expect(String(first_right.get("from_direction", "")) == "east", "First right turn row must start east."):
+		return false
+	if not _expect(String(first_right.get("to_direction", "")) == "south_east", "First right turn row must end south_east."):
+		return false
+	if not _expect(String(first_right.get("turn_direction", "")) == "right", "First right turn row must record right direction."):
+		return false
+	if not _expect(int(first_right.get("turn_step", 0)) == -1, "Right turn row must advance by -1 direction step."):
+		return false
+	if not _expect(int(first_right.get("delta_degrees", 0)) == 45, "Right turn row must record a 45 degree delta."):
+		return false
+	if not _expect(bool(first_right.get("chainable", false)), "Right turn rows must be marked chainable."):
+		return false
+	var second_right: Dictionary = rows[17]
+	if not _expect(String(second_right.get("from_direction", "")) == "south_east", "Second right turn row must continue from south_east after east->south_east."):
+		return false
+	if not _expect(String(second_right.get("to_direction", "")) == "south", "Second right turn row must continue to south."):
+		return false
+	var final_right: Dictionary = rows[23]
+	if not _expect(String(final_right.get("from_direction", "")) == "north_east", "Final right turn row must start north_east."):
+		return false
+	if not _expect(String(final_right.get("to_direction", "")) == "east", "Final right turn row must return to east."):
+		return false
+
+	var single_metadata := ExportMetadataScript.build({
+		"name": "single_turn_ignored",
+		"export_settings": {
+			"frame_count": 3,
+			"direction_count": 1,
+			"include_turn_clips": true
+		}
+	}, Vector2i(4, 4))
+	if not _expect(not bool(single_metadata.get("turn_clips_enabled", true)), "Single-direction export must ignore turn clip requests."):
+		return false
+	if not _expect(int(single_metadata.get("sheet_rows", 0)) == 1, "Single-direction export with turn clips requested must stay one row."):
+		return false
+	return true
+
+func _test_turn_export_row_pose_without_viewport() -> bool:
+	var dummy_script := GDScript.new()
+	dummy_script.source_code = "extends \"res://scripts/creature/CreatureRig.gd\"\nvar pose_records := []\nfunc apply_pose(phase: float) -> void:\n\tpose_records.append({\"phase\": phase, \"yaw\": rotation_degrees.y, \"turn_amount\": float(parameters.get(\"turn_amount\", -1.0)), \"turn_direction\": float(parameters.get(\"turn_direction\", 0.0)), \"turn_phase\": float(parameters.get(\"turn_phase\", -1.0))})"
+	dummy_script.reload()
+	var dummy_rig := Node3D.new()
+	dummy_rig.set_script(dummy_script)
+	add_child(dummy_rig)
+	var original_parameters := {
+		"turn_amount": 0.25,
+		"turn_direction": -1.0,
+		"turn_phase": 0.33,
+		"custom_export_restore": 7
+	}
+	dummy_rig.set("parameters", original_parameters.duplicate(true))
+	dummy_rig.set("auto_animate", false)
+	var exporter := SpriteExporterScript.new()
+	add_child(exporter)
+	var rows: Array = SpriteExporterScript.animation_rows(8, true)
+	var left_row: Dictionary = rows[8]
+	var right_row: Dictionary = rows[16]
+
+	exporter.call("_apply_export_row_pose", dummy_rig, Vector3.ZERO, original_parameters, left_row, 0, 3, 8)
+	exporter.call("_apply_export_row_pose", dummy_rig, Vector3.ZERO, original_parameters, left_row, 1, 3, 8)
+	exporter.call("_apply_export_row_pose", dummy_rig, Vector3.ZERO, original_parameters, left_row, 2, 3, 8)
+	exporter.call("_apply_export_row_pose", dummy_rig, Vector3.ZERO, original_parameters, right_row, 2, 3, 8)
+
+	var records: Array = dummy_rig.get("pose_records")
+	if not _expect(records.size() == 4, "Turn row pose test must record four sampled poses."):
+		return false
+	if not _expect(_same_float(float(records[0].get("yaw", 0.0)), 225.0), "Left turn first frame must start at east yaw."):
+		return false
+	if not _expect(_same_float(float(records[0].get("turn_amount", -1.0)), 0.0), "Left turn first frame must start neutral."):
+		return false
+	if not _expect(float(records[1].get("yaw", 0.0)) > 225.0 and float(records[1].get("yaw", 0.0)) < 270.0, "Left turn middle frame must rotate toward north_east."):
+		return false
+	if not _expect(_same_float(float(records[1].get("turn_amount", 0.0)), 1.0), "Left turn middle frame must use full turn amount."):
+		return false
+	if not _expect(_same_float(float(records[1].get("turn_phase", 0.0)), 0.5), "Left turn middle frame must expose turn phase 0.5."):
+		return false
+	if not _expect(_same_float(float(records[2].get("yaw", 0.0)), 270.0), "Left turn final frame must end at north_east yaw."):
+		return false
+	if not _expect(float(records[3].get("turn_direction", 0.0)) < 0.0, "Right turn row must set negative turn_direction."):
+		return false
+	if not _expect(_same_float(float(records[3].get("yaw", 0.0)), 180.0), "Right turn final frame must end at south_east yaw."):
+		return false
+
+	exporter.call("_restore_rig_state", dummy_rig, true, Vector3(0.0, 99.0, 0.0), null, 0.0, Transform3D.IDENTITY, false, null, original_parameters, true)
+	if not _expect(bool(dummy_rig.get("auto_animate")), "Exporter restore must restore auto_animate."):
+		return false
+	if not _expect(_same_float(dummy_rig.rotation_degrees.y, 99.0), "Exporter restore must restore rig rotation."):
+		return false
+	if not _expect(dummy_rig.get("parameters") == original_parameters, "Exporter restore must restore original parameters."):
+		return false
+
+	dummy_rig.queue_free()
+	exporter.queue_free()
+	return true
+
+func _test_turn_preview_gif_row_order() -> bool:
+	var rows: Array = SpriteExporterScript.animation_rows(8, true)
+	var order: PackedInt32Array = SpriteExporterScript.gif_preview_row_indices(rows)
+	var expected := PackedInt32Array([
+		0, 1, 2, 3, 4, 5, 6, 7,
+		8, 9, 10, 11, 12, 13, 14, 15,
+		16, 17, 18, 19, 20, 21, 22, 23
+	])
+	if not _expect(order == expected, "GIF preview must follow animation row order because right-turn rows are already continuous. Got %s" % str(order)):
+		return false
+	return true
+
+func _test_exporter_turn_clip_sequence() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var dummy_script := GDScript.new()
+	dummy_script.source_code = "extends \"res://scripts/creature/CreatureRig.gd\"\nvar pose_records := []\nfunc apply_pose(phase: float) -> void:\n\tpose_records.append({\"phase\": phase, \"yaw\": rotation_degrees.y, \"turn_amount\": float(parameters.get(\"turn_amount\", -1.0)), \"turn_direction\": float(parameters.get(\"turn_direction\", 0.0)), \"turn_phase\": float(parameters.get(\"turn_phase\", -1.0))})"
+	dummy_script.reload()
+
+	var dummy_rig := Node3D.new()
+	dummy_rig.set_script(dummy_script)
+	add_child(dummy_rig)
+	var original_parameters := {
+		"turn_amount": 0.25,
+		"turn_direction": -1.0,
+		"turn_phase": 0.33,
+		"custom_export_restore": 7
+	}
+	dummy_rig.set("parameters", original_parameters.duplicate(true))
+
+	var exporter := SpriteExporterScript.new()
+	add_child(exporter)
+
+	var preset := {
+		"name": "turn_clip_sequence",
+		"export_settings": {
+			"direction_count": 8,
+			"frame_count": 3,
+			"include_turn_clips": true,
+			"render_resolution": {"w": 16, "h": 16}
+		}
+	}
+
+	var vp := SubViewport.new()
+	vp.size = Vector2i(16, 16)
+	add_child(vp)
+
+	await exporter.export_preset(preset, dummy_rig, vp)
+
+	var records: Array = dummy_rig.get("pose_records")
+	assert(records.size() >= 72, "Turn clip export must render swim + left turn + right turn rows.")
+	var export_records := records.slice(records.size() - 72, records.size())
+	assert(_same_float(float(export_records[0].get("yaw", 0.0)), 225.0))
+	assert(float(export_records[0].get("turn_amount", -1.0)) == 0.0)
+	assert(_same_float(float(export_records[24].get("yaw", 0.0)), 225.0))
+	assert(float(export_records[24].get("turn_direction", 0.0)) > 0.0)
+	assert(_same_float(float(export_records[25].get("turn_amount", 0.0)), 1.0))
+	assert(_same_float(float(export_records[25].get("turn_phase", 0.0)), 0.5))
+	assert(float(export_records[25].get("yaw", 0.0)) > 225.0 and float(export_records[25].get("yaw", 0.0)) < 270.0)
+	assert(_same_float(float(export_records[26].get("yaw", 0.0)), 270.0))
+	assert(float(export_records[48].get("turn_direction", 0.0)) < 0.0)
+	assert(_same_float(float(export_records[50].get("yaw", 0.0)), 180.0))
+	assert(dummy_rig.get("parameters") == original_parameters)
+
+	var sheet := Image.load_from_file(ProjectSettings.globalize_path("res://exports/turn_clip_sequence/turn_clip_sequence_sheet.png"))
+	assert(sheet != null)
+	assert(sheet.get_size() == Vector2i(48, 384))
+	assert(FileAccess.file_exists("res://exports/turn_clip_sequence/frames/turn_left/from_east_to_north_east/frame_000.png"))
+	assert(FileAccess.file_exists("res://exports/turn_clip_sequence/frames/turn_right/from_east_to_south_east/frame_000.png"))
+
+	_remove_export_tree("res://exports/turn_clip_sequence")
+	dummy_rig.queue_free()
+	exporter.queue_free()
+	vp.queue_free()
+
 func _write_color_png(path: String, color: Color) -> String:
 	var image := Image.create(4, 4, false, Image.FORMAT_RGBA8)
 	image.fill(color)
@@ -149,6 +373,33 @@ func _write_color_png(path: String, color: Color) -> String:
 
 func _same_rgb(left: Color, right: Color) -> bool:
 	return absf(left.r - right.r) < 0.01 and absf(left.g - right.g) < 0.01 and absf(left.b - right.b) < 0.01
+
+func _same_float(left: float, right: float) -> bool:
+	return absf(left - right) < 0.001
+
+func _expect(condition: bool, message: String) -> bool:
+	if condition:
+		return true
+	push_error(message)
+	get_tree().quit(1)
+	return false
+
+func _remove_export_tree(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	while file_name != "":
+		if file_name != "." and file_name != "..":
+			var child_path := path.path_join(file_name)
+			if dir.current_is_dir():
+				_remove_export_tree(child_path)
+			else:
+				dir.remove(file_name)
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	DirAccess.remove_absolute(path)
 
 func _assert_fixed_quarter_view_export_metadata(metadata: Dictionary) -> bool:
 	var preset := CameraPresetScript.get_preset("sprite_quarter_2to1")
