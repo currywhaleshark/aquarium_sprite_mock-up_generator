@@ -44,13 +44,13 @@ func _ready() -> void:
 	assert(directions.size() == 8)
 	assert(String(directions[0]) == "east")
 	assert(String(directions[7]) == "south_east")
-	assert(SpriteExporterScript.direction_yaw_degrees(0) == 180.0)
-	assert(SpriteExporterScript.direction_yaw_degrees(7) == 135.0)
+	assert(SpriteExporterScript.direction_yaw_degrees(0) == 225.0)
+	assert(SpriteExporterScript.direction_yaw_degrees(7) == 180.0)
 	assert(SpriteExporterScript.export_yaw_degrees(1, 0, 45.0) == 45.0)
-	assert(SpriteExporterScript.export_yaw_degrees(8, 0, 45.0) == 180.0)
+	assert(SpriteExporterScript.export_yaw_degrees(8, 0, 45.0) == 225.0)
 	if not _assert_export_camera_application():
 		return
-	if not _assert_direction_yaws_match_facing_names():
+	if not _assert_direction_yaws_project_to_screen_facing_names():
 		return
 
 	await _test_exporter_rig_rotation()
@@ -110,7 +110,7 @@ func _test_exporter_rig_rotation() -> void:
 		if unique_yaws.is_empty() or unique_yaws[-1] != rounded:
 			unique_yaws.append(rounded)
 
-	var expected_yaws: Array[float] = [180.0, 225.0, 270.0, 315.0, 0.0, 45.0, 90.0, 135.0]
+	var expected_yaws: Array[float] = [225.0, 270.0, 315.0, 0.0, 45.0, 90.0, 135.0, 180.0]
 	var match_idx := 0
 	for yaw in unique_yaws:
 		if match_idx < expected_yaws.size() and absf(float(yaw) - expected_yaws[match_idx]) < 1.0:
@@ -259,9 +259,16 @@ func _assert_export_camera_application() -> bool:
 	camera.queue_free()
 	return true
 
-func _assert_direction_yaws_match_facing_names() -> bool:
-	var expected_headings := [
-		Vector3.RIGHT,
+func _assert_direction_yaws_project_to_screen_facing_names() -> bool:
+	var vp := SubViewport.new()
+	vp.size = Vector2i(512, 512)
+	add_child(vp)
+	var camera := Camera3D.new()
+	vp.add_child(camera)
+	CameraPresetScript.apply_to_camera(camera, "sprite_quarter_2to1")
+	camera.current = true
+	var origin := camera.unproject_position(Vector3.ZERO)
+	var expected_projected_world_headings := [
 		(Vector3.RIGHT + Vector3.FORWARD).normalized(),
 		Vector3.FORWARD,
 		(Vector3.LEFT + Vector3.FORWARD).normalized(),
@@ -269,19 +276,24 @@ func _assert_direction_yaws_match_facing_names() -> bool:
 		(Vector3.LEFT + Vector3.BACK).normalized(),
 		Vector3.BACK,
 		(Vector3.RIGHT + Vector3.BACK).normalized(),
+		Vector3.RIGHT,
 	]
-	for i in expected_headings.size():
+	for i in expected_projected_world_headings.size():
 		var yaw := SpriteExporterScript.direction_yaw_degrees(i)
-		var heading := (Basis(Vector3.UP, deg_to_rad(yaw)) * Vector3.LEFT).normalized()
-		if heading.dot(expected_headings[i]) <= 0.99:
-			push_error("Direction %s yaw %.1f faces %s instead of %s" % [
+		var world_heading := (Basis(Vector3.UP, deg_to_rad(yaw)) * Vector3.LEFT).normalized()
+		var screen_heading := (camera.unproject_position(world_heading) - origin).normalized()
+		var expected_screen_heading := (camera.unproject_position(expected_projected_world_headings[i]) - origin).normalized()
+		if screen_heading.dot(expected_screen_heading) <= 0.99:
+			push_error("Direction %s yaw %.1f projects to screen heading %s instead of %s" % [
 				String(SpriteExporterScript.direction_names(8)[i]),
 				yaw,
-				str(heading),
-				str(expected_headings[i])
+				str(screen_heading),
+				str(expected_screen_heading)
 			])
 			get_tree().quit(1)
+			vp.queue_free()
 			return false
+	vp.queue_free()
 	return true
 
 class OverwriterNode extends Node:
