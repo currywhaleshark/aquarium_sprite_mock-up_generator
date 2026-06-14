@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cuju0diy5b22b"]
+
+[ext_resource type="Script" path="res://scripts/tools/PresetExportShot.gd" id="1_preset_export"]
+
+[node name="PresetExportShot" type="Node"]
+script = ExtResource("1_preset_export")

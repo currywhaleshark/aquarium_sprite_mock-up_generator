@@ -2,9 +2,13 @@ class_name FishFinDragController
 extends Node
 
 signal parameters_changed(parameters: Dictionary)
+signal handle_clicked(handle_id: String)
+
+const ScreenDragProjectorScript := preload("res://scripts/ui/ScreenDragProjector.gd")
 
 const DRAG_WORLD_PER_PIXEL := 0.004
 const PICK_RADIUS_PX := 28.0
+const CLICK_DISTANCE_PX := 4.0
 
 var fish: FishRig
 var camera: Camera3D
@@ -12,6 +16,18 @@ var camera_controller: Node
 var input_control: Control
 var enabled := true
 var selected_handle := ""
+var allowed_handle_filter := Callable()
+var _previous_mouse_pos := Vector2.ZERO
+var _press_mouse_pos := Vector2.ZERO
+var _drag_distance_px := 0.0
+var _dragging_started := false
+var _accumulated_head_world_delta := Vector3.ZERO
+
+func _ready() -> void:
+	set_process(true)
+
+func _process(_delta: float) -> void:
+	_apply_accumulated_head_drag()
 
 func bind_fish(new_fish: FishRig) -> void:
 	fish = new_fish
@@ -52,7 +68,11 @@ func _apply_handle_drag(handle_id: String, delta: Vector2) -> void:
 	# Screen-right travels toward the tail (+x); screen-up raises the handle (+y).
 	var delta_x := delta.x * DRAG_WORLD_PER_PIXEL
 	var delta_y := -delta.y * DRAG_WORLD_PER_PIXEL
-	if handle_id.begins_with("eye"):
+	if handle_id == "jaw_hinge":
+		fish.move_jaw_hinge(Vector3(delta_x, delta_y, 0.0))
+	elif handle_id == "head_bump":
+		fish.move_head_bump(Vector3(delta_x, delta_y, 0.0))
+	elif handle_id.begins_with("eye"):
 		# Eyes move freely on the head and stay left/right symmetric by construction.
 		fish.move_eye(delta_x, delta_y)
 	elif handle_id == "operculum":
@@ -64,6 +84,22 @@ func _apply_handle_drag(handle_id: String, delta: Vector2) -> void:
 	else:
 		# Median fins (dorsal/anal/pelvic) only slide fore/aft along the centerline.
 		fish.move_fin_attach(handle_id, delta_x)
+
+func _queue_head_drag(handle_id: String, mouse_position: Vector2) -> void:
+	if fish == null or camera == null or not fish.has_method("get_head_drag_plane"):
+		return
+	var plane: Dictionary = fish.call("get_head_drag_plane", handle_id)
+	var world_delta: Vector3 = ScreenDragProjectorScript.screen_delta_on_plane(
+		camera,
+		_previous_mouse_pos,
+		mouse_position,
+		plane.get("point", Vector3.ZERO),
+		plane.get("normal", Vector3.BACK)
+	)
+	_previous_mouse_pos = mouse_position
+	if world_delta.length_squared() <= 0.0000001:
+		return
+	_accumulated_head_world_delta += world_delta
 
 func _on_gui_input(event: InputEvent) -> void:
 	if not enabled or fish == null:
@@ -79,19 +115,40 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.pressed:
 		selected_handle = _pick_handle(event.position)
 		if selected_handle != "":
+			_press_mouse_pos = event.position
+			_previous_mouse_pos = event.position
+			_drag_distance_px = 0.0
+			_dragging_started = false
+			_accumulated_head_world_delta = Vector3.ZERO
 			_set_camera_suppressed(true)
 			input_control.accept_event()
 	else:
 		if selected_handle != "":
-			# Commit the drag once on release so the preset and editor panels
-			# only rebuild a single time instead of on every mouse motion.
-			parameters_changed.emit(fish.parameters.duplicate(true))
+			if not _dragging_started:
+				handle_clicked.emit(selected_handle)
+			else:
+				_apply_accumulated_head_drag()
+				# Commit the drag once on release so the preset and editor panels
+				# only rebuild a single time instead of on every mouse motion.
+				parameters_changed.emit(fish.parameters.duplicate(true))
 			input_control.accept_event()
 		_release()
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 	if selected_handle != "":
-		_drag_live(selected_handle, event.relative)
+		_drag_distance_px = maxf(_drag_distance_px, event.position.distance_to(_press_mouse_pos))
+		if not _dragging_started:
+			if _drag_distance_px <= CLICK_DISTANCE_PX:
+				input_control.accept_event()
+				return
+			_dragging_started = true
+			_previous_mouse_pos = _press_mouse_pos
+		if _is_head_rebuild_handle(selected_handle):
+			_queue_head_drag(selected_handle, event.position)
+		else:
+			var delta := event.position - _previous_mouse_pos
+			_previous_mouse_pos = event.position
+			_drag_live(selected_handle, delta)
 		input_control.accept_event()
 	else:
 		var hover := _pick_handle(event.position)
@@ -102,9 +159,28 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 
 func _release() -> void:
 	selected_handle = ""
+	_drag_distance_px = 0.0
+	_dragging_started = false
+	_accumulated_head_world_delta = Vector3.ZERO
 	_set_camera_suppressed(false)
 	if input_control:
 		input_control.mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+func _apply_accumulated_head_drag() -> bool:
+	if selected_handle == "" or not _is_head_rebuild_handle(selected_handle) or fish == null:
+		return false
+	if _accumulated_head_world_delta.length_squared() <= 0.0000001:
+		return false
+	var world_delta := _accumulated_head_world_delta
+	_accumulated_head_world_delta = Vector3.ZERO
+	if selected_handle == "jaw_hinge":
+		fish.move_jaw_hinge(world_delta)
+	elif selected_handle == "head_bump":
+		fish.move_head_bump(world_delta)
+	return true
+
+func _is_head_rebuild_handle(handle_id: String) -> bool:
+	return handle_id == "jaw_hinge" or handle_id == "head_bump"
 
 func _set_camera_suppressed(value: bool) -> void:
 	if camera_controller and camera_controller.has_method("set_drag_suppressed"):
@@ -117,9 +193,16 @@ func _pick_handle(mouse_position: Vector2) -> String:
 	var best_handle := ""
 	var best_distance := PICK_RADIUS_PX
 	for handle_id in points.keys():
+		if not _is_handle_allowed(String(handle_id)):
+			continue
 		var screen_position := camera.unproject_position(points[handle_id])
 		var distance := screen_position.distance_to(mouse_position)
 		if distance < best_distance:
 			best_distance = distance
 			best_handle = String(handle_id)
 	return best_handle
+
+func _is_handle_allowed(handle_id: String) -> bool:
+	if allowed_handle_filter.is_valid():
+		return bool(allowed_handle_filter.call(handle_id))
+	return true

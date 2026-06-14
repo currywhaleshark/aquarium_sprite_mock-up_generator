@@ -5,12 +5,13 @@ const UiText := preload("res://scripts/ui/UiText.gd")
 
 func _ready() -> void:
 	var panel := ParameterPanelScript.new()
+	var ray_panel := ParameterPanelScript.new()
 	add_child(panel)
+	add_child(ray_panel)
 	await get_tree().process_frame
 	panel.set_parameters({
 		"custom_offset_x": -0.5,
 		"body_length": 1.2,
-		"disc_thickness": 0.16,
 		"tail_thickness": 0.055,
 		"fin_ray_style": "fan",
 		"fin_ray_count": 48.0,
@@ -27,9 +28,14 @@ func _ready() -> void:
 		"finlet_pitch": 0.25,
 		"finlet_dorsal_count": 9.0
 	})
+	ray_panel.set_creature_type("ray")
+	ray_panel.set_parameters({
+		"creature_type": "ray",
+		"disc_thickness": 0.16
+	})
 	var offset_slider := _find_slider_for_label(panel, UiText.parameter("custom_offset_x"))
 	var body_slider := _find_slider_for_label(panel, UiText.parameter("body_length"))
-	var disc_thickness_slider := _find_slider_for_label(panel, UiText.parameter("disc_thickness"))
+	var disc_thickness_slider := _find_slider_for_label(ray_panel, UiText.parameter("disc_thickness"))
 	var tail_thickness_slider := _find_slider_for_label(panel, UiText.parameter("tail_thickness"))
 	var fin_ray_count_slider := _find_slider_for_label(panel, UiText.parameter("fin_ray_count"))
 	var fin_root_bias_slider := _find_slider_for_label(panel, UiText.parameter("fin_ray_root_bias"))

@@ -15,7 +15,7 @@ static func build_sheet_grid(frame_rows: Array, output_path: String) -> Error:
 		var row: PackedStringArray = row_value
 		if row.size() != column_count:
 			return ERR_INVALID_DATA
-	var first := Image.load_from_file(first_row[0])
+	var first := _load_frame(first_row[0])
 	if first == null:
 		return ERR_FILE_CANT_READ
 	var cell_size := first.get_size()
@@ -24,10 +24,16 @@ static func build_sheet_grid(frame_rows: Array, output_path: String) -> Error:
 	for row_index in frame_rows.size():
 		var row: PackedStringArray = frame_rows[row_index]
 		for column_index in row.size():
-			var image := Image.load_from_file(row[column_index])
+			var image := _load_frame(row[column_index])
 			if image == null:
 				return ERR_FILE_CANT_READ
 			if image.get_size() != cell_size:
 				image.resize(cell_size.x, cell_size.y, Image.INTERPOLATE_LANCZOS)
 			sheet.blit_rect(image, Rect2i(Vector2i.ZERO, cell_size), Vector2i(column_index * cell_size.x, row_index * cell_size.y))
 	return sheet.save_png(output_path)
+
+# Frames are transient exporter output, not imported resources; loading them through
+# the global path keeps the editor from warning "Loaded resource as image file" once
+# per frame.
+static func _load_frame(path: String) -> Image:
+	return Image.load_from_file(ProjectSettings.globalize_path(path))

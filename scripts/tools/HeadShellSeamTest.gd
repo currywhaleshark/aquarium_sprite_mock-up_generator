@@ -64,6 +64,15 @@ func _ready() -> void:
 	await get_tree().process_frame
 	assert(_max_escape(fish, "arowana-extreme") <= 1.02)
 
+	var flat_extreme := extreme.duplicate(true)
+	flat_extreme["head_top_flatness"] = 1.0
+	flat_extreme["head_bottom_flatness"] = 0.6
+	flat_extreme["head_left_flatness"] = 0.8
+	flat_extreme["head_right_flatness"] = 0.8
+	fish.set_parameters(flat_extreme)
+	await get_tree().process_frame
+	assert(_max_escape(fish, "arowana-extreme-flatness") <= 1.02)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_shell_seam.ok", FileAccess.WRITE)
 	file.store_string("head stays within shell envelope through the seam")

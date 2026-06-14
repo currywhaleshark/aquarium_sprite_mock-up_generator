@@ -2,12 +2,16 @@ class_name FinEditorPanel
 extends VBoxContainer
 
 signal parameters_changed(parameters: Dictionary)
+signal numeric_slider_changed(key: String)
+signal numeric_slider_hovered(key: String)
 signal vector_edit_target_changed(slot: String)
 signal vector_edit_preview_changed(slot: String, active: bool, norm_position: Vector2, ghost: bool)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
 const FinVectorEditorScript := preload("res://scripts/ui/FinVectorEditor.gd")
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
+const CreatureParameterSchemaScript := preload("res://scripts/creature/CreatureParameterSchema.gd")
 
 const SLOT_LABELS := {
 	"dorsal_1": "Dorsal 1",
@@ -55,6 +59,7 @@ const NUMERIC_KEYS := {
 	"pectoral": {
 		"pectoral_fin_size": {"min": 0.04, "max": 0.6, "step": 0.005, "fallback": 0.16},
 		"pectoral_fin_offset_x": {"min": -0.55, "max": 0.55, "step": 0.005, "fallback": 0.0},
+		"pectoral_fin_spacing": {"min": 0.5, "max": 1.5, "step": 0.005, "fallback": 1.0},
 		"pectoral_fin_yaw": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": 25.0},
 		"pectoral_fin_pitch": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": 0.0},
 		"pectoral_fin_roll": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": -28.0},
@@ -99,6 +104,7 @@ const NUMERIC_KEYS := {
 }
 
 var parameters: Dictionary = {}
+var creature_type := CreatureModeScript.FISH
 var selected_slot := "dorsal_1"
 var slot_option: OptionButton
 var enabled_check: CheckBox
@@ -108,6 +114,10 @@ var shape_option: OptionButton
 var numeric_container: VBoxContainer
 var numeric_sliders := {}
 var vector_editor: Control
+var search_edit: LineEdit
+var search_text := ""
+var changed_only_check: CheckBox
+var show_changed_only := false
 var _updating := false
 
 func _ready() -> void:
@@ -158,6 +168,19 @@ func _ready() -> void:
 	)
 	add_child(shape_option)
 
+	search_edit = UiRows.add_filter_row(self, UiText.slider_search_placeholder())
+	search_edit.text_changed.connect(func(text: String) -> void:
+		set_search_text(text)
+	)
+
+	changed_only_check = CheckBox.new()
+	changed_only_check.text = UiText.changed_only_filter()
+	changed_only_check.toggled.connect(func(enabled: bool) -> void:
+		show_changed_only = enabled
+		_apply_row_filter()
+	)
+	add_child(changed_only_check)
+
 	numeric_container = VBoxContainer.new()
 	numeric_container.add_theme_constant_override("separation", 1)
 	add_child(numeric_container)
@@ -179,7 +202,32 @@ func _ready() -> void:
 
 func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
+	creature_type = CreatureModeScript.normalize(String(parameters.get("creature_type", creature_type)))
 	_refresh_controls()
+
+func set_creature_type(mode: String) -> void:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	if creature_type == normalized_mode:
+		return
+	creature_type = normalized_mode
+	parameters["creature_type"] = creature_type
+	_refresh_controls()
+
+func select_slot(slot_id: String) -> void:
+	selected_slot = slot_id
+	_refresh_controls()
+	if slot_option == null:
+		return
+	for i in slot_option.item_count:
+		if String(slot_option.get_item_metadata(i)) == selected_slot:
+			slot_option.select(i)
+			return
+
+func set_search_text(text: String) -> void:
+	search_text = text
+	if search_edit != null and search_edit.text != search_text:
+		search_edit.text = search_text
+	_apply_row_filter()
 
 func set_slot_enabled(slot_id: String, enabled: bool) -> void:
 	parameters[_enabled_key(slot_id)] = 1.0 if enabled else 0.0
@@ -209,12 +257,8 @@ func set_numeric_parameter(key: String, value: float) -> void:
 func _populate_slots() -> void:
 	if slot_option == null:
 		return
-	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
-	var expected_slots := []
-	if is_ray:
-		expected_slots = ["cephalic", "pelvic"]
-	else:
-		expected_slots = ["dorsal_1", "dorsal_2", "pectoral", "pelvic", "anal", "caudal", "adipose_fin", "finlet"]
+	var expected_slots := CreatureParameterSchemaScript.allowed_fin_slots(creature_type)
+	var is_ray := creature_type == CreatureModeScript.RAY
 	
 	var matches := true
 	if slot_option.item_count != expected_slots.size():
@@ -244,7 +288,7 @@ func _refresh_controls() -> void:
 	_updating = true
 	_populate_slots()
 	
-	var is_ray := String(parameters.get("creature_type", "fish")) == "ray"
+	var is_ray := creature_type == CreatureModeScript.RAY
 	if is_ray:
 		enabled_check.visible = false
 		attach_row_container.visible = false
@@ -259,7 +303,7 @@ func _refresh_controls() -> void:
 	attach_slider.editable = attach_key != ""
 	attach_slider.value = float(parameters.get(attach_key, _default_attach(selected_slot))) if attach_key != "" else 0.5
 	
-	var shapes: Array = SHAPES.get(selected_slot, ["single"])
+	var shapes: Array = _shape_options_for_slot(selected_slot)
 	var shape_items_match := true
 	if shape_option.item_count != shapes.size():
 		shape_items_match = false
@@ -335,14 +379,17 @@ func _rebuild_numeric_controls() -> void:
 			var slider := widgets["slider"] as HSlider
 			var label := widgets["label"] as Label
 			var value := _numeric_value(String(key), slot_keys[key])
+			UiRows.set_row_default(widgets, _numeric_default(String(key), slot_keys[key]))
 			slider.value = value
 			label.text = "%.2f" % value
+			UiRows.update_changed_marker(widgets)
 	else:
 		for child in numeric_container.get_children():
 			child.queue_free()
 		numeric_sliders.clear()
 		for key in slot_keys.keys():
 			_add_numeric_row(String(key), slot_keys[key])
+	_apply_row_filter()
 
 func _add_numeric_row(key: String, config: Dictionary) -> void:
 	var widgets := UiRows.add_labeled_slider(numeric_container, UiText.fin_parameter(key), {
@@ -350,14 +397,26 @@ func _add_numeric_row(key: String, config: Dictionary) -> void:
 		"min": float(config.get("min", 0.0)),
 		"max": float(config.get("max", 1.0)),
 		"step": float(config.get("step", 0.005)),
+		"default": _numeric_default(key, config),
 		"value": _numeric_value(key, config),
 	})
 	var slider := widgets["slider"] as HSlider
 	var value_label := widgets["value_label"] as Label
-	numeric_sliders[key] = {"slider": slider, "label": value_label}
+	var row := widgets["row"] as Control
+	widgets["label"] = value_label
+	numeric_sliders[key] = widgets
+	row.mouse_entered.connect(func() -> void:
+		numeric_slider_hovered.emit(key)
+	)
+	row.mouse_exited.connect(func() -> void:
+		numeric_slider_hovered.emit("")
+	)
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
+		UiRows.update_changed_marker(widgets)
+		_apply_row_filter()
 		if not _updating:
+			numeric_slider_changed.emit(key)
 			set_numeric_parameter(key, value)
 	)
 
@@ -368,6 +427,34 @@ func _numeric_value(key: String, config: Dictionary) -> float:
 	if fallback_key != "" and parameters.has(fallback_key):
 		return float(parameters[fallback_key])
 	return float(config.get("fallback", 0.0))
+
+func _numeric_default(_key: String, config: Dictionary) -> float:
+	var fallback_key := String(config.get("fallback_key", ""))
+	if fallback_key != "" and parameters.has(fallback_key):
+		return float(parameters[fallback_key])
+	return float(config.get("fallback", 0.0))
+
+func is_row_changed(key: String) -> bool:
+	if not numeric_sliders.has(key):
+		return false
+	return UiRows.is_changed_from_default(numeric_sliders[key])
+
+func _apply_row_filter() -> void:
+	for key in numeric_sliders.keys():
+		var widgets: Dictionary = numeric_sliders[key]
+		var row := widgets.get("row") as Control
+		if row == null:
+			continue
+		row.visible = _row_matches_filter(widgets)
+
+func _row_matches_filter(widgets: Dictionary) -> bool:
+	if show_changed_only and not UiRows.is_changed_from_default(widgets):
+		return false
+	var query := search_text.strip_edges()
+	if query == "":
+		return true
+	var name_label := widgets.get("name_label") as Label
+	return name_label != null and name_label.text.contains(query)
 
 func _numeric_config_for_key(key: String) -> Dictionary:
 	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {})
@@ -381,6 +468,13 @@ func _numeric_config_for_key(key: String) -> Dictionary:
 		elif key.ends_with("p1_y") or key.ends_with("p2_y"):
 			return {"min": 0.0, "max": 2.0, "step": 0.01, "fallback": 1.0}
 	return {}
+
+func _shape_options_for_slot(slot_id: String) -> Array:
+	var result := []
+	for shape in SHAPES.get(slot_id, ["single"]):
+		if CreatureParameterSchemaScript.is_option_value_visible(creature_type, _shape_key(slot_id), String(shape)):
+			result.append(String(shape))
+	return result
 
 func _enabled_key(slot_id: String) -> String:
 	match slot_id:

@@ -7,10 +7,13 @@ const ExportPanelScript := preload("res://scripts/ui/ExportPanel.gd")
 const PreviewControlsScript := preload("res://scripts/ui/PreviewControls.gd")
 const PreviewCameraControllerScript := preload("res://scripts/ui/PreviewCameraController.gd")
 const FishFinDragControllerScript := preload("res://scripts/ui/FishFinDragController.gd")
+const BodyRingDragControllerScript := preload("res://scripts/ui/BodyRingDragController.gd")
 const FinEditorPanelScript := preload("res://scripts/ui/FinEditorPanel.gd")
 const HeadEditorPanelScript := preload("res://scripts/ui/HeadEditorPanel.gd")
 const BodyEditorPanelScript := preload("res://scripts/ui/BodyEditorPanel.gd")
 const ReferenceImagePanelScript := preload("res://scripts/ui/ReferenceImagePanel.gd")
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
+const CreatureRigFactoryScript := preload("res://scripts/creature/CreatureRigFactory.gd")
 const SpriteExporterScript := preload("res://scripts/export/SpriteExporter.gd")
 const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 const SpeciesArchetypeStoreScript := preload("res://scripts/species/SpeciesArchetypeStore.gd")
@@ -30,20 +33,28 @@ var reference_overlay_source_size := Vector2.ZERO
 var camera: Camera3D
 var camera_controller: Node
 var fin_drag_controller: Node
+var body_ring_drag_controller: Node
 var drag_handles_overlay: Control
-var jaw_hinge_marker_timer: Timer
+var indicator_timer: Timer
+var hovered_slider_key := ""
 var preview_bg: ColorRect
 var world_root: Node3D
 var current_rig: CreatureRig
 var presets: Array[Dictionary] = []
 var species_archetypes: Array[Dictionary] = []
 var current_preset: Dictionary = {}
+var active_creature_mode := CreatureModeScript.FISH
 var preset_option: OptionButton
+var creature_mode_option: OptionButton
+var mode_roots := {}
+var last_preset_path_by_mode := {}
+var last_session_preset_by_mode := {}
 var archetype_option: OptionButton
 var archetype_strength_slider: HSlider
 var archetype_read_label: Label
 var apply_archetype_button: Button
 var new_variant_button: Button
+var archetype_section_container: VBoxContainer
 var side_tabs: TabContainer
 var preset_name_edit: LineEdit
 var save_preset_button: Button
@@ -166,7 +177,6 @@ func _build_ui() -> void:
 	viewport_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	viewport_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	viewport_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	viewport_container.gui_input.connect(_on_preview_gui_input)
 	preview_stack.add_child(viewport_container)
 
 	viewport = SubViewport.new()
@@ -182,15 +192,16 @@ func _build_ui() -> void:
 	drag_handles_overlay.visible = false
 	preview_stack.add_child(drag_handles_overlay)
 
-	# Auto-hides the jaw-hinge marker a moment after the last hinge-slider adjustment.
-	jaw_hinge_marker_timer = Timer.new()
-	jaw_hinge_marker_timer.one_shot = true
-	jaw_hinge_marker_timer.wait_time = 2.0
-	jaw_hinge_marker_timer.timeout.connect(func() -> void:
+	# Auto-hides the temporary slider indicator a moment after the last adjustment.
+	indicator_timer = Timer.new()
+	indicator_timer.one_shot = true
+	indicator_timer.wait_time = 2.0
+	indicator_timer.timeout.connect(func() -> void:
 		if drag_handles_overlay:
-			drag_handles_overlay.show_jaw_hinge = false
+			drag_handles_overlay.indicator_key = ""
+			_update_overlay_visibility()
 	)
-	add_child(jaw_hinge_marker_timer)
+	add_child(indicator_timer)
 
 	reference_overlay = TextureRect.new()
 	reference_overlay.name = "ReferenceImageOverlay"
@@ -233,6 +244,26 @@ func _build_ui() -> void:
 	title.text = "절차적 스프라이트 생성기"
 	title.add_theme_font_size_override("font_size", 18)
 	side.add_child(title)
+
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 6)
+	side.add_child(mode_row)
+
+	var mode_label := Label.new()
+	mode_label.text = "모드"
+	mode_label.custom_minimum_size = Vector2(52, 0)
+	mode_row.add_child(mode_label)
+
+	creature_mode_option = OptionButton.new()
+	creature_mode_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for mode in CreatureModeScript.mode_ids():
+		creature_mode_option.add_item(UiText.creature_type(mode))
+		creature_mode_option.set_item_metadata(creature_mode_option.item_count - 1, mode)
+	creature_mode_option.item_selected.connect(func(index: int) -> void:
+		var mode := String(creature_mode_option.get_item_metadata(index))
+		_select_creature_mode(mode)
+	)
+	mode_row.add_child(creature_mode_option)
 
 	var preset_row := HBoxContainer.new()
 	preset_row.add_theme_constant_override("separation", 6)
@@ -418,6 +449,8 @@ func _build_ui() -> void:
 	fin_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
+	fin_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
+	fin_editor_panel.numeric_slider_hovered.connect(_on_editor_numeric_slider_hovered)
 	fin_editor_panel.vector_edit_target_changed.connect(func(slot: String) -> void:
 		if slot == "" or not fin_editor_panel.visible:
 			_set_vector_edit_marker_slot("")
@@ -432,7 +465,8 @@ func _build_ui() -> void:
 	head_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
-	head_editor_panel.numeric_slider_changed.connect(_on_head_numeric_slider_changed)
+	head_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
+	head_editor_panel.numeric_slider_hovered.connect(_on_editor_numeric_slider_hovered)
 	head_editor_panel.vector_edit_target_changed.connect(func(slot: String) -> void:
 		if slot == "" or not head_editor_panel.visible:
 			_set_vector_edit_marker_slot("")
@@ -447,6 +481,8 @@ func _build_ui() -> void:
 	body_editor_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
 	)
+	body_editor_panel.numeric_slider_changed.connect(_on_editor_numeric_slider_changed)
+	body_editor_panel.numeric_slider_hovered.connect(_on_editor_numeric_slider_hovered)
 	body_editor_panel.ring_selected.connect(func(ring_id: String) -> void:
 		var fish_rig := current_rig as FishRig
 		if fish_rig:
@@ -595,14 +631,17 @@ func _make_dock_notice(id: String, window_title: String, p: PoppablePanel) -> Co
 	return box
 
 func _build_archetype_section(parent: VBoxContainer) -> void:
+	archetype_section_container = VBoxContainer.new()
+	parent.add_child(archetype_section_container)
+
 	var title := Label.new()
 	title.text = "종 아키타입"
 	title.add_theme_font_size_override("font_size", 15)
-	parent.add_child(title)
+	archetype_section_container.add_child(title)
 
 	var archetype_row := HBoxContainer.new()
 	archetype_row.add_theme_constant_override("separation", 6)
-	parent.add_child(archetype_row)
+	archetype_section_container.add_child(archetype_row)
 
 	archetype_option = OptionButton.new()
 	archetype_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -616,7 +655,7 @@ func _build_archetype_section(parent: VBoxContainer) -> void:
 
 	var strength_row := HBoxContainer.new()
 	strength_row.add_theme_constant_override("separation", 6)
-	parent.add_child(strength_row)
+	archetype_section_container.add_child(strength_row)
 
 	var strength_label := Label.new()
 	strength_label.text = "강도"
@@ -639,7 +678,7 @@ func _build_archetype_section(parent: VBoxContainer) -> void:
 	archetype_read_label = Label.new()
 	archetype_read_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	archetype_read_label.add_theme_font_size_override("font_size", 11)
-	parent.add_child(archetype_read_label)
+	archetype_section_container.add_child(archetype_read_label)
 
 	_load_species_archetype_options()
 
@@ -660,6 +699,14 @@ func _build_preview_world() -> void:
 	fill.position = Vector3(-1.2, 1.1, 2.0)
 	world_root.add_child(fill)
 
+	mode_roots.clear()
+	for mode in CreatureModeScript.mode_ids():
+		var root := Node3D.new()
+		root.name = "%sModeRoot" % String(mode).capitalize()
+		root.visible = mode == active_creature_mode
+		world_root.add_child(root)
+		mode_roots[mode] = root
+
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
 	viewport.add_child(camera)
@@ -674,11 +721,27 @@ func _build_preview_world() -> void:
 	fin_drag_controller.call("bind_camera", camera)
 	fin_drag_controller.call("bind_camera_controller", camera_controller)
 	fin_drag_controller.call("bind_input_control", viewport_container)
+	body_ring_drag_controller = BodyRingDragControllerScript.new()
+	body_ring_drag_controller.name = "BodyRingDragController"
+	add_child(body_ring_drag_controller)
+	body_ring_drag_controller.call("bind_camera", camera)
+	body_ring_drag_controller.call("bind_camera_controller", camera_controller)
+	body_ring_drag_controller.call("bind_input_control", viewport_container)
+	body_ring_drag_controller.call("set_enabled", false)
 	if drag_handles_overlay:
 		drag_handles_overlay.camera = camera
 		drag_handles_overlay.fin_drag_controller = fin_drag_controller
+		drag_handles_overlay.body_ring_drag_controller = body_ring_drag_controller
 	fin_drag_controller.parameters_changed.connect(func(parameters: Dictionary) -> void:
 		_apply_parameters_from_editor(parameters)
+	)
+	fin_drag_controller.handle_clicked.connect(_on_preview_handle_clicked)
+	body_ring_drag_controller.parameters_changed.connect(func(parameters: Dictionary) -> void:
+		_apply_parameters_from_editor(parameters)
+	)
+	body_ring_drag_controller.ring_handle_selected.connect(func(ring_id: String) -> void:
+		if body_editor_panel:
+			body_editor_panel.call("select_ring_by_id", ring_id)
 	)
 	camera_controller.camera_changed.connect(func(_state: Dictionary) -> void:
 		_update_reference_overlay_transform()
@@ -691,13 +754,15 @@ func _load_species_archetype_options() -> void:
 		return
 	species_archetypes = SpeciesArchetypeStoreScript.load_all()
 	archetype_option.clear()
-	archetype_option.add_item("Generic Fish")
+	archetype_option.add_item(UiText.species_archetype_label(""))
 	archetype_option.set_item_metadata(0, "")
 	for archetype in species_archetypes:
-		var label := String(archetype.get("label", archetype.get("id", "")))
+		var archetype_id := String(archetype.get("id", ""))
+		var label := UiText.species_archetype_label(archetype_id, String(archetype.get("label", archetype_id)))
 		archetype_option.add_item(label)
-		archetype_option.set_item_metadata(archetype_option.item_count - 1, String(archetype.get("id", "")))
+		archetype_option.set_item_metadata(archetype_option.item_count - 1, archetype_id)
 	_update_archetype_read_label()
+	_sync_archetype_mode_visibility()
 
 func _on_archetype_selected(_index: int) -> void:
 	_update_archetype_read_label()
@@ -710,7 +775,10 @@ func _update_archetype_read_label() -> void:
 		archetype_read_label.text = "수동 프리셋"
 		return
 	var priorities: Array = archetype.get("readability_priority", [])
-	archetype_read_label.text = ", ".join(priorities)
+	var localized_priorities: Array[String] = []
+	for priority in priorities:
+		localized_priorities.append(UiText.readability_priority(String(priority)))
+	archetype_read_label.text = ", ".join(localized_priorities)
 
 func _selected_archetype() -> Dictionary:
 	if archetype_option == null or archetype_option.selected < 0:
@@ -726,6 +794,9 @@ func _selected_archetype() -> Dictionary:
 func _sync_archetype_controls(parameters: Dictionary) -> void:
 	if archetype_option == null:
 		return
+	_sync_archetype_mode_visibility()
+	if not CreatureModeScript.supports_archetypes(_current_mode()):
+		return
 	var archetype_id := String(parameters.get("archetype_id", ""))
 	var selected_index := 0
 	if archetype_id != "":
@@ -739,6 +810,8 @@ func _sync_archetype_controls(parameters: Dictionary) -> void:
 	_update_archetype_read_label()
 
 func _apply_selected_archetype() -> void:
+	if not CreatureModeScript.supports_archetypes(_current_mode()):
+		return
 	var archetype := _selected_archetype()
 	if archetype.is_empty() or current_preset.is_empty():
 		return
@@ -757,6 +830,8 @@ func _apply_selected_archetype() -> void:
 		export_panel.set_status("%s 아키타입 적용" % String(archetype.get("label", selected_id)))
 
 func _apply_new_archetype_variant() -> void:
+	if not CreatureModeScript.supports_archetypes(_current_mode()):
+		return
 	var archetype := _selected_archetype()
 	if archetype.is_empty() and not current_preset.is_empty():
 		var parameters: Dictionary = current_preset.get("parameters", {})
@@ -782,16 +857,38 @@ func _make_variant_seed(previous_seed: int) -> int:
 	return seed
 
 func _apply_archetype_parameters(parameters: Dictionary) -> void:
+	if not CreatureModeScript.supports_archetypes(_current_mode()):
+		return
 	current_preset["creature_type"] = "fish"
 	current_preset["type"] = "fish"
+	active_creature_mode = CreatureModeScript.FISH
 	if (current_rig as FishRig) == null:
 		_discard_current_rig()
 		current_rig = FishRigScript.new()
 		current_rig.name = "ActiveRig"
-		world_root.add_child(current_rig)
+		_set_active_mode_root(CreatureModeScript.FISH)
+		var fish_root := mode_roots.get(CreatureModeScript.FISH, world_root) as Node
+		fish_root.add_child(current_rig)
 		_bind_fin_editor_for_current_rig()
 	_apply_parameters_from_editor(parameters)
 	_sync_archetype_controls(parameters)
+
+func _sync_archetype_mode_visibility() -> void:
+	var supports_archetypes := CreatureModeScript.supports_archetypes(_current_mode())
+	if archetype_section_container:
+		archetype_section_container.visible = supports_archetypes
+	if archetype_option:
+		archetype_option.disabled = not supports_archetypes
+		if not supports_archetypes:
+			archetype_option.select(0)
+	if apply_archetype_button:
+		apply_archetype_button.disabled = not supports_archetypes
+	if new_variant_button:
+		new_variant_button.disabled = not supports_archetypes
+	if archetype_strength_slider:
+		archetype_strength_slider.editable = supports_archetypes
+	if archetype_read_label and not supports_archetypes:
+		archetype_read_label.text = ""
 
 func _load_preset(index: int) -> void:
 	if index < 0 or index >= presets.size():
@@ -799,26 +896,34 @@ func _load_preset(index: int) -> void:
 	_clear_pending_editor_apply()
 	current_preset = presets[index].duplicate(true)
 	_discard_current_rig()
-	var creature_type := String(current_preset.get("creature_type", "fish"))
-	if creature_type == "ray":
-		current_rig = RayRigScript.new()
-	else:
-		current_rig = FishRigScript.new()
+	var creature_type := CreatureModeScript.normalize(String(current_preset.get("creature_type", active_creature_mode)))
+	active_creature_mode = creature_type
+	current_preset["creature_type"] = creature_type
+	current_preset["type"] = creature_type
+	_set_active_mode_root(creature_type)
+	current_rig = CreatureRigFactoryScript.create(creature_type)
 	current_rig.name = "ActiveRig"
-	world_root.add_child(current_rig)
+	(mode_roots.get(creature_type, world_root) as Node).add_child(current_rig)
 	current_rig.set_parameters(current_preset.get("parameters", {}))
+	_select_mode_option(creature_type)
 	_reset_preview_direction()
 	if playback_toggle:
 		current_rig.auto_animate = playback_toggle.button_pressed
 	_bind_fin_editor_for_current_rig()
+	parameter_panel.set_creature_type(creature_type)
+	color_panel.set_creature_type(creature_type)
+	motion_panel.set_creature_type(creature_type)
 	parameter_panel.set_parameters(current_preset.get("parameters", {}))
 	color_panel.set_parameters(current_preset.get("parameters", {}))
 	motion_panel.set_parameters(current_preset.get("parameters", {}))
 	if fin_editor_panel:
+		fin_editor_panel.call("set_creature_type", creature_type)
 		fin_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
 	if head_editor_panel:
+		head_editor_panel.call("set_creature_type", creature_type)
 		head_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
 	if body_editor_panel:
+		body_editor_panel.call("set_creature_type", creature_type)
 		body_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
 	_sync_archetype_controls(current_preset.get("parameters", {}))
 	if preset_name_edit:
@@ -841,20 +946,48 @@ func _discard_current_rig() -> void:
 			current_rig.get_parent().remove_child(current_rig)
 		current_rig.queue_free()
 		current_rig = null
-	if world_root:
-		for child in world_root.get_children():
-			if child.name == "ActiveRig":
-				world_root.remove_child(child)
-				child.queue_free()
+	for root in mode_roots.values():
+		var mode_root := root as Node
+		if mode_root == null:
+			continue
+		for child in mode_root.get_children():
+			mode_root.remove_child(child)
+			child.queue_free()
+
+func _set_active_mode_root(mode: String) -> void:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	for key in mode_roots.keys():
+		var root := mode_roots[key] as Node3D
+		if root == null:
+			continue
+		for child in root.get_children():
+			root.remove_child(child)
+			child.queue_free()
+		root.visible = String(key) == normalized_mode
+
+func _select_mode_option(mode: String) -> void:
+	if creature_mode_option == null:
+		return
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	for i in creature_mode_option.item_count:
+		if String(creature_mode_option.get_item_metadata(i)) == normalized_mode:
+			creature_mode_option.select(i)
+			return
 
 func _reload_presets(select_path: String = "") -> void:
-	presets = PresetStoreScript.load_all()
+	var mode := CreatureModeScript.normalize(active_creature_mode)
+	presets = PresetStoreScript.load_all(mode)
 	preset_option.clear()
 	for preset in presets:
 		preset_option.add_item(_preset_option_label(preset))
 	if presets.is_empty():
 		return
 	var selected_index := 0
+	var default_name := CreatureModeScript.default_preset(mode)
+	for i in presets.size():
+		if String(presets[i].get("name", "")) == default_name:
+			selected_index = i
+			break
 	if select_path != "":
 		for i in presets.size():
 			if String(presets[i].get("_preset_path", "")) == select_path:
@@ -862,6 +995,19 @@ func _reload_presets(select_path: String = "") -> void:
 				break
 	preset_option.select(selected_index)
 	_load_preset(selected_index)
+
+func _select_creature_mode(mode: String) -> void:
+	var next_mode := CreatureModeScript.normalize(mode)
+	if next_mode == active_creature_mode and not current_preset.is_empty():
+		return
+	if not current_preset.is_empty():
+		last_session_preset_by_mode[active_creature_mode] = current_preset.duplicate(true)
+		var current_path := String(current_preset.get("_preset_path", ""))
+		if current_path != "":
+			last_preset_path_by_mode[active_creature_mode] = current_path
+	active_creature_mode = next_mode
+	_select_mode_option(next_mode)
+	_reload_presets(String(last_preset_path_by_mode.get(next_mode, "")))
 
 func _preset_option_label(preset: Dictionary) -> String:
 	var preset_name := String(preset.get("name", "unnamed"))
@@ -918,63 +1064,60 @@ func _clear_pending_editor_apply() -> void:
 	_editor_parameter_apply_pending = false
 
 func _sync_parameter_editors(parameters: Dictionary) -> void:
+	var mode := CreatureModeScript.normalize(String(parameters.get("creature_type", active_creature_mode)))
 	if parameter_panel:
+		parameter_panel.set_creature_type(mode)
 		parameter_panel.set_parameters(parameters)
 	if color_panel:
+		color_panel.set_creature_type(mode)
 		color_panel.set_parameters(parameters)
 	if motion_panel:
+		motion_panel.set_creature_type(mode)
 		motion_panel.set_parameters(parameters)
 	if fin_editor_panel:
+		fin_editor_panel.call("set_creature_type", mode)
 		fin_editor_panel.call("set_parameters", parameters)
 	if head_editor_panel:
+		head_editor_panel.call("set_creature_type", mode)
 		head_editor_panel.call("set_parameters", parameters)
 	if body_editor_panel:
+		body_editor_panel.call("set_creature_type", mode)
 		body_editor_panel.call("set_parameters", parameters)
 
 func _bind_fin_editor_for_current_rig() -> void:
 	if fin_drag_controller == null:
 		return
-	if _is_fish():
-		fin_drag_controller.call("bind_fish", current_rig)
+	var mode := _current_mode()
+	var supports_fish_drag_overlay := CreatureModeScript.supports_fish_drag_overlay(mode)
+	var supports_body_ring_editor := CreatureModeScript.supports_body_ring_editor(mode)
+	var fish_drag_target := current_rig as FishRig
+	if supports_fish_drag_overlay and fish_drag_target != null:
+		fin_drag_controller.call("bind_fish", fish_drag_target)
 		fin_drag_controller.call("set_enabled", true)
+		if body_ring_drag_controller:
+			body_ring_drag_controller.call("bind_fish", fish_drag_target)
 		if drag_handles_overlay:
-			drag_handles_overlay.fish = current_rig as FishRig
+			drag_handles_overlay.fish = fish_drag_target
 			_update_overlay_visibility()
-		if fin_edit_toggle:
-			fin_edit_toggle.disabled = false
-		if head_edit_toggle:
-			head_edit_toggle.disabled = false
-		if body_edit_toggle:
-			body_edit_toggle.disabled = false
-	elif _is_ray():
-		fin_drag_controller.call("bind_fish", null)
-		fin_drag_controller.call("set_enabled", false)
-		if drag_handles_overlay:
-			drag_handles_overlay.fish = null
-			_update_overlay_visibility()
-		if fin_edit_toggle:
-			fin_edit_toggle.disabled = false
-		if head_edit_toggle:
-			head_edit_toggle.disabled = false
-		if body_edit_toggle:
-			body_edit_toggle.disabled = false
 	else:
 		fin_drag_controller.call("bind_fish", null)
 		fin_drag_controller.call("set_enabled", false)
+		if body_ring_drag_controller:
+			body_ring_drag_controller.call("bind_fish", null)
+			body_ring_drag_controller.call("set_enabled", false)
 		if drag_handles_overlay:
 			drag_handles_overlay.fish = null
 			_update_overlay_visibility()
-		if current_rig and current_rig.has_method("set_ring_editor_enabled"):
-			current_rig.call("set_ring_editor_enabled", false)
-		if fin_edit_toggle:
-			fin_edit_toggle.button_pressed = false
-			fin_edit_toggle.disabled = true
-		if head_edit_toggle:
-			head_edit_toggle.button_pressed = false
-			head_edit_toggle.disabled = true
-		if body_edit_toggle:
+	if current_rig and current_rig.has_method("set_ring_editor_enabled") and not supports_body_ring_editor:
+		current_rig.call("set_ring_editor_enabled", false)
+	if fin_edit_toggle:
+		fin_edit_toggle.disabled = current_rig == null
+	if head_edit_toggle:
+		head_edit_toggle.disabled = current_rig == null
+	if body_edit_toggle:
+		body_edit_toggle.disabled = current_rig == null or not supports_body_ring_editor
+		if body_edit_toggle.disabled:
 			body_edit_toggle.button_pressed = false
-			body_edit_toggle.disabled = true
 
 func _export_resolution() -> Vector2i:
 	var export_settings: Dictionary = current_preset.get("export_settings", {})
@@ -986,7 +1129,17 @@ func _export_resolution() -> Vector2i:
 func _frame_to_export() -> void:
 	if current_rig == null or camera_controller == null:
 		return
-	var framing: Dictionary = SpriteExporterScript.compute_fit_framing(current_rig, _export_resolution())
+	# Match the pitch the export will actually use: the fixed quarter camera for
+	# 8-direction exports, otherwise the current preview camera (when roll-free).
+	var pitch_for_fit := NAN
+	var direction_count := 1
+	if export_panel and export_panel.has_method("get_direction_count"):
+		direction_count = int(export_panel.call("get_direction_count"))
+	if SpriteExporterScript.uses_fixed_quarter_view_camera(direction_count):
+		pitch_for_fit = float(CameraPresetScript.get_preset(CameraPresetScript.SPRITE_QUARTER_2TO1).get("pitch", -30.0))
+	elif camera != null and absf(camera.rotation_degrees.z) < 0.01:
+		pitch_for_fit = camera.rotation_degrees.x
+	var framing: Dictionary = SpriteExporterScript.compute_fit_framing(current_rig, _export_resolution(), pitch_for_fit)
 	if float(framing.get("radius", 0.0)) <= 0.0001:
 		return
 	camera_controller.set("orthographic_size", float(framing.get("ortho_size", 2.25)))
@@ -1213,7 +1366,7 @@ func _export_current() -> void:
 
 func _set_fin_edit_enabled(enabled: bool) -> void:
 	if fin_editor_panel:
-		fin_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+		fin_editor_panel.visible = enabled and current_rig != null
 	_update_editor_panel_scroll_visibility()
 	if enabled and current_rig and current_rig.has_method("set_ring_editor_enabled"):
 		current_rig.call("set_ring_editor_enabled", false)
@@ -1228,7 +1381,7 @@ func _set_fin_edit_enabled(enabled: bool) -> void:
 
 func _set_head_edit_enabled(enabled: bool) -> void:
 	if head_editor_panel:
-		head_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+		head_editor_panel.visible = enabled and current_rig != null
 	_update_editor_panel_scroll_visibility()
 	if enabled and current_rig and current_rig.has_method("set_ring_editor_enabled"):
 		current_rig.call("set_ring_editor_enabled", false)
@@ -1237,7 +1390,7 @@ func _set_head_edit_enabled(enabled: bool) -> void:
 	if drag_handles_overlay:
 		drag_handles_overlay.draw_head = enabled
 		if not enabled:
-			drag_handles_overlay.show_jaw_hinge = false
+			drag_handles_overlay.indicator_key = ""
 			if String(drag_handles_overlay.vector_edit_slot) == "operculum":
 				_set_vector_edit_marker_slot("")
 		_update_overlay_visibility()
@@ -1261,24 +1414,40 @@ func _set_vector_edit_preview_marker(slot: String, active: bool, norm_position: 
 	drag_handles_overlay.vector_edit_marker_ghost = ghost
 	_update_overlay_visibility()
 
-# Shows the jaw-hinge marker while the user is adjusting a hinge slider, and hides it once
-# they move to a different slider (or after the auto-hide timer elapses).
-func _on_head_numeric_slider_changed(key: String) -> void:
+func _on_editor_numeric_slider_changed(key: String) -> void:
 	if drag_handles_overlay == null:
 		return
-	var is_hinge := key == "jaw_hinge_x" or key == "jaw_hinge_y"
-	drag_handles_overlay.show_jaw_hinge = is_hinge
-	if is_hinge and jaw_hinge_marker_timer:
-		jaw_hinge_marker_timer.start()
+	if key == "":
+		drag_handles_overlay.indicator_key = ""
+		if indicator_timer:
+			indicator_timer.stop()
+		_update_overlay_visibility()
+		return
+	drag_handles_overlay.indicator_key = key
+	if indicator_timer and hovered_slider_key != key:
+		indicator_timer.start()
+	_update_overlay_visibility()
+
+func _on_editor_numeric_slider_hovered(key: String) -> void:
+	hovered_slider_key = key
+	if drag_handles_overlay == null:
+		return
+	if indicator_timer:
+		indicator_timer.stop()
+	drag_handles_overlay.indicator_key = key
+	_update_overlay_visibility()
 
 func _set_body_edit_enabled(enabled: bool) -> void:
 	if body_editor_panel:
-		body_editor_panel.visible = enabled and (_is_fish() or _is_ray())
+		body_editor_panel.visible = enabled and current_rig != null and CreatureModeScript.supports_body_ring_editor(_current_mode())
 	_update_editor_panel_scroll_visibility()
 	if current_rig and current_rig.has_method("set_ring_editor_enabled"):
 		current_rig.call("set_ring_editor_enabled", enabled)
 	if enabled:
 		_select_exclusive_edit_toggle(body_edit_toggle)
+	if drag_handles_overlay:
+		drag_handles_overlay.draw_body_rings = enabled and CreatureModeScript.supports_fish_drag_overlay(_current_mode())
+		_update_overlay_visibility()
 	_sync_edit_input_state()
 
 func _select_exclusive_edit_toggle(active_toggle: CheckButton) -> void:
@@ -1301,45 +1470,79 @@ func _update_editor_panel_scroll_visibility() -> void:
 	if parameter_panel:
 		parameter_panel.visible = not editing_active
 
+func _current_mode() -> String:
+	return CreatureModeScript.normalize(active_creature_mode)
+
 func _is_fish() -> bool:
-	return String(current_preset.get("creature_type", "fish")) == "fish"
+	return _current_mode() == CreatureModeScript.FISH
 
 func _is_ray() -> bool:
-	return String(current_preset.get("creature_type", "fish")) == "ray"
+	return _current_mode() == CreatureModeScript.RAY
 
-func _on_preview_gui_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton):
-		return
-	var mouse_event := event as InputEventMouseButton
-	if not mouse_event.pressed or mouse_event.button_index != MOUSE_BUTTON_LEFT:
-		return
-	if body_edit_toggle == null or not body_edit_toggle.button_pressed:
-		return
-	if current_rig == null or not current_rig.has_method("get_body_ring_global_points"):
-		return
-	var ring_points: Dictionary = current_rig.call("get_body_ring_global_points")
-	var best_id := ""
-	var best_distance := INF
-	var scale := Vector2.ONE
-	if viewport.size.x > 0 and viewport.size.y > 0:
-		scale = Vector2(viewport_container.size.x / float(viewport.size.x), viewport_container.size.y / float(viewport.size.y))
-	for ring_id in ring_points.keys():
-		var world_point: Vector3 = ring_points[ring_id]
-		var screen_point := camera.unproject_position(world_point) * scale
-		var distance := screen_point.distance_to(mouse_event.position)
-		if distance < best_distance:
-			best_distance = distance
-			best_id = String(ring_id)
-	if best_id != "" and best_distance <= 42.0:
-		body_editor_panel.call("select_ring_by_id", best_id)
+func _on_preview_handle_clicked(handle_id: String) -> void:
+	var row: Control = null
+	match handle_id:
+		"eye_l", "eye_r":
+			row = _focus_head_editor_key("eye_position_x")
+		"operculum":
+			row = _focus_head_editor_key("operculum_position_x")
+		"jaw_hinge":
+			row = _focus_head_editor_key("jaw_hinge_x")
+		"head_bump":
+			row = _focus_head_editor_key("head_bump_pos")
+		"dorsal", "dorsal_1":
+			_select_fin_editor_slot("dorsal_1")
+		"dorsal_2":
+			_select_fin_editor_slot("dorsal_2")
+		"anal":
+			_select_fin_editor_slot("anal")
+		"pelvic":
+			_select_fin_editor_slot("pelvic")
+		"pectoral":
+			_select_fin_editor_slot("pectoral")
+	if row != null and editor_panel_scroll != null:
+		editor_panel_scroll.ensure_control_visible(row)
+
+func _focus_head_editor_key(key: String) -> Control:
+	if head_edit_toggle and not head_edit_toggle.button_pressed:
+		head_edit_toggle.button_pressed = true
+	if head_editor_panel == null or not head_editor_panel.has_method("focus_key"):
+		return null
+	return head_editor_panel.call("focus_key", key) as Control
+
+func _select_fin_editor_slot(slot_id: String) -> void:
+	if fin_edit_toggle and not fin_edit_toggle.button_pressed:
+		fin_edit_toggle.button_pressed = true
+	if fin_editor_panel and fin_editor_panel.has_method("select_slot"):
+		fin_editor_panel.call("select_slot", slot_id)
 
 func _sync_edit_input_state() -> void:
 	if camera_controller:
 		camera_controller.set("input_enabled", true)
+	var mode := _current_mode()
+	var body_active := body_edit_toggle != null and body_edit_toggle.button_pressed and CreatureModeScript.supports_body_ring_editor(mode)
+	if fin_drag_controller:
+		fin_drag_controller.call("set_enabled", CreatureModeScript.supports_fish_drag_overlay(mode) and not body_active)
+		fin_drag_controller.set("allowed_handle_filter", _active_fin_drag_handle_filter())
+	if body_ring_drag_controller:
+		body_ring_drag_controller.call("set_enabled", body_active and CreatureModeScript.supports_fish_drag_overlay(mode))
+
+func _active_fin_drag_handle_filter() -> Callable:
+	if head_edit_toggle != null and head_edit_toggle.button_pressed:
+		return func(handle_id: String) -> bool:
+			return _is_head_drag_handle(handle_id)
+	if fin_edit_toggle != null and fin_edit_toggle.button_pressed:
+		return func(handle_id: String) -> bool:
+			return not _is_head_drag_handle(handle_id)
+	return func(_handle_id: String) -> bool:
+		return false
+
+func _is_head_drag_handle(handle_id: String) -> bool:
+	return handle_id.begins_with("eye") or handle_id == "operculum" or handle_id == "jaw_hinge" or handle_id == "head_bump"
 
 func _update_overlay_visibility() -> void:
 	if drag_handles_overlay:
-		drag_handles_overlay.visible = _is_fish() and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head or drag_handles_overlay.vector_edit_marker_active)
+		drag_handles_overlay.visible = CreatureModeScript.supports_fish_drag_overlay(_current_mode()) and (drag_handles_overlay.draw_fins or drag_handles_overlay.draw_head or drag_handles_overlay.draw_body_rings or drag_handles_overlay.vector_edit_marker_active or String(drag_handles_overlay.indicator_key) != "")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:

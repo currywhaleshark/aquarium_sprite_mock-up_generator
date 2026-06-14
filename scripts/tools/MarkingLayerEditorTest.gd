@@ -1,6 +1,7 @@
 extends Node
 
 const MarkingLayerEditorScript := preload("res://scripts/ui/MarkingLayerEditor.gd")
+const UiText := preload("res://scripts/ui/UiText.gd")
 
 func _ready() -> void:
 	await _test_editor_emits_layer_changes()
@@ -88,7 +89,7 @@ func _test_editor_removes_layer() -> void:
 	])
 	await get_tree().process_frame
 	var row := editor.get_node("Layer_0") as HBoxContainer
-	var remove_button := _find_button_by_tooltip(row, "Remove layer")
+	var remove_button := _find_button_by_tooltip(row, UiText.remove_marking_layer_tooltip())
 	assert(remove_button != null)
 	remove_button.pressed.emit()
 	await get_tree().process_frame

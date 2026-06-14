@@ -1,0 +1,223 @@
+extends Node
+
+const FishRigScript := preload("res://scripts/creature/FishRig.gd")
+const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
+const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
+
+func _fail(message: String) -> bool:
+	push_error(message)
+	get_tree().quit(1)
+	return false
+
+func _mesh_vertices_in_parent_space(node: MeshInstance3D) -> PackedVector3Array:
+	var result := PackedVector3Array()
+	var arrays := node.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	for v in verts:
+		result.append(node.transform * v)
+	return result
+
+func _closest_point_on_triangle(p: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Vector3:
+	var ab := b - a
+	var ac := c - a
+	var ap := p - a
+	var d1 := ab.dot(ap)
+	var d2 := ac.dot(ap)
+	if d1 <= 0.0 and d2 <= 0.0:
+		return a
+	var bp := p - b
+	var d3 := ab.dot(bp)
+	var d4 := ac.dot(bp)
+	if d3 >= 0.0 and d4 <= d3:
+		return b
+	var vc := d1 * d4 - d3 * d2
+	if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+		return a + ab * (d1 / (d1 - d3))
+	var cp := p - c
+	var d5 := ab.dot(cp)
+	var d6 := ac.dot(cp)
+	if d6 >= 0.0 and d5 <= d6:
+		return c
+	var vb := d5 * d2 - d1 * d6
+	if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+		return a + ac * (d2 / (d2 - d6))
+	var va := d3 * d6 - d5 * d4
+	if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+		return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)))
+	var denom := 1.0 / (va + vb + vc)
+	var v := vb * denom
+	var w := vc * denom
+	return a + ab * v + ac * w
+
+func _mesh_triangles(mesh: ArrayMesh) -> Array:
+	var arrays := mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	var triangles := []
+	if indices.is_empty():
+		for i in range(0, verts.size() - 2, 3):
+			triangles.append([verts[i], verts[i + 1], verts[i + 2]])
+	else:
+		for i in range(0, indices.size() - 2, 3):
+			triangles.append([verts[indices[i]], verts[indices[i + 1]], verts[indices[i + 2]]])
+	return triangles
+
+func _closest_mesh_point(point: Vector3, triangles: Array) -> Vector3:
+	var best: Vector3 = triangles[0][0]
+	var best_dist := INF
+	for tri in triangles:
+		var closest := _closest_point_on_triangle(point, tri[0], tri[1], tri[2])
+		var d := point.distance_squared_to(closest)
+		if d < best_dist:
+			best_dist = d
+			best = closest
+	return best
+
+func _assert_cavity_fits_head(fish: FishRig) -> bool:
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	if head == null or head.mesh == null:
+		return _fail("BodyPivot/Head mesh is missing")
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	if cavity == null or cavity.mesh == null:
+		return _fail("BodyPivot/Head/MouthCavity mesh is missing")
+
+	var head_triangles := _mesh_triangles(head.mesh as ArrayMesh)
+	var cavity_verts := _mesh_vertices_in_parent_space(cavity)
+	if head_triangles.is_empty() or cavity_verts.is_empty():
+		return _fail("head or cavity mesh has no vertices")
+
+	var worst_fit := 0.0
+	var worst_ahead := 0.0
+	var min_gap := INF
+	for v in cavity_verts:
+		var nearest := _closest_mesh_point(v, head_triangles)
+		var fit := v.distance_to(nearest)
+		worst_fit = maxf(worst_fit, fit)
+		worst_ahead = maxf(worst_ahead, nearest.x - v.x)
+		min_gap = minf(min_gap, fit)
+
+	if worst_fit >= 0.03:
+		return _fail("MouthCavity is not flush with Head: worst_fit=%.5f" % worst_fit)
+	if worst_ahead >= 0.022:
+		return _fail("MouthCavity protrudes ahead of Head: worst_ahead=%.5f" % worst_ahead)
+	# The lining must keep a real gap from the dented shell everywhere; coplanar vertices
+	# z-fight and render as jagged black/teal triangles (the "star" regression).
+	if min_gap <= 0.001:
+		return _fail("MouthCavity sits coplanar with Head (depth-fight risk): min_gap=%.5f" % min_gap)
+	return true
+
+func _pit_metrics(params: Dictionary, gape: float) -> Dictionary:
+	var lower_jaw_scale := clampf(float(params.get("lower_jaw_scale", 1.0)), 0.45, 1.8)
+	var mouth_width_scale := clampf(float(params.get("mouth_size", 0.08)) / 0.08, 0.65, 2.2)
+	var jaw_lm := HeadProfile.jaw_landmarks(params, gape)
+	var lower_jaw_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * mouth_width_scale
+	return {
+		"buffer_y": 0.03 * lower_jaw_scale * sqrt(mouth_width_scale),
+		"pit_half_w": lower_jaw_half_w * 0.84,
+		"upper_tip": jaw_lm["upper_tip"],
+		"lower_tip": jaw_lm["lower_tip"],
+	}
+
+func _assert_floor_overlaps_cavity(fish: FishRig, params: Dictionary, gape: float) -> bool:
+	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	if cavity == null or cavity.mesh == null:
+		return _fail("MouthCavity is missing for overlap check at gape %.2f" % gape)
+	var floor := fish.get_node_or_null("BodyPivot/Head/MouthFloor") as MeshInstance3D
+	if floor == null or floor.mesh == null:
+		return _fail("MouthFloor is missing for overlap check at gape %.2f" % gape)
+
+	var cavity_verts := _mesh_vertices_in_parent_space(cavity)
+	var floor_verts := _mesh_vertices_in_parent_space(floor)
+	var metrics := _pit_metrics(params, gape)
+	var pit_half_w := float(metrics["pit_half_w"])
+	var buffer_y := float(metrics["buffer_y"])
+	var slice_width := maxf(pit_half_w * 0.2, 0.001)
+	for frac in [-0.6, -0.3, 0.0, 0.3, 0.6]:
+		var z_center := float(frac) * pit_half_w
+		var min_cavity_y := INF
+		var max_floor_y := -INF
+		var found_cavity := false
+		var found_floor := false
+		for v in cavity_verts:
+			if absf(v.z - z_center) <= slice_width:
+				min_cavity_y = minf(min_cavity_y, v.y)
+				found_cavity = true
+		for v in floor_verts:
+			if absf(v.z - z_center) <= slice_width:
+				max_floor_y = maxf(max_floor_y, v.y)
+				found_floor = true
+		if not found_cavity or not found_floor:
+			return _fail("Missing overlap slice vertices at gape %.2f z=%.4f" % [gape, z_center])
+		var required_y := min_cavity_y + buffer_y * 0.5
+		if max_floor_y < required_y:
+			return _fail("MouthFloor does not overlap MouthCavity at gape %.2f z=%.4f: floor_y=%.5f required=%.5f" % [gape, z_center, max_floor_y, required_y])
+	return true
+
+func _first_mesh_vertex_in_parent_space(node: MeshInstance3D) -> Vector3:
+	var arrays := node.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	assert(not verts.is_empty())
+	return node.transform * verts[0]
+
+func _assert_floor_uses_lower_jaw_hinge(fish: FishRig, lower_jaw_scale: float, gape: float) -> bool:
+	var jaw := fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D
+	if jaw == null or jaw.mesh == null:
+		return _fail("MouthLowerJaw is missing for hinge check at gape %.2f" % gape)
+	var floor := fish.get_node_or_null("BodyPivot/Head/MouthFloor") as MeshInstance3D
+	if floor == null or floor.mesh == null:
+		return _fail("MouthFloor is missing for hinge check at gape %.2f" % gape)
+
+	var jaw_top := _first_mesh_vertex_in_parent_space(jaw)
+	var floor_top := _first_mesh_vertex_in_parent_space(floor)
+	var expected_lift := PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * (0.06 + 0.38 * gape)
+	var actual_lift := floor_top.y - jaw_top.y
+	if absf(actual_lift - expected_lift) > 0.001:
+		return _fail("MouthFloor rotates around a different hinge at gape %.2f: actual_lift=%.5f expected_lift=%.5f" % [gape, actual_lift, expected_lift])
+	return true
+
+func _ready() -> void:
+	var fish: FishRig = FishRigScript.new()
+	add_child(fish)
+	fish.auto_animate = false
+	var params := {
+		"shell_enabled": 1.0,
+		"head_shape": "rounded",
+		"snout_length": 0.45,
+		"snout_taper": 0.7,
+		"snout_thickness": 0.6,
+		"head_belly_curve": 1.0,
+		"head_bottom_flatness": 0.8,
+		"head_bump_height": 0.3,
+		"mouth_open": 1.0,
+		"mouth_size": 0.14,
+	}
+	var lower_jaw_scale := 1.45
+	fish.set_parameters(params)
+	await get_tree().process_frame
+	if not _assert_cavity_fits_head(fish):
+		return
+
+	for gape in [0.3, 0.6, 1.0]:
+		var open_params := params.duplicate(true)
+		open_params["mouth_open"] = gape
+		fish.set_parameters(open_params)
+		await get_tree().process_frame
+		if not _assert_floor_overlaps_cavity(fish, open_params, gape):
+			return
+		if not _assert_floor_uses_lower_jaw_hinge(fish, lower_jaw_scale, gape):
+			return
+
+	var closed_params := params.duplicate(true)
+	closed_params["mouth_open"] = 0.0
+	fish.set_parameters(closed_params)
+	await get_tree().process_frame
+	if fish.get_node_or_null("BodyPivot/Head/MouthCavity") != null:
+		_fail("MouthCavity exists when mouth_open is 0.0")
+		return
+
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
+	var file := FileAccess.open("res://exports/test_results/mouth_cavity_fit.ok", FileAccess.WRITE)
+	file.store_string("mouth cavity follows the carved head pit")
+	file.close()
+	print("MOUTH_CAVITY_FIT_TEST_OK")
+	get_tree().quit(0)

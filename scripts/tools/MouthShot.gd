@@ -6,6 +6,12 @@ extends Node
 
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 
+func _merged_params(base: Dictionary, overrides: Dictionary) -> Dictionary:
+	var result := base.duplicate(true)
+	for key in overrides.keys():
+		result[key] = overrides[key]
+	return result
+
 func _ready() -> void:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(420, 420)
@@ -37,29 +43,41 @@ func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
 	fish.auto_animate = false
 	vp.add_child(fish)
-	fish.set_parameters({
+	var base_params := {
 		"base_color": "#46c6cf",
 		"secondary_color": "#d6fbff",
 		"shell_enabled": 1.0,
 		"mouth_type": "terminal",
 		"mouth_open": 1.0,
+	}
+	var sculpted_params := _merged_params(base_params, {
+		"head_shape": "rounded",
+		"snout_length": 0.45,
+		"snout_taper": 0.7,
+		"snout_thickness": 0.6,
+		"head_belly_curve": -0.7,
+		"head_bottom_flatness": 0.8,
+		"head_bump_height": 0.3,
+		"mouth_size": 0.14,
 	})
+	fish.set_parameters(base_params)
 	await get_tree().process_frame
 	fish.apply_pose(0.0)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/_shots"))
 	# Tight zoom on the mouth. yaw, mouth_open per shot.
 	var shots := [
-		{"name": "zoom_side", "yaw": 0.0, "open": 1.0},
-		{"name": "zoom_threeq", "yaw": 22.0, "open": 1.0},
-		{"name": "zoom_closed", "yaw": 0.0, "open": 0.0},
+		{"name": "zoom_side", "yaw": 0.0, "params": _merged_params(base_params, {"mouth_open": 1.0})},
+		{"name": "zoom_threeq", "yaw": 22.0, "params": _merged_params(base_params, {"mouth_open": 1.0})},
+		{"name": "zoom_closed", "yaw": 0.0, "params": _merged_params(base_params, {"mouth_open": 0.0})},
 	]
+	for gape in [0.3, 0.6, 1.0]:
+		var suffix := "%03d" % int(round(gape * 100.0))
+		shots.append({"name": "zoom_sculpted_side_%s" % suffix, "yaw": 0.0, "params": _merged_params(sculpted_params, {"mouth_open": gape})})
+		shots.append({"name": "zoom_sculpted_threeq_%s" % suffix, "yaw": 22.0, "params": _merged_params(sculpted_params, {"mouth_open": gape})})
 	cam.size = 0.5
 	for shot in shots:
-		fish.set_parameters({
-			"base_color": "#46c6cf", "secondary_color": "#d6fbff",
-			"shell_enabled": 1.0, "mouth_type": "terminal", "mouth_open": float(shot["open"]),
-		})
+		fish.set_parameters((shot["params"] as Dictionary).duplicate(true))
 		await get_tree().process_frame
 		fish.apply_pose(0.0)
 		fish.rotation_degrees.y = float(shot["yaw"])

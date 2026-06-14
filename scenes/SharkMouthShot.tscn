@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b8sharkmouthshot01"]
+
+[ext_resource type="Script" path="res://scripts/tools/SharkMouthShot.gd" id="1_shark_mouth_shot"]
+
+[node name="SharkMouthShot" type="Node"]
+script = ExtResource("1_shark_mouth_shot")

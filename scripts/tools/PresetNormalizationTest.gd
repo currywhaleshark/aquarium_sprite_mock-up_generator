@@ -102,6 +102,100 @@ func _ready() -> void:
 	assert(bool(rebuilt_ray.get("ray_tail_spine_enabled", false)))
 	assert(bool(rebuilt_ray.get("ray_dorsal_tail_fins", false)))
 
+	var fish_split := BodyProfileScript.split_parameters_into_profiles({
+		"creature_type": "fish",
+		"body_length": 1.4,
+		"pectoral_fin_spacing": 0.86,
+		"ray_disc_shape": "manta",
+		"ray_tail_style": "whip",
+		"shark_gill_slit_count": 5,
+		"shark_mouth_width": 0.18,
+		"shark_lower_teeth_visible": true
+	}, {"name": "fish_split_check", "creature_type": "fish"})
+	assert(not (fish_split.get("fin_profile", {}) as Dictionary).has("ray_disc_shape"))
+	assert(not (fish_split.get("tail_profile", {}) as Dictionary).has("ray_tail_style"))
+	assert(abs(float((fish_split.get("fin_profile", {}) as Dictionary).get("pectoral_fin_spacing", 0.0)) - 0.86) < 0.001)
+	assert(abs(float((fish_split.get("parameters", {}) as Dictionary).get("pectoral_fin_spacing", 0.0)) - 0.86) < 0.001)
+	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_gill_slit_count"))
+	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_mouth_width"))
+	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_lower_teeth_visible"))
+
+	var shark_split := BodyProfileScript.split_parameters_into_profiles({
+		"creature_type": "shark",
+		"body_length": 5.8,
+		"caudal_shape": "shark_heterocercal",
+		"shark_gill_slit_count": 5,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_width": 0.18,
+		"shark_lower_teeth_visible": true,
+		"shark_tooth_size": 0.018,
+		"ray_disc_shape": "diamond",
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"mouth_type": "terminal",
+		"mouth_size": 0.08,
+		"fin_ray_count": 12.0,
+		"adipose_fin_enabled": true,
+		"finlet_enabled": true
+	}, {"name": "shark_split_check", "creature_type": "shark"})
+	assert(String(shark_split.get("creature_type", "")) == "shark")
+	assert(String(shark_split.get("type", "")) == "shark")
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("ray_disc_shape"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("gill_mark"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("operculum_size"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("fin_ray_count"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("adipose_fin_enabled"))
+	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("finlet_enabled"))
+	assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_gill_slit_count", 0.0)) == 5.0)
+	assert(String((shark_split.get("parameters", {}) as Dictionary).get("shark_mouth_profile", "")) == "predatory_u")
+	assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_mouth_width", 0.0)) == 0.18)
+	assert(bool((shark_split.get("parameters", {}) as Dictionary).get("shark_lower_teeth_visible", false)))
+	assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_tooth_size", 0.0)) == 0.018)
+	assert(not (shark_split.get("parameters", {}) as Dictionary).has("mouth_type"))
+	assert(not (shark_split.get("parameters", {}) as Dictionary).has("mouth_size"))
+
+	var polluted_ray_split := BodyProfileScript.split_parameters_into_profiles({
+		"creature_type": "ray",
+		"disc_width": 1.2,
+		"ray_disc_shape": "manta",
+		"shark_gill_slit_count": 5,
+		"shark_mouth_width": 0.18,
+		"gill_mark": "operculum",
+		"operculum_size": 1.0,
+		"fin_ray_count": 12.0,
+		"adipose_fin_enabled": true,
+		"finlet_enabled": true
+	}, {"name": "ray_split_check", "creature_type": "ray"})
+	assert(String(polluted_ray_split.get("creature_type", "")) == "ray")
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("gill_mark"))
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("operculum_size"))
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("fin_ray_count"))
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("adipose_fin_enabled"))
+	assert(not (polluted_ray_split.get("fin_profile", {}) as Dictionary).has("finlet_enabled"))
+	assert(not (polluted_ray_split.get("parameters", {}) as Dictionary).has("shark_gill_slit_count"))
+	assert(not (polluted_ray_split.get("parameters", {}) as Dictionary).has("shark_mouth_width"))
+	assert(String((polluted_ray_split.get("fin_profile", {}) as Dictionary).get("ray_disc_shape", "")) == "manta")
+
+	var polluted_loaded := PresetStoreScript.normalize_preset({
+		"name": "polluted_fish_load_check",
+		"creature_type": "fish",
+		"type": "fish",
+		"parameters": {
+			"body_length": 1.4,
+			"disc_width": 1.2,
+			"ray_disc_shape": "manta",
+			"shark_gill_slit_count": 5,
+			"shark_mouth_width": 0.18,
+			"body_profile": {"rings": BodyProfileScript.default_fish_rings()}
+		}
+	})
+	var loaded_params: Dictionary = polluted_loaded.get("parameters", {})
+	assert(loaded_params.has("body_profile"))
+	assert(not loaded_params.has("disc_width"))
+	assert(not loaded_params.has("ray_disc_shape"))
+	assert(not loaded_params.has("shark_gill_slit_count"))
+	assert(not loaded_params.has("shark_mouth_width"))
+
 	var long_fish := _find_preset(presets, "long_fish")
 	assert(not long_fish.is_empty())
 	var long_parameters: Dictionary = long_fish.get("parameters", {})
@@ -155,6 +249,27 @@ func _ready() -> void:
 	assert(not legacy_no_operculum.has("operculum_ridge"))
 	assert(not legacy_no_operculum.has("operculum_position_x"))
 	assert(not legacy_no_operculum.has("operculum_position_y"))
+
+	var sculpt_split := BodyProfileScript.split_parameters_into_profiles({
+		"head_shape": "rounded",
+		"head_top_flatness": 0.7,
+		"head_bottom_flatness": 0.2,
+		"head_left_flatness": 0.3,
+		"head_right_flatness": 0.4,
+		"body_profile": {
+			"rings": [
+				{"id": "snout", "label": "Snout", "x": 0.0, "y_offset": 0.0, "upper_height": 0.24, "lower_height": 0.20, "width": 0.18, "top_width": 0.16, "bottom_width": 0.21, "top_flatness": 0.5, "bottom_flatness": 0.0, "left_flatness": 0.0, "right_flatness": 0.25, "roundness": 0.65, "sway_weight": 0.0},
+				{"id": "head", "label": "Head", "x": 0.16, "y_offset": 0.0, "upper_height": 0.42, "lower_height": 0.36, "width": 0.34, "top_width": 0.32, "bottom_width": 0.36, "top_flatness": 0.0, "bottom_flatness": 0.0, "left_flatness": 0.2, "right_flatness": 0.2, "roundness": 0.82, "sway_weight": 0.05},
+				{"id": "front_body", "label": "Front Body", "x": 0.36, "y_offset": 0.0, "upper_height": 0.52, "lower_height": 0.48, "width": 0.46, "top_width": 0.42, "bottom_width": 0.50, "top_flatness": 0.0, "bottom_flatness": 0.3, "left_flatness": 0.0, "right_flatness": 0.0, "roundness": 0.9, "sway_weight": 0.15}
+			]
+		}
+	}, {"name": "directional_sculpt"})
+	var rebuilt_sculpt := BodyProfileScript.make_parameters_from_structured_preset(sculpt_split)
+	assert(abs(float(rebuilt_sculpt.get("head_top_flatness", 0.0)) - 0.7) < 0.001)
+	var rebuilt_rings: Array = rebuilt_sculpt.get("body_profile", {}).get("rings", [])
+	assert(abs(float(rebuilt_rings[0].get("top_width", 0.0)) - 0.16) < 0.001)
+	assert(abs(float(rebuilt_rings[0].get("bottom_width", 0.0)) - 0.21) < 0.001)
+	assert(abs(float(rebuilt_rings[0].get("top_flatness", 0.0)) - 0.5) < 0.001)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/preset_normalization.ok", FileAccess.WRITE)

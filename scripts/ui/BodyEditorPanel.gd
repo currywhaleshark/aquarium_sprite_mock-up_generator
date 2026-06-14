@@ -3,27 +3,31 @@ extends VBoxContainer
 
 signal parameters_changed(parameters: Dictionary)
 signal ring_selected(ring_id: String)
+signal numeric_slider_changed(key: String)
+signal numeric_slider_hovered(key: String)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 const UiRows := preload("res://scripts/ui/UiRows.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
+const BodySilhouetteEditorScript := preload("res://scripts/ui/BodySilhouetteEditor.gd")
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
 
-const RING_NUMERIC_KEYS := {
-	"x": {"min": 0.0, "max": 1.0, "step": 0.005},
-	"y_offset": {"min": -0.8, "max": 0.8, "step": 0.005},
-	"upper_height": {"min": 0.02, "max": 1.4, "step": 0.005},
-	"lower_height": {"min": 0.02, "max": 1.4, "step": 0.005},
-	"width": {"min": 0.02, "max": 1.2, "step": 0.005},
-	"roundness": {"min": 0.0, "max": 1.0, "step": 0.005},
-	"sway_weight": {"min": 0.0, "max": 1.5, "step": 0.005}
-}
+const RING_NUMERIC_KEYS := BodyProfileScript.RING_KEY_RANGES
 
 var parameters: Dictionary = {}
+var creature_type := CreatureModeScript.FISH
 var selected_ring_id := ""
 var ring_buttons := {}
 var ring_list: VBoxContainer
 var selected_label: Label
+var silhouette_editor
+var silhouette_side_button: Button
+var silhouette_width_button: Button
 var numeric_sliders := {}
+var search_edit: LineEdit
+var search_text := ""
+var changed_only_check: CheckBox
+var show_changed_only := false
 var _updating := false
 
 func _ready() -> void:
@@ -33,6 +37,36 @@ func _ready() -> void:
 	title.text = "선택 링 설정"
 	title.add_theme_font_size_override("font_size", 15)
 	add_child(title)
+
+	silhouette_editor = BodySilhouetteEditorScript.new()
+	silhouette_editor.name = "BodySilhouetteEditor"
+	silhouette_editor.ring_value_changed.connect(_on_silhouette_ring_value_changed)
+	silhouette_editor.ring_pick_requested.connect(select_ring_by_id)
+	silhouette_editor.ring_add_requested.connect(add_ring_at_x)
+	silhouette_editor.ring_delete_requested.connect(_on_silhouette_ring_delete_requested)
+	add_child(silhouette_editor)
+
+	var silhouette_view_nav := HBoxContainer.new()
+	silhouette_view_nav.name = "BodySilhouetteViewMode"
+	add_child(silhouette_view_nav)
+	var silhouette_view_group := ButtonGroup.new()
+	silhouette_side_button = Button.new()
+	silhouette_side_button.text = UiText.body_silhouette_side_view()
+	silhouette_side_button.toggle_mode = true
+	silhouette_side_button.button_group = silhouette_view_group
+	silhouette_side_button.button_pressed = true
+	silhouette_side_button.pressed.connect(func() -> void:
+		_set_silhouette_view_mode("side")
+	)
+	silhouette_view_nav.add_child(silhouette_side_button)
+	silhouette_width_button = Button.new()
+	silhouette_width_button.text = UiText.body_silhouette_width_view()
+	silhouette_width_button.toggle_mode = true
+	silhouette_width_button.button_group = silhouette_view_group
+	silhouette_width_button.pressed.connect(func() -> void:
+		_set_silhouette_view_mode("width")
+	)
+	silhouette_view_nav.add_child(silhouette_width_button)
 
 	var nav := HBoxContainer.new()
 	add_child(nav)
@@ -53,6 +87,19 @@ func _ready() -> void:
 	selected_label.text = "링: -"
 	selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(selected_label)
+
+	search_edit = UiRows.add_filter_row(self, UiText.slider_search_placeholder())
+	search_edit.text_changed.connect(func(text: String) -> void:
+		set_search_text(text)
+	)
+
+	changed_only_check = CheckBox.new()
+	changed_only_check.text = UiText.changed_only_filter()
+	changed_only_check.toggled.connect(func(enabled: bool) -> void:
+		show_changed_only = enabled
+		_apply_row_filter()
+	)
+	add_child(changed_only_check)
 
 	for key in RING_NUMERIC_KEYS.keys():
 		_add_numeric_row(key)
@@ -83,6 +130,7 @@ func _ready() -> void:
 
 func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
+	creature_type = CreatureModeScript.normalize(String(parameters.get("creature_type", creature_type)))
 	parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 	var rings := _rings()
 	if selected_ring_id == "" and not rings.is_empty():
@@ -90,6 +138,16 @@ func set_parameters(new_parameters: Dictionary) -> void:
 	if BodyProfileScript.find_ring_index(rings, selected_ring_id) < 0 and not rings.is_empty():
 		selected_ring_id = String(rings[0].get("id", ""))
 	_refresh_controls()
+
+func set_creature_type(mode: String) -> void:
+	creature_type = CreatureModeScript.normalize(mode)
+	parameters["creature_type"] = creature_type
+
+func set_search_text(text: String) -> void:
+	search_text = text
+	if search_edit != null and search_edit.text != search_text:
+		search_edit.text = search_text
+	_apply_row_filter()
 
 func select_ring_by_id(ring_id: String) -> void:
 	if BodyProfileScript.find_ring_index(_rings(), ring_id) < 0:
@@ -121,7 +179,15 @@ func set_ring_parameter(key: String, value: float) -> void:
 		return
 	var config: Dictionary = RING_NUMERIC_KEYS[key]
 	var rings := _rings()
-	rings[index][key] = clampf(value, float(config["min"]), float(config["max"]))
+	var clamped := clampf(value, float(config["min"]), float(config["max"]))
+	if key == "width":
+		rings[index]["width"] = clamped
+		rings[index]["top_width"] = clamped
+		rings[index]["bottom_width"] = clamped
+	else:
+		rings[index][key] = clamped
+		if key == "top_width" or key == "bottom_width":
+			rings[index]["width"] = (float(rings[index].get("top_width", clamped)) + float(rings[index].get("bottom_width", clamped))) * 0.5
 	parameters["body_profile"]["rings"] = rings
 	_emit_and_refresh()
 
@@ -163,12 +229,24 @@ func add_ring_after_selected() -> void:
 		return
 	var index := BodyProfileScript.find_ring_index(rings, selected_ring_id)
 	index = maxi(index, 0)
-	var source: Dictionary = rings[index].duplicate(true)
 	var next_x := 1.0 if index >= rings.size() - 1 else float(rings[index + 1].get("x", 1.0))
+	add_ring_at_x(clampf((float(rings[index].get("x", 0.5)) + next_x) * 0.5, 0.0, 1.0))
+
+func add_ring_at_x(x: float) -> void:
+	var rings := _rings()
+	if rings.is_empty():
+		parameters["body_profile"]["rings"] = BodyProfileScript.default_fish_rings()
+		selected_ring_id = String(_rings()[0].get("id", ""))
+		_emit_and_refresh()
+		return
+	var source_index := BodyProfileScript.find_ring_index(rings, selected_ring_id)
+	if source_index < 0:
+		source_index = _nearest_ring_index(x)
+	var source: Dictionary = rings[source_index].duplicate(true)
 	source["id"] = "ring_%d" % Time.get_ticks_msec()
 	source["label"] = "새 링"
-	source["x"] = clampf((float(source.get("x", 0.5)) + next_x) * 0.5, 0.0, 1.0)
-	rings.insert(index + 1, source)
+	source["x"] = clampf(x, 0.0, 1.0)
+	rings.append(source)
 	_sort_rings_by_x(rings)
 	selected_ring_id = String(source["id"])
 	parameters["body_profile"]["rings"] = rings
@@ -201,10 +279,21 @@ func _add_numeric_row(key: String) -> void:
 	})
 	var slider := widgets["slider"] as HSlider
 	var value_label := widgets["value_label"] as Label
-	numeric_sliders[key] = {"slider": slider, "label": value_label}
+	var row := widgets["row"] as Control
+	widgets["label"] = value_label
+	numeric_sliders[key] = widgets
+	row.mouse_entered.connect(func() -> void:
+		numeric_slider_hovered.emit(key)
+	)
+	row.mouse_exited.connect(func() -> void:
+		numeric_slider_hovered.emit("")
+	)
 	slider.value_changed.connect(func(value: float) -> void:
 		value_label.text = "%.2f" % value
+		UiRows.update_changed_marker(widgets)
+		_apply_row_filter()
 		if not _updating:
+			numeric_slider_changed.emit(key)
 			set_ring_parameter(key, value)
 	)
 
@@ -212,6 +301,9 @@ func _refresh_controls() -> void:
 	if ring_list == null:
 		return
 	_updating = true
+	if silhouette_editor != null:
+		silhouette_editor.set_rings(_rings())
+		silhouette_editor.selected_ring_id = selected_ring_id
 	for child in ring_list.get_children():
 		child.queue_free()
 	ring_buttons.clear()
@@ -226,15 +318,22 @@ func _refresh_controls() -> void:
 		ring_buttons[ring_id] = button
 
 	var ring := _selected_ring()
+	var default_ring := _default_ring(selected_ring_id)
 	selected_label.text = "링: %s" % UiText.body_ring(String(ring.get("id", "")), String(ring.get("label", "-")))
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]
 		var slider := widgets["slider"] as HSlider
 		var label := widgets["label"] as Label
 		var value := float(ring.get(key, 0.0))
+		if default_ring.has(key):
+			UiRows.set_row_default(widgets, float(default_ring[key]))
+		else:
+			UiRows.clear_row_default(widgets)
 		slider.value = value
 		label.text = "%.2f" % value
+		UiRows.update_changed_marker(widgets)
 	_updating = false
+	_apply_row_filter()
 
 func _emit_and_refresh() -> void:
 	parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
@@ -242,17 +341,84 @@ func _emit_and_refresh() -> void:
 	parameters_changed.emit(parameters.duplicate(true))
 	_refresh_controls()
 
+func _on_silhouette_ring_value_changed(ring_id: String, key: String, value: float) -> void:
+	if not _select_ring_for_edit(ring_id):
+		return
+	set_ring_parameter(key, value)
+
+func _on_silhouette_ring_delete_requested(ring_id: String) -> void:
+	if not _select_ring_for_edit(ring_id):
+		return
+	delete_selected_ring()
+
+func _select_ring_for_edit(ring_id: String) -> bool:
+	if BodyProfileScript.find_ring_index(_rings(), ring_id) < 0:
+		return false
+	if selected_ring_id != ring_id:
+		selected_ring_id = ring_id
+		parameters["selected_body_ring_id"] = selected_ring_id
+		ring_selected.emit(selected_ring_id)
+	return true
+
+func _set_silhouette_view_mode(mode: String) -> void:
+	if silhouette_editor == null:
+		return
+	silhouette_editor.view_mode = mode
+	if silhouette_side_button != null:
+		silhouette_side_button.button_pressed = mode == "side"
+	if silhouette_width_button != null:
+		silhouette_width_button.button_pressed = mode == "width"
+
 func _selected_ring() -> Dictionary:
 	for ring in _rings():
 		if String(ring.get("id", "")) == selected_ring_id:
 			return ring
 	return {}
 
+func is_row_changed(key: String) -> bool:
+	if not numeric_sliders.has(key):
+		return false
+	return UiRows.is_changed_from_default(numeric_sliders[key])
+
+func _default_ring(ring_id: String) -> Dictionary:
+	for ring in BodyProfileScript.default_fish_rings():
+		if String(ring.get("id", "")) == ring_id:
+			return ring
+	return {}
+
+func _apply_row_filter() -> void:
+	for key in numeric_sliders.keys():
+		var widgets: Dictionary = numeric_sliders[key]
+		var row := widgets.get("row") as Control
+		if row == null:
+			continue
+		row.visible = _row_matches_filter(widgets)
+
+func _row_matches_filter(widgets: Dictionary) -> bool:
+	if show_changed_only and not UiRows.is_changed_from_default(widgets):
+		return false
+	var query := search_text.strip_edges()
+	if query == "":
+		return true
+	var name_label := widgets.get("name_label") as Label
+	return name_label != null and name_label.text.contains(query)
+
 func _rings() -> Array:
 	if not parameters.has("body_profile"):
 		parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 	var body_profile: Dictionary = parameters["body_profile"]
 	return body_profile.get("rings", [])
+
+func _nearest_ring_index(x: float) -> int:
+	var rings := _rings()
+	var best_index := 0
+	var best_distance := INF
+	for i in rings.size():
+		var distance := absf(float(rings[i].get("x", 0.0)) - x)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = i
+	return best_index
 
 func _sort_rings_by_x(rings: Array) -> void:
 	rings.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:

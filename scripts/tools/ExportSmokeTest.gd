@@ -2,11 +2,13 @@ extends Node
 
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const RayRigScript := preload("res://scripts/creature/RayRig.gd")
+const CreatureRigFactoryScript := preload("res://scripts/creature/CreatureRigFactory.gd")
 const SpriteExporterScript := preload("res://scripts/export/SpriteExporter.gd")
 const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 
 func _ready() -> void:
+	_assert_fit_framing_for_all_modes()
 	if DisplayServer.get_name() == "headless":
 		print("EXPORT_SMOKE_TEST_SKIPPED_HEADLESS")
 		get_tree().quit(0)
@@ -58,6 +60,19 @@ func _ready() -> void:
 	)
 	await get_tree().process_frame
 	await exporter.export_preset(preset, rig, viewport)
+
+func _assert_fit_framing_for_all_modes() -> void:
+	for mode in ["fish", "ray", "shark"]:
+		var preset := PresetStoreScript.find_default_for_mode(mode)
+		assert(not preset.is_empty())
+		var rig := CreatureRigFactoryScript.create(mode)
+		add_child(rig)
+		rig.set_parameters(preset.get("parameters", {}))
+		var framing: Dictionary = SpriteExporterScript.compute_fit_framing(rig, Vector2i(256, 256))
+		assert(float(framing.get("radius", 0.0)) > 0.0)
+		assert(float(framing.get("ortho_size", 0.0)) > 0.0)
+		remove_child(rig)
+		rig.queue_free()
 
 func _find_preset(presets: Array[Dictionary], preset_name: String) -> Dictionary:
 	for preset in presets:

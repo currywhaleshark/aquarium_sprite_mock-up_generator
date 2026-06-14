@@ -23,6 +23,7 @@ func _ready() -> void:
 		"anal_attach_t": 0.64,
 		"dorsal_1_shape": "custom",
 		"dorsal_1_custom_points": [-0.5, 0.0, 0.0, 0.7, 0.5, 0.0],
+		"head_bump_height": 0.3,
 		"gill_mark": "operculum",
 		"operculum_custom_points": [0.0, -0.5, 0.0, 0.5, 1.0, 0.0]
 	})
@@ -35,6 +36,8 @@ func _ready() -> void:
 	assert(handles.has("pectoral"))
 	assert(handles.has("anal"))
 	assert(handles.has("operculum"))
+	assert(handles.has("jaw_hinge"))
+	assert(handles.has("head_bump"))
 	var dorsal_marker: Vector3 = fish.get_vector_edit_marker_world("dorsal_1", Vector2(0.0, 0.7))
 	assert(not is_inf(dorsal_marker.x))
 	var operculum_marker: Vector3 = fish.get_vector_edit_marker_world("operculum", Vector2(1.0, 0.0))
@@ -46,13 +49,32 @@ func _ready() -> void:
 	overlay.draw_head = true
 	overlay.draw_fins = false
 	assert(overlay._should_draw_handle("operculum"))
+	assert(overlay._should_draw_handle("jaw_hinge"))
+	assert(overlay._should_draw_handle("head_bump"))
 	overlay.draw_head = false
 	overlay.draw_fins = true
 	assert(not overlay._should_draw_handle("operculum"))
+	assert(not overlay._should_draw_handle("jaw_hinge"))
+	assert(not overlay._should_draw_handle("head_bump"))
 
 	var controller: FishFinDragController = FinDragControllerScript.new()
 	add_child(controller)
 	controller.bind_fish(fish)
+	var camera := Camera3D.new()
+	add_child(camera)
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 2.0
+	camera.position = Vector3(0.0, 0.0, 6.0)
+	camera.look_at(Vector3.ZERO, Vector3.UP)
+	controller.bind_camera(camera)
+	await get_tree().process_frame
+	var jaw_screen := camera.unproject_position(handles["jaw_hinge"])
+	controller.allowed_handle_filter = func(handle_id: String) -> bool:
+		return false
+	assert(controller._pick_handle(jaw_screen) == "")
+	controller.allowed_handle_filter = func(handle_id: String) -> bool:
+		return handle_id.begins_with("eye") or handle_id == "operculum" or handle_id == "jaw_hinge" or handle_id == "head_bump"
+	assert(controller._pick_handle(jaw_screen) == "jaw_hinge")
 
 	# Operculum drag is free in 2D and moves the whole gill cover while preserving the
 	# separate outline editor points.

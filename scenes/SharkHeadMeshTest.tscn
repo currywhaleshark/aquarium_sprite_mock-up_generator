@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/SharkHeadMeshTest.gd" id="1_head"]
+
+[node name="SharkHeadMeshTest" type="Node"]
+script = ExtResource("1_head")

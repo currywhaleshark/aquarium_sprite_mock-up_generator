@@ -1,6 +1,7 @@
 extends Node
 
 const MainScript := preload("res://scripts/ui/Main.gd")
+const UiText := preload("res://scripts/ui/UiText.gd")
 
 func _ready() -> void:
 	var main := MainScript.new()
@@ -26,7 +27,7 @@ func _ready() -> void:
 	archetype_option.select(neon_index)
 	archetype_option.item_selected.emit(neon_index)
 	await get_tree().process_frame
-	assert(archetype_read_label.text.contains("blue lateral stripe"))
+	assert(archetype_read_label.text.contains(UiText.readability_priority("blue lateral stripe")))
 
 	archetype_strength_slider.value = 1.0
 	apply_archetype_button.pressed.emit()

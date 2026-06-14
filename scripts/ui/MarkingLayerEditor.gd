@@ -3,6 +3,8 @@ extends VBoxContainer
 
 signal layers_changed(layers: Array)
 
+const UiText := preload("res://scripts/ui/UiText.gd")
+
 const LAYER_TYPES := ["lateral_line", "horizontal_band", "vertical_bar", "caudal_spot", "head_mask", "saddle", "ocellus", "calico_patch", "fin_edge", "fin_spots", "scale_grid", "reticulated_zone", "region_color", "scale_region", "iridescence_region"]
 const REGIONS := ["body", "dorsal", "flank", "ventral", "dorsal_flank", "ventral_flank", "head", "cheek", "operculum", "caudal_peduncle", "median_fin", "paired_fin", "caudal_fin", "special_fin", "fin"]
 const BLEND_MODES := ["normal", "multiply", "screen", "add"]
@@ -22,7 +24,7 @@ func _rebuild() -> void:
 		_add_layer_row(i, layers[i] as Dictionary)
 	var add_button := Button.new()
 	add_button.text = "+"
-	add_button.tooltip_text = "Add regional layer"
+	add_button.tooltip_text = UiText.add_marking_layer_tooltip()
 	add_button.pressed.connect(func() -> void:
 		layers.append({"type": "horizontal_band", "region": "flank", "blend_mode": "normal", "color": "#ffffff", "intensity": 0.0, "x_start": 0.0, "x_end": 1.0, "y": 0.0, "thickness": 0.08})
 		_emit_and_rebuild()
@@ -41,6 +43,7 @@ func _add_layer_row(index: int, layer: Dictionary) -> void:
 	_add_number(row, index, "x_end", float(layer.get("x_end", 1.0)), 0.0, 1.0, 0.01)
 	_add_number(row, index, "thickness", float(layer.get("thickness", 0.08)), 0.001, 1.0, 0.005)
 	var intensity := SpinBox.new()
+	intensity.tooltip_text = UiText.marking_layer_field("intensity")
 	intensity.min_value = 0.0
 	intensity.max_value = 1.0
 	intensity.step = 0.01
@@ -51,7 +54,7 @@ func _add_layer_row(index: int, layer: Dictionary) -> void:
 	row.add_child(intensity)
 	var remove_button := Button.new()
 	remove_button.text = "x"
-	remove_button.tooltip_text = "Remove layer"
+	remove_button.tooltip_text = UiText.remove_marking_layer_tooltip()
 	remove_button.pressed.connect(func() -> void:
 		_remove_layer(index)
 	)
@@ -68,17 +71,19 @@ func _region_value_for_layer(layer: Dictionary) -> String:
 func _add_option(row: HBoxContainer, index: int, field: String, options: Array, value: String) -> void:
 	var option := OptionButton.new()
 	for item in options:
-		option.add_item(String(item))
+		var raw_value := String(item)
+		option.add_item(UiText.marking_layer_value(field, raw_value))
+		option.set_item_metadata(option.item_count - 1, raw_value)
 	var selected := options.find(value)
 	option.select(maxi(selected, 0))
 	option.item_selected.connect(func(item_index: int) -> void:
-		_set_layer_field(index, field, option.get_item_text(item_index))
+		_set_layer_field(index, field, String(option.get_item_metadata(item_index)))
 	)
 	row.add_child(option)
 
 func _add_color_picker(row: HBoxContainer, index: int, value: String) -> void:
 	var picker := ColorPickerButton.new()
-	picker.tooltip_text = "Color"
+	picker.tooltip_text = UiText.marking_layer_field("color")
 	picker.color = _color_from_html(value)
 	picker.custom_minimum_size = Vector2(36, 0)
 	picker.color_changed.connect(func(new_color: Color) -> void:
@@ -88,7 +93,7 @@ func _add_color_picker(row: HBoxContainer, index: int, value: String) -> void:
 
 func _add_number(row: HBoxContainer, index: int, field: String, value: float, min_value: float, max_value: float, step: float) -> void:
 	var spin := SpinBox.new()
-	spin.tooltip_text = field
+	spin.tooltip_text = UiText.marking_layer_field(field)
 	spin.min_value = min_value
 	spin.max_value = max_value
 	spin.step = step

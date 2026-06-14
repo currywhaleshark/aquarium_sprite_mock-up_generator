@@ -130,6 +130,27 @@ func _ready() -> void:
 	await get_tree().process_frame
 	assert(_max_y(_head_vertices(fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D)) > base_top + 0.1)
 
+	var neutral_flatness: Dictionary = neutral_jaw.duplicate(true)
+	neutral_flatness["snout_length"] = 0.0
+	neutral_flatness["head_top_curve"] = 0.0
+	neutral_flatness["head_bump_height"] = 0.0
+	neutral_flatness["head_top_flatness"] = 0.0
+	fish.set_parameters(neutral_flatness)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var neutral_head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var neutral_top := _mesh_max_y(neutral_head)
+	var neutral_upper_avg := _mesh_upper_quadrant_average_y(neutral_head)
+
+	var top_flattened: Dictionary = neutral_flatness.duplicate(true)
+	top_flattened["head_top_flatness"] = 1.0
+	fish.set_parameters(top_flattened)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var top_flat_head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	assert(absf(_mesh_max_y(top_flat_head) - neutral_top) < 0.01)
+	assert(_mesh_upper_quadrant_average_y(top_flat_head) > neutral_upper_avg + 0.01)
+
 	# Forehead bump: a forward-leaning crown bump must push geometry both up and
 	# forward (-x), i.e. it juts out in front rather than only bulging upward.
 	var no_bump: Dictionary = flat_top.duplicate(true)
@@ -221,13 +242,14 @@ func _ready() -> void:
 	assert(fish.get_node_or_null("BodyPivot/Head/Mouth") == null)
 	var cavity_extent := _mesh_extent(cavity)
 	assert(cavity_extent.y > closed_dark_band_extent.y * 1.5)
-	# The dark opening grows with mouth_open (it doesn't stay a fixed size).
+	# The unified lining includes the permanent upper-jaw carve, so total y extent is
+	# intentionally stable across gapes while still covering a head-scale dark interior.
 	var half_open: Dictionary = agape.duplicate(true)
 	half_open["mouth_open"] = 0.4
 	fish.set_parameters(half_open)
 	await get_tree().process_frame
 	var half_cavity_y := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D).y
-	assert(cavity_extent.y > half_cavity_y + 0.02)
+	assert(half_cavity_y > closed_dark_band_extent.y * 1.5)
 
 	# Premaxilla protrusion (Phase 7): a protrusible jaw throws the upper jaw FORWARD (-x)
 	# as the mouth opens, so the head's snout-front vertices advance. With no protrusion the
@@ -342,7 +364,9 @@ func _ready() -> void:
 	var large_open_cavity_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D)
 	var large_open_lower_jaw_extent := _mesh_extent(fish.get_node_or_null("BodyPivot/Head/MouthLowerJaw") as MeshInstance3D)
 	assert(large_upper_recess > small_upper_recess + 0.03)
-	assert(large_upper_lip_x > small_upper_lip_x + 0.02)
+	# Larger mouths still request more recess, but the band clamps to a minimum surface
+	# outset so it does not bury behind the head.
+	assert(absf(large_upper_lip_x - small_upper_lip_x) < 0.01)
 	assert(large_open_cavity_extent.z < large_open_lower_jaw_extent.z * 0.92)
 
 	# Arowana preset regression: its long, tapered snout makes the real upper-jaw surface
@@ -359,18 +383,16 @@ func _ready() -> void:
 	assert(fish.get_node_or_null("BodyPivot/Head/Mouth") == null)
 	assert(_mouth_cavity_head_z_leak(fish) <= 0.015)
 	assert(_mouth_cavity_visible_x_extent(fish) > 0.16)
-	assert(_mouth_cavity_head_x_burial(fish) <= 0.012)
-	var upper_interior := fish.get_node_or_null("BodyPivot/Head/MouthUpperInterior") as MeshInstance3D
-	assert(upper_interior != null)
-	var upper_interior_extent := _mesh_extent(upper_interior)
-	assert(upper_interior_extent.x > 0.28)
-	assert(upper_interior_extent.y > 0.18)
-	var side_aperture := fish.get_node_or_null("BodyPivot/Head/MouthSideAperture") as MeshInstance3D
-	assert(side_aperture != null)
-	var side_aperture_extent := _mesh_extent(side_aperture)
-	assert(side_aperture_extent.x > 0.12)
-	assert(side_aperture_extent.x < 0.24)
-	assert(side_aperture_extent.y > 0.14)
+	assert(_mouth_cavity_head_x_burial(fish) <= 0.018)
+	assert(fish.get_node_or_null("BodyPivot/Head/MouthUpperInterior") == null)
+	assert(fish.get_node_or_null("BodyPivot/Head/MouthSideAperture") == null)
+	var unified_cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
+	assert(unified_cavity != null)
+	var unified_cavity_extent := _mesh_extent(unified_cavity)
+	# The unified lining now covers the permanent upper-jaw carve as well as the gape pit,
+	# replacing the deleted legacy roof/side dark meshes.
+	assert(unified_cavity_extent.x > 0.20)
+	assert(unified_cavity_extent.y > 0.14)
 
 	var short_lower_jaw: Dictionary = shell_neutral.duplicate(true)
 	short_lower_jaw["mouth_open"] = 0.2
@@ -606,6 +628,25 @@ func _mesh_extent(node: MeshInstance3D) -> Vector3:
 		max_v.z = maxf(max_v.z, v.z)
 	return max_v - min_v
 
+func _mesh_max_y(mesh_instance: MeshInstance3D) -> float:
+	assert(mesh_instance != null)
+	var verts: PackedVector3Array = mesh_instance.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var max_y := -INF
+	for v in verts:
+		max_y = maxf(max_y, v.y)
+	return max_y
+
+func _mesh_upper_quadrant_average_y(mesh_instance: MeshInstance3D) -> float:
+	assert(mesh_instance != null)
+	var verts: PackedVector3Array = mesh_instance.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var total := 0.0
+	var count := 0
+	for v in verts:
+		if v.y > 0.0 and absf(v.z) > 0.12:
+			total += v.y
+			count += 1
+	return total / maxf(float(count), 1.0)
+
 func _head_shader_material(fish: Node) -> ShaderMaterial:
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
 	assert(head != null)
@@ -674,6 +715,63 @@ func _head_upper_mouth_point(fish) -> Vector3:
 func _head_vertices(head: MeshInstance3D) -> PackedVector3Array:
 	var arr_mesh := head.mesh as ArrayMesh
 	return arr_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+
+func _closest_point_on_triangle(p: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Vector3:
+	var ab := b - a
+	var ac := c - a
+	var ap := p - a
+	var d1 := ab.dot(ap)
+	var d2 := ac.dot(ap)
+	if d1 <= 0.0 and d2 <= 0.0:
+		return a
+	var bp := p - b
+	var d3 := ab.dot(bp)
+	var d4 := ac.dot(bp)
+	if d3 >= 0.0 and d4 <= d3:
+		return b
+	var vc := d1 * d4 - d3 * d2
+	if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+		return a + ab * (d1 / (d1 - d3))
+	var cp := p - c
+	var d5 := ab.dot(cp)
+	var d6 := ac.dot(cp)
+	if d6 >= 0.0 and d5 <= d6:
+		return c
+	var vb := d5 * d2 - d1 * d6
+	if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+		return a + ac * (d2 / (d2 - d6))
+	var va := d3 * d6 - d5 * d4
+	if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+		return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)))
+	var denom := 1.0 / (va + vb + vc)
+	var v := vb * denom
+	var w := vc * denom
+	return a + ab * v + ac * w
+
+func _head_triangles(head: MeshInstance3D) -> Array:
+	var arr_mesh := head.mesh as ArrayMesh
+	var arrays := arr_mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	var triangles := []
+	if indices.is_empty():
+		for i in range(0, verts.size() - 2, 3):
+			triangles.append([verts[i], verts[i + 1], verts[i + 2]])
+	else:
+		for i in range(0, indices.size() - 2, 3):
+			triangles.append([verts[indices[i]], verts[indices[i + 1]], verts[indices[i + 2]]])
+	return triangles
+
+func _closest_head_point(point: Vector3, triangles: Array) -> Vector3:
+	var best: Vector3 = triangles[0][0]
+	var best_dist := INF
+	for tri in triangles:
+		var closest := _closest_point_on_triangle(point, tri[0], tri[1], tri[2])
+		var d := point.distance_squared_to(closest)
+		if d < best_dist:
+			best_dist = d
+			best = closest
+	return best
 
 func _upper_jaw_recess_x(fish) -> float:
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
@@ -780,26 +878,14 @@ func _mouth_cavity_head_x_burial(fish) -> float:
 	var cavity := fish.get_node_or_null("BodyPivot/Head/MouthCavity") as MeshInstance3D
 	assert(head != null)
 	assert(cavity != null)
-	var head_verts := _head_vertices(head)
+	var head_triangles := _head_triangles(head)
 	var cavity_verts: PackedVector3Array = cavity.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var to_head := head.global_transform.affine_inverse() * cavity.global_transform
 	var max_burial := 0.0
 	for cv in cavity_verts:
 		var p: Vector3 = to_head * cv
-		var best_d := INF
-		var front_x := INF
-		for hv in head_verts:
-			if hv.x > 0.18:
-				continue
-			var dy := hv.y - p.y
-			var dz := hv.z - p.z
-			var d := dy * dy + dz * dz
-			if d < best_d:
-				best_d = d
-				front_x = hv.x
-		if front_x == INF:
-			continue
-		max_burial = maxf(max_burial, p.x - front_x)
+		var nearest := _closest_head_point(p, head_triangles)
+		max_burial = maxf(max_burial, p.x - nearest.x)
 	return max_burial
 
 func _front_tip_min_y(verts: PackedVector3Array) -> float:

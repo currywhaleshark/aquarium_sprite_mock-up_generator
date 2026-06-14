@@ -1,20 +1,37 @@
 class_name PresetStore
 extends RefCounted
 
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const PRESET_DIR := "res://presets"
 const USER_PRESET_DIR := "user://presets"
 
-static func load_all() -> Array[Dictionary]:
+static func load_all(creature_type: String = "") -> Array[Dictionary]:
 	var presets: Array[Dictionary] = []
+	var filter_mode := ""
+	if creature_type.strip_edges() != "":
+		filter_mode = CreatureModeScript.normalize(creature_type)
 	presets.append_array(_load_from_dir(PRESET_DIR, "built_in"))
 	presets.append_array(_load_from_dir(USER_PRESET_DIR, "user"))
+	if filter_mode != "":
+		presets = presets.filter(func(preset: Dictionary) -> bool:
+			return String(preset.get("creature_type", "")) == filter_mode
+		)
 	presets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var left := "%s:%s" % [String(a.get("_preset_source", "")), String(a.get("name", ""))]
 		var right := "%s:%s" % [String(b.get("_preset_source", "")), String(b.get("name", ""))]
 		return left < right
 	)
 	return presets
+
+static func find_default_for_mode(mode: String) -> Dictionary:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	var default_name := CreatureModeScript.default_preset(normalized_mode)
+	var mode_presets := load_all(normalized_mode)
+	for preset in mode_presets:
+		if String(preset.get("name", "")) == default_name:
+			return preset
+	return mode_presets[0] if not mode_presets.is_empty() else {}
 
 static func load_preset(path: String) -> Dictionary:
 	var file := FileAccess.open(path, FileAccess.READ)
@@ -100,20 +117,34 @@ static func _load_from_dir(dir_path: String, source: String) -> Array[Dictionary
 
 static func normalize_preset(preset: Dictionary) -> Dictionary:
 	var normalized := preset.duplicate(true)
-	if normalized.has("type") and not normalized.has("creature_type"):
-		normalized["creature_type"] = String(normalized.get("type", "fish"))
-	if not normalized.has("type"):
-		normalized["type"] = String(normalized.get("creature_type", "fish"))
+	var mode := CreatureModeScript.normalize(String(normalized.get("creature_type", normalized.get("type", "fish"))))
+	normalized["creature_type"] = mode
+	normalized["type"] = mode
 	if normalized.has("parameters"):
 		var parameters: Dictionary = normalized["parameters"]
-		if String(normalized.get("creature_type", "fish")) == "fish":
+		parameters["creature_type"] = mode
+		if mode == CreatureModeScript.FISH or mode == CreatureModeScript.SHARK:
 			parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 			BodyProfileScript.normalize_motion_parameters(parameters)
 		BodyProfileScript.ensure_visual_parameters(parameters)
+		parameters = BodyProfileScript.sanitize_parameters_for_mode(parameters, mode)
 		normalized["parameters"] = parameters
+		_sanitize_profile_dictionaries(normalized, mode)
 		return normalized
 	var parameters := BodyProfileScript.make_parameters_from_structured_preset(normalized)
-	if String(normalized.get("creature_type", normalized.get("type", "fish"))) == "fish":
+	parameters["creature_type"] = mode
+	if mode == CreatureModeScript.FISH or mode == CreatureModeScript.SHARK:
 		parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
 	normalized["parameters"] = parameters
+	_sanitize_profile_dictionaries(normalized, mode)
 	return normalized
+
+static func _sanitize_profile_dictionaries(preset: Dictionary, mode: String) -> void:
+	for profile_key in ["global", "tail_profile", "fin_profile", "motion_profile", "visual_profile"]:
+		if not preset.has(profile_key) or not (preset[profile_key] is Dictionary):
+			continue
+		var profile: Dictionary = (preset[profile_key] as Dictionary).duplicate(true)
+		profile["creature_type"] = mode
+		profile = BodyProfileScript.sanitize_parameters_for_mode(profile, mode)
+		profile.erase("creature_type")
+		preset[profile_key] = profile

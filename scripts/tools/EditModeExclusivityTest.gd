@@ -30,6 +30,12 @@ func _ready() -> void:
 	var fin_panel: Control = main.get("fin_editor_panel")
 	var head_panel: Control = main.get("head_editor_panel")
 	var body_panel: Control = main.get("body_editor_panel")
+	var fin_controller: Node = main.get("fin_drag_controller")
+	var body_controller: Node = main.get("body_ring_drag_controller")
+	var overlay: Control = main.get("drag_handles_overlay")
+	assert(fin_controller != null)
+	assert(body_controller != null)
+	assert(overlay != null)
 
 	# Enabling one edit mode must disable the other two and reveal only its panel.
 	fin_toggle.button_pressed = true
@@ -37,6 +43,8 @@ func _ready() -> void:
 	assert(not head_toggle.button_pressed)
 	assert(not body_toggle.button_pressed)
 	assert(fin_panel.visible)
+	assert(bool(fin_controller.get("enabled")))
+	assert(not bool(body_controller.get("enabled")))
 
 	head_toggle.button_pressed = true
 	assert(head_toggle.button_pressed)
@@ -44,6 +52,8 @@ func _ready() -> void:
 	assert(not body_toggle.button_pressed)
 	assert(head_panel.visible)
 	assert(not fin_panel.visible)
+	assert(bool(fin_controller.get("enabled")))
+	assert(not bool(body_controller.get("enabled")))
 
 	body_toggle.button_pressed = true
 	assert(body_toggle.button_pressed)
@@ -51,10 +61,21 @@ func _ready() -> void:
 	assert(not head_toggle.button_pressed)
 	assert(body_panel.visible)
 	assert(not head_panel.visible)
+	assert(not bool(fin_controller.get("enabled")))
+	assert(bool(body_controller.get("enabled")))
+	assert(bool(overlay.get("draw_body_rings")))
+	assert(not bool(overlay.get("draw_fins")))
+	assert(not bool(overlay.get("draw_head")))
 
 	body_toggle.button_pressed = false
 	assert(not body_toggle.button_pressed)
 	assert(not body_panel.visible)
+	assert(not bool(body_controller.get("enabled")))
+	assert(not bool(overlay.get("draw_body_rings")))
+	var inactive_filter: Callable = fin_controller.get("allowed_handle_filter")
+	assert(inactive_filter.is_valid())
+	assert(not bool(inactive_filter.call("jaw_hinge")))
+	assert(not bool(inactive_filter.call("dorsal_1")))
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/edit_mode_exclusivity.ok", FileAccess.WRITE)

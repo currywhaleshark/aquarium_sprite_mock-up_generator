@@ -5,6 +5,7 @@ const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
 const TMF := preload("res://scripts/materials/ToonMaterialFactory.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
+const UiText := preload("res://scripts/ui/UiText.gd")
 
 # How far median/pelvic fin bases sink into the body so they look rooted
 # instead of floating above the surface. Larger embeds the base deeper.
@@ -46,6 +47,10 @@ var shell_center_y_offsets: Array[float] = []
 # independent upper/lower radius (egg cross-section) so editing one height no longer
 # reshapes the opposite side.
 var shell_radius_half_diff: Array[float] = []
+# Per-ring (top_width - bottom_width) * 0.5 in z-radius space. The mesh builder
+# applies it by upper/lower cross-section half, preserving left/right symmetry.
+var shell_radius_z_half_diff: Array[float] = []
+var shell_flatness_profiles: Array[Vector4] = []
 var shell_ring_ids: Array[String] = []
 var animated_shell_centers := PackedVector3Array()
 var animated_shell_yaws := PackedFloat32Array()
@@ -95,6 +100,8 @@ func rebuild() -> void:
 	outer_shell = null
 	shell_profile = []
 	shell_center_y_offsets = []
+	shell_radius_z_half_diff = []
+	shell_flatness_profiles = []
 	animated_shell_centers = PackedVector3Array()
 	animated_shell_yaws = PackedFloat32Array()
 	dorsal_fin = null
@@ -139,8 +146,8 @@ func rebuild() -> void:
 	var head_ring := _ring_by_id(rings, "head", 1)
 	var midbody_depth_scale := maxf((float(mid_ring.get("upper_height", 0.46)) + float(mid_ring.get("lower_height", 0.42))) * 0.5 / 0.46, 0.1)
 	var head_depth_scale := maxf((float(head_ring.get("upper_height", 0.42)) + float(head_ring.get("lower_height", 0.36))) * 0.5 / 0.42, 0.1)
-	var body_z_scale := maxf(float(mid_ring.get("width", 0.38)) / 0.38, 0.1)
-	var head_width_boost := maxf(float(head_ring.get("width", 0.34)) / 0.34, 0.35)
+	var body_z_scale := _symmetric_width_scale(mid_ring, 0.38)
+	var head_width_boost := maxf(_symmetric_width_scale(head_ring, 0.34), 0.35)
 	var head_size := param_float("head_size", 0.44)
 	var head_offset := param_float("head_offset", -0.58)
 	var tail_length := param_float("tail_length", 0.78)
@@ -154,7 +161,16 @@ func rebuild() -> void:
 	_build_shell_profile_from_rings(rings, body_length, body_height, body_width, body_z_scale, head_offset, head_size, tail_length, shell_expand)
 
 	if param_float("shell_enabled", 1.0) > 0.5:
-		outer_shell = PF.fish_outer_shell("OuterShell", shell_profile, body_mat, shell_segments, PackedFloat32Array(shell_center_y_offsets), PackedFloat32Array(shell_radius_half_diff))
+		outer_shell = PF.fish_outer_shell(
+			"OuterShell",
+			shell_profile,
+			body_mat,
+			shell_segments,
+			PackedFloat32Array(shell_center_y_offsets),
+			PackedFloat32Array(shell_radius_half_diff),
+			PackedFloat32Array(shell_radius_z_half_diff),
+			shell_flatness_profiles
+		)
 		body_pivot.add_child(outer_shell)
 
 	var head_scale := _head_scale_for_shape(String(parameters.get("head_shape", "rounded")), head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
@@ -165,7 +181,8 @@ func rebuild() -> void:
 	var head_mat := body_mat.duplicate() as ShaderMaterial
 	head_mat.set_shader_parameter("is_head", true)
 	
-	head_node = PF.deformed_head("Head", head_shape, head_scale, snout_len, forehead_slope, head_mat, _head_sculpt_params())
+	var head_long_map := _shell_longitudinal_uv_map()
+	head_node = _create_head_node("Head", head_shape, head_scale, snout_len, forehead_slope, head_mat, _head_sculpt_params(), head_offset, head_long_map["x"], head_long_map["u"])
 	head_node.position = Vector3(head_offset, _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
@@ -251,7 +268,7 @@ func rebuild() -> void:
 			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"}))
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
-		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
+		var pelvic_z := _surface_radius_z_for_vertical_half(pelvic_attach_t, -1.0) * 0.32
 		pelvic_l_base_position = pelvic_center + Vector3(0.0, 0.0, -pelvic_z)
 		pelvic_r_base_position = pelvic_center + Vector3(0.0, 0.0, pelvic_z)
 		pelvic_l.position = pelvic_l_base_position
@@ -273,7 +290,8 @@ func rebuild() -> void:
 		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, paired_horizontal_fin_mat)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -_surface_radius_z(pectoral_attach_t) - shell_expand * 0.18)
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) * _pectoral_spacing_scale()
+	pectoral_l_base_position = Vector3(pectoral_center.x, -0.02, -pectoral_z)
 	pectoral_l.position = pectoral_l_base_position
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	pectoral_l_base_rotation = Vector3(0.0, 25.0, -28.0 + pectoral_surface_angle)
@@ -285,7 +303,7 @@ func rebuild() -> void:
 	else:
 		var points_r := _get_fin_points("PectoralFinR", pectoral_shape, pectoral_size, pectoral_size * 0.5)
 		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"}))
-	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, _surface_radius_z(pectoral_attach_t) + shell_expand * 0.18)
+	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, pectoral_z)
 	pectoral_r.position = pectoral_r_base_position
 	pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
 	pectoral_r.rotation_degrees = pectoral_r_base_rotation
@@ -347,10 +365,63 @@ func get_body_ring_global_points() -> Dictionary:
 	_update_body_ring_world_points()
 	return body_ring_world_points.duplicate(true)
 
+func get_body_ring_handles() -> Dictionary:
+	var handles := {}
+	if body_pivot == null:
+		return handles
+	for i in shell_profile.size():
+		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else "ring_%d" % i
+		var local_positions := _body_ring_handle_local_positions(i)
+		if local_positions.is_empty():
+			continue
+		handles[ring_id] = {
+			"center": body_pivot.to_global(local_positions["center"]),
+			"top": body_pivot.to_global(local_positions["top"]),
+			"bottom": body_pivot.to_global(local_positions["bottom"])
+		}
+	return handles
+
+func get_body_ring_drag_plane(ring_id: String, part: String) -> Dictionary:
+	var normal := Vector3.BACK
+	if body_pivot != null:
+		normal = body_pivot.global_transform.basis.z.normalized()
+	return {
+		"point": _body_ring_handle_world(ring_id, part),
+		"normal": normal
+	}
+
+func drag_ring_handle(ring_id: String, part: String, world_delta: Vector3) -> void:
+	if body_pivot == null:
+		return
+	var profile := BodyProfileScript.ensure_body_profile(parameters)
+	var rings: Array = profile.get("rings", [])
+	var index := BodyProfileScript.find_ring_index(rings, ring_id)
+	if index < 0:
+		return
+	var local_delta: Vector3 = body_pivot.global_transform.basis.inverse() * world_delta
+	var body_height := maxf(param_float("body_height", 0.58), 0.001)
+	var ring: Dictionary = rings[index].duplicate(true)
+	match part:
+		"top":
+			ring["upper_height"] = _clamp_ring_key("upper_height", float(ring.get("upper_height", 0.0)) + local_delta.y / body_height)
+		"bottom":
+			ring["lower_height"] = _clamp_ring_key("lower_height", float(ring.get("lower_height", 0.0)) - local_delta.y / body_height)
+		"center":
+			ring["x"] = _clamp_ring_x(index, rings, float(ring.get("x", 0.0)) + local_delta.x / _body_ring_x_span())
+			ring["y_offset"] = _clamp_ring_key("y_offset", float(ring.get("y_offset", 0.0)) + local_delta.y / body_height)
+		_:
+			return
+	rings[index] = ring
+	profile["rings"] = rings
+	parameters["body_profile"] = profile
+	rebuild()
+
 func _build_shell_profile_from_rings(rings: Array, body_length: float, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, tail_length: float, shell_expand: float) -> void:
 	shell_profile = []
 	shell_center_y_offsets = []
 	shell_radius_half_diff = []
+	shell_radius_z_half_diff = []
+	shell_flatness_profiles = []
 	shell_ring_ids = []
 	if rings.is_empty():
 		rings = BodyProfileScript.default_fish_rings()
@@ -365,16 +436,35 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 		var ring_id := String(ring.get("id", ""))
 		if ring_id == "snout" or ring_id == "head":
 			center_y += 0.02
-		var radius_z := body_width * body_z_scale * float(ring["width"]) * lerpf(0.62, 1.0, float(ring["roundness"])) + shell_expand * lerpf(1.0, 0.18, float(ring["x"]))
+		var width_scale := lerpf(0.62, 1.0, float(ring["roundness"]))
+		var shell_z_expand := shell_expand * lerpf(1.0, 0.18, float(ring["x"]))
+		var top_width := float(ring.get("top_width", ring["width"]))
+		var bottom_width := float(ring.get("bottom_width", ring["width"]))
+		var average_width := (top_width + bottom_width) * 0.5
+		var radius_z := body_width * body_z_scale * average_width * width_scale + shell_z_expand
+		var radius_z_top := body_width * body_z_scale * top_width * width_scale + shell_z_expand
+		var radius_z_bottom := body_width * body_z_scale * bottom_width * width_scale + shell_z_expand
 		var adjusted := _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell)
 		radius_y = float(adjusted["radius_y"])
-		radius_z = float(adjusted["radius_z"])
+		var adjusted_top := _apply_head_shell_metrics(ring, radius_y, radius_z_top, head_shell)
+		var adjusted_bottom := _apply_head_shell_metrics(ring, radius_y, radius_z_bottom, head_shell)
+		var adjusted_top_z := float(adjusted_top["radius_z"])
+		var adjusted_bottom_z := float(adjusted_bottom["radius_z"])
+		radius_z = (adjusted_top_z + adjusted_bottom_z) * 0.5
+		var radius_z_half := (adjusted_top_z - adjusted_bottom_z) * 0.5
 		center_y += float(adjusted.get("center_y_delta", 0.0))
 		shell_profile.append(Vector3(lerpf(start_x, end_x, float(ring["x"])), radius_y, radius_z))
 		shell_center_y_offsets.append(center_y)
 		# Asymmetry magnitude for the egg cross-section. center_y already carries the same
 		# (upper-lower)/2 shift, so the mesh recovers the true centerline as center_y - this.
 		shell_radius_half_diff.append(body_height * (float(ring["upper_height"]) - float(ring["lower_height"])) * 0.5)
+		shell_radius_z_half_diff.append(radius_z_half)
+		shell_flatness_profiles.append(Vector4(
+			float(ring.get("top_flatness", 0.0)),
+			float(ring.get("bottom_flatness", 0.0)),
+			float(ring.get("left_flatness", 0.0)),
+			float(ring.get("right_flatness", 0.0))
+		))
 		shell_ring_ids.append(String(ring.get("id", "ring_%d" % i)))
 	shell_tail_pivot_1_x = _ring_x_by_id("rear_body", body_length * 0.48)
 	shell_tail_pivot_2_x = _ring_x_by_id("tail_stem", shell_tail_pivot_1_x + tail_length * 0.5)
@@ -382,7 +472,7 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 func _head_shell_metrics(rings: Array, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, shell_expand: float) -> Dictionary:
 	var head_ring := _ring_by_id(rings, "head", mini(1, rings.size() - 1))
 	var head_depth_scale := maxf((float(head_ring.get("upper_height", 0.42)) + float(head_ring.get("lower_height", 0.36))) * 0.5 / 0.42, 0.1)
-	var head_width_boost := maxf(float(head_ring.get("width", 0.34)) / 0.34, 0.35)
+	var head_width_boost := maxf(_symmetric_width_scale(head_ring, 0.34), 0.35)
 	var shape := String(parameters.get("head_shape", "rounded"))
 	var head_scale := _head_scale_for_shape(shape, head_size, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
 	var start_x := head_offset - head_scale.x * 0.22
@@ -409,6 +499,21 @@ func _head_shell_metrics(rings: Array, body_height: float, body_width: float, bo
 		"radius_y": maxf(head_scale.y * 0.5 + shell_expand * 0.72, 0.04),
 		"radius_z": maxf(head_scale.z * 0.5 + shell_expand * 0.72, 0.035),
 	}
+
+func _create_head_node(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}, head_offset: float = 0.0, long_map_x: PackedFloat32Array = PackedFloat32Array(), long_map_u: PackedFloat32Array = PackedFloat32Array()) -> MeshInstance3D:
+	return PF.deformed_head(name, shape, head_scale, snout_length, forehead_slope, material, sculpt, head_offset, long_map_x, long_map_u)
+
+# Breakpoints (world x -> longitudinal UV u) of the body shell, so the head mesh can
+# sample the same u(x) curve and join the shell with no pattern step at the neck seam.
+# u matches the shell builder's per-ring u (ring_index / last_ring).
+func _shell_longitudinal_uv_map() -> Dictionary:
+	var xs := PackedFloat32Array()
+	var us := PackedFloat32Array()
+	var last := maxi(shell_profile.size() - 1, 1)
+	for i in shell_profile.size():
+		xs.append(shell_profile[i].x)
+		us.append(float(i) / float(last))
+	return {"x": xs, "u": us}
 
 func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float, snout_base: float = HeadProfile.SNOUT_BLEND_HALF, snout_thickness: float = 1.0, snout_taper: float = 0.0) -> Vector2:
 	var x := clampf(x_local_unscaled, -0.499 - snout_length, 0.499)
@@ -518,24 +623,36 @@ func _add_ring_guides() -> void:
 	for i in shell_profile.size():
 		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else ""
 		var selected := ring_id == selected_body_ring_id
-		var center_y := shell_center_y_offsets[i] if i < shell_center_y_offsets.size() else 0.0
-		var point := shell_profile[i]
+		var positions := _body_ring_handle_local_positions(i)
 		var center := PF.ellipsoid("RingCenter_%s" % ring_id, Vector3(0.035, 0.035, 0.035), selected_mat if selected else guide_mat)
-		center.position = Vector3(point.x, center_y, -point.z - 0.03)
+		center.position = positions["center"]
 		guide_root.add_child(center)
 		var top := PF.ellipsoid("RingTop_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
-		top.position = Vector3(point.x, center_y + point.y, -point.z - 0.03)
+		top.position = positions["top"]
 		guide_root.add_child(top)
 		var bottom := PF.ellipsoid("RingBottom_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
-		bottom.position = Vector3(point.x, center_y - point.y, -point.z - 0.03)
+		bottom.position = positions["bottom"]
 		guide_root.add_child(bottom)
 		var label := Label3D.new()
 		label.name = "RingLabel_%s" % ring_id
 		label.text = _ring_label_by_id(ring_id, "Ring")
 		label.font_size = 18
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.position = Vector3(point.x, center_y + point.y + 0.08, -point.z - 0.04)
+		var top_position: Vector3 = positions["top"]
+		label.position = top_position + Vector3(0.0, 0.08, -0.01)
 		guide_root.add_child(label)
+
+func _body_ring_handle_local_positions(index: int) -> Dictionary:
+	if index < 0 or index >= shell_profile.size():
+		return {}
+	var point := shell_profile[index]
+	var center_y := shell_center_y_offsets[index] if index < shell_center_y_offsets.size() else 0.0
+	var z := -point.z - 0.03
+	return {
+		"center": Vector3(point.x, center_y, z),
+		"top": Vector3(point.x, center_y + point.y, z),
+		"bottom": Vector3(point.x, center_y - point.y, z)
+	}
 
 func _update_body_ring_world_points() -> void:
 	body_ring_world_points.clear()
@@ -554,17 +671,61 @@ func _ring_by_id(rings: Array, ring_id: String, fallback_index: int) -> Dictiona
 		return BodyProfileScript.default_fish_rings()[0]
 	return rings[clampi(fallback_index, 0, rings.size() - 1)]
 
+func _symmetric_width_scale(ring: Dictionary, base_width: float) -> float:
+	var top_width := float(ring.get("top_width", ring.get("width", base_width)))
+	var bottom_width := float(ring.get("bottom_width", ring.get("width", base_width)))
+	if absf(top_width - bottom_width) > 0.0001:
+		return 1.0
+	return maxf(float(ring.get("width", base_width)) / maxf(base_width, 0.001), 0.1)
+
 func _ring_label_by_id(ring_id: String, fallback: String) -> String:
 	for ring in BodyProfileScript.ensure_body_profile(parameters).get("rings", []):
 		if String(ring.get("id", "")) == ring_id:
-			return String(ring.get("label", fallback))
-	return fallback
+			return UiText.body_ring(ring_id, String(ring.get("label", fallback)))
+	return UiText.body_ring(ring_id, fallback)
 
 func _ring_x_by_id(ring_id: String, fallback: float) -> float:
 	for i in shell_ring_ids.size():
 		if shell_ring_ids[i] == ring_id:
 			return shell_profile[i].x
 	return fallback
+
+func _body_ring_handle_world(ring_id: String, part: String) -> Vector3:
+	if body_pivot == null:
+		return Vector3.INF
+	for i in shell_ring_ids.size():
+		if String(shell_ring_ids[i]) != ring_id:
+			continue
+		var local_positions := _body_ring_handle_local_positions(i)
+		if not local_positions.has(part):
+			return Vector3.INF
+		return body_pivot.to_global(local_positions[part])
+	return Vector3.INF
+
+func _body_ring_x_span() -> float:
+	if shell_profile.size() < 2:
+		return 1.0
+	return maxf(shell_profile.back().x - shell_profile[0].x, 0.001)
+
+func _clamp_ring_key(key: String, value: float) -> float:
+	var ranges: Dictionary = BodyProfileScript.RING_KEY_RANGES
+	if not ranges.has(key):
+		return value
+	var config: Dictionary = ranges[key]
+	return clampf(value, float(config.get("min", value)), float(config.get("max", value)))
+
+func _clamp_ring_x(index: int, rings: Array, value: float) -> float:
+	var config: Dictionary = BodyProfileScript.RING_KEY_RANGES["x"]
+	var min_x := float(config.get("min", 0.0))
+	var max_x := float(config.get("max", 1.0))
+	var gap := float(config.get("step", 0.005))
+	if index > 0:
+		min_x = maxf(min_x, float(rings[index - 1].get("x", min_x)) + gap)
+	if index < rings.size() - 1:
+		max_x = minf(max_x, float(rings[index + 1].get("x", max_x)) - gap)
+	if min_x > max_x:
+		return clampf(value, max_x, min_x)
+	return clampf(value, min_x, max_x)
 
 func _ring_sway_weight(ring_id: String, fallback: float) -> float:
 	for ring in BodyProfileScript.ensure_body_profile(parameters).get("rings", []):
@@ -677,7 +838,17 @@ func _deform_shell(loop_phase: float) -> void:
 			centers[i].y = raw_y
 			yaws[i] = yaw_head
 
-	PF.update_fish_outer_shell_bent(outer_shell, shell_profile, centers, yaws, shell_segments, PackedFloat32Array(shell_center_y_offsets), PackedFloat32Array(shell_radius_half_diff))
+	PF.update_fish_outer_shell_bent(
+		outer_shell,
+		shell_profile,
+		centers,
+		yaws,
+		shell_segments,
+		PackedFloat32Array(shell_center_y_offsets),
+		PackedFloat32Array(shell_radius_half_diff),
+		PackedFloat32Array(shell_radius_z_half_diff),
+		shell_flatness_profiles
+	)
 	animated_shell_centers = centers
 	animated_shell_yaws = yaws
 	_apply_animated_attachments(loop_phase, centers, yaws)
@@ -732,6 +903,7 @@ func _tail_bent_center_and_yaw(x: float, tail_1_yaw: float, tail_2_yaw: float) -
 
 func _apply_animated_attachments(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	_apply_animated_head(centers, yaws)
+	_apply_animated_operculum(centers, yaws)
 	_apply_animated_fins(loop_phase, centers, yaws)
 	_apply_animated_tail(loop_phase, centers, yaws)
 
@@ -745,6 +917,24 @@ func _apply_animated_head(centers: PackedVector3Array, yaws: PackedFloat32Array)
 	head_node.position = center
 	head_node.rotation_degrees = Vector3(0.0, yaw, 0.0)
 	_apply_animated_eyes(yaw)
+
+# The operculum flap is built once in body_pivot space hugging the REST shell at the
+# gill region, so during a turn/sway the bent shell rings move and yaw out from under
+# it and the gill cover detaches. Re-pin it like the head: pivot the whole flap root
+# about its rest attach centre to the shell's animated centre + yaw at that same t.
+func _apply_animated_operculum(centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
+	if body_pivot == null:
+		return
+	var root := body_pivot.get_node_or_null("GillMark_operculum")
+	if root == null:
+		return
+	var attach_t := _operculum_center_t()
+	var yaw := _sample_animated_shell_yaw(attach_t, yaws)
+	# Empty centers -> the unbent (rest) centreline the flap was built around.
+	var rest_center := _sample_animated_shell_center(attach_t, PackedVector3Array())
+	var anim_center := _sample_animated_shell_center(attach_t, centers)
+	var basis := Basis(Vector3.UP, deg_to_rad(yaw))
+	(root as Node3D).transform = Transform3D(basis, anim_center - basis * rest_center)
 
 func _apply_animated_eyes(yaw: float) -> void:
 	if eye_l == null or eye_r == null:
@@ -825,7 +1015,7 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		finlet.rotation_degrees = Vector3(flap, 0.0, _surface_tangent_angle_degrees(side, attach_t) + param_float("finlet_pitch", 0.25) * 15.0)
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
-		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
+		var pelvic_z := _surface_radius_z_for_vertical_half(pelvic_attach_t, -1.0) * 0.32
 		var pelvic_yaw := _fin_follow_yaw(pelvic_attach_t, yaws)
 		var pelvic_surface_angle := _surface_tangent_angle_degrees("ventral", pelvic_attach_t)
 		pelvic_l.position = _animated_surface_position("ventral", pelvic_attach_t, 0.02, -pelvic_z, 0.0, centers, yaws)
@@ -835,7 +1025,7 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 		_animate_blade_fin(pelvic_l, pelvic_base_points, loop_phase, 0.0)
 		_animate_blade_fin(pelvic_r, pelvic_base_points, loop_phase, PI)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
-	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.18
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) * _pectoral_spacing_scale()
 	var pectoral_yaw := _fin_follow_yaw(pectoral_attach_t, yaws)
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	var p_sync := String(parameters.get("pectoral_flap_sync", "alternating"))
@@ -1170,6 +1360,12 @@ func get_drag_handles() -> Dictionary:
 		handles["eye_l"] = eye_l.global_position
 	if eye_r:
 		handles["eye_r"] = eye_r.global_position
+	var jaw_hinge := get_jaw_hinge_world()
+	if not is_inf(jaw_hinge.x):
+		handles["jaw_hinge"] = jaw_hinge
+	var head_bump := get_head_bump_world()
+	if float(parameters.get("head_bump_height", 0.0)) > 0.001 and not is_inf(head_bump.x):
+		handles["head_bump"] = head_bump
 	if String(parameters.get("gill_mark", "none")) == "operculum":
 		var op_handle := get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))
 		if not is_inf(op_handle.x):
@@ -1250,7 +1446,7 @@ func _operculum_edit_marker_world(norm_position: Vector2) -> Vector3:
 	var vfrac_max := 0.62 * op_h
 	var u := clampf(norm_position.x, 0.0, 1.0)
 	var f := clampf(norm_position.y * vfrac_max + _operculum_position_y(), -0.985, 0.985)
-	var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+	var out := 0.006 + (0.012 + lift) * smoothstep(0.58, 1.0, u)
 	return body_pivot.global_transform * _op_shell_point(u, f, t_front, t_rear, 1.0, out)
 
 func _operculum_center_t() -> float:
@@ -1276,6 +1472,92 @@ func get_jaw_hinge_world() -> Vector3:
 		return Vector3.INF
 	return head_node.global_transform * jaw_hinge_local
 
+func get_indicator_world(key: String) -> Vector3:
+	if key.begins_with("jaw_") or key.begins_with("lower_jaw_") or key.begins_with("mouth_") or key == "lower_upper_ratio":
+		return get_jaw_hinge_world()
+	if key.begins_with("eye_"):
+		return eye_l.global_position if eye_l != null else Vector3.INF
+	if key.begins_with("operculum_"):
+		if String(parameters.get("gill_mark", "none")) != "operculum":
+			return Vector3.INF
+		return get_vector_edit_marker_world("operculum", Vector2(0.5, 0.0))
+	if key.begins_with("head_bump_"):
+		return get_head_bump_world()
+	if key.begins_with("snout_") or key == "snout_appendage_length":
+		return _snout_indicator_world()
+	if key == "head_size" or key == "head_offset" or key == "head_flattening" or key == "head_belly_curve" or key == "forehead_slope" or key.begins_with("head_top_") or (key.begins_with("head_") and key.ends_with("_flatness")):
+		return head_node.global_position if head_node != null else Vector3.INF
+	if _is_body_ring_indicator_key(key):
+		var part := "center"
+		if key.begins_with("upper") or key.begins_with("top_"):
+			part = "top"
+		elif key.begins_with("lower") or key.begins_with("bottom_"):
+			part = "bottom"
+		return _body_ring_indicator_world(part)
+	return Vector3.INF
+
+func get_head_bump_world() -> Vector3:
+	if head_node == null:
+		return Vector3.INF
+	var local_x := clampf(param_float("head_bump_pos", -0.2), -0.5, 0.5) * eye_head_scale.x
+	var local_y := eye_head_scale.y * (0.5 + clampf(param_float("head_bump_height", 0.0), 0.0, 0.8) * 0.5)
+	return head_node.global_transform * Vector3(local_x, local_y, 0.0)
+
+func _head_bump_indicator_world() -> Vector3:
+	return get_head_bump_world()
+
+func get_head_drag_plane(handle_id: String) -> Dictionary:
+	var point := Vector3.INF
+	match handle_id:
+		"jaw_hinge":
+			point = get_jaw_hinge_world()
+		"head_bump":
+			point = get_head_bump_world()
+	var normal := Vector3.BACK
+	if head_node != null:
+		normal = head_node.global_transform.basis.z.normalized()
+	return {
+		"point": point,
+		"normal": normal
+	}
+
+func _snout_indicator_world() -> Vector3:
+	if head_node == null:
+		return Vector3.INF
+	var snout_length := maxf(param_float("snout_length", 0.0), 0.0)
+	return head_node.global_transform * Vector3(-eye_head_scale.x * (0.5 + snout_length), 0.0, 0.0)
+
+func _is_body_ring_indicator_key(key: String) -> bool:
+	return key == "x" \
+		or key == "y_offset" \
+		or key == "upper_height" \
+		or key == "lower_height" \
+		or key == "width" \
+		or key == "top_width" \
+		or key == "bottom_width" \
+		or key == "top_flatness" \
+		or key == "bottom_flatness" \
+		or key == "left_flatness" \
+		or key == "right_flatness" \
+		or key == "roundness" \
+		or key == "sway_weight"
+
+func _body_ring_indicator_world(part: String) -> Vector3:
+	if body_pivot == null or selected_body_ring_id == "":
+		return Vector3.INF
+	for i in shell_ring_ids.size():
+		if String(shell_ring_ids[i]) != selected_body_ring_id:
+			continue
+		var point := shell_profile[i]
+		var center_y := shell_center_y_offsets[i] if i < shell_center_y_offsets.size() else 0.0
+		match part:
+			"top":
+				center_y += point.y
+			"bottom":
+				center_y -= point.y
+		return body_pivot.to_global(Vector3(point.x, center_y, -point.z - 0.03))
+	return Vector3.INF
+
 func move_eye(delta_x: float, delta_y: float) -> void:
 	parameters["eye_position_x"] = clampf(float(parameters.get("eye_position_x", -0.78)) + delta_x, -1.5, 0.2)
 	parameters["eye_position_y"] = clampf(float(parameters.get("eye_position_y", 0.12)) + delta_y, -0.5, 0.6)
@@ -1290,6 +1572,22 @@ func move_operculum(delta_x: float, delta_y: float) -> void:
 	parameters["operculum_position_x"] = clampf(float(parameters.get("operculum_position_x", 0.0)) + delta_x, -OPERCULUM_POSITION_X_LIMIT, OPERCULUM_POSITION_X_LIMIT)
 	parameters["operculum_position_y"] = clampf(float(parameters.get("operculum_position_y", 0.0)) + delta_y, -OPERCULUM_POSITION_Y_LIMIT, OPERCULUM_POSITION_Y_LIMIT)
 	_rebuild_operculum_flaps()
+
+func move_jaw_hinge(world_delta: Vector3) -> void:
+	if head_node == null:
+		return
+	var local_delta: Vector3 = head_node.global_transform.basis.inverse() * world_delta
+	parameters["jaw_hinge_x"] = clampf(float(parameters.get("jaw_hinge_x", 0.0)) + local_delta.x, -0.8, 1.0)
+	parameters["jaw_hinge_y"] = clampf(float(parameters.get("jaw_hinge_y", 0.0)) + local_delta.y, -0.4, 0.4)
+	rebuild()
+
+func move_head_bump(world_delta: Vector3) -> void:
+	if head_node == null:
+		return
+	var local_delta: Vector3 = head_node.global_transform.basis.inverse() * world_delta
+	parameters["head_bump_pos"] = clampf(float(parameters.get("head_bump_pos", -0.2)) + local_delta.x / maxf(eye_head_scale.x, 0.001), -0.5, 0.5)
+	parameters["head_bump_height"] = clampf(float(parameters.get("head_bump_height", 0.0)) + local_delta.y / maxf(eye_head_scale.y * 0.5, 0.001), 0.0, 0.8)
+	rebuild()
 
 func _rebuild_operculum_flaps() -> void:
 	if body_pivot == null or head_node == null or String(parameters.get("gill_mark", "none")) != "operculum":
@@ -1318,7 +1616,7 @@ func _apply_fin_offsets() -> void:
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
-		var pelvic_z := _surface_radius_z(pelvic_attach_t) * 0.32
+		var pelvic_z := _surface_radius_z_for_vertical_half(pelvic_attach_t, -1.0) * 0.32
 		pelvic_l_base_position = pelvic_center + Vector3(0.0, 0.0, -pelvic_z)
 		pelvic_r_base_position = pelvic_center + Vector3(0.0, 0.0, pelvic_z)
 		pelvic_l.position = pelvic_l_base_position
@@ -1330,7 +1628,7 @@ func _apply_fin_offsets() -> void:
 	var pectoral_offset_y := param_float("pectoral_offset_y", 0.0)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
-	var pectoral_z := _surface_radius_z(pectoral_attach_t) + param_float("shell_expand", 0.08) * 0.18
+	var pectoral_z := _surface_radius_z(pectoral_attach_t) * _pectoral_spacing_scale()
 	var pectoral_surface_angle := _surface_tangent_angle_degrees("center", pectoral_attach_t)
 	var p_yaw := param_float("pectoral_fin_yaw", 25.0)
 	var p_pitch := param_float("pectoral_fin_pitch", 0.0)
@@ -1398,6 +1696,18 @@ func _surface_position(side: String, attach_t: float, margin: float) -> Vector3:
 
 func _surface_radius_z(attach_t: float) -> float:
 	return _sample_shell_profile(attach_t).z
+
+func _pectoral_spacing_scale() -> float:
+	return clampf(param_float("pectoral_fin_spacing", 1.0), 0.5, 1.5)
+
+func _surface_radius_z_for_vertical_half(attach_t: float, vertical_sign: float) -> float:
+	return _surface_radius_z_for_vertical_fraction(attach_t, -1.0 if vertical_sign < 0.0 else 1.0)
+
+func _surface_radius_z_for_vertical_fraction(attach_t: float, vertical_fraction: float) -> float:
+	var sample := _sample_shell_profile(attach_t)
+	var half_diff := _sample_shell_radius_z_half_diff(attach_t)
+	var blend := HeadProfile.vertical_half_blend(vertical_fraction)
+	return maxf(sample.z + half_diff * lerpf(-1.0, 1.0, blend), 0.001)
 
 func _surface_tangent_angle_degrees(side: String, attach_t: float) -> float:
 	if shell_profile.size() < 2:
@@ -1701,6 +2011,15 @@ func _sample_shell_profile(attach_t: float) -> Vector3:
 	var local_t := scaled - float(index)
 	return shell_profile[index].lerp(shell_profile[next_index], local_t)
 
+func _sample_shell_radius_z_half_diff(attach_t: float) -> float:
+	if shell_radius_z_half_diff.is_empty():
+		return 0.0
+	var scaled := clampf(attach_t, 0.0, 1.0) * float(shell_radius_z_half_diff.size() - 1)
+	var index := int(floor(scaled))
+	var next_index := mini(index + 1, shell_radius_z_half_diff.size() - 1)
+	var local_t := scaled - float(index)
+	return lerpf(shell_radius_z_half_diff[index], shell_radius_z_half_diff[next_index], local_t)
+
 func _sample_shell_center_y(attach_t: float) -> float:
 	if shell_center_y_offsets.is_empty():
 		return 0.0
@@ -1772,9 +2091,14 @@ func _head_sculpt_params() -> Dictionary:
 		"head_bump_width": param_float("head_bump_width", 0.18),
 		"head_bump_angle": param_float("head_bump_angle", 35.0),
 		"head_bump_round": param_float("head_bump_round", 0.6),
+		"head_top_flatness": param_float("head_top_flatness", 0.0),
+		"head_bottom_flatness": param_float("head_bottom_flatness", 0.0),
+		"head_left_flatness": param_float("head_left_flatness", 0.0),
+		"head_right_flatness": param_float("head_right_flatness", 0.0),
+		"mouth_carve_enabled": bool(parameters.get("mouth_carve_enabled", true)),
 		"mouth_open": param_float("mouth_open", 0.25),
 		"mouth_size": param_float("mouth_size", 0.08),
-		"mouth_center_y": mouth_base_y + _snout_tip_displacement(),
+		"mouth_center_y": _mouth_anchor_y(mouth_base_y),
 		"lower_jaw_scale": _head_lower_jaw_scale(),
 		"jaw_hinge_x": param_float("jaw_hinge_x", HeadProfile.JAW_DEFAULTS["jaw_hinge_x"]),
 		"jaw_hinge_y": param_float("jaw_hinge_y", jaw_hinge_y_def),
@@ -1789,6 +2113,16 @@ func _head_lower_jaw_scale() -> float:
 	var ring_scale := float(head_ring.get("lower_height", 0.36)) / 0.36
 	var belly_scale := 1.0 + clampf(param_float("head_belly_curve", 0.0), -1.0, 1.0) * 0.45
 	return clampf(ring_scale * belly_scale, 0.45, 1.8)
+
+# The deformed snout can push the mouth anchor past the head's vertical extent
+# (superior mouths on strongly sheared/curled snouts). Past the face band there is
+# no front surface left for the mouth bands to hug, so they drape across the top of
+# the skull as a dark cap. Clamp the anchor to the face band; the carve and the
+# band meshes share this through _head_sculpt_params and _mouth_position_for_type.
+const MOUTH_ANCHOR_Y_LIMIT := 0.38
+
+func _mouth_anchor_y(mouth_base_y: float) -> float:
+	return clampf(mouth_base_y + _snout_tip_displacement(), -MOUTH_ANCHOR_Y_LIMIT, MOUTH_ANCHOR_Y_LIMIT)
 
 # Linear jaw shear of the snout tip. Matches the mouth's own vertical offset from
 # its no-jaw baseline (see _mouth_position_for_type) so the snout geometry and the
@@ -2084,8 +2418,10 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# instead of the lower jaw lagging behind the protruded upper jaw.
 	var premax_fwd: float = HeadProfile.JAW_SNOUT_FRONT_X - jaw_lm["upper_tip"].x
 
+	# lip_darken keeps the lip/jaw tone readable on dark base colours (a fixed 0.34
+	# turned the whole snout near-black on deep reds); 0.34 reproduces legacy presets.
 	var lip_mat := TMF.make_surface(parameters.get("base_color", "#46c6cf"))
-	lip_mat.albedo_color = lip_mat.albedo_color.darkened(0.34)
+	lip_mat.albedo_color = lip_mat.albedo_color.darkened(clampf(param_float("lip_darken", 0.34), 0.0, 1.0))
 
 	# Clamp/sample against the ACTUAL head mesh where needed: snout taper / profile make the
 	# real surface recede from the radius-0.5 sphere, so a large band that wraps onto those
@@ -2124,65 +2460,39 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# the body-coloured surface. Its height grows with mouth_open. Skipped on a fully closed
 	# mouth so it can never show on a shut mouth.
 	if t > 0.01:
-		# Dark socket lining: fills the real mouth pit the head shell is dented into (same
-		# HeadProfile.mouth_pit math), sitting a hair proud of the dented shell so it shows.
-		# Because it lives inside a true concavity it reads as depth from any angle and never
-		# pokes out of the silhouette. Grows with mouth_open along with the pit.
-		# Top edge fixed at the bite line, growing DOWNWARD with gape to follow the lower jaw
-		# (must mirror PrimitiveFactory block 6c so the lining sits in the shell's dent).
-		var mouth_width_scale := clampf(mouth_size / 0.08, 0.45, 2.2)
-		var mouth_depth_scale := lerpf(0.85, 1.25, clampf((mouth_width_scale - 0.65) / 1.55, 0.0, 1.0))
-		
-		var buffer_y: float = 0.03 * lower_jaw_scale * sqrt(mouth_width_scale)
-		var pit_top: float = (jaw_lm["upper_tip"] as Vector2).y + buffer_y
-		var pit_bottom: float = (jaw_lm["lower_tip"] as Vector2).y - buffer_y
-		var pit_h: float = pit_top - pit_bottom
-		var pit_half_h: float = pit_h * 0.5
-		var pit_center_y: float = (pit_top + pit_bottom) * 0.5
-		var lower_jaw_half_w := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.72, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * mouth_width_scale
-		var pit_half_w := lower_jaw_half_w * 0.84
-		var pit_depth := PF.UPPER_JAW_CARVE_DEPTH * 0.5 * lower_jaw_scale * mouth_depth_scale
 		var cavity := MeshInstance3D.new()
 		cavity.name = "MouthCavity"
-		cavity.mesh = _mouth_pit_dark_mesh(pit_center_y, mouth_position, t, pit_half_h, pit_half_w, pit_depth, angle, head_verts)
+		cavity.mesh = PF.mouth_interior_lining_mesh(
+			String(parameters.get("head_shape", "rounded")),
+			param_float("snout_length", 0.0),
+			param_float("forehead_slope", 0.35),
+			18,
+			24,
+			sculpt
+		)
 		var cavity_mat := dark_mat.duplicate()
 		if cavity_mat is BaseMaterial3D:
 			cavity_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		cavity.material_override = cavity_mat
-		cavity.position = mouth_position
+		cavity.position = Vector3.ZERO
 		head.add_child(cavity)
-
-		var upper_interior := MeshInstance3D.new()
-		upper_interior.name = "MouthUpperInterior"
-		upper_interior.mesh = _mouth_upper_interior_mesh(mouth_position, mouth_size, t, lower_jaw_scale, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, head_verts)
-		var upper_interior_mat := dark_mat.duplicate()
-		if upper_interior_mat is BaseMaterial3D:
-			upper_interior_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		upper_interior.material_override = upper_interior_mat
-		upper_interior.position = mouth_position
-		head.add_child(upper_interior)
-
-		var side_aperture := MeshInstance3D.new()
-		side_aperture.name = "MouthSideAperture"
-		side_aperture.mesh = _mouth_side_aperture_mesh(mouth_position, mouth_size, t, lower_jaw_scale, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, head_verts)
-		var side_aperture_mat := dark_mat.duplicate()
-		if side_aperture_mat is BaseMaterial3D:
-			side_aperture_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		side_aperture.material_override = side_aperture_mat
-		side_aperture.position = mouth_position
-		head.add_child(side_aperture)
 
 		# Dark mouth floor: a dark lining over the lower jaw's upper (inner) face that HINGES
 		# down with the jaw (same open angle/hinge), so the mouth interior is dark on the floor
 		# too, not just the roof. A shallower dome nested just above the jaw's inner surface.
 		var floor := MeshInstance3D.new()
 		floor.name = "MouthFloor"
-		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip)
+		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip, 7, 18, lower_jaw_scale)
 		var floor_mat := dark_mat.duplicate()
 		if floor_mat is BaseMaterial3D:
 			floor_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		floor.material_override = floor_mat
-		floor.position = mouth_position + Vector3(0.0, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * 0.06, 0.0)
+		# Lift grows with gape so the floor's rear/top edge tucks behind the cavity
+		# lining's lower rim: the lining skips shallow rim cells (MOUTH_LINING_MIN_INSET),
+		# so its bottom edge sits higher than the full pit extent and the floor must reach
+		# further up while the mouth is open. Near closed the lift returns to the legacy
+		# offset so the dark floor cannot peek above the shut jaw.
+		floor.position = mouth_position + Vector3(0.0, PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * (0.06 + 0.38 * t), 0.0)
 		head.add_child(floor)
 
 	if not MOUTH_DECOR_ENABLED:
@@ -2250,8 +2560,9 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 				p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
 				p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
 			if clamp_surface:
-				p.x = _head_mesh_front_x(head_verts, p.y, p.z, outset)
-			p.x += recess_x
+				p.x = _head_mesh_front_x(head_verts, p.y, p.z, maxf(outset - recess_x, 0.012))
+			else:
+				p.x += recess_x
 			line.append(p - origin)
 		grid.append(line)
 	for j in range(z_segs):
@@ -2264,186 +2575,7 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 	st.generate_normals()
 	return st.commit()
 
-# Dark socket lining for the real mouth pit. Samples a fine grid over the mouth region on the
-# analytic head front, applies the SAME HeadProfile.mouth_pit dent (a hair shallower so it sits
-# just proud of the dented shell), and emits it dark. Smooth (analytic, no nearest-vertex
-# jaggies), recessed (lives in the pit, never pokes out), and grows with gape.
-func _mouth_pit_dark_mesh(center_y: float, origin: Vector3, gape_t: float, half_h: float, half_w: float, depth: float, tilt_deg: float, head_verts: PackedVector3Array = PackedVector3Array(), rows: int = 8, cols: int = 12) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var tilt_r := deg_to_rad(tilt_deg)
-	var g := clampf(gape_t, 0.0, 1.0)
-	var top := center_y + half_h
-	var bottom := center_y - half_h
-
-	# Fetch sculpt params and calculate protrusion parameters to match PrimitiveFactory.gd
-	var sculpt := _head_sculpt_params()
-	var lower_jaw_scale: float = sculpt["lower_jaw_scale"]
-	var mouth_center_y: float = sculpt["mouth_center_y"]
-	var mouth_size_scale := clampf(float(sculpt.get("mouth_size", 0.08)) / 0.08, 0.65, 2.2)
-	var upper_carve_size_scale := lerpf(0.75, 1.35, clampf((mouth_size_scale - 0.65) / 1.55, 0.0, 1.0))
-	var shape := String(parameters.get("head_shape", "rounded"))
-
-	var jaw_lm := HeadProfile.jaw_landmarks(sculpt, g)
-	var premax_fwd: float = HeadProfile.JAW_SNOUT_FRONT_X - jaw_lm["upper_tip"].x
-	var shift := _snout_tip_displacement()
-
-	var sample := func(ay: float, az: float) -> Vector3:
-		# 1. Unshift y to get the correct base coordinate on the sphere before snout curve/shift
-		var ay_unshifted := ay - shift
-		var base_x := _head_front_surface_x(ay_unshifted, az, 0.0)
-		
-		# 2. Get the base sphere 'u' coordinate (matching PrimitiveFactory.gd line 79)
-		var x_sq := maxf(0.25 - ay_unshifted * ay_unshifted - az * az, 0.0)
-		var x_sphere := -sqrt(x_sq)
-		var u_base := x_sphere + 0.5
-		
-		# 3. Apply Upper-Jaw Carve (mirrors PrimitiveFactory.gd lines 145-154)
-		var cx := base_x
-		var cy := ay
-		if shape != "cephalofoil" and cx < 0.04:
-			var front_w := smoothstep(PF.UPPER_JAW_CARVE_LENGTH, 0.0, u_base)
-			var carve_depth := PF.UPPER_JAW_CARVE_DEPTH * lower_jaw_scale * upper_carve_size_scale
-			var carve_half_width := PF.UPPER_JAW_CARVE_HALF_WIDTH * lerpf(0.82, 1.12, clampf((lower_jaw_scale - 0.45) / 1.35, 0.0, 1.0)) * upper_carve_size_scale
-			var lower_edge := mouth_center_y - carve_depth
-			var lower_w := smoothstep(mouth_center_y + 0.04, lower_edge, cy)
-			var center_w := 1.0 - clampf(absf(az) / carve_half_width, 0.0, 1.0)
-			var carve_w := front_w * lower_w * center_w
-			cx += PF.UPPER_JAW_CARVE_BACK * lower_jaw_scale * upper_carve_size_scale * carve_w
-			cy += PF.UPPER_JAW_CARVE_UP * lower_jaw_scale * upper_carve_size_scale * carve_w
-			
-		# 4. Apply Premaxilla Protrusion (mirrors PrimitiveFactory.gd lines 159-160)
-		if shape != "cephalofoil" and premax_fwd > 0.0 and cx < 0.1:
-			cx -= premax_fwd * smoothstep(PF.UPPER_JAW_CARVE_LENGTH, 0.0, u_base)
-			
-		# 5. Apply Real Mouth Pit Offset (mirrors PrimitiveFactory.gd lines 166-178)
-		var off := HeadProfile.mouth_pit_offset(u_base, cy, az, center_y, half_h, half_w, depth * 0.85, g)
-		var p := Vector3(cx + off.x - 0.004, cy + off.y, az + off.z)
-		if not head_verts.is_empty():
-			p.x = minf(p.x, _head_mesh_front_x(head_verts, p.y, p.z, 0.006))
-
-		if tilt_r != 0.0:
-			var tx := p.x - origin.x
-			var ty := p.y - origin.y
-			p.x = origin.x + tx * cos(tilt_r) - ty * sin(tilt_r)
-			p.y = origin.y + tx * sin(tilt_r) + ty * cos(tilt_r)
-		return p - origin
-	var grid := []
-	for i in range(rows + 1):
-		var ay := lerpf(top, bottom, float(i) / float(rows))
-		# Taper the width toward the top/bottom rows so the socket reads as a rounded oval
-		# instead of a hard-edged rectangle.
-		var ev := (ay - center_y) / maxf(half_h, 0.001)
-		var row_w := half_w * sqrt(maxf(1.0 - ev * ev, 0.0))
-		var line := []
-		for j in range(cols + 1):
-			var az := lerpf(-row_w, row_w, float(j) / float(cols))
-			line.append(sample.call(ay, az))
-		grid.append(line)
-	for i in range(rows):
-		for j in range(cols):
-			var p00: Vector3 = grid[i][j]
-			var p01: Vector3 = grid[i][j + 1]
-			var p10: Vector3 = grid[i + 1][j]
-			var p11: Vector3 = grid[i + 1][j + 1]
-			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
-			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
-	st.generate_normals()
-	return st.commit()
-
-func _mouth_upper_interior_mesh(origin: Vector3, mouth_size: float, gape_t: float, jaw_scale: float, tilt_deg: float, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, head_verts: PackedVector3Array = PackedVector3Array()) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var g := clampf(gape_t, 0.0, 1.0)
-	var hinge_pt := _lower_jaw_hinge_local(origin, jaw_scale, hinge_x_off, hinge_y_off)
-	var rear_x := hinge_pt.x - 0.025
-	var front_x := origin.x - front_extend * 0.25 + mouth_size * 0.03
-	var length_mul := clampf(length_scale, 0.6, 1.6)
-	rear_x = front_x + (rear_x - front_x) * length_mul
-	rear_x = maxf(rear_x, front_x + mouth_size * 1.35)
-	var top_front_y := origin.y + mouth_size * 0.08
-	var top_rear_y := origin.y + mouth_size * 0.02
-	var bottom_front_y := origin.y - mouth_size * lerpf(0.34, 0.76, g)
-	var bottom_rear_y := origin.y - mouth_size * lerpf(0.22, 0.54, g)
-	var half_z := maxf(mouth_size * 0.18, 0.018)
-	var tilt_r := deg_to_rad(tilt_deg)
-	var rows := 4
-	var cols := 4
-	var grid := []
-	for i in range(rows + 1):
-		var v := float(i) / float(rows)
-		var x := lerpf(front_x, rear_x, v)
-		var top_y := lerpf(top_front_y, top_rear_y, v)
-		var bottom_y := lerpf(bottom_front_y, bottom_rear_y, v)
-		var line := []
-		for j in range(cols + 1):
-			var h := float(j) / float(cols)
-			var y := lerpf(top_y, bottom_y, h)
-			var side := (h - 0.5) * 2.0
-			var z := side * half_z * sin(PI * v)
-			var p := Vector3(x, y, z)
-			if not head_verts.is_empty():
-				p.x = minf(p.x, _head_mesh_front_x(head_verts, p.y, p.z, 0.006))
-			if tilt_r != 0.0:
-				p = _rotate_mouth_point(p, origin, tilt_r)
-			line.append(p - origin)
-		grid.append(line)
-	for i in range(rows):
-		for j in range(cols):
-			var p00: Vector3 = grid[i][j]
-			var p01: Vector3 = grid[i][j + 1]
-			var p10: Vector3 = grid[i + 1][j]
-			var p11: Vector3 = grid[i + 1][j + 1]
-			st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
-			st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
-	st.generate_normals()
-	return st.commit()
-
-func _mouth_side_aperture_mesh(origin: Vector3, mouth_size: float, gape_t: float, jaw_scale: float, tilt_deg: float, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, head_verts: PackedVector3Array = PackedVector3Array()) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var g := clampf(gape_t, 0.0, 1.0)
-	var front_x := origin.x - front_extend * 0.22 + mouth_size * 0.02
-	var rear_x := front_x + mouth_size * 0.72 * clampf(length_scale, 0.7, 1.25)
-	var top_front_y := origin.y + mouth_size * 0.07
-	var bottom_front_y := origin.y - mouth_size * lerpf(0.30, 0.74, g)
-	var rear_mid_y := origin.y - mouth_size * lerpf(0.08, 0.18, g)
-	var tilt_r := deg_to_rad(tilt_deg)
-	var rows := 5
-	var cols := 5
-	for side in [-1.0, 1.0]:
-		var grid := []
-		for i in range(rows + 1):
-			var v := float(i) / float(rows)
-			var rear_fade := pow(v, 1.4)
-			var x := lerpf(front_x, rear_x, v)
-			var top_y := lerpf(top_front_y, rear_mid_y + mouth_size * 0.018, rear_fade)
-			var bottom_y := lerpf(bottom_front_y, rear_mid_y - mouth_size * 0.018, rear_fade)
-			var line := []
-			for j in range(cols + 1):
-				var h := float(j) / float(cols)
-				var y := lerpf(top_y, bottom_y, h)
-				var p := Vector3(x, y, _head_mesh_side_z(head_verts, x, y, side, 0.012))
-				if tilt_r != 0.0:
-					p = _rotate_mouth_point(p, origin, tilt_r)
-				line.append(p - origin)
-			grid.append(line)
-		for i in range(rows):
-			for j in range(cols):
-				var p00: Vector3 = grid[i][j]
-				var p01: Vector3 = grid[i][j + 1]
-				var p10: Vector3 = grid[i + 1][j]
-				var p11: Vector3 = grid[i + 1][j + 1]
-				if side > 0.0:
-					st.add_vertex(p00); st.add_vertex(p10); st.add_vertex(p01)
-					st.add_vertex(p01); st.add_vertex(p10); st.add_vertex(p11)
-				else:
-					st.add_vertex(p00); st.add_vertex(p01); st.add_vertex(p10)
-					st.add_vertex(p01); st.add_vertex(p11); st.add_vertex(p10)
-	st.generate_normals()
-	return st.commit()
-
-func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, thickness_scale: float = 1.0, tip_shape: float = 0.0, ring_count: int = 7, segments: int = 18) -> ArrayMesh:
+func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, thickness_scale: float = 1.0, tip_shape: float = 0.0, ring_count: int = 7, segments: int = 18, hinge_scale: float = -1.0) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var scale := clampf(jaw_scale, 0.45, 1.8)
@@ -2455,7 +2587,8 @@ func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, m
 	# hinge_x_off lengthens the jaw (hinge further back -> bigger x_radius); hinge_y_off
 	# raises/lowers the whole jaw with its pivot. Phase 7 jaw_hinge_x/_y controls. The pivot
 	# comes from the shared helper so the editor's hinge marker lands on the real pivot.
-	var hinge_pt := _lower_jaw_hinge_local(origin, jaw_scale, hinge_x_off, hinge_y_off)
+	var hinge_basis := jaw_scale if hinge_scale < 0.0 else hinge_scale
+	var hinge_pt := _lower_jaw_hinge_local(origin, hinge_basis, hinge_x_off, hinge_y_off)
 	var top_y := hinge_pt.y
 	# front_extend reaches the jaw tip forward (toward the protruded premaxilla) while the
 	# hinge stays fixed, so the lower jaw lengthens into the tube rather than translating.
@@ -2541,26 +2674,6 @@ func _head_mesh_front_x(verts: PackedVector3Array, y: float, z: float, outset: f
 	if best_x == INF:
 		return _head_front_surface_x(y, z, outset)
 	return best_x - outset
-
-func _head_mesh_side_z(verts: PackedVector3Array, x: float, y: float, side: float, outset: float, max_sample_x: float = 0.25) -> float:
-	var best_d := INF
-	var best_z := 0.0
-	for v in verts:
-		if side > 0.0 and v.z < 0.0:
-			continue
-		if side < 0.0 and v.z > 0.0:
-			continue
-		if v.x > max_sample_x:
-			continue
-		var dx := v.x - x
-		var dy := v.y - y
-		var d := dx * dx + dy * dy
-		if d < best_d:
-			best_d = d
-			best_z = v.z
-	if best_d == INF:
-		return side * _head_side_surface_z(x, y, outset)
-	return best_z + side * outset
 
 func _head_side_surface_z(local_x: float, local_y: float, outset: float = 0.025) -> float:
 	var radius := 0.5
@@ -2733,7 +2846,7 @@ func _build_operculum_flap(flap_name: String, side: float, length: float, height
 			for c in range(nu + 1):
 				var u := lerpf(uspan.x, uspan.y, float(c) / float(nu))
 				# Front hinge flush on the shell; only the rear free margin lifts off (no float).
-				var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+				var out := 0.006 + (0.012 + lift) * smoothstep(0.58, 1.0, u)
 				verts.append(_op_shell_point(u, f, t_front, t_rear, sgn, out))
 				uvs.append(Vector2(lerpf(t_front, t_rear, u), uvy))
 			valid.append(true)
@@ -2752,9 +2865,14 @@ func _build_operculum_flap(flap_name: String, side: float, length: float, height
 			var u := float(i) / float(ns)
 			var at_t := lerpf(t_front, t_rear, u)
 			var env := lerpf(0.82, 1.0, smoothstep(0.0, 0.6, u))
-			# Front hinge sits flush on the shell (tiny epsilon avoids z-fighting);
-			# only the rear free margin lifts off, so it never floats in front/rear view.
-			var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+			# Operculum hugs the shell across its whole plate (out ~= epsilon) and lifts
+			# ONLY the rear ~40% (the free margin) for the gill-opening silhouette. The flap
+			# shares the shell's UV, so a lifted flap floats its pattern above the shell and
+			# the parallax offsets every stripe at the plate boundary in any 3/4 view (a
+			# whole-patch seam). Keeping the plate flush kills that parallax so the pattern
+			# stays continuous; only the thin free margin lifts, and its small offset is
+			# hidden by the dark slit right behind it. Keeps the 3D gill step, drops the seam.
+			var out := 0.006 + (0.012 + lift) * smoothstep(0.58, 1.0, u)
 			var sample := _sample_shell_profile(at_t)
 			var cy := _sample_shell_center_y(at_t)
 			var prow := []
@@ -2810,7 +2928,8 @@ func _op_shell_point(u: float, f: float, t_front: float, t_rear: float, sgn: flo
 	var sample := _sample_shell_profile(at_t)
 	var cy := _sample_shell_center_y(at_t)
 	var zfrac := sqrt(maxf(1.0 - f * f, 0.0))
-	return Vector3(sample.x, cy + f * sample.y, (sample.z * zfrac + outset) * sgn)
+	var radius_z := _surface_radius_z_for_vertical_fraction(at_t, f)
+	return Vector3(sample.x, cy + f * sample.y, (radius_z * zfrac + outset) * sgn)
 
 # Dark gill opening that traces the silhouette's trailing (rear) edge top-to-bottom:
 # for each height v across the outline's full vertical extent we find the rear-most
@@ -2859,7 +2978,9 @@ func _build_operculum_opening_outline(open_name: String, side: float, poly: Pack
 func _build_operculum_opening(open_name: String, side: float, t_rear: float, ridge: float, vfrac_max: float, position_y: float, dark_material: Material) -> MeshInstance3D:
 	var nt := 10
 	var sgn := -1.0 if side < 0.0 else 1.0
-	var cols := [t_rear - (0.02 + 0.02 * ridge), t_rear + 0.006]
+	# Narrow, grazing dark slit: a wide band ate ~a full stripe and read as a hard
+	# line. Thinned so the gill opening stays legible without occluding the pattern.
+	var cols := [t_rear - (0.012 + 0.012 * ridge), t_rear + 0.004]
 	var grid := []
 	for c in range(2):
 		var at_t: float = cols[c]
@@ -2915,9 +3036,15 @@ func _op_v(st: SurfaceTool, uv: Vector2, p: Vector3) -> void:
 func _add_barbel_cluster(head: MeshInstance3D, style: String, material: Material, snout_length: float) -> void:
 	if style == "none" or style == "":
 		return
+	# Anchor at the chin, just below the mouth, so the whiskers hang off the jaw tip.
+	# The mouth anchor already tracks the snout's jaw shear and curl; the old fixed
+	# offset (-0.12 + full tip displacement) drifted onto the forehead on strongly
+	# upturned snouts and read as horns.
+	var mouth_position := _mouth_position_for_type(String(parameters.get("mouth_type", "terminal")), head.scale, snout_length)
+	var chin_drop := maxf(param_float("mouth_size", 0.08) * 0.8, 0.05)
 	var root := Node3D.new()
 	root.name = "BarbelCluster_%s" % style
-	root.position = Vector3(-0.48 - snout_length * 0.18, -0.12 + _snout_tip_displacement(), 0.0)
+	root.position = Vector3(mouth_position.x, mouth_position.y - chin_drop, 0.0)
 	head.add_child(root)
 	var specs := []
 	match style:
@@ -2985,8 +3112,7 @@ func _mouth_position_for_type(mouth_type: String, _head_scale: Vector3, _snout_l
 			outset = 0.032
 		"protrusible":
 			outset = 0.10
-	var shift := _snout_tip_displacement()
-	return Vector3(_head_front_surface_x(base_y, 0.0, outset), base_y + shift, 0.0)
+	return Vector3(_head_front_surface_x(base_y, 0.0, outset), _mouth_anchor_y(base_y), 0.0)
 
 func _mouth_angle_for_type(mouth_type: String) -> float:
 	match mouth_type:

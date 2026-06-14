@@ -1,8 +1,38 @@
 class_name BodyProfile
 extends RefCounted
 
+const CreatureModeScript := preload("res://scripts/creature/CreatureMode.gd")
+const CreatureParameterSchemaScript := preload("res://scripts/creature/CreatureParameterSchema.gd")
+
 const MIN_RING_COUNT := 3
-const RING_KEYS := ["x", "y_offset", "upper_height", "lower_height", "width", "roundness", "sway_weight"]
+const RING_KEYS := [
+	"x", "y_offset",
+	"upper_height", "lower_height",
+	"width", "top_width", "bottom_width",
+	"top_flatness", "bottom_flatness", "left_flatness", "right_flatness",
+	"roundness", "sway_weight"
+]
+const RING_KEY_RANGES := {
+	"x": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"y_offset": {"min": -0.8, "max": 0.8, "step": 0.005},
+	"upper_height": {"min": 0.02, "max": 1.4, "step": 0.005},
+	"lower_height": {"min": 0.02, "max": 1.4, "step": 0.005},
+	"width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"top_width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"bottom_width": {"min": 0.02, "max": 1.2, "step": 0.005},
+	"top_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"bottom_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"left_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"right_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"roundness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"sway_weight": {"min": 0.0, "max": 1.5, "step": 0.005}
+}
+const RING_EXTRA_DEFAULTS := {
+	"top_flatness": 0.0,
+	"bottom_flatness": 0.0,
+	"left_flatness": 0.0,
+	"right_flatness": 0.0,
+}
 # Default operculum (gill cover) silhouette as a closed outline in normalized
 # side-view space: x 0 (front/preopercle hinge) .. 1 (rear free edge),
 # y -1 (ventral) .. 1 (dorsal). Shared by the head editor (display default) and
@@ -141,6 +171,15 @@ const UNUSED_PARAMETER_KEYS := [
 	"toon_steps",
 	"rim_light_strength"
 ]
+const PRESERVED_PARAMETER_KEYS := {
+	"creature_type": true,
+	"body_profile": true,
+	"selected_body_ring_id": true,
+	"archetype_id": true,
+	"archetype_strength": true,
+	"variant_seed": true,
+	"marking_layers": true
+}
 
 const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated", "whale_grid"]
 const SCALE_TYPE_NAMES := ["cycloid", "ctenoid", "ganoid", "placoid", "pearlscale"]
@@ -405,7 +444,21 @@ static func default_fish_rings(shape: String = "default_fish") -> Array[Dictiona
 
 static func sample_rings(rings: Array, u: float) -> Dictionary:
 	if rings.is_empty():
-		return {"x": u, "upper_height": 0.3, "lower_height": 0.3, "width": 0.5, "y_offset": 0.0, "roundness": 1.0, "sway_weight": 1.0}
+		return {
+			"x": u,
+			"upper_height": 0.3,
+			"lower_height": 0.3,
+			"width": 0.5,
+			"top_width": 0.5,
+			"bottom_width": 0.5,
+			"top_flatness": 0.0,
+			"bottom_flatness": 0.0,
+			"left_flatness": 0.0,
+			"right_flatness": 0.0,
+			"y_offset": 0.0,
+			"roundness": 1.0,
+			"sway_weight": 1.0
+		}
 	var r_left: Dictionary = rings[0]
 	var r_right: Dictionary = rings[-1]
 	if u <= float(r_left.get("x", 0.0)):
@@ -424,6 +477,12 @@ static func sample_rings(rings: Array, u: float) -> Dictionary:
 				"upper_height": lerpf(float(r1.get("upper_height", 0.3)), float(r2.get("upper_height", 0.3)), t),
 				"lower_height": lerpf(float(r1.get("lower_height", 0.3)), float(r2.get("lower_height", 0.3)), t),
 				"width": lerpf(float(r1.get("width", 0.5)), float(r2.get("width", 0.5)), t),
+				"top_width": lerpf(float(r1.get("top_width", r1.get("width", 0.5))), float(r2.get("top_width", r2.get("width", 0.5))), t),
+				"bottom_width": lerpf(float(r1.get("bottom_width", r1.get("width", 0.5))), float(r2.get("bottom_width", r2.get("width", 0.5))), t),
+				"top_flatness": lerpf(float(r1.get("top_flatness", 0.0)), float(r2.get("top_flatness", 0.0)), t),
+				"bottom_flatness": lerpf(float(r1.get("bottom_flatness", 0.0)), float(r2.get("bottom_flatness", 0.0)), t),
+				"left_flatness": lerpf(float(r1.get("left_flatness", 0.0)), float(r2.get("left_flatness", 0.0)), t),
+				"right_flatness": lerpf(float(r1.get("right_flatness", 0.0)), float(r2.get("right_flatness", 0.0)), t),
 				"y_offset": lerpf(float(r1.get("y_offset", 0.0)), float(r2.get("y_offset", 0.0)), t),
 				"roundness": lerpf(float(r1.get("roundness", 1.0)), float(r2.get("roundness", 1.0)), t),
 				"sway_weight": lerpf(float(r1.get("sway_weight", 1.0)), float(r2.get("sway_weight", 1.0)), t)
@@ -446,12 +505,22 @@ static func normalize_ring(raw_ring: Dictionary, index: int) -> Dictionary:
 	var ring := {}
 	ring["id"] = String(raw_ring.get("id", defaults["id"]))
 	ring["label"] = String(raw_ring.get("label", defaults["label"]))
+	var legacy_width := float(raw_ring.get("width", defaults.get("width", 0.5)))
 	for key in RING_KEYS:
-		ring[key] = float(raw_ring.get(key, defaults[key]))
+		var fallback := float(defaults.get(key, RING_EXTRA_DEFAULTS.get(key, 0.0)))
+		if key == "top_width" or key == "bottom_width":
+			fallback = legacy_width
+		ring[key] = float(raw_ring.get(key, fallback))
 	ring["x"] = clampf(float(ring["x"]), 0.0, 1.0)
 	ring["upper_height"] = maxf(float(ring["upper_height"]), 0.01)
 	ring["lower_height"] = maxf(float(ring["lower_height"]), 0.01)
-	ring["width"] = maxf(float(ring["width"]), 0.01)
+	ring["top_width"] = maxf(float(ring["top_width"]), 0.01)
+	ring["bottom_width"] = maxf(float(ring["bottom_width"]), 0.01)
+	ring["width"] = (float(ring["top_width"]) + float(ring["bottom_width"])) * 0.5
+	ring["top_flatness"] = clampf(float(ring["top_flatness"]), 0.0, 1.0)
+	ring["bottom_flatness"] = clampf(float(ring["bottom_flatness"]), 0.0, 1.0)
+	ring["left_flatness"] = clampf(float(ring["left_flatness"]), 0.0, 1.0)
+	ring["right_flatness"] = clampf(float(ring["right_flatness"]), 0.0, 1.0)
 	ring["roundness"] = clampf(float(ring["roundness"]), 0.0, 1.0)
 	ring["sway_weight"] = clampf(float(ring["sway_weight"]), 0.0, 1.5)
 	return ring
@@ -465,8 +534,21 @@ static func find_ring_index(rings: Array, ring_id: String) -> int:
 			return i
 	return -1
 
+static func sanitize_parameters_for_mode(parameters: Dictionary, mode: String) -> Dictionary:
+	var normalized_mode := CreatureModeScript.normalize(mode)
+	var sanitized := parameters.duplicate(true)
+	sanitized["creature_type"] = normalized_mode
+	for key in sanitized.keys():
+		var text_key := String(key)
+		if PRESERVED_PARAMETER_KEYS.has(text_key):
+			continue
+		if not CreatureParameterSchemaScript.is_parameter_visible(normalized_mode, text_key):
+			sanitized.erase(key)
+	return sanitized
+
 static func make_parameters_from_structured_preset(preset: Dictionary) -> Dictionary:
 	var parameters: Dictionary = {}
+	var mode := CreatureModeScript.normalize(String(preset.get("creature_type", preset.get("type", "fish"))))
 	_merge(parameters, _as_dictionary(preset.get("global", {})))
 	_merge(parameters, _as_dictionary(preset.get("tail_profile", {})))
 	_merge(parameters, _as_dictionary(preset.get("fin_profile", {})))
@@ -477,29 +559,33 @@ static func make_parameters_from_structured_preset(preset: Dictionary) -> Dictio
 	for key in ["archetype_id", "archetype_strength", "variant_seed", "marking_layers"]:
 		if preset.has(key):
 			parameters[key] = preset[key]
-	parameters["creature_type"] = String(preset.get("type", preset.get("creature_type", "fish")))
+	parameters["creature_type"] = mode
 	normalize_motion_parameters(parameters)
 	ensure_visual_parameters(parameters)
-	return parameters
+	return sanitize_parameters_for_mode(parameters, mode)
 
 static func split_parameters_into_profiles(parameters: Dictionary, preset: Dictionary) -> Dictionary:
 	var updated: Dictionary = preset.duplicate(true)
+	var mode := CreatureModeScript.normalize(String(parameters.get("creature_type", preset.get("creature_type", preset.get("type", "fish")))))
 	var normalized_parameters := parameters.duplicate(true)
+	normalized_parameters["creature_type"] = mode
 	normalize_motion_parameters(normalized_parameters)
-	updated["global"] = _pick(parameters, [
+	normalized_parameters = sanitize_parameters_for_mode(normalized_parameters, mode)
+	updated["global"] = _pick(normalized_parameters, [
 		"body_length", "body_height", "body_width", "projection_hint",
 		"show_ring_guides", "shell_enabled", "shell_expand",
 		"shell_color_mix", "shell_opacity", "shell_roundness", "head_size", "head_offset",
 		"eye_size", "eye_position_x", "eye_position_y", "eye_spacing"
 	])
-	updated["body_profile"] = parameters.get("body_profile", {})
-	updated["tail_profile"] = _pick(parameters, [
+	updated["body_profile"] = normalized_parameters.get("body_profile", {})
+	updated["tail_profile"] = _pick(normalized_parameters, [
 		"tail_length", "tail_fin_size", "caudal_shape", "caudal_height_scale",
 		"ray_tail_style", "ray_tail_spine_enabled", "ray_dorsal_tail_fins"
 	])
-	updated["fin_profile"] = _pick(parameters, [
+	updated["fin_profile"] = _pick(normalized_parameters, [
 		"dorsal_fin_size", "anal_fin_size", "pectoral_fin_size",
 		"dorsal_fin_offset_x", "anal_fin_offset_x", "pectoral_fin_offset_x",
+		"pectoral_fin_spacing",
 		"dorsal_1_attach_t", "dorsal_1_shape", "dorsal_1_length", "dorsal_1_height",
 		"dorsal_2_enabled", "dorsal_2_attach_t", "dorsal_2_shape", "dorsal_2_length", "dorsal_2_height",
 		"pectoral_attach_t", "pectoral_shape", "pelvic_enabled", "pelvic_attach_t", "pelvic_shape",
@@ -510,6 +596,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round",
 		"forehead_slope", "jaw_offset", "mouth_size", "lower_jaw_length", "lower_jaw_angle",
 		"lower_jaw_thickness", "lower_jaw_tip", "head_flattening",
+		"head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness",
 		"head_ornament", "gill_mark", "operculum_size", "operculum_height", "operculum_open", "operculum_ridge",
 		"operculum_position_x", "operculum_position_y",
 		"operculum_custom_points",
@@ -549,7 +636,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"outside_pectoral_brace", "turn_curve_bias", "turn_median_fin_bias", "turn_bank_roll",
 		"pectoral_flap_sync", "wave_ripples", "ray_locomotion_mode"
 	])
-	updated["visual_profile"] = _pick(parameters, [
+	updated["visual_profile"] = _pick(normalized_parameters, [
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
 		"highlight_strength", "shadow_strength",
 		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
@@ -561,8 +648,11 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"eye_iris_color", "eye_pupil_scale"
 	])
 	for key in ["archetype_id", "archetype_strength", "variant_seed", "marking_layers"]:
-		if parameters.has(key):
-			updated[key] = parameters[key]
+		if normalized_parameters.has(key):
+			updated[key] = normalized_parameters[key]
+	updated["creature_type"] = mode
+	updated["type"] = mode
+	normalized_parameters["creature_type"] = mode
 	updated["parameters"] = normalized_parameters
 	return updated
 
@@ -637,7 +727,7 @@ static func _default_swim_mode(parameters: Dictionary) -> String:
 static func _rings(rows: Array) -> Array[Dictionary]:
 	var rings: Array[Dictionary] = []
 	for row in rows:
-		rings.append({
+		var ring := {
 			"id": row[0],
 			"label": row[1],
 			"x": row[2],
@@ -647,7 +737,14 @@ static func _rings(rows: Array) -> Array[Dictionary]:
 			"width": row[6],
 			"roundness": row[7],
 			"sway_weight": row[8]
-		})
+		}
+		ring["top_width"] = ring["width"]
+		ring["bottom_width"] = ring["width"]
+		ring["top_flatness"] = 0.0
+		ring["bottom_flatness"] = 0.0
+		ring["left_flatness"] = 0.0
+		ring["right_flatness"] = 0.0
+		rings.append(ring)
 	return rings
 
 static func _merge(target: Dictionary, source: Dictionary) -> void:

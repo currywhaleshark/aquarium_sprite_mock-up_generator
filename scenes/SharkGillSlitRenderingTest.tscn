@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/SharkGillSlitRenderingTest.gd" id="1_gills"]
+
+[node name="SharkGillSlitRenderingTest" type="Node"]
+script = ExtResource("1_gills")

@@ -3,6 +3,7 @@ extends RefCounted
 
 const RenderSettingsScript := preload("res://scripts/render/RenderSettings.gd")
 const ExportDirectionsScript := preload("res://scripts/export/ExportDirections.gd")
+const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 
 static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 	var export_settings: Dictionary = preset.get("export_settings", {})
@@ -10,7 +11,17 @@ static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 	var frame_count := int(export_settings.get("frame_count", RenderSettingsScript.DEFAULT_FRAME_COUNT))
 	var direction_count := ExportDirectionsScript.normalized_direction_count(int(export_settings.get("direction_count", 1)))
 	var directions := ExportDirectionsScript.direction_names(direction_count)
-	return {
+	var uses_fixed_quarter_camera := direction_count == 8
+	var camera_preset_name := CameraPresetScript.SPRITE_QUARTER_2TO1 if uses_fixed_quarter_camera else String(preset.get("camera_preset", "aquarium_side_quarter"))
+	var camera_defaults := CameraPresetScript.get_preset(camera_preset_name)
+	var camera_yaw := float(camera_defaults.get("yaw", 0.0))
+	var camera_pitch := float(camera_defaults.get("pitch", -18.0))
+	var camera_roll := float(camera_defaults.get("roll", 0.0))
+	if not uses_fixed_quarter_camera:
+		camera_yaw = float(preset.get("camera_yaw", camera_yaw))
+		camera_pitch = float(preset.get("camera_pitch", camera_pitch))
+		camera_roll = float(preset.get("camera_roll", camera_roll))
+	var metadata := {
 		"sprite_key": "fish.generated.%s" % String(preset.get("name", "unnamed")),
 		"creature_type": String(preset.get("creature_type", "fish")),
 		"frame_count": frame_count,
@@ -23,5 +34,11 @@ static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 		"sheet_columns": frame_count,
 		"sheet_rows": direction_count,
 		"anchor": RenderSettingsScript.ANCHOR,
-		"camera_preset": String(preset.get("camera_preset", "aquarium_side_quarter"))
+		"camera_preset": camera_preset_name,
+		"camera_yaw": camera_yaw,
+		"camera_pitch": camera_pitch,
+		"camera_roll": camera_roll
 	}
+	if uses_fixed_quarter_camera:
+		metadata["world_projection"] = CameraPresetScript.sprite_quarter_projection()
+	return metadata

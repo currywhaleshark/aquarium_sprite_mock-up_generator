@@ -32,7 +32,29 @@ func _ready() -> void:
 	assert(dorsal != null)
 	assert(pectoral_l != null)
 	assert(dorsal.position.y > 0.34)
-	assert(abs(pectoral_l.position.z) > 0.25)
+	var pectoral_attach_t := float(fish.parameters.get("pectoral_attach_t", 0.32))
+	assert(absf(absf(pectoral_l.position.z) - fish._surface_radius_z(pectoral_attach_t)) < 0.002)
+
+	var spacing_fish: FishRig = FishRigScript.new()
+	add_child(spacing_fish)
+	spacing_fish.set_parameters({
+		"shell_enabled": 1.0,
+		"shell_expand": 0.14,
+		"shell_color_mix": 0.35,
+		"base_color": "#46c6cf",
+		"secondary_color": "#d6fbff",
+		"pectoral_fin_spacing": 0.72
+	})
+	await get_tree().process_frame
+	var spacing_pectoral_l := spacing_fish.get_node_or_null("BodyPivot/PectoralFinL") as MeshInstance3D
+	var spacing_pectoral_r := spacing_fish.get_node_or_null("BodyPivot/PectoralFinR") as MeshInstance3D
+	assert(spacing_pectoral_l != null)
+	assert(spacing_pectoral_r != null)
+	var spacing_attach_t := float(spacing_fish.parameters.get("pectoral_attach_t", 0.32))
+	var expected_pectoral_z := spacing_fish._surface_radius_z(spacing_attach_t) * 0.72
+	assert(absf(absf(spacing_pectoral_l.position.z) - expected_pectoral_z) < 0.002)
+	assert(absf(absf(spacing_pectoral_r.position.z) - expected_pectoral_z) < 0.002)
+	spacing_fish.queue_free()
 
 	for mode in BodyProfileScript.swim_mode_names():
 		var mode_fish: FishRig = FishRigScript.new()
