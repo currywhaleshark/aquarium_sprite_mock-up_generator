@@ -110,14 +110,13 @@ func _test_mouth_gape_changes_mouth_local_vertices(parameters: Dictionary) -> vo
 	if not _require(closed_vertices.size() == open_vertices.size(), "gape changes must keep stable vertex order"):
 		return
 	var mouth_u := float(closed_head.get_meta("shark_mouth_u", 0.32))
-	var mouth_y := float(closed_head.get_meta("shark_mouth_center_y", -0.13))
-	var mouth_delta := _max_mouth_window_delta(closed_vertices, open_vertices, mouth_u, mouth_y)
-	var non_mouth_delta := _max_non_mouth_delta(closed_vertices, open_vertices, mouth_u, mouth_y)
+	var mouth_delta := _max_mouth_window_delta(closed_vertices, open_vertices, closed_params, mouth_u)
+	var non_mouth_delta := _max_non_mouth_delta(closed_vertices, open_vertices, closed_params, mouth_u)
 	if not _require(mouth_delta > 0.012, "mouth-local vertices must move when gape opens"):
 		return
 	if not _require(non_mouth_delta < mouth_delta * 0.75, "gape deformation must stay localized near the mouth"):
 		return
-	if not _require(_lower_mouth_average_y_delta(closed_vertices, open_vertices, mouth_u, mouth_y) < -0.004, "lower mouth vertices must drop when gape opens"):
+	if not _require(_lower_mouth_average_y_delta(closed_vertices, open_vertices, closed_params, mouth_u) < -0.004, "lower mouth vertices must drop when gape opens"):
 		return
 	closed.queue_free()
 	opened.queue_free()
@@ -138,8 +137,7 @@ func _test_lower_jaw_drop_is_not_noop(parameters: Dictionary) -> void:
 	if not _require(low_vertices.size() == high_vertices.size(), "drop changes must keep stable vertex order"):
 		return
 	var mouth_u := float(low_head.get_meta("shark_mouth_u", 0.32))
-	var mouth_y := float(low_head.get_meta("shark_mouth_center_y", -0.13))
-	if not _require(_strong_lower_mouth_average_y_delta(low_vertices, high_vertices, mouth_u, mouth_y) < -0.004, "lower jaw drop must move lower mouth vertices downward"):
+	if not _require(_strong_lower_mouth_average_y_delta(low_vertices, high_vertices, low_params, mouth_u) < -0.004, "lower jaw drop must move lower mouth vertices downward"):
 		return
 	low.queue_free()
 	high.queue_free()
@@ -220,9 +218,6 @@ func _normals(head: MeshInstance3D) -> PackedVector3Array:
 	var arrays := head.mesh.surface_get_arrays(0)
 	return arrays[Mesh.ARRAY_NORMAL]
 
-func _u_for_x(x: float) -> float:
-	return clampf((x - ROSTRUM_FRONT_X) / (NECK_X - ROSTRUM_FRONT_X), 0.0, 1.0)
-
 func _u_for_x_with_snout(x: float, parameters: Dictionary) -> float:
 	var front_x := ROSTRUM_FRONT_X - clampf(float(parameters.get("snout_length", 0.0)), 0.0, 0.6) * 0.35
 	return clampf((x - front_x) / (NECK_X - front_x), 0.0, 1.0)
@@ -233,44 +228,50 @@ func _eye_surface_error(head: MeshInstance3D, eye: MeshInstance3D, parameters: D
 	var expected_z := SharkHeadProfile.surface_z_at(parameters, u, local.y, side)
 	return absf(absf(local.z) - absf(expected_z))
 
-func _is_mouth_vertex(vertex: Vector3, mouth_u: float, mouth_y: float) -> bool:
-	return absf(_u_for_x(vertex.x) - mouth_u) <= 0.075 and absf(vertex.y - mouth_y) <= 0.13 and absf(vertex.z) >= 0.025
+# Mouth membership is defined by the analytic mouth_weight so the test tracks
+# whatever ventral-arc geometry SharkHeadProfile defines, not a hard-coded flank box.
+func _mouth_weight(vertex: Vector3, parameters: Dictionary) -> float:
+	return SharkHeadProfile.mouth_weight(parameters, _u_for_x_with_snout(vertex.x, parameters), vertex.y, vertex.z)
 
-func _is_strong_lower_mouth_vertex(vertex: Vector3, mouth_u: float, mouth_y: float) -> bool:
-	return absf(_u_for_x(vertex.x) - mouth_u) <= 0.035 and vertex.y < mouth_y + 0.02 and vertex.y > mouth_y - 0.12 and absf(vertex.z) >= 0.035
+func _is_mouth_vertex(vertex: Vector3, parameters: Dictionary) -> bool:
+	return _mouth_weight(vertex, parameters) >= 0.25
 
-func _max_mouth_window_delta(closed_vertices: PackedVector3Array, open_vertices: PackedVector3Array, mouth_u: float, mouth_y: float) -> float:
+# Throat side of the seam (u > mouth_u): the lower jaw that swings open and down.
+func _is_strong_lower_mouth_vertex(vertex: Vector3, parameters: Dictionary, mouth_u: float) -> bool:
+	return _mouth_weight(vertex, parameters) >= 0.4 and _u_for_x_with_snout(vertex.x, parameters) > mouth_u + 0.005
+
+func _max_mouth_window_delta(closed_vertices: PackedVector3Array, open_vertices: PackedVector3Array, parameters: Dictionary, _mouth_u: float) -> float:
 	var max_delta := 0.0
 	for i in range(mini(closed_vertices.size(), open_vertices.size())):
-		if _is_mouth_vertex(closed_vertices[i], mouth_u, mouth_y):
+		if _is_mouth_vertex(closed_vertices[i], parameters):
 			max_delta = maxf(max_delta, closed_vertices[i].distance_to(open_vertices[i]))
 	return max_delta
 
-func _max_non_mouth_delta(closed_vertices: PackedVector3Array, open_vertices: PackedVector3Array, mouth_u: float, mouth_y: float) -> float:
+func _max_non_mouth_delta(closed_vertices: PackedVector3Array, open_vertices: PackedVector3Array, parameters: Dictionary, _mouth_u: float) -> float:
 	var max_delta := 0.0
 	for i in range(mini(closed_vertices.size(), open_vertices.size())):
-		if not _is_mouth_vertex(closed_vertices[i], mouth_u, mouth_y):
+		if not _is_mouth_vertex(closed_vertices[i], parameters):
 			max_delta = maxf(max_delta, closed_vertices[i].distance_to(open_vertices[i]))
 	return max_delta
 
-func _lower_mouth_average_y_delta(closed_vertices: PackedVector3Array, open_vertices: PackedVector3Array, mouth_u: float, mouth_y: float) -> float:
+func _lower_mouth_average_y_delta(closed_vertices: PackedVector3Array, open_vertices: PackedVector3Array, parameters: Dictionary, mouth_u: float) -> float:
 	var sum := 0.0
 	var count := 0
 	for i in range(mini(closed_vertices.size(), open_vertices.size())):
 		var vertex := closed_vertices[i]
-		if _is_mouth_vertex(vertex, mouth_u, mouth_y) and vertex.y <= mouth_y:
+		if _is_mouth_vertex(vertex, parameters) and _u_for_x_with_snout(vertex.x, parameters) >= mouth_u:
 			sum += open_vertices[i].y - vertex.y
 			count += 1
 	if not _require(count > 0, "mouth lower vertex window must not be empty"):
 		return 0.0
 	return sum / float(count)
 
-func _strong_lower_mouth_average_y_delta(low_vertices: PackedVector3Array, high_vertices: PackedVector3Array, mouth_u: float, mouth_y: float) -> float:
+func _strong_lower_mouth_average_y_delta(low_vertices: PackedVector3Array, high_vertices: PackedVector3Array, parameters: Dictionary, mouth_u: float) -> float:
 	var sum := 0.0
 	var count := 0
 	for i in range(mini(low_vertices.size(), high_vertices.size())):
 		var vertex := low_vertices[i]
-		if _is_strong_lower_mouth_vertex(vertex, mouth_u, mouth_y):
+		if _is_strong_lower_mouth_vertex(vertex, parameters, mouth_u):
 			sum += high_vertices[i].y - vertex.y
 			count += 1
 	if not _require(count > 0, "strong lower mouth vertex window must not be empty"):

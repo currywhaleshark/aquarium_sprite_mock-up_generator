@@ -13,6 +13,12 @@ const MOUTH_CREASE_EPSILON_U := 0.012
 # matching the gill-slit clearance (surface_z + 0.006) that renders correctly.
 const MOUTH_SURFACE_CLEARANCE := 0.030
 const TOOTH_SURFACE_CLEARANCE := 0.044
+# The mouth is a ventral arc wrapping the lower-front of the snout. theta = -PI/2
+# is the underside (bottom) of each cross-section; the arc spans +/- half-angle
+# around it so the seam runs continuously from one flank, under the snout, to the
+# other flank (readable head-on, not two disconnected flank patches).
+const MOUTH_DEFAULT_Y := -0.13
+const MOUTH_PATH_SEGMENTS := 20
 
 static func build_head(name: String, parameters: Dictionary, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
@@ -54,20 +60,23 @@ static func u_samples(parameters: Dictionary) -> PackedFloat32Array:
 
 static func point_at(parameters: Dictionary, u: float, theta: float, snout_length: float = 0.0, forehead_slope: float = 0.35, sculpt: Dictionary = {}) -> Vector3:
 	var point := _base_point(parameters, u, theta, snout_length, forehead_slope, sculpt)
-	var mouth_y := _mouth_center_y(parameters)
 	var mouth := mouth_weight(parameters, u, point.y, point.z)
 	if mouth <= 0.0:
 		return point
 	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
-	var drop := clampf(float(parameters.get("shark_lower_jaw_drop", 0.28)), 0.0, 0.4)
-	var drop_norm := drop / 0.4
+	var drop_norm := clampf(float(parameters.get("shark_lower_jaw_drop", 0.10)), 0.0, 0.4) / 0.4
 	var projection := clampf(float(parameters.get("shark_jaw_projection", 0.08)), 0.0, 0.4)
-	point.x += mouth * (0.018 + 0.055 * gape + 0.035 * projection)
-	point.z *= 1.0 - mouth * (0.22 + 0.18 * gape)
-	if point.y < mouth_y:
-		point.y -= mouth * (0.020 + 0.090 * gape * drop_norm)
-	else:
-		point.y += mouth * (0.006 + 0.018 * gape)
+	# How far onto the throat (lower-jaw) side of the seam this vertex sits.
+	var lower_side := clampf((u - _mouth_u(parameters)) / maxf(_mouth_half_u(parameters), 0.001), 0.0, 1.0)
+	# Carve a recessed seam (groove) around the lower-front so the mouth reads as
+	# real 3-D form from every angle, deepening as the mouth opens.
+	var groove := mouth * (0.07 + 0.10 * gape)
+	point.z *= 1.0 - groove
+	point.y *= 1.0 - groove * 0.30
+	# Snout overhangs the mouth; jaw projection pushes the upper jaw forward.
+	point.x += mouth * (0.012 + 0.030 * projection)
+	# Lower jaw (throat side of the seam) swings open and down with gape/jaw-drop.
+	point.y -= mouth * lower_side * (0.020 + gape * (0.12 + 0.18 * drop_norm))
 	return point
 
 static func surface_z_at(parameters: Dictionary, u: float, y: float, side: float = 1.0) -> float:
@@ -78,37 +87,70 @@ static func surface_z_at(parameters: Dictionary, u: float, y: float, side: float
 	var z := radius_z * sqrt(maxf(1.0 - normalized_y * normalized_y, 0.0)) * signf(side)
 	var mouth := mouth_weight(parameters, u, y, z)
 	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
-	z *= 1.0 - mouth * (0.22 + 0.18 * gape)
+	z *= 1.0 - mouth * (0.07 + 0.10 * gape)
 	return z
 
 static func mouth_weight(parameters: Dictionary, u: float, y: float, z: float) -> float:
-	var mouth_u := _mouth_u(parameters)
-	var mouth_y := _mouth_center_y(parameters)
+	# Longitudinal lip window (front-to-back thickness of the closed seam).
+	var u_w := 1.0 - clampf(absf(u - _mouth_u(parameters)) / _mouth_half_u(parameters), 0.0, 1.0)
+	if u_w <= 0.0:
+		return 0.0
+	# Angular wrap around the lower cross-section (bottom = -PI/2). position_y
+	# translates the band vertically so the slider keeps affecting geometry.
+	var radii := _base_radii(parameters, u, float(parameters.get("snout_length", 0.0)), float(parameters.get("forehead_slope", 0.35)), {})
+	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y
+	var theta := atan2((y - y_shift) / maxf(radii.x, 0.001), z / maxf(radii.y, 0.001))
+	var ang_w := 1.0 - clampf(absf(theta + PI * 0.5) / _mouth_half_ang(parameters), 0.0, 1.0)
+	return clampf(smoothstep(0.0, 1.0, u_w) * smoothstep(0.0, 1.0, ang_w), 0.0, 1.0)
+
+static func mouth_path_frame(parameters: Dictionary, s: float) -> Dictionary:
+	var pos := _mouth_seam_point(parameters, s)
+	var ds := 0.02
+	var ahead := _mouth_seam_point(parameters, clampf(s + ds, 0.0, 1.0))
+	var behind := _mouth_seam_point(parameters, clampf(s - ds, 0.0, 1.0))
+	var tangent := (ahead - behind)
+	if tangent.length() < 1e-5:
+		tangent = Vector3(0.0, 0.0, 1.0)
+	tangent = tangent.normalized()
+	# Outward normal in the cross-section (y,z) plane from the base ellipse.
+	var u := _mouth_seam_u(parameters, s)
+	var radii := _base_radii(parameters, u, float(parameters.get("snout_length", 0.0)), float(parameters.get("forehead_slope", 0.35)), {})
+	var theta := _mouth_seam_theta(parameters, s)
+	var normal := Vector3(0.0, sin(theta) / maxf(radii.x, 1e-4), cos(theta) / maxf(radii.y, 1e-4)).normalized()
+	return {"pos": pos, "normal": normal, "tangent": tangent}
+
+static func _mouth_seam_point(parameters: Dictionary, s: float) -> Vector3:
+	var snout := float(parameters.get("snout_length", 0.0))
+	var u := _mouth_seam_u(parameters, s)
+	var theta := _mouth_seam_theta(parameters, s)
+	var radii := _base_radii(parameters, u, snout, float(parameters.get("forehead_slope", 0.35)), {})
+	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y
+	var y := radii.x * sin(theta) + y_shift
+	if y < 0.0:
+		y -= _ventral_bias(u)
+	var ang_w := 1.0 - clampf(absf(theta + PI * 0.5) / _mouth_half_ang(parameters), 0.0, 1.0)
+	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
+	var groove := ang_w * (0.07 + 0.10 * gape)
+	var z := radii.y * cos(theta) * (1.0 - groove)
+	y *= 1.0 - groove * 0.30
+	return Vector3(_x_at_u(u, snout), y, z)
+
+static func _mouth_seam_theta(parameters: Dictionary, s: float) -> float:
+	var half_ang := _mouth_half_ang(parameters)
+	return lerpf(-PI * 0.5 - half_ang, -PI * 0.5 + half_ang, clampf(s, 0.0, 1.0))
+
+static func _mouth_seam_u(parameters: Dictionary, s: float) -> float:
+	# The arc centre bows slightly forward (toward the rostrum) like a real jaw.
+	return clampf(_mouth_u(parameters) - sin(clampf(s, 0.0, 1.0) * PI) * 0.03, 0.02, 0.95)
+
+static func _mouth_half_u(parameters: Dictionary) -> float:
+	var width := clampf(float(parameters.get("shark_mouth_width", 0.18)), 0.02, 0.5)
+	return clampf(0.030 + width * 0.20, 0.035, 0.11)
+
+static func _mouth_half_ang(parameters: Dictionary) -> float:
 	var width := clampf(float(parameters.get("shark_mouth_width", 0.18)), 0.02, 0.5)
 	var curve := clampf(float(parameters.get("shark_mouth_curve", 0.58)), 0.0, 1.0)
-	var half_u := clampf(width * 0.42, 0.035, 0.13)
-	var half_y := lerpf(0.06, 0.14, curve)
-	var u_w := 1.0 - clampf(absf(u - mouth_u) / half_u, 0.0, 1.0)
-	var y_w := 1.0 - clampf(absf(y - mouth_y) / half_y, 0.0, 1.0)
-	var side_w := smoothstep(0.02, 0.12, absf(z))
-	return clampf(u_w * y_w * side_w, 0.0, 1.0)
-
-static func mouth_anchor(parameters: Dictionary, side: float = 1.0) -> Vector3:
-	var u := _mouth_u(parameters)
-	var y := _mouth_center_y(parameters)
-	return Vector3(_x_at_u(u, float(parameters.get("snout_length", 0.0))), y, surface_z_at(parameters, u, y, side))
-
-static func mouth_corners(parameters: Dictionary, side: float = 1.0) -> Array[Vector3]:
-	var mouth_u := _mouth_u(parameters)
-	var width := clampf(float(parameters.get("shark_mouth_width", 0.18)), 0.02, 0.5)
-	var half_u := clampf(width * 0.42, 0.035, 0.13)
-	var y := _mouth_center_y(parameters)
-	var front_u := clampf(mouth_u - half_u, 0.03, 0.97)
-	var rear_u := clampf(mouth_u + half_u, 0.03, 0.97)
-	return [
-		Vector3(_x_at_u(front_u, float(parameters.get("snout_length", 0.0))), y, surface_z_at(parameters, front_u, y, side)),
-		Vector3(_x_at_u(rear_u, float(parameters.get("snout_length", 0.0))), y, surface_z_at(parameters, rear_u, y, side))
-	]
+	return lerpf(0.85, 1.45, clampf(width / 0.4, 0.0, 1.0)) * lerpf(0.92, 1.10, curve)
 
 static func build_mouth_interior_shadow(parameters: Dictionary, material: Material = null) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
@@ -194,46 +236,36 @@ static func _base_radii(parameters: Dictionary, u: float, snout_length: float, f
 	return Vector2(radius_y, radius_z)
 
 static func _mouth_shadow_mesh(parameters: Dictionary) -> ArrayMesh:
-	# The dark mouth must sit PROUD of the head surface (like the gill slits at
-	# surface_z + clearance), otherwise the head mesh occludes it and the mouth
-	# is invisible. It is a continuous crescent on each side that dips in the
-	# middle (predatory U) and opens downward as gape/jaw-drop increase.
+	# Dark cavity ribbon following the wrapped ventral arc. The upper edge rides
+	# the seam (lip) just proud of the head; the lower edge recedes inward and
+	# drops with gape so the opening reads as a real 3-D maw from every angle.
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var emitted := false
-	var segments := 16
-	var snout := float(parameters.get("snout_length", 0.0))
 	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
 	var drop_norm := clampf(float(parameters.get("shark_lower_jaw_drop", 0.10)), 0.0, 0.4) / 0.4
-	var curve := clampf(float(parameters.get("shark_mouth_curve", 0.58)), 0.0, 1.0)
-	var mouth_y := _mouth_center_y(parameters)
-	for side in [-1.0, 1.0]:
-		var side_value := float(side)
-		var corners := mouth_corners(parameters, side_value)
-		var front_u := _u_for_x((corners[0] as Vector3).x, snout)
-		var rear_u := _u_for_x((corners[1] as Vector3).x, snout)
-		var previous_top := Vector3.ZERO
-		var previous_bottom := Vector3.ZERO
-		for i in range(segments + 1):
-			var t := float(i) / float(segments)
-			var dip := sin(t * PI)
-			var center_y := mouth_y - dip * lerpf(0.012, 0.040, curve)
-			var top_y := center_y + 0.010
-			var bottom_y := center_y - (0.014 + gape * 0.075 + drop_norm * gape * 0.05)
-			var u := lerpf(front_u, rear_u, t)
-			var x := _x_at_u(u, snout)
-			var top := Vector3(x, top_y, surface_z_at(parameters, u, top_y, side_value) + side_value * MOUTH_SURFACE_CLEARANCE)
-			var bottom := Vector3(x, bottom_y, surface_z_at(parameters, u, bottom_y, side_value) + side_value * MOUTH_SURFACE_CLEARANCE)
-			if i > 0:
-				st.add_vertex(previous_top)
-				st.add_vertex(previous_bottom)
-				st.add_vertex(top)
-				st.add_vertex(top)
-				st.add_vertex(previous_bottom)
-				st.add_vertex(bottom)
-				emitted = true
-			previous_top = top
-			previous_bottom = bottom
+	var open := 0.018 + gape * (0.085 + 0.05 * drop_norm)
+	var previous_top := Vector3.ZERO
+	var previous_bottom := Vector3.ZERO
+	for i in range(MOUTH_PATH_SEGMENTS + 1):
+		var s := float(i) / float(MOUTH_PATH_SEGMENTS)
+		var frame := mouth_path_frame(parameters, s)
+		var pos: Vector3 = frame["pos"]
+		var normal: Vector3 = frame["normal"]
+		# Slightly proud upper lip edge keeps the dark line visible side-on.
+		var top := pos + normal * 0.006
+		# Lower edge sinks into the head (-normal) and drops to expose the cavity.
+		var bottom := pos - normal * (0.006 + open * 0.6) + Vector3(0.0, -open, 0.0)
+		if i > 0:
+			st.add_vertex(previous_top)
+			st.add_vertex(previous_bottom)
+			st.add_vertex(top)
+			st.add_vertex(top)
+			st.add_vertex(previous_bottom)
+			st.add_vertex(bottom)
+			emitted = true
+		previous_top = top
+		previous_bottom = bottom
 	if not emitted:
 		return ArrayMesh.new()
 	st.generate_normals()
@@ -244,10 +276,6 @@ static func _front_x(snout_length: float) -> float:
 
 static func _x_at_u(u: float, snout_length: float) -> float:
 	return lerpf(_front_x(snout_length), NECK_X, clampf(u, 0.0, 1.0))
-
-static func _u_for_x(x: float, snout_length: float) -> float:
-	var front_x := _front_x(snout_length)
-	return clampf((x - front_x) / (NECK_X - front_x), 0.0, 1.0)
 
 static func _mouth_u(parameters: Dictionary) -> float:
 	var raw := clampf(float(parameters.get("shark_mouth_position_x", -0.96)), -1.5, 0.2)

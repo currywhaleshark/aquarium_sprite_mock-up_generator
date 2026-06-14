@@ -46,62 +46,60 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 	socket.add_child(upper_teeth)
 
 	if bool(parameters.get("shark_lower_teeth_visible", true)):
-		for side in [-1.0, 1.0]:
-			var anchor := SharkHeadProfile.mouth_anchor(parameters, float(side))
-			anchor.y -= 0.018 + jaw_drop * 0.12 + gape * 0.035
-			anchor = _proud(anchor, float(side))
-			_add_teeth(lower_teeth, tooth_count, _mouth_width_for_side(parameters, head, float(side)) * 0.72, tooth_size, tooth_angle, _socket_position_for_head_anchor(anchor, head), tooth_mat, false)
-	var upper_count := clampi(int(round(float(tooth_count) * maxf(0.35, projection_signal))), 0, tooth_count)
-	for side in [-1.0, 1.0]:
-		var anchor := SharkHeadProfile.mouth_anchor(parameters, float(side))
-		anchor.x -= projection * 0.08
-		anchor.y += 0.014 + gape * 0.018
-		anchor = _proud(anchor, float(side))
-		_add_teeth(upper_teeth, upper_count, _mouth_width_for_side(parameters, head, float(side)) * 0.58, tooth_size * 0.82, -tooth_angle, _socket_position_for_head_anchor(anchor, head), tooth_mat, true)
+		_place_tooth_row(lower_teeth, parameters, head, tooth_count, tooth_size, false, gape, jaw_drop, tooth_angle, tooth_mat)
+	var upper_count := clampi(int(round(float(tooth_count) * maxf(0.6, projection_signal))), 0, tooth_count)
+	_place_tooth_row(upper_teeth, parameters, head, upper_count, tooth_size * 0.85, true, gape, jaw_drop, -tooth_angle, tooth_mat)
 
 	if furrow_length > 0.001:
-		var right_corners := SharkHeadProfile.mouth_corners(parameters, 1.0)
-		var left := _box("LabialFurrowLeft", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
-		left.position = _socket_position_for_head_anchor(_proud(right_corners[0], 1.0), head)
-		left.rotation_degrees.z = -24.0
-		socket.add_child(left)
-		var right := _box("LabialFurrowRight", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
-		right.position = _socket_position_for_head_anchor(_proud(right_corners[1], 1.0), head)
-		right.rotation_degrees.z = 24.0
-		socket.add_child(right)
-		for side in [-1.0]:
-			var mirror_corners := SharkHeadProfile.mouth_corners(parameters, float(side))
-			var mirror_left := _box("LabialFurrowLeftMirror", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
-			mirror_left.position = _socket_position_for_head_anchor(_proud(mirror_corners[0], float(side)), head)
-			mirror_left.rotation_degrees.z = -24.0
-			socket.add_child(mirror_left)
-			var mirror_right := _box("LabialFurrowRightMirror", Vector3(_scaled_x(furrow_length, head), 0.006, 0.01), dark_mat)
-			mirror_right.position = _socket_position_for_head_anchor(_proud(mirror_corners[1], float(side)), head)
-			mirror_right.rotation_degrees.z = 24.0
-			socket.add_child(mirror_right)
+		# Labial furrows extend the mouth line outward past each corner.
+		_add_furrow(socket, parameters, head, 0.94, furrow_length, dark_mat, "LabialFurrowRight")
+		_add_furrow(socket, parameters, head, 0.06, furrow_length, dark_mat, "LabialFurrowLeft")
 
 	return root
 
-static func _proud(anchor: Vector3, side: float) -> Vector3:
-	# Offset a head-surface anchor outward so the attachment sits proud of the
-	# head and is not occluded by it (mirrors the gill-slit surface_z + clearance).
-	anchor.z += side * SharkHeadProfile.TOOTH_SURFACE_CLEARANCE
-	return anchor
+static func _place_tooth_row(parent: Node3D, parameters: Dictionary, head: MeshInstance3D, count: int, size: float, upper: bool, gape: float, jaw_drop: float, tooth_angle: float, material: Material) -> void:
+	if count <= 0:
+		return
+	# Lower teeth ride the dropped jaw; upper teeth ride the seam (palate).
+	var drop := 0.0 if upper else (0.012 + gape * (0.05 + jaw_drop * 0.18))
+	for index in range(count):
+		var s := 0.5 if count == 1 else lerpf(0.10, 0.90, float(index) / float(count - 1))
+		var frame := SharkHeadProfile.mouth_path_frame(parameters, s)
+		var pos: Vector3 = frame["pos"]
+		var normal: Vector3 = frame["normal"]
+		var tangent: Vector3 = frame["tangent"]
+		var bite := normal.cross(tangent).normalized()
+		if bite.y < 0.0:
+			bite = -bite
+		var anchor := pos + normal * SharkHeadProfile.TOOTH_SURFACE_CLEARANCE - bite * drop
+		# Lean each tooth about its outward normal so the row rakes consistently.
+		var basis := (Basis(tangent, bite, normal) * Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(tooth_angle))).orthonormalized()
+		var tooth := MeshInstance3D.new()
+		tooth.name = "Tooth%d" % [index + 1]
+		tooth.mesh = _tooth_mesh(size, upper)
+		tooth.material_override = material
+		tooth.transform = Transform3D(basis, _socket_position_for_head_anchor(anchor, head))
+		parent.add_child(tooth)
+
+static func _add_furrow(socket: Node3D, parameters: Dictionary, head: MeshInstance3D, s: float, length: float, material: Material, name: String) -> void:
+	var frame := SharkHeadProfile.mouth_path_frame(parameters, s)
+	var pos: Vector3 = frame["pos"]
+	var normal: Vector3 = frame["normal"]
+	# A small crease angling back and down from the mouth corner along the
+	# surface (a real labial furrow), kept subtle so it reads as a corner tick.
+	var back := Vector3(1.0, -0.55, 0.0)
+	back = (back - normal * back.dot(normal)).normalized()
+	var up := normal.cross(back).normalized()
+	var furrow := _box(name, Vector3(length * 0.5, 0.005, 0.007), material)
+	var anchor := pos + normal * (SharkHeadProfile.MOUTH_SURFACE_CLEARANCE * 0.5)
+	var basis := Basis(back, up, normal).orthonormalized()
+	furrow.transform = Transform3D(basis, _socket_position_for_head_anchor(anchor, head))
+	socket.add_child(furrow)
 
 static func _socket_position_for_head_anchor(anchor: Vector3, head: MeshInstance3D) -> Vector3:
 	if head == null:
 		return anchor
 	return Vector3(anchor.x * head.scale.x, anchor.y * head.scale.y, anchor.z * head.scale.z)
-
-static func _mouth_width_for_side(parameters: Dictionary, head: MeshInstance3D, side: float) -> float:
-	var corners := SharkHeadProfile.mouth_corners(parameters, side)
-	var local_width := absf((corners[1] as Vector3).x - (corners[0] as Vector3).x)
-	return _scaled_x(local_width, head)
-
-static func _scaled_x(value: float, head: MeshInstance3D) -> float:
-	if head == null:
-		return value
-	return value * maxf(absf(head.scale.x), 0.001)
 
 static func _box(name: String, size: Vector3, material: Material) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
@@ -111,20 +109,6 @@ static func _box(name: String, size: Vector3, material: Material) -> MeshInstanc
 	node.mesh = mesh
 	node.material_override = material
 	return node
-
-static func _add_teeth(parent: Node3D, count: int, width: float, size: float, angle: float, center: Vector3, material: Material, upper: bool) -> void:
-	if count <= 0:
-		return
-	var center_offset := float(count - 1) * 0.5
-	var spacing := width / maxf(float(maxi(count - 1, 1)), 1.0)
-	for index in range(count):
-		var tooth := MeshInstance3D.new()
-		tooth.name = "Tooth%d" % [index + 1]
-		tooth.mesh = _tooth_mesh(size, upper)
-		tooth.material_override = material
-		tooth.position = center + Vector3((float(index) - center_offset) * spacing, 0.0, 0.0)
-		tooth.rotation_degrees.z = angle
-		parent.add_child(tooth)
 
 static func _tooth_mesh(size: float, upper: bool) -> ArrayMesh:
 	var tip_y := -size if upper else size
