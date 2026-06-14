@@ -28,7 +28,10 @@ func _shark_parameters(source: Dictionary) -> Dictionary:
 			shark_parameters.erase(key)
 	return shark_parameters
 
-func _create_head_node(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
+# head_offset/long_map_* are the body-shell longitudinal UV map the fish head uses to
+# join the shell seamlessly. The shark's integrated head mesh owns its own UV span, so
+# they are accepted (to match the parent signature) but not consumed here.
+func _create_head_node(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}, head_offset: float = 0.0, long_map_x: PackedFloat32Array = PackedFloat32Array(), long_map_u: PackedFloat32Array = PackedFloat32Array()) -> MeshInstance3D:
 	return SharkHeadProfile.build_head(name, parameters, head_scale, snout_length, forehead_slope, material, sculpt)
 
 func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float, snout_base: float = HeadProfile.SNOUT_BLEND_HALF, snout_thickness: float = 1.0, snout_taper: float = 0.0) -> Vector2:

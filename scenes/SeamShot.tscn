@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dttu5g7c1omb5"]
+
+[ext_resource type="Script" path="res://scripts/tools/SeamShot.gd" id="1_seamshot"]
+
+[node name="SeamShot" type="Node"]
+script = ExtResource("1_seamshot")

@@ -181,7 +181,8 @@ func rebuild() -> void:
 	var head_mat := body_mat.duplicate() as ShaderMaterial
 	head_mat.set_shader_parameter("is_head", true)
 	
-	head_node = _create_head_node("Head", head_shape, head_scale, snout_len, forehead_slope, head_mat, _head_sculpt_params())
+	var head_long_map := _shell_longitudinal_uv_map()
+	head_node = _create_head_node("Head", head_shape, head_scale, snout_len, forehead_slope, head_mat, _head_sculpt_params(), head_offset, head_long_map["x"], head_long_map["u"])
 	head_node.position = Vector3(head_offset, _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
@@ -499,8 +500,20 @@ func _head_shell_metrics(rings: Array, body_height: float, body_width: float, bo
 		"radius_z": maxf(head_scale.z * 0.5 + shell_expand * 0.72, 0.035),
 	}
 
-func _create_head_node(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
-	return PF.deformed_head(name, shape, head_scale, snout_length, forehead_slope, material, sculpt)
+func _create_head_node(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}, head_offset: float = 0.0, long_map_x: PackedFloat32Array = PackedFloat32Array(), long_map_u: PackedFloat32Array = PackedFloat32Array()) -> MeshInstance3D:
+	return PF.deformed_head(name, shape, head_scale, snout_length, forehead_slope, material, sculpt, head_offset, long_map_x, long_map_u)
+
+# Breakpoints (world x -> longitudinal UV u) of the body shell, so the head mesh can
+# sample the same u(x) curve and join the shell with no pattern step at the neck seam.
+# u matches the shell builder's per-ring u (ring_index / last_ring).
+func _shell_longitudinal_uv_map() -> Dictionary:
+	var xs := PackedFloat32Array()
+	var us := PackedFloat32Array()
+	var last := maxi(shell_profile.size() - 1, 1)
+	for i in shell_profile.size():
+		xs.append(shell_profile[i].x)
+		us.append(float(i) / float(last))
+	return {"x": xs, "u": us}
 
 func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float, snout_base: float = HeadProfile.SNOUT_BLEND_HALF, snout_thickness: float = 1.0, snout_taper: float = 0.0) -> Vector2:
 	var x := clampf(x_local_unscaled, -0.499 - snout_length, 0.499)
@@ -890,6 +903,7 @@ func _tail_bent_center_and_yaw(x: float, tail_1_yaw: float, tail_2_yaw: float) -
 
 func _apply_animated_attachments(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	_apply_animated_head(centers, yaws)
+	_apply_animated_operculum(centers, yaws)
 	_apply_animated_fins(loop_phase, centers, yaws)
 	_apply_animated_tail(loop_phase, centers, yaws)
 
@@ -903,6 +917,24 @@ func _apply_animated_head(centers: PackedVector3Array, yaws: PackedFloat32Array)
 	head_node.position = center
 	head_node.rotation_degrees = Vector3(0.0, yaw, 0.0)
 	_apply_animated_eyes(yaw)
+
+# The operculum flap is built once in body_pivot space hugging the REST shell at the
+# gill region, so during a turn/sway the bent shell rings move and yaw out from under
+# it and the gill cover detaches. Re-pin it like the head: pivot the whole flap root
+# about its rest attach centre to the shell's animated centre + yaw at that same t.
+func _apply_animated_operculum(centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
+	if body_pivot == null:
+		return
+	var root := body_pivot.get_node_or_null("GillMark_operculum")
+	if root == null:
+		return
+	var attach_t := _operculum_center_t()
+	var yaw := _sample_animated_shell_yaw(attach_t, yaws)
+	# Empty centers -> the unbent (rest) centreline the flap was built around.
+	var rest_center := _sample_animated_shell_center(attach_t, PackedVector3Array())
+	var anim_center := _sample_animated_shell_center(attach_t, centers)
+	var basis := Basis(Vector3.UP, deg_to_rad(yaw))
+	(root as Node3D).transform = Transform3D(basis, anim_center - basis * rest_center)
 
 func _apply_animated_eyes(yaw: float) -> void:
 	if eye_l == null or eye_r == null:
@@ -1414,7 +1446,7 @@ func _operculum_edit_marker_world(norm_position: Vector2) -> Vector3:
 	var vfrac_max := 0.62 * op_h
 	var u := clampf(norm_position.x, 0.0, 1.0)
 	var f := clampf(norm_position.y * vfrac_max + _operculum_position_y(), -0.985, 0.985)
-	var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+	var out := 0.006 + (0.012 + lift) * smoothstep(0.58, 1.0, u)
 	return body_pivot.global_transform * _op_shell_point(u, f, t_front, t_rear, 1.0, out)
 
 func _operculum_center_t() -> float:
@@ -2814,7 +2846,7 @@ func _build_operculum_flap(flap_name: String, side: float, length: float, height
 			for c in range(nu + 1):
 				var u := lerpf(uspan.x, uspan.y, float(c) / float(nu))
 				# Front hinge flush on the shell; only the rear free margin lifts off (no float).
-				var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+				var out := 0.006 + (0.012 + lift) * smoothstep(0.58, 1.0, u)
 				verts.append(_op_shell_point(u, f, t_front, t_rear, sgn, out))
 				uvs.append(Vector2(lerpf(t_front, t_rear, u), uvy))
 			valid.append(true)
@@ -2833,9 +2865,14 @@ func _build_operculum_flap(flap_name: String, side: float, length: float, height
 			var u := float(i) / float(ns)
 			var at_t := lerpf(t_front, t_rear, u)
 			var env := lerpf(0.82, 1.0, smoothstep(0.0, 0.6, u))
-			# Front hinge sits flush on the shell (tiny epsilon avoids z-fighting);
-			# only the rear free margin lifts off, so it never floats in front/rear view.
-			var out := 0.002 + (0.012 + lift) * smoothstep(0.05, 1.0, u)
+			# Operculum hugs the shell across its whole plate (out ~= epsilon) and lifts
+			# ONLY the rear ~40% (the free margin) for the gill-opening silhouette. The flap
+			# shares the shell's UV, so a lifted flap floats its pattern above the shell and
+			# the parallax offsets every stripe at the plate boundary in any 3/4 view (a
+			# whole-patch seam). Keeping the plate flush kills that parallax so the pattern
+			# stays continuous; only the thin free margin lifts, and its small offset is
+			# hidden by the dark slit right behind it. Keeps the 3D gill step, drops the seam.
+			var out := 0.006 + (0.012 + lift) * smoothstep(0.58, 1.0, u)
 			var sample := _sample_shell_profile(at_t)
 			var cy := _sample_shell_center_y(at_t)
 			var prow := []
@@ -2941,7 +2978,9 @@ func _build_operculum_opening_outline(open_name: String, side: float, poly: Pack
 func _build_operculum_opening(open_name: String, side: float, t_rear: float, ridge: float, vfrac_max: float, position_y: float, dark_material: Material) -> MeshInstance3D:
 	var nt := 10
 	var sgn := -1.0 if side < 0.0 else 1.0
-	var cols := [t_rear - (0.02 + 0.02 * ridge), t_rear + 0.006]
+	# Narrow, grazing dark slit: a wide band ate ~a full stripe and read as a hard
+	# line. Thinned so the gill opening stays legible without occluding the pattern.
+	var cols := [t_rear - (0.012 + 0.012 * ridge), t_rear + 0.004]
 	var grid := []
 	for c in range(2):
 		var at_t: float = cols[c]

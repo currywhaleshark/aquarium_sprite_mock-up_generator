@@ -299,7 +299,27 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 		"carve_up_y": carve_up_y,
 	}
 
-static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}) -> ArrayMesh:
+# Maps a body-space x to the longitudinal UV u by interpolating the supplied
+# (world_x -> u) breakpoints of the body shell. map_x is ascending. Past either end
+# the nearest segment's slope is extrapolated (NOT clamped) so the snout, which sits
+# forward of the shell's first ring, keeps progressing to u < 0 instead of flattening.
+static func _long_u_for_world_x(world_x: float, map_x: PackedFloat32Array, map_u: PackedFloat32Array) -> float:
+	var n := map_x.size()
+	if n == 0:
+		return 0.0
+	if n == 1:
+		return map_u[0]
+	if world_x <= map_x[0]:
+		var denom0 := maxf(map_x[1] - map_x[0], 0.0001)
+		return map_u[0] + (world_x - map_x[0]) / denom0 * (map_u[1] - map_u[0])
+	for i in range(1, n):
+		if world_x <= map_x[i]:
+			var seg_t := (world_x - map_x[i - 1]) / maxf(map_x[i] - map_x[i - 1], 0.0001)
+			return lerpf(map_u[i - 1], map_u[i], seg_t)
+	var denom_n := maxf(map_x[n - 1] - map_x[n - 2], 0.0001)
+	return map_u[n - 1] + (world_x - map_x[n - 1]) / denom_n * (map_u[n - 1] - map_u[n - 2])
+
+static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}, head_offset: float = 0.0, head_scale_x: float = 1.0, long_map_x: PackedFloat32Array = PackedFloat32Array(), long_map_u: PackedFloat32Array = PackedFloat32Array()) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
@@ -314,17 +334,30 @@ static func deformed_head_mesh(shape: String, snout_length: float, forehead_slop
 			ring_vertices.append(sample["point"] as Vector3)
 		grid.append(ring_vertices)
 		
-	# Add triangles. U runs 0.0 (snout) to HEAD_U_SPAN (neck) so pattern density on
-	# the head matches the body shell, where the head occupies roughly the front
-	# quarter of the fish length. V wraps the circumference for seamless patterns.
+	# Longitudinal UV. With a body-shell longitudinal map, each head ring samples the
+	# SAME u(x) curve the shell uses (u = ring_index / last_ring at each shell ring's
+	# world x), so the head's stripe phase and density join the shell with no step at
+	# the neck seam. The snout sits forward of the shell's first ring, so the map
+	# extrapolates to u < 0 there and the pattern keeps flowing onto the snout. With no
+	# map (tools/tests) U falls back to the legacy [0, HEAD_U_SPAN] span.
+	var use_physical_u := long_map_x.size() >= 2
+	var ring_u := PackedFloat32Array()
+	ring_u.resize(rings + 1)
+	for i in range(rings + 1):
+		if use_physical_u:
+			var ring_world_x := head_offset + float((grid[i][0] as Vector3).x) * head_scale_x
+			ring_u[i] = _long_u_for_world_x(ring_world_x, long_map_x, long_map_u)
+		else:
+			ring_u[i] = float(i) / float(rings) * HEAD_U_SPAN
+	# V wraps the circumference for seamless patterns.
 	for i in rings:
 		for j in segments:
 			var p00: Vector3 = grid[i][j]
 			var p01: Vector3 = grid[i][j+1]
 			var p10: Vector3 = grid[i+1][j]
 			var p11: Vector3 = grid[i+1][j+1]
-			var u0 := float(i) / float(rings) * HEAD_U_SPAN
-			var u1 := float(i + 1) / float(rings) * HEAD_U_SPAN
+			var u0 := ring_u[i]
+			var u1 := ring_u[i + 1]
 			var v0 := float(j) / float(segments)
 			var v1 := float(j + 1) / float(segments)
 
@@ -466,10 +499,10 @@ static func _mouth_lining_vertex(sample: Dictionary, proud: float) -> Vector3:
 		back = back.normalized() * proud
 	return point + back
 
-static func deformed_head(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}) -> MeshInstance3D:
+static func deformed_head(name: String, shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, material: Material, sculpt: Dictionary = {}, head_offset: float = 0.0, long_map_x: PackedFloat32Array = PackedFloat32Array(), long_map_u: PackedFloat32Array = PackedFloat32Array()) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = name
-	node.mesh = deformed_head_mesh(shape, snout_length, forehead_slope, 18, 24, sculpt)
+	node.mesh = deformed_head_mesh(shape, snout_length, forehead_slope, 18, 24, sculpt, head_offset, head_scale.x, long_map_x, long_map_u)
 	node.scale = head_scale
 	node.material_override = material
 	return node
