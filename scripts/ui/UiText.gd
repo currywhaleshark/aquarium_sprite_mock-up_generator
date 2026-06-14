@@ -28,6 +28,64 @@ const CAMERA_PRESETS := {
 	"shark_side_quarter": "상어 측면 3/4"
 }
 
+const SPECIES_ARCHETYPE_LABELS := {
+	"": "일반 물고기",
+	"angelfish": "엔젤피시",
+	"betta": "베타",
+	"corydoras": "코리도라스",
+	"discus": "디스커스",
+	"eel_loach": "장어/미꾸라지형",
+	"goldfish_oranda": "오란다 금붕어",
+	"guppy": "구피",
+	"koi_carp": "비단잉어",
+	"mackerel": "고등어",
+	"neon_tetra": "네온테트라",
+	"puffer": "복어",
+	"trout": "송어",
+	"tuna": "참치"
+}
+
+const READABILITY_PRIORITY_LABELS := {
+	"bottom-flat body": "바닥에 납작한 체형",
+	"inferior mouth with barbels": "아래쪽 입과 수염",
+	"saddle armor marks": "안장형 갑옷 무늬",
+	"round fancy body": "둥근 관상어 체형",
+	"double fan tail": "쌍부채 꼬리",
+	"wen head growth": "머리 육혹",
+	"deep compressed body": "높고 납작한 체형",
+	"tall fins": "긴 지느러미",
+	"vertical bars": "세로 줄무늬",
+	"broad carp body": "넓은 잉어 체형",
+	"koi barbels": "잉어 수염",
+	"red black white patches": "빨강·검정·흰색 패치",
+	"long ribbon body": "긴 리본형 몸통",
+	"reduced fins": "축소된 지느러미",
+	"banded loach markings": "미꾸라지형 띠무늬",
+	"striped fast swimmer": "줄무늬 빠른 유영형",
+	"forked/lunate tail": "갈래형/초승달형 꼬리",
+	"posterior finlets": "뒤쪽 토막지느러미",
+	"round disc silhouette": "둥근 원반 실루엣",
+	"small fins": "작은 지느러미",
+	"subtle vertical bars": "옅은 세로 줄무늬",
+	"slender body": "가느다란 몸통",
+	"blue lateral stripe": "파란 측선 줄무늬",
+	"rear red lower band": "뒤쪽 붉은 하단 띠",
+	"compact body": "작은 체형",
+	"oversized ornamental fins": "큰 장식 지느러미",
+	"bright fin edge": "밝은 지느러미 가장자리",
+	"tiny body": "작은 몸통",
+	"large colorful tail": "크고 화려한 꼬리",
+	"tail spots": "꼬리 점무늬",
+	"round inflated body": "둥글게 부푼 체형",
+	"tiny fins": "작은 지느러미",
+	"small beak mouth and spots": "작은 부리형 입과 점무늬",
+	"salmonid profile": "연어과 실루엣",
+	"small adipose fin": "작은 기름지느러미",
+	"speckled body": "반점 있는 몸통",
+	"torpedo body": "어뢰형 몸통",
+	"lunate tail": "초승달형 꼬리"
+}
+
 const BODY_RINGS := {
 	"snout": "주둥이",
 	"head": "머리",
@@ -68,6 +126,7 @@ const OPTION_LABELS := {
 	"diamond": "마름모형",
 	"round": "원반형",
 	"electric": "전기가오리형",
+	"skate": "스케이트형",
 	"whip": "채찍꼬리",
 	"manta_thread": "만타 실꼬리",
 	"stout_skate": "스케이트 굵은꼬리",
@@ -249,11 +308,14 @@ const PARAMETER_LABELS := {
 	"eye_iris_color": "홍채 색",
 	"tail_length": "꼬리 길이",
 	"tail_height": "꼬리 높이",
+	"tail_thickness": "꼬리 두께",
 	"tail_fin_size": "꼬리지느러미 크기",
 	"caudal_height_scale": "꼬리지느러미 높이",
 	"fin_softness": "지느러미 부드러움",
 	"fin_rigidity": "지느러미 빳빳함",
 	"fin_ray_style": "기조 스타일",
+	"fin_ray_count": "기조 수",
+	"fin_ray_strength": "기조 선명도",
 	"fin_ray_root_bias": "기조 중심",
 	"fin_ray_spread": "기조 펼침",
 	"fin_spine_count": "가시 기조 수",
@@ -327,9 +389,15 @@ const PARAMETER_LABELS := {
 	"median_fin_flap_amount": "등/뒷지느러미 추진",
 	"median_fin_flap_phase": "등/뒷지느러미 위상",
 	"idle_bob_amount": "유휴 상하 움직임",
+	"flap_speed": "날갯짓 속도",
+	"flap_amplitude": "날갯짓 크기",
+	"wing_phase_offset": "날개 위상 차이",
+	"tail_follow_amount": "꼬리 추종 강도",
+	"glide_bob_amount": "활강 상하 움직임",
 	"base_color": "기본 색",
 	"secondary_color": "보조 색",
 	"belly_color": "배 색",
+	"underside_color": "배면 색",
 	"belly_height": "배 색 영역 높이",
 	"belly_slope": "배 색 경계 부드러움",
 	"iridescence_strength": "무지개빛 광택",
@@ -362,6 +430,15 @@ const PARAMETER_LABELS := {
 	"marking_layer_thickness": "두께",
 	"palette_scheme": "색 조합 방식",
 	"fin_color": "지느러미 색",
+	"fin_opacity": "지느러미 투명도",
+	"fin_edge_color": "지느러미 가장자리 색",
+	"fin_edge_width": "지느러미 가장자리 두께",
+	"fin_tip_color": "지느러미 끝 색",
+	"fin_gradient_color": "지느러미 그라데이션 색",
+	"fin_translucency": "지느러미 반투명도",
+	"fin_translucency_strength": "지느러미 반투명 강도",
+	"fin_tornness": "지느러미 찢김 정도",
+	"fin_trailing_threads": "지느러미 실꼬리",
 	"outline_color": "외곽선 색",
 	"outline_width": "외곽선 두께",
 	"highlight_strength": "하이라이트 강도",
@@ -384,12 +461,20 @@ const PARAMETER_LABELS := {
 	"disc_length": "가오리 몸 길이",
 	"disc_thickness": "가오리 몸 두께",
 	"wing_width": "날개 폭",
+	"wing_length": "날개 길이",
+	"wing_curve": "날개 곡률",
 	"orthographic_size": "카메라 줌",
 	"camera_yaw": "카메라 좌우 회전",
 	"camera_pitch": "카메라 상하 회전",
 	"camera_roll": "카메라 기울기",
 	"frame_count": "프레임 수",
+	"frame_rate": "프레임 속도",
 	"frame_ticks": "프레임 간격",
+	"render_resolution": "렌더 해상도",
+	"padding_px": "여백(px)",
+	"direction_count": "방향 수",
+	"turn_rate": "선회 속도",
+	"turn_radius": "선회 반경",
 	"output_resolution": "출력 해상도",
 	"target_display_w": "표시 폭",
 	"target_display_h": "표시 높이"
@@ -434,6 +519,61 @@ const RING_PARAMETER_LABELS := {
 	"sway_weight": "흔들림 반응"
 }
 
+const MARKING_LAYER_TYPE_LABELS := {
+	"lateral_line": "측선",
+	"horizontal_band": "가로 띠",
+	"vertical_bar": "세로 줄무늬",
+	"caudal_spot": "꼬리점",
+	"head_mask": "머리 마스크",
+	"saddle": "안장무늬",
+	"ocellus": "눈알무늬",
+	"calico_patch": "칼리코 무늬",
+	"fin_edge": "지느러미 가장자리",
+	"fin_spots": "지느러미 점무늬",
+	"scale_grid": "비늘 격자",
+	"reticulated_zone": "망상 영역",
+	"region_color": "부위 색",
+	"scale_region": "비늘 영역",
+	"iridescence_region": "무지개빛 영역"
+}
+
+const MARKING_LAYER_REGION_LABELS := {
+	"body": "몸통",
+	"dorsal": "등쪽",
+	"flank": "옆면",
+	"ventral": "배쪽",
+	"dorsal_flank": "등쪽 옆면",
+	"ventral_flank": "배쪽 옆면",
+	"head": "머리",
+	"cheek": "볼",
+	"operculum": "아가미덮개",
+	"caudal_peduncle": "꼬리자루",
+	"median_fin": "정중선 지느러미",
+	"paired_fin": "쌍지느러미",
+	"caudal_fin": "꼬리지느러미",
+	"special_fin": "특수 지느러미",
+	"fin": "지느러미"
+}
+
+const MARKING_LAYER_BLEND_LABELS := {
+	"normal": "기본",
+	"multiply": "곱하기",
+	"screen": "스크린",
+	"add": "더하기"
+}
+
+const MARKING_LAYER_FIELD_LABELS := {
+	"type": "레이어 종류",
+	"region": "부위",
+	"blend_mode": "합성 방식",
+	"color": "색상",
+	"intensity": "강도",
+	"x_start": "시작 위치",
+	"x_end": "끝 위치",
+	"y": "세로 위치",
+	"thickness": "두께"
+}
+
 static func preset_name(value: String) -> String:
 	return String(PRESET_NAMES.get(value, _humanize(value)))
 
@@ -442,6 +582,15 @@ static func creature_type(value: String) -> String:
 
 static func camera_preset(value: String) -> String:
 	return String(CAMERA_PRESETS.get(value, _humanize(value)))
+
+static func species_archetype_label(archetype_id: String, fallback: String = "") -> String:
+	var normalized_id := archetype_id.strip_edges()
+	if SPECIES_ARCHETYPE_LABELS.has(normalized_id):
+		return String(SPECIES_ARCHETYPE_LABELS[normalized_id])
+	return fallback if fallback != "" else _humanize(normalized_id)
+
+static func readability_priority(value: String) -> String:
+	return String(READABILITY_PRIORITY_LABELS.get(value, _humanize(value)))
 
 static func body_ring(ring_id: String, fallback: String = "") -> String:
 	if BODY_RINGS.has(ring_id):
@@ -521,6 +670,25 @@ static func reference_label(key: String) -> String:
 
 static func ring_parameter(key: String) -> String:
 	return String(RING_PARAMETER_LABELS.get(key, parameter(key)))
+
+static func marking_layer_value(field: String, value: String) -> String:
+	match field:
+		"type":
+			return String(MARKING_LAYER_TYPE_LABELS.get(value, _humanize(value)))
+		"region":
+			return String(MARKING_LAYER_REGION_LABELS.get(value, _humanize(value)))
+		"blend_mode":
+			return String(MARKING_LAYER_BLEND_LABELS.get(value, _humanize(value)))
+	return String(MARKING_LAYER_FIELD_LABELS.get(value, _humanize(value)))
+
+static func marking_layer_field(field: String) -> String:
+	return String(MARKING_LAYER_FIELD_LABELS.get(field, _humanize(field)))
+
+static func add_marking_layer_tooltip() -> String:
+	return "부위별 레이어 추가"
+
+static func remove_marking_layer_tooltip() -> String:
+	return "레이어 제거"
 
 static func changed_only_filter() -> String:
 	return "변경된 항목만"

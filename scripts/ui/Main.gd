@@ -754,12 +754,13 @@ func _load_species_archetype_options() -> void:
 		return
 	species_archetypes = SpeciesArchetypeStoreScript.load_all()
 	archetype_option.clear()
-	archetype_option.add_item("Generic Fish")
+	archetype_option.add_item(UiText.species_archetype_label(""))
 	archetype_option.set_item_metadata(0, "")
 	for archetype in species_archetypes:
-		var label := String(archetype.get("label", archetype.get("id", "")))
+		var archetype_id := String(archetype.get("id", ""))
+		var label := UiText.species_archetype_label(archetype_id, String(archetype.get("label", archetype_id)))
 		archetype_option.add_item(label)
-		archetype_option.set_item_metadata(archetype_option.item_count - 1, String(archetype.get("id", "")))
+		archetype_option.set_item_metadata(archetype_option.item_count - 1, archetype_id)
 	_update_archetype_read_label()
 	_sync_archetype_mode_visibility()
 
@@ -774,7 +775,10 @@ func _update_archetype_read_label() -> void:
 		archetype_read_label.text = "수동 프리셋"
 		return
 	var priorities: Array = archetype.get("readability_priority", [])
-	archetype_read_label.text = ", ".join(priorities)
+	var localized_priorities: Array[String] = []
+	for priority in priorities:
+		localized_priorities.append(UiText.readability_priority(String(priority)))
+	archetype_read_label.text = ", ".join(localized_priorities)
 
 func _selected_archetype() -> Dictionary:
 	if archetype_option == null or archetype_option.selected < 0:

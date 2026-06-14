@@ -5,6 +5,7 @@ const PF := preload("res://scripts/creature/PrimitiveFactory.gd")
 const TMF := preload("res://scripts/materials/ToonMaterialFactory.gd")
 const BodyProfileScript := preload("res://scripts/creature/BodyProfile.gd")
 const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
+const UiText := preload("res://scripts/ui/UiText.gd")
 
 # How far median/pelvic fin bases sink into the body so they look rooted
 # instead of floating above the surface. Larger embeds the base deeper.
@@ -667,8 +668,8 @@ func _symmetric_width_scale(ring: Dictionary, base_width: float) -> float:
 func _ring_label_by_id(ring_id: String, fallback: String) -> String:
 	for ring in BodyProfileScript.ensure_body_profile(parameters).get("rings", []):
 		if String(ring.get("id", "")) == ring_id:
-			return String(ring.get("label", fallback))
-	return fallback
+			return UiText.body_ring(ring_id, String(ring.get("label", fallback)))
+	return UiText.body_ring(ring_id, fallback)
 
 func _ring_x_by_id(ring_id: String, fallback: float) -> float:
 	for i in shell_ring_ids.size():
