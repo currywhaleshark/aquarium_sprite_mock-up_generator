@@ -81,9 +81,11 @@ var reference_image_panel: VBoxContainer
 var exporter: Node
 var turn_left_button: Button
 var turn_right_button: Button
+var death_pose_toggle: CheckButton
 var preview_direction_index := 0
 var turn_preview_active := false
 var _is_exporting := false
+var _syncing_death_pose_toggle := false
 var turn_preview_elapsed := 0.0
 var turn_preview_from_index := 0
 var turn_preview_target_index := 0
@@ -221,6 +223,11 @@ func _build_ui() -> void:
 	turn_right_button.text = "↷ 우로 선회"
 	turn_right_button.pressed.connect(func() -> void: _start_preview_turn(-1))
 	lower_preview.add_child(turn_right_button)
+	death_pose_toggle = CheckButton.new()
+	death_pose_toggle.text = "폐사"
+	death_pose_toggle.tooltip_text = "배를 위로 한 폐사 미리보기 자세를 켜고 끕니다."
+	death_pose_toggle.toggled.connect(_set_death_pose_enabled)
+	lower_preview.add_child(death_pose_toggle)
 	display_label = Label.new()
 	display_label.text = "표시 미리보기"
 	lower_preview.add_child(display_label)
@@ -926,6 +933,7 @@ func _load_preset(index: int) -> void:
 		body_editor_panel.call("set_creature_type", creature_type)
 		body_editor_panel.call("set_parameters", current_preset.get("parameters", {}))
 	_sync_archetype_controls(current_preset.get("parameters", {}))
+	_sync_death_pose_toggle(current_preset.get("parameters", {}))
 	if preset_name_edit:
 		preset_name_edit.text = String(current_preset.get("name", "unnamed"))
 	if reference_image_panel:
@@ -1085,6 +1093,27 @@ func _sync_parameter_editors(parameters: Dictionary) -> void:
 	if body_editor_panel:
 		body_editor_panel.call("set_creature_type", mode)
 		body_editor_panel.call("set_parameters", parameters)
+	_sync_death_pose_toggle(parameters)
+
+func _set_death_pose_enabled(enabled: bool) -> void:
+	if _syncing_death_pose_toggle:
+		return
+	if current_preset.is_empty():
+		return
+	var parameters: Dictionary = current_preset.get("parameters", {}).duplicate(true)
+	parameters["death_pose_enabled"] = enabled
+	if enabled:
+		turn_preview_active = false
+		turn_preview_elapsed = 0.0
+	_apply_parameters_from_editor(parameters)
+	_flush_editor_parameter_apply()
+
+func _sync_death_pose_toggle(parameters: Dictionary) -> void:
+	if death_pose_toggle == null:
+		return
+	_syncing_death_pose_toggle = true
+	death_pose_toggle.button_pressed = bool(parameters.get("death_pose_enabled", false))
+	_syncing_death_pose_toggle = false
 
 func _bind_fin_editor_for_current_rig() -> void:
 	if fin_drag_controller == null:

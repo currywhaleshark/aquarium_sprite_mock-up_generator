@@ -23,11 +23,11 @@ static func direction_yaw_degrees(direction_index: int) -> float:
 static func export_yaw_degrees(direction_count: int, direction_index: int, original_yaw: float) -> float:
 	return ExportDirectionsScript.export_yaw_degrees(direction_count, direction_index, original_yaw)
 
-static func include_turn_clips_enabled(direction_count: int, export_settings: Dictionary) -> bool:
-	return ExportDirectionsScript.include_turn_clips_enabled(direction_count, export_settings)
+static func include_turn_clips_enabled(direction_count: int, export_settings: Dictionary, parameters: Dictionary = {}) -> bool:
+	return ExportDirectionsScript.include_turn_clips_enabled(direction_count, export_settings, parameters)
 
-static func animation_rows(direction_count: int, include_turn_clips: bool = false) -> Array:
-	return ExportDirectionsScript.animation_rows(direction_count, include_turn_clips)
+static func animation_rows(direction_count: int, include_turn_clips: bool = false, base_clip: String = "swim") -> Array:
+	return ExportDirectionsScript.animation_rows(direction_count, include_turn_clips, base_clip)
 
 static func turn_export_t(frame_index: int, frame_count: int) -> float:
 	if frame_count <= 1:
@@ -66,8 +66,10 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	var resolution := Vector2i(int(resolution_dict.get("w", 256)), int(resolution_dict.get("h", 256)))
 	var frame_count := int(export_settings.get("frame_count", RenderSettingsScript.DEFAULT_FRAME_COUNT))
 	var direction_count := normalized_direction_count(int(export_settings.get("direction_count", 1)))
-	var include_turn_clips := include_turn_clips_enabled(direction_count, export_settings)
-	var rows := animation_rows(direction_count, include_turn_clips)
+	var export_parameters: Dictionary = preset.get("parameters", rig.parameters)
+	var base_clip := ExportDirectionsScript.base_clip_name(export_parameters)
+	var include_turn_clips := include_turn_clips_enabled(direction_count, export_settings, export_parameters)
+	var rows := animation_rows(direction_count, include_turn_clips, base_clip)
 	var output_dir := "res://exports/%s" % preset_name
 	var frames_dir := "%s/frames" % output_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
@@ -190,7 +192,8 @@ func _flatten_gif_preview_images(gif_row_images: Array, rows: Array) -> Array:
 func _apply_export_row_pose(rig: CreatureRig, original_rotation: Vector3, original_parameters: Dictionary, row: Dictionary, frame_index: int, frame_count: int, direction_count: int) -> void:
 	var target_rotation := original_rotation
 	var clip_name := String(row.get("clip", "swim"))
-	if clip_name.begins_with("turn_"):
+	var death_pose_enabled := bool(original_parameters.get("death_pose_enabled", false))
+	if clip_name.begins_with("turn_") and not death_pose_enabled:
 		var turn_step := int(row.get("turn_step", 1))
 		var t := turn_export_t(frame_index, frame_count)
 		var direction_index := int(row.get("from_direction_index", row.get("direction_index", 0)))
@@ -198,7 +201,7 @@ func _apply_export_row_pose(rig: CreatureRig, original_rotation: Vector3, origin
 		rig.rotation_degrees = target_rotation
 		rig.set("parameters", _turn_export_parameters(original_parameters, sin(t * PI), turn_step, t))
 	else:
-		var direction_index := int(row.get("direction_index", 0))
+		var direction_index := int(row.get("direction_index", row.get("from_direction_index", 0)))
 		target_rotation.y = export_yaw_degrees(direction_count, direction_index, original_rotation.y)
 		rig.rotation_degrees = target_rotation
 		rig.set("parameters", original_parameters.duplicate(true))

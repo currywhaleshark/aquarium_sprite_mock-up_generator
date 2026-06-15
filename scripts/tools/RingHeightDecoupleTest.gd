@@ -16,12 +16,19 @@ const SEG := 28
 func _yspan(fish) -> Dictionary:
 	var shell := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
 	var verts: PackedVector3Array = shell.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var base := RING * (SEG + 1)
+	var base := _mesh_ring_index(fish) * (SEG + 1)
 	return {
 		"top": verts[base + int(SEG / 4)].y,       # angle 90
 		"side": verts[base].y,                       # angle 0
 		"bottom": verts[base + int(3 * SEG / 4)].y,  # angle 270
 	}
+
+func _mesh_ring_index(fish) -> int:
+	var rings: Array = fish.parameters["body_profile"]["rings"]
+	var ring_id := String((rings[RING] as Dictionary).get("id", ""))
+	var index := (fish.shell_ring_ids as Array).find(ring_id)
+	assert(index >= 0)
+	return index
 
 func _nudge_all_rings(fish, key: String, delta: float) -> void:
 	var rings: Array = fish.parameters["body_profile"]["rings"]

@@ -64,6 +64,7 @@ func _ready() -> void:
 	assert(_has_numeric_slider(panel, "head_bottom_flatness"))
 	assert(_has_numeric_slider(panel, "head_left_flatness"))
 	assert(_has_numeric_slider(panel, "head_right_flatness"))
+	assert(_has_numeric_slider(panel, "head_length"))
 	assert(_has_numeric_slider(panel, "lower_jaw_length"))
 	assert(_has_numeric_slider(panel, "lower_jaw_angle"))
 	assert(_has_numeric_slider(panel, "lower_jaw_thickness"))
@@ -73,6 +74,30 @@ func _ready() -> void:
 	assert(panel.is_row_changed("head_size"))
 	panel.set_numeric_parameter("head_size", panel._default_numeric("head_size"))
 	assert(not panel.is_row_changed("head_size"))
+	assert(not panel.is_row_changed("head_length"))
+	panel.set_numeric_parameter("head_length", 0.66)
+	assert(panel.is_row_changed("head_length"))
+	assert(abs(float(seen[0].get("head_length", 0.0)) - 0.66) < 0.001)
+	panel.set_numeric_parameter("head_length", panel._default_numeric("head_length"))
+	assert(not panel.is_row_changed("head_length"))
+
+	var legacy_panel := HeadEditorPanelScript.new()
+	add_child(legacy_panel)
+	var legacy_seen := [{}]
+	legacy_panel.parameters_changed.connect(func(parameters: Dictionary) -> void:
+		legacy_seen[0] = parameters
+	)
+	legacy_panel.set_parameters({
+		"head_shape": "rounded",
+		"mouth_type": "terminal",
+		"snout_appendage": "none",
+		"gill_mark": "none",
+		"eye_style": "bead",
+		"head_size": 0.58,
+		"head_offset": -0.58
+	})
+	legacy_panel.set_numeric_parameter("head_size", 0.66)
+	assert(abs(float(legacy_seen[0].get("head_length", 0.0)) - 0.58) < 0.001)
 	var hinge_x_slider := _slider_for_key(panel, "jaw_hinge_x")
 	var hinge_y_slider := _slider_for_key(panel, "jaw_hinge_y")
 	assert(hinge_x_slider != null)
@@ -209,6 +234,7 @@ func _ready() -> void:
 	for hidden_key in ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round", "head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness", "snout_base", "snout_thickness", "snout_taper", "snout_curve"]:
 		assert(not _has_numeric_slider(shark_panel, hidden_key))
 	assert(_has_numeric_slider(shark_panel, "head_size"))
+	assert(_has_numeric_slider(shark_panel, "head_length"))
 	assert(_has_numeric_slider(shark_panel, "head_offset"))
 	assert(_has_numeric_slider(shark_panel, "snout_length"))
 	assert(_has_numeric_slider(shark_panel, "forehead_slope"))

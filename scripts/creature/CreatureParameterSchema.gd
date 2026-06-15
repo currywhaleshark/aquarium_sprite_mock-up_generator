@@ -70,6 +70,7 @@ const FISH_MOUTH_KEYS := {
 	"lower_jaw_angle": true,
 	"lower_jaw_thickness": true,
 	"lower_jaw_tip": true,
+	"lower_jaw_color": true,
 	"lower_upper_ratio": true,
 	"lip_darken": true
 }
@@ -113,6 +114,7 @@ const COMMON_KEYS := {
 	"shell_roundness": true,
 	"head_shape": true,
 	"head_size": true,
+	"head_length": true,
 	"head_offset": true,
 	"snout_length": true,
 	"forehead_slope": true,
@@ -143,6 +145,7 @@ const COMMON_KEYS := {
 	"tail_sway_multiplier": true,
 	"fin_flap_amount": true,
 	"fin_yaw_follow_strength": true,
+	"death_pose_enabled": true,
 	"pectoral_flap_sync": true,
 	"turn_rate": true,
 	"turn_radius": true,

@@ -8,11 +8,13 @@ const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
 static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 	var export_settings: Dictionary = preset.get("export_settings", {})
 	var display_size: Dictionary = preset.get("display_target_size", {"w": 18, "h": 10})
+	var parameters: Dictionary = preset.get("parameters", {})
 	var frame_count := int(export_settings.get("frame_count", RenderSettingsScript.DEFAULT_FRAME_COUNT))
 	var direction_count := ExportDirectionsScript.normalized_direction_count(int(export_settings.get("direction_count", 1)))
 	var directions := ExportDirectionsScript.direction_names(direction_count)
-	var include_turn_clips := ExportDirectionsScript.include_turn_clips_enabled(direction_count, export_settings)
-	var animation_rows := ExportDirectionsScript.animation_rows(direction_count, include_turn_clips)
+	var base_clip := ExportDirectionsScript.base_clip_name(parameters)
+	var include_turn_clips := ExportDirectionsScript.include_turn_clips_enabled(direction_count, export_settings, parameters)
+	var animation_rows := ExportDirectionsScript.animation_rows(direction_count, include_turn_clips, base_clip)
 	var uses_fixed_quarter_camera := direction_count == 8
 	var camera_preset_name := CameraPresetScript.SPRITE_QUARTER_2TO1 if uses_fixed_quarter_camera else String(preset.get("camera_preset", "aquarium_side_quarter"))
 	var camera_defaults := CameraPresetScript.get_preset(camera_preset_name)
@@ -31,6 +33,8 @@ static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 		"source_frame_size": {"w": frame_size.x, "h": frame_size.y},
 		"recommended_display_size": {"w": int(display_size.get("w", 18)), "h": int(display_size.get("h", 10))},
 		"sprite_facing_left": bool(export_settings.get("sprite_facing_left", true)),
+		"death_pose_enabled": bool(parameters.get("death_pose_enabled", false)),
+		"pose_clip": base_clip,
 		"direction_count": direction_count,
 		"directions": directions,
 		"sheet_columns": frame_count,

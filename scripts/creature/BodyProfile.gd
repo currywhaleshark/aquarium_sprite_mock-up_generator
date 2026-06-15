@@ -307,8 +307,15 @@ static func ensure_visual_parameters(parameters: Dictionary) -> void:
 		parameters["secondary_color"] = "#d8fbff"
 	if not parameters.has("fin_color"):
 		parameters["fin_color"] = "#7ee1e8"
+	if not parameters.has("lower_jaw_color"):
+		parameters["lower_jaw_color"] = lower_jaw_color_fallback(parameters)
 	if not parameters.has("marking_layers"):
 		parameters["marking_layers"] = []
+
+static func lower_jaw_color_fallback(parameters: Dictionary) -> String:
+	var color := _as_color(parameters.get("base_color", "#46c6cf"))
+	color = color.darkened(clampf(float(parameters.get("lip_darken", 0.34)), 0.0, 1.0))
+	return _color_to_html(color)
 
 static func suggest_pattern(body_length: float, body_height: float) -> String:
 	var ratio := body_length / maxf(body_height, 0.001)
@@ -538,6 +545,7 @@ static func sanitize_parameters_for_mode(parameters: Dictionary, mode: String) -
 	var normalized_mode := CreatureModeScript.normalize(mode)
 	var sanitized := parameters.duplicate(true)
 	sanitized["creature_type"] = normalized_mode
+	normalize_head_parameters(sanitized, normalized_mode)
 	for key in sanitized.keys():
 		var text_key := String(key)
 		if PRESERVED_PARAMETER_KEYS.has(text_key):
@@ -545,6 +553,12 @@ static func sanitize_parameters_for_mode(parameters: Dictionary, mode: String) -
 		if not CreatureParameterSchemaScript.is_parameter_visible(normalized_mode, text_key):
 			sanitized.erase(key)
 	return sanitized
+
+static func normalize_head_parameters(parameters: Dictionary, mode: String = CreatureModeScript.FISH) -> void:
+	if CreatureModeScript.normalize(mode) == CreatureModeScript.RAY:
+		return
+	if not parameters.has("head_length"):
+		parameters["head_length"] = float(parameters.get("head_size", 0.44))
 
 static func make_parameters_from_structured_preset(preset: Dictionary) -> Dictionary:
 	var parameters: Dictionary = {}
@@ -574,7 +588,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 	updated["global"] = _pick(normalized_parameters, [
 		"body_length", "body_height", "body_width", "projection_hint",
 		"show_ring_guides", "shell_enabled", "shell_expand",
-		"shell_color_mix", "shell_opacity", "shell_roundness", "head_size", "head_offset",
+		"shell_color_mix", "shell_opacity", "shell_roundness", "head_size", "head_length", "head_offset",
 		"eye_size", "eye_position_x", "eye_position_y", "eye_spacing"
 	])
 	updated["body_profile"] = normalized_parameters.get("body_profile", {})
@@ -632,12 +646,13 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"body_wave_amount", "body_wave_start", "body_wave_falloff",
 		"tail_fin_extra_swing", "fin_flap_amount",
 		"fin_yaw_follow_strength", "median_fin_flap_amount", "median_fin_flap_phase",
-		"idle_bob_amount", "turn_tail_lag", "inside_pectoral_fold",
+		"death_pose_enabled", "idle_bob_amount", "turn_tail_lag", "inside_pectoral_fold",
 		"outside_pectoral_brace", "turn_curve_bias", "turn_median_fin_bias", "turn_bank_roll",
 		"pectoral_flap_sync", "wave_ripples", "ray_locomotion_mode"
 	])
 	updated["visual_profile"] = _pick(normalized_parameters, [
 		"base_color", "belly_color", "secondary_color", "fin_color", "outline_color",
+		"lower_jaw_color",
 		"highlight_strength", "shadow_strength",
 		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
 		"pattern_intensity", "pattern_invert", "pattern_seed", "pattern_size_lock",
@@ -672,6 +687,8 @@ static func normalize_motion_parameters(parameters: Dictionary) -> void:
 		parameters["tail_sway_multiplier"] = 1.0
 	if not parameters.has("pectoral_flap_sync"):
 		parameters["pectoral_flap_sync"] = "alternating"
+	if not parameters.has("death_pose_enabled"):
+		parameters["death_pose_enabled"] = false
 	if not parameters.has("wave_ripples"):
 		parameters["wave_ripples"] = 1.2
 	if not parameters.has("ray_locomotion_mode"):

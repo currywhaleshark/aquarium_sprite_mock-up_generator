@@ -10,8 +10,15 @@ func _ring_sample(fish: Node, segment_index: int) -> Vector3:
 	var shell := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
 	assert(shell != null)
 	var verts: PackedVector3Array = shell.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var base := RING * (SEG + 1)
+	var base := _mesh_ring_index(fish) * (SEG + 1)
 	return verts[base + segment_index]
+
+func _mesh_ring_index(fish: Node) -> int:
+	var rings: Array = fish.parameters["body_profile"]["rings"]
+	var ring_id := String((rings[RING] as Dictionary).get("id", ""))
+	var index := (fish.shell_ring_ids as Array).find(ring_id)
+	assert(index >= 0)
+	return index
 
 func _shape_span(fish: Node) -> Dictionary:
 	return {

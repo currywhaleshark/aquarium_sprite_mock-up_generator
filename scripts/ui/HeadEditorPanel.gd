@@ -25,6 +25,7 @@ const EYE_STYLES := ["bead", "large", "telescope", "celestial", "tiny_puffer"]
 const MOUTH_DETAILS := ["dot", "lip", "beak", "sucker", "downturned"]
 const NUMERIC_KEYS := {
 	"head_size": {"min": 0.12, "max": 1.2, "step": 0.005},
+	"head_length": {"min": 0.12, "max": 1.2, "step": 0.005},
 	"head_offset": {"min": -1.5, "max": 0.4, "step": 0.005},
 	"snout_length": {"min": 0.0, "max": 0.6, "step": 0.005},
 	"snout_base": {"min": 0.12, "max": 0.5, "step": 0.005},
@@ -131,7 +132,7 @@ var _updating := false
 # Collapsible groupings for the (many) fish head sliders. Keys not listed in any
 # section fall through to a trailing "기타" group so nothing is ever dropped.
 const FISH_SECTIONS := [
-	{"title": "머리 본체", "keys": ["head_size", "head_offset", "head_flattening"]},
+	{"title": "머리 본체", "keys": ["head_size", "head_length", "head_offset", "head_flattening"]},
 	{"title": "평면화", "keys": ["head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness"]},
 	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length"]},
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
@@ -193,6 +194,7 @@ func _ready() -> void:
 func set_parameters(new_parameters: Dictionary) -> void:
 	parameters = new_parameters.duplicate(true)
 	creature_type = CreatureModeScript.normalize(String(parameters.get("creature_type", creature_type)))
+	BodyProfileScript.normalize_head_parameters(parameters, creature_type)
 	_refresh_controls()
 
 func set_creature_type(mode: String) -> void:
@@ -201,6 +203,7 @@ func set_creature_type(mode: String) -> void:
 		return
 	creature_type = normalized_mode
 	parameters["creature_type"] = creature_type
+	BodyProfileScript.normalize_head_parameters(parameters, creature_type)
 	_refresh_controls()
 
 func focus_key(key: String) -> Control:
@@ -250,6 +253,8 @@ func set_numeric_parameter(key: String, value: float) -> void:
 	var keys := _numeric_source_for_mode()
 	if not keys.has(key):
 		return
+	if key == "head_size":
+		BodyProfileScript.normalize_head_parameters(parameters, creature_type)
 	var config: Dictionary = keys[key]
 	var step := float(config.get("step", 0.005))
 	var clamped := clampf(value, float(config.get("min", 0.0)), float(config.get("max", 1.0)))
@@ -703,7 +708,7 @@ func _is_boolean_key_visible(key: String) -> bool:
 
 func _should_show_fish_numeric_key(key: String) -> bool:
 	if creature_type == CreatureModeScript.SHARK:
-		if key in ["head_size", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
+		if key in ["head_size", "head_length", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
 			return true
 		if key.begins_with("shark_gill_"):
 			return true
@@ -762,6 +767,8 @@ func _select_option(option: OptionButton, value: String) -> void:
 func _default_numeric(key: String) -> float:
 	match key:
 		"head_size":
+			return 0.44
+		"head_length":
 			return 0.44
 		"head_offset":
 			return -0.58

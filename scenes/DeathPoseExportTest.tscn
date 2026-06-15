@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/DeathPoseExportTest.gd" id="1_death_pose_export"]
+
+[node name="DeathPoseExportTest" type="Node"]
+script = ExtResource("1_death_pose_export")

@@ -34,10 +34,15 @@ static func export_yaw_degrees(direction_count: int, direction_index: int, origi
 		return direction_yaw_degrees(direction_index)
 	return original_yaw
 
-static func include_turn_clips_enabled(direction_count: int, export_settings: Dictionary) -> bool:
+static func include_turn_clips_enabled(direction_count: int, export_settings: Dictionary, parameters: Dictionary = {}) -> bool:
+	if bool(parameters.get("death_pose_enabled", false)):
+		return false
 	return normalized_direction_count(direction_count) == 8 and bool(export_settings.get("include_turn_clips", false))
 
-static func animation_rows(direction_count: int, include_turn_clips: bool = false) -> Array:
+static func base_clip_name(parameters: Dictionary) -> String:
+	return "death" if bool(parameters.get("death_pose_enabled", false)) else "swim"
+
+static func animation_rows(direction_count: int, include_turn_clips: bool = false, base_clip: String = "swim") -> Array:
 	var normalized_count := normalized_direction_count(direction_count)
 	var directions := direction_names(normalized_count)
 	var rows := []
@@ -45,12 +50,12 @@ static func animation_rows(direction_count: int, include_turn_clips: bool = fals
 		var direction_name := String(directions[direction_index])
 		rows.append({
 			"row": rows.size(),
-			"clip": "swim",
+			"clip": base_clip,
 			"direction": direction_name,
 			"direction_index": direction_index,
 			"frame_dir": direction_name if normalized_count == 8 else ""
 		})
-	if normalized_count != 8 or not include_turn_clips:
+	if normalized_count != 8 or not include_turn_clips or base_clip != "swim":
 		return rows
 	_append_turn_rows(rows, directions, "turn_left", "left", 1)
 	_append_turn_rows(rows, directions, "turn_right", "right", -1)

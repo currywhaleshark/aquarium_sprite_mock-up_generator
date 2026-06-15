@@ -38,6 +38,7 @@ const HIDDEN_BODY_PROFILE_KEYS := {
 	"facing_direction": true,
 	"render_angle": true,
 	"show_pivot_guides": true,
+	"death_pose_enabled": true,
 	"visual_thickness": true,
 	"head_depth_scale": true,
 	"shoulder_depth_scale": true,
@@ -56,6 +57,7 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"head_shape": true,
 	"mouth_type": true,
 	"head_size": true,
+	"head_length": true,
 	"head_offset": true,
 	"snout_length": true,
 	"forehead_slope": true,
@@ -136,20 +138,22 @@ func set_creature_type(mode: String) -> void:
 		_build_controls()
 
 func set_parameters(new_parameters: Dictionary) -> void:
+	var incoming_mode := CreatureModeScript.normalize(String(new_parameters.get("creature_type", creature_type)))
+	var normalized_parameters := new_parameters.duplicate(true)
+	BodyProfileScript.normalize_head_parameters(normalized_parameters, incoming_mode)
 	var keys_changed := false
-	if new_parameters.size() != parameters.size():
+	if normalized_parameters.size() != parameters.size():
 		keys_changed = true
 	else:
-		for k in new_parameters.keys():
+		for k in normalized_parameters.keys():
 			if not parameters.has(k):
 				keys_changed = true
 				break
-	var incoming_mode := CreatureModeScript.normalize(String(new_parameters.get("creature_type", creature_type)))
 	if incoming_mode != creature_type:
 		creature_type = incoming_mode
 		keys_changed = true
 
-	parameters = new_parameters.duplicate(true)
+	parameters = normalized_parameters
 	if container == null:
 		return
 		
@@ -384,6 +388,8 @@ func _add_number_row(parent: VBoxContainer, key: String, value: float) -> void:
 	)
 
 func _apply_number_value(key: String, new_value: float, value_label: Label) -> void:
+	if key == "head_size":
+		BodyProfileScript.normalize_head_parameters(parameters, creature_type)
 	parameters[key] = new_value
 	value_label.text = "%.2f" % new_value
 	parameters_changed.emit(parameters.duplicate(true))
@@ -662,7 +668,7 @@ func _should_show_specialized_key(key: String) -> bool:
 		return true
 	if creature_type == CreatureModeScript.RAY and key == "ray_disc_shape":
 		return true
-	if creature_type == CreatureModeScript.SHARK and key in ["head_size", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
+	if creature_type == CreatureModeScript.SHARK and key in ["head_size", "head_length", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
 		return true
 	if creature_type == CreatureModeScript.SHARK and key == "caudal_shape":
 		return true
