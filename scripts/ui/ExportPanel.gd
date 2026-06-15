@@ -5,6 +5,7 @@ signal export_requested
 
 var direction_toggle: CheckButton
 var turn_clips_toggle: CheckButton
+var stylize_toggle: CheckButton
 var status_label: Label
 var progress_bar: ProgressBar
 
@@ -20,6 +21,12 @@ func _ready() -> void:
 	turn_clips_toggle.text = "선회 클립 포함"
 	turn_clips_toggle.tooltip_text = "8방향 출력에서 좌/우 45도 선회 클립을 추가합니다."
 	add_child(turn_clips_toggle)
+
+	stylize_toggle = CheckButton.new()
+	stylize_toggle.text = "2D 스타일(외곽선·셀)"
+	stylize_toggle.tooltip_text = "추출 시 외곽선과 셀 음영(색 단계화)을 적용해 평면 2D 스프라이트 느낌을 냅니다."
+	stylize_toggle.button_pressed = true
+	add_child(stylize_toggle)
 
 	var button := Button.new()
 	button.text = "PNG + 스프라이트시트 출력"
@@ -63,6 +70,13 @@ func set_direction_count(direction_count: int) -> void:
 	if direction_toggle:
 		direction_toggle.button_pressed = direction_count == 8
 	_sync_turn_clips_toggle()
+
+func get_stylize_enabled() -> bool:
+	return stylize_toggle != null and stylize_toggle.button_pressed
+
+func set_stylize_enabled(enabled: bool) -> void:
+	if stylize_toggle:
+		stylize_toggle.button_pressed = enabled
 
 func get_include_turn_clips() -> bool:
 	if turn_clips_toggle == null:

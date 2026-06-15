@@ -4,6 +4,7 @@ extends RefCounted
 const RenderSettingsScript := preload("res://scripts/render/RenderSettings.gd")
 const ExportDirectionsScript := preload("res://scripts/export/ExportDirections.gd")
 const CameraPresetScript := preload("res://scripts/render/CameraPreset.gd")
+const SpriteStylizerScript := preload("res://scripts/export/SpriteStylizer.gd")
 
 static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 	var export_settings: Dictionary = preset.get("export_settings", {})
@@ -50,7 +51,8 @@ static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 		"camera_preset": camera_preset_name,
 		"camera_yaw": camera_yaw,
 		"camera_pitch": camera_pitch,
-		"camera_roll": camera_roll
+		"camera_roll": camera_roll,
+		"stylize": SpriteStylizerScript.resolve_options(export_settings)
 	}
 	if uses_fixed_quarter_camera:
 		metadata["world_projection"] = CameraPresetScript.sprite_quarter_projection()

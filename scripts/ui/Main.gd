@@ -945,6 +945,9 @@ func _load_preset(index: int) -> void:
 		export_panel.call("set_direction_count", int(export_settings.get("direction_count", 1)))
 		if export_panel.has_method("set_include_turn_clips"):
 			export_panel.call("set_include_turn_clips", bool(export_settings.get("include_turn_clips", false)))
+		if export_panel.has_method("set_stylize_enabled"):
+			var stylize_settings: Dictionary = export_settings.get("stylize", {}) if export_settings.get("stylize") is Dictionary else {}
+			export_panel.call("set_stylize_enabled", bool(stylize_settings.get("enabled", true)))
 	_apply_camera()
 	_update_display_preview_label()
 	_update_creature_type_label()
@@ -1391,6 +1394,10 @@ func _export_current() -> void:
 		export_settings["direction_count"] = int(export_panel.call("get_direction_count"))
 	if export_panel and export_panel.has_method("get_include_turn_clips"):
 		export_settings["include_turn_clips"] = bool(export_panel.call("get_include_turn_clips"))
+	if export_panel and export_panel.has_method("get_stylize_enabled"):
+		var stylize_settings: Dictionary = (export_settings.get("stylize", {}) as Dictionary).duplicate(true) if export_settings.get("stylize") is Dictionary else {}
+		stylize_settings["enabled"] = bool(export_panel.call("get_stylize_enabled"))
+		export_settings["stylize"] = stylize_settings
 	current_preset["export_settings"] = export_settings
 	export_panel.set_status("출력 중...")
 	_is_exporting = true

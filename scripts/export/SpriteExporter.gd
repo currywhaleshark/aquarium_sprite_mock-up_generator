@@ -6,6 +6,7 @@ signal export_progress(value: float, message: String)
 
 const RenderSettingsScript := preload("res://scripts/render/RenderSettings.gd")
 const SpriteSheetBuilderScript := preload("res://scripts/export/SpriteSheetBuilder.gd")
+const SpriteStylizerScript := preload("res://scripts/export/SpriteStylizer.gd")
 const ExportMetadataScript := preload("res://scripts/export/ExportMetadata.gd")
 const ExportDirectionsScript := preload("res://scripts/export/ExportDirections.gd")
 const GifEncoderScript := preload("res://scripts/export/GifEncoder.gd")
@@ -76,6 +77,10 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	var include_turn_clips := include_turn_clips_enabled(direction_count, export_settings, export_parameters)
 	var include_death_clip := ExportDirectionsScript.include_death_clips_enabled(export_parameters)
 	var rows := animation_rows(direction_count, include_turn_clips, base_clip, include_death_clip)
+	# Optional 2D stylise pass (outline + cel banding) applied per frame before save.
+	# Resolved once; disabled unless the preset/export panel opts in.
+	var stylize_options := SpriteStylizerScript.resolve_options(export_settings)
+	var stylize_enabled := bool(stylize_options.get("enabled", false))
 	var output_dir := "res://exports/%s" % preset_name
 	var frames_dir := "%s/frames" % output_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
@@ -132,6 +137,8 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 			await RenderingServer.frame_post_draw
 			var image := viewport.get_texture().get_image()
 			image.convert(Image.FORMAT_RGBA8)
+			if stylize_enabled:
+				SpriteStylizerScript.stylize(image, stylize_options)
 			var frame_path := "%s/frame_%03d.png" % [row_dir, i]
 			var err := image.save_png(frame_path)
 			if err != OK:

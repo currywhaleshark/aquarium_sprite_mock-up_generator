@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cq1gke2aq8lv"]
+
+[ext_resource type="Script" path="res://scripts/tools/SpriteStylizerTest.gd" id="1_stylize"]
+
+[node name="SpriteStylizerTest" type="Node"]
+script = ExtResource("1_stylize")
