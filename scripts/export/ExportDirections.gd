@@ -34,32 +34,40 @@ static func export_yaw_degrees(direction_count: int, direction_index: int, origi
 		return direction_yaw_degrees(direction_index)
 	return original_yaw
 
-static func include_turn_clips_enabled(direction_count: int, export_settings: Dictionary, parameters: Dictionary = {}) -> bool:
-	if bool(parameters.get("death_pose_enabled", false)):
-		return false
+static func include_turn_clips_enabled(direction_count: int, export_settings: Dictionary, _parameters: Dictionary = {}) -> bool:
 	return normalized_direction_count(direction_count) == 8 and bool(export_settings.get("include_turn_clips", false))
+
+static func include_death_clips_enabled(parameters: Dictionary) -> bool:
+	return bool(parameters.get("death_pose_enabled", false))
 
 static func base_clip_name(parameters: Dictionary) -> String:
 	return "death" if bool(parameters.get("death_pose_enabled", false)) else "swim"
 
-static func animation_rows(direction_count: int, include_turn_clips: bool = false, base_clip: String = "swim") -> Array:
+static func animation_rows(direction_count: int, include_turn_clips: bool = false, base_clip: String = "swim", include_death_clip: bool = false) -> Array:
 	var normalized_count := normalized_direction_count(direction_count)
 	var directions := direction_names(normalized_count)
 	var rows := []
+	_append_direction_rows(rows, directions, normalized_count, base_clip, "")
+	if normalized_count == 8 and include_turn_clips and base_clip == "swim":
+		_append_turn_rows(rows, directions, "turn_left", "left", 1)
+		_append_turn_rows(rows, directions, "turn_right", "right", -1)
+	if include_death_clip and base_clip != "death":
+		_append_direction_rows(rows, directions, normalized_count, "death", "death")
+	return rows
+
+static func _append_direction_rows(rows: Array, directions: Array[String], normalized_count: int, clip_name: String, frame_prefix: String) -> void:
 	for direction_index in directions.size():
 		var direction_name := String(directions[direction_index])
+		var frame_dir := direction_name if normalized_count == 8 else ""
+		if frame_prefix != "":
+			frame_dir = "%s/%s" % [frame_prefix, direction_name] if normalized_count == 8 else frame_prefix
 		rows.append({
 			"row": rows.size(),
-			"clip": base_clip,
+			"clip": clip_name,
 			"direction": direction_name,
 			"direction_index": direction_index,
-			"frame_dir": direction_name if normalized_count == 8 else ""
+			"frame_dir": frame_dir
 		})
-	if normalized_count != 8 or not include_turn_clips or base_clip != "swim":
-		return rows
-	_append_turn_rows(rows, directions, "turn_left", "left", 1)
-	_append_turn_rows(rows, directions, "turn_right", "right", -1)
-	return rows
 
 static func _append_turn_rows(rows: Array, directions: Array[String], clip_name: String, turn_direction: String, turn_step: int) -> void:
 	for direction_index in _turn_row_direction_indices(directions.size(), turn_step):

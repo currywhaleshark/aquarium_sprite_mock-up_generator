@@ -26,8 +26,13 @@ static func export_yaw_degrees(direction_count: int, direction_index: int, origi
 static func include_turn_clips_enabled(direction_count: int, export_settings: Dictionary, parameters: Dictionary = {}) -> bool:
 	return ExportDirectionsScript.include_turn_clips_enabled(direction_count, export_settings, parameters)
 
-static func animation_rows(direction_count: int, include_turn_clips: bool = false, base_clip: String = "swim") -> Array:
-	return ExportDirectionsScript.animation_rows(direction_count, include_turn_clips, base_clip)
+static func animation_rows(direction_count: int, include_turn_clips: bool = false, base_clip: String = "swim", include_death_clip: bool = false) -> Array:
+	return ExportDirectionsScript.animation_rows(direction_count, include_turn_clips, base_clip, include_death_clip)
+
+static func row_pose_parameters(base_parameters: Dictionary, row: Dictionary) -> Dictionary:
+	var parameters := base_parameters.duplicate(true)
+	parameters["death_pose_enabled"] = String(row.get("clip", "swim")) == "death"
+	return parameters
 
 static func turn_export_t(frame_index: int, frame_count: int) -> float:
 	if frame_count <= 1:
@@ -66,10 +71,11 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	var resolution := Vector2i(int(resolution_dict.get("w", 256)), int(resolution_dict.get("h", 256)))
 	var frame_count := int(export_settings.get("frame_count", RenderSettingsScript.DEFAULT_FRAME_COUNT))
 	var direction_count := normalized_direction_count(int(export_settings.get("direction_count", 1)))
-	var export_parameters: Dictionary = preset.get("parameters", rig.parameters)
-	var base_clip := ExportDirectionsScript.base_clip_name(export_parameters)
+	var export_parameters: Dictionary = (preset.get("parameters", rig.parameters) as Dictionary).duplicate(true)
+	var base_clip := "swim"
 	var include_turn_clips := include_turn_clips_enabled(direction_count, export_settings, export_parameters)
-	var rows := animation_rows(direction_count, include_turn_clips, base_clip)
+	var include_death_clip := ExportDirectionsScript.include_death_clips_enabled(export_parameters)
+	var rows := animation_rows(direction_count, include_turn_clips, base_clip, include_death_clip)
 	var output_dir := "res://exports/%s" % preset_name
 	var frames_dir := "%s/frames" % output_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
@@ -84,7 +90,7 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	viewport.size = resolution
 	var original_auto_animate := rig.auto_animate
 	var original_rotation := rig.rotation_degrees
-	var original_parameters := rig.parameters.duplicate(true)
+	var restore_parameters := rig.parameters.duplicate(true)
 	rig.auto_animate = false
 
 	# Fit the camera so the whole creature stays in frame for every direction and
@@ -103,7 +109,7 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 		# Roll-free cameras get the tighter pitch-aware fit; anything rolled falls
 		# back to the angle-independent sphere.
 		var pitch_for_fit := camera.rotation_degrees.x if absf(camera.rotation_degrees.z) < 0.01 else NAN
-		var framing := compute_fit_framing(rig, resolution, pitch_for_fit)
+		var framing := _compute_rows_fit_framing(rig, rows, export_parameters, resolution, pitch_for_fit)
 		if float(framing.radius) > 0.0001:
 			camera.size = float(framing.ortho_size)
 			camera.global_position += Vector3(0.0, float(framing.center_y), 0.0)
@@ -115,19 +121,21 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	var frames_done := 0
 	for row_value in rows:
 		var row: Dictionary = row_value
+		var row_parameters := row_pose_parameters(export_parameters, row)
+		rig.set_parameters(row_parameters)
 		var row_dir := _frame_row_directory(frames_dir, row)
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(row_dir))
 		var frame_paths := PackedStringArray()
 		var row_gif_images := []
 		for i in frame_count:
-			_apply_export_row_pose(rig, original_rotation, original_parameters, row, i, frame_count, direction_count)
+			_apply_export_row_pose(rig, original_rotation, row_parameters, row, i, frame_count, direction_count)
 			await RenderingServer.frame_post_draw
 			var image := viewport.get_texture().get_image()
 			image.convert(Image.FORMAT_RGBA8)
 			var frame_path := "%s/frame_%03d.png" % [row_dir, i]
 			var err := image.save_png(frame_path)
 			if err != OK:
-				_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, original_parameters, true)
+				_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, restore_parameters, true)
 				export_failed.emit("Failed to save %s: %s" % [frame_path, error_string(err)])
 				return
 			frame_paths.append(frame_path)
@@ -140,14 +148,14 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 	var sheet_path := "%s/%s_sheet.png" % [output_dir, preset_name]
 	var sheet_err := SpriteSheetBuilderScript.build_sheet_grid(frame_rows, sheet_path)
 	if sheet_err != OK:
-		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, original_parameters, true)
+		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, restore_parameters, true)
 		export_failed.emit("Failed to build sheet: %s" % error_string(sheet_err))
 		return
 
 	var metadata := ExportMetadataScript.build(preset, resolution)
 	var metadata_file := FileAccess.open("%s/%s_metadata.json" % [output_dir, preset_name], FileAccess.WRITE)
 	if metadata_file == null:
-		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, original_parameters, true)
+		_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, restore_parameters, true)
 		export_failed.emit("Failed to write metadata JSON.")
 		return
 	metadata_file.store_string(JSON.stringify(metadata, "\t"))
@@ -173,7 +181,7 @@ func export_preset(preset: Dictionary, rig: CreatureRig, viewport: SubViewport) 
 		push_warning("Sprite GIF export failed (%s): %s" % [gif_path, error_string(gif_err)])
 
 	export_progress.emit(1.0, "완료")
-	_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, original_parameters, true)
+	_restore_rig_state(rig, original_auto_animate, original_rotation, camera, original_cam_size, original_cam_transform, cam_adjusted, stretch_container if suspended_stretch else null, restore_parameters, true)
 	export_finished.emit(ProjectSettings.globalize_path(output_dir))
 
 func _frame_row_directory(frames_dir: String, row: Dictionary) -> String:
@@ -192,8 +200,7 @@ func _flatten_gif_preview_images(gif_row_images: Array, rows: Array) -> Array:
 func _apply_export_row_pose(rig: CreatureRig, original_rotation: Vector3, original_parameters: Dictionary, row: Dictionary, frame_index: int, frame_count: int, direction_count: int) -> void:
 	var target_rotation := original_rotation
 	var clip_name := String(row.get("clip", "swim"))
-	var death_pose_enabled := bool(original_parameters.get("death_pose_enabled", false))
-	if clip_name.begins_with("turn_") and not death_pose_enabled:
+	if clip_name.begins_with("turn_"):
 		var turn_step := int(row.get("turn_step", 1))
 		var t := turn_export_t(frame_index, frame_count)
 		var direction_index := int(row.get("from_direction_index", row.get("direction_index", 0)))
@@ -231,7 +238,7 @@ func _restore_rig_state(rig: CreatureRig, auto_animate: bool, rotation_degrees: 
 	rig.rotation_degrees = rotation_degrees
 	rig.auto_animate = auto_animate
 	if restore_parameters:
-		rig.set("parameters", parameters.duplicate(true))
+		rig.set_parameters(parameters)
 	if cam_adjusted and camera != null:
 		camera.size = cam_size
 		camera.transform = cam_transform
@@ -248,6 +255,34 @@ func _restore_rig_state(rig: CreatureRig, auto_animate: bool, rotation_degrees: 
 # keeps the angle-independent sphere fit (the editor preview orbits freely).
 static func compute_fit_framing(rig: CreatureRig, resolution: Vector2i, camera_pitch_degrees: float = NAN) -> Dictionary:
 	var metrics := _compute_fit_metrics(rig)
+	return _framing_from_fit_metrics(metrics, resolution, camera_pitch_degrees)
+
+static func _compute_rows_fit_framing(rig: CreatureRig, rows: Array, base_parameters: Dictionary, resolution: Vector2i, camera_pitch_degrees: float = NAN) -> Dictionary:
+	var merged_metrics := {"r_h": 0.0, "r_v": 0.0, "cy": 0.0}
+	var y_min := INF
+	var y_max := -INF
+	var found := false
+	var measured_clips: Array[String] = []
+	for row_value in rows:
+		var row: Dictionary = row_value
+		var clip_name := String(row.get("clip", "swim"))
+		if measured_clips.has(clip_name):
+			continue
+		measured_clips.append(clip_name)
+		rig.set_parameters(row_pose_parameters(base_parameters, row))
+		var metrics := _compute_fit_metrics(rig)
+		if float(metrics.r_h) <= 0.0 and float(metrics.r_v) <= 0.0:
+			continue
+		merged_metrics.r_h = maxf(float(merged_metrics.r_h), float(metrics.r_h))
+		y_min = minf(y_min, float(metrics.cy) - float(metrics.r_v))
+		y_max = maxf(y_max, float(metrics.cy) + float(metrics.r_v))
+		found = true
+	if found:
+		merged_metrics.r_v = (y_max - y_min) * 0.5
+		merged_metrics.cy = (y_min + y_max) * 0.5
+	return _framing_from_fit_metrics(merged_metrics, resolution, camera_pitch_degrees)
+
+static func _framing_from_fit_metrics(metrics: Dictionary, resolution: Vector2i, camera_pitch_degrees: float = NAN) -> Dictionary:
 	var radius: float = sqrt(metrics.r_h * metrics.r_h + metrics.r_v * metrics.r_v)
 	var aspect := float(resolution.x) / float(maxi(resolution.y, 1))
 	var half_w: float = metrics.r_h

@@ -12,9 +12,10 @@ static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 	var frame_count := int(export_settings.get("frame_count", RenderSettingsScript.DEFAULT_FRAME_COUNT))
 	var direction_count := ExportDirectionsScript.normalized_direction_count(int(export_settings.get("direction_count", 1)))
 	var directions := ExportDirectionsScript.direction_names(direction_count)
-	var base_clip := ExportDirectionsScript.base_clip_name(parameters)
+	var base_clip := "swim"
 	var include_turn_clips := ExportDirectionsScript.include_turn_clips_enabled(direction_count, export_settings, parameters)
-	var animation_rows := ExportDirectionsScript.animation_rows(direction_count, include_turn_clips, base_clip)
+	var include_death_clips := ExportDirectionsScript.include_death_clips_enabled(parameters)
+	var animation_rows := ExportDirectionsScript.animation_rows(direction_count, include_turn_clips, base_clip, include_death_clips)
 	var uses_fixed_quarter_camera := direction_count == 8
 	var camera_preset_name := CameraPresetScript.SPRITE_QUARTER_2TO1 if uses_fixed_quarter_camera else String(preset.get("camera_preset", "aquarium_side_quarter"))
 	var camera_defaults := CameraPresetScript.get_preset(camera_preset_name)
@@ -34,7 +35,9 @@ static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 		"recommended_display_size": {"w": int(display_size.get("w", 18)), "h": int(display_size.get("h", 10))},
 		"sprite_facing_left": bool(export_settings.get("sprite_facing_left", true)),
 		"death_pose_enabled": bool(parameters.get("death_pose_enabled", false)),
+		"death_clips_enabled": include_death_clips,
 		"pose_clip": base_clip,
+		"pose_clips": _pose_clips(animation_rows),
 		"direction_count": direction_count,
 		"directions": directions,
 		"sheet_columns": frame_count,
@@ -52,3 +55,12 @@ static func build(preset: Dictionary, frame_size: Vector2i) -> Dictionary:
 	if uses_fixed_quarter_camera:
 		metadata["world_projection"] = CameraPresetScript.sprite_quarter_projection()
 	return metadata
+
+static func _pose_clips(animation_rows: Array) -> Array[String]:
+	var clips: Array[String] = []
+	for row_value in animation_rows:
+		var row: Dictionary = row_value
+		var clip := String(row.get("clip", ""))
+		if clip != "" and not clips.has(clip):
+			clips.append(clip)
+	return clips
