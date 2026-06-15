@@ -474,24 +474,73 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 			float(ring.get("right_flatness", 0.0))
 		))
 		shell_ring_ids.append(String(ring.get("id", "ring_%d" % i)))
+	_smooth_neck_shell_profile()
 	shell_tail_pivot_1_x = _ring_x_by_id("rear_body", body_length * 0.48)
 	shell_tail_pivot_2_x = _ring_x_by_id("tail_stem", shell_tail_pivot_1_x + tail_length * 0.5)
 
+func _shell_index_by_id(id: String) -> int:
+	for i in shell_ring_ids.size():
+		if String(shell_ring_ids[i]) == id:
+			return i
+	return -1
+
+# Remove the vertical "collar / waist" step at the head/body junction. The
+# head-contour blend pulls the neck rings' vertical radius down toward the head's
+# back, which necks to zero, while the first un-blended trunk ring (front_body)
+# keeps its full radius - leaving a pinch-then-flare step at the neck. Floor the
+# vertical radius across the neck to a smooth monotone ramp between the snout ring
+# and the shoulder (front_body) ring, and ease the centreline the same way so the
+# top/bottom silhouette flows in one line. The radius change is a floor (max) so it
+# only ever raises a pinched ring: it never shrinks an intentional head bulge and
+# never lets the rigid head poke out of the shell.
+func _smooth_neck_shell_profile() -> void:
+	var snout_i := _shell_index_by_id("snout")
+	var shoulder_i := _shell_index_by_id("front_body")
+	if snout_i < 0 or shoulder_i <= snout_i + 1:
+		return
+	var x0 := shell_profile[snout_i].x
+	var x1 := shell_profile[shoulder_i].x
+	if x1 <= x0:
+		return
+	var ry0 := shell_profile[snout_i].y
+	var ry1 := shell_profile[shoulder_i].y
+	var cy0 := float(shell_center_y_offsets[snout_i])
+	var cy1 := float(shell_center_y_offsets[shoulder_i])
+	for i in range(snout_i + 1, shoulder_i):
+		var p: Vector3 = shell_profile[i]
+		var t := smoothstep(0.0, 1.0, (p.x - x0) / (x1 - x0))
+		var ramp_y := lerpf(ry0, ry1, t)
+		if ramp_y > p.y:
+			shell_profile[i] = Vector3(p.x, ramp_y, p.z)
+		shell_center_y_offsets[i] = lerpf(cy0, cy1, t)
+
 func _shell_profile_rings_with_head_support(rings: Array) -> Array:
-	var profile_rings: Array = []
+	var normalized: Array = []
 	for i in rings.size():
-		profile_rings.append(BodyProfileScript.normalize_ring(rings[i], i))
-	if profile_rings.size() < 2:
-		return profile_rings
-	var first: Dictionary = profile_rings[0]
-	var second: Dictionary = profile_rings[1]
-	var first_x := float(first.get("x", 0.0))
-	var second_x := float(second.get("x", first_x))
-	if second_x <= first_x:
-		return profile_rings
-	profile_rings.insert(1, _interpolate_shell_ring(first, second, 0.12, "__head_attach_1"))
-	profile_rings.insert(2, _interpolate_shell_ring(first, second, 0.33, "__head_attach_2"))
-	profile_rings.insert(3, _interpolate_shell_ring(first, second, 0.66, "__head_attach_3"))
+		normalized.append(BodyProfileScript.normalize_ring(rings[i], i))
+	if normalized.size() < 2:
+		return normalized
+	# Interpolated cross-sections inserted into each early segment so the
+	# head -> shoulder -> trunk transition renders as a smooth tube instead of a
+	# faceted collar/step at the neck. Index = segment start (0 = snout->head,
+	# 1 = head->front_body, 2 = front_body->mid_body).
+	var segment_fill := [3, 3, 2]
+	var profile_rings: Array = []
+	var counter := 0
+	for i in normalized.size():
+		profile_rings.append(normalized[i])
+		if i >= normalized.size() - 1 or i >= segment_fill.size():
+			continue
+		var count := int(segment_fill[i])
+		if count <= 0:
+			continue
+		var a: Dictionary = normalized[i]
+		var b: Dictionary = normalized[i + 1]
+		if float(b.get("x", 0.0)) <= float(a.get("x", 0.0)):
+			continue
+		for k in range(1, count + 1):
+			counter += 1
+			profile_rings.append(_interpolate_shell_ring(a, b, float(k) / float(count + 1), "__neck_fill_%d" % counter))
 	return profile_rings
 
 func _interpolate_shell_ring(first: Dictionary, second: Dictionary, weight: float, ring_id: String) -> Dictionary:
@@ -653,8 +702,15 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 
 	var blend_factor := clampf((x_local_unscaled - (-0.22)) / (0.5 - (-0.22)), 0.0, 1.0)
 
-	var exp_offset_y := lerpf(HEAD_SHELL_ATTACH_EPSILON, shell_expand * lerpf(1.0, 0.22, ring_x), blend_factor)
-	var exp_offset_z := lerpf(HEAD_SHELL_ATTACH_EPSILON, shell_expand * lerpf(1.0, 0.18, ring_x), blend_factor)
+	# Clearance (breathing room of the shell above the head) is held near zero at the
+	# leading edge so the shell rim sits flush ON the head surface and appears to grow
+	# out of it with no proud "lip / hood" ledge at the neck; it ramps up to the full
+	# shell_expand gap only deeper into the trunk. Delaying the ramp (vs. blend_factor)
+	# is what removes the visible seam ring without letting the rigid head poke out
+	# (the radius floor below still keeps the shell enclosing the head).
+	var clearance_t := smoothstep(0.3, 1.0, blend_factor)
+	var exp_offset_y := lerpf(HEAD_SHELL_ATTACH_EPSILON, shell_expand * lerpf(1.0, 0.22, ring_x), clearance_t)
+	var exp_offset_z := lerpf(HEAD_SHELL_ATTACH_EPSILON, shell_expand * lerpf(1.0, 0.18, ring_x), clearance_t)
 
 	var target_y := lerpf(r_head_y, radius_y - shell_expand * lerpf(1.0, 0.22, ring_x), blend_factor) + exp_offset_y
 	var target_z := lerpf(r_head_z, radius_z - shell_expand * lerpf(1.0, 0.18, ring_x), blend_factor) + exp_offset_z
@@ -684,6 +740,11 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 		# rigid head. This is a floor (never grows past the head's natural size) so it does
 		# NOT fatten the head or create a head/body step; it only cancels the over-shrink.
 		target_y = maxf(target_y, r_head_y + exp_offset_y)
+		# Same enclosure floor for the width: with the leading-edge clearance pulled in
+		# (above), the thin snout body profile could otherwise let the wider head poke
+		# out sideways at the neck. Floor the shell width to the head's own width so it
+		# always encloses the rigid head without re-introducing a proud lip.
+		target_z = maxf(target_z, r_head_z + exp_offset_z)
 
 	return {
 		"radius_y": maxf(target_y, 0.035),
