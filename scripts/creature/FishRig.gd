@@ -1350,7 +1350,7 @@ func _animate_blade_fin(fin_node: MeshInstance3D, base_points: PackedVector3Arra
 	fin_node.mesh = PF.build_polygon_fin_mesh(res.deformed, res.reference)
 
 func _settle_death_pose_fins() -> void:
-	_settle_soft_fin_mesh(tail_fin, tail_fin_base_points, _effective_caudal_softness(), maxf(param_float("tail_fin_size", 0.46), 0.001))
+	_settle_soft_fin_mesh(tail_fin, tail_fin_base_points, _effective_caudal_softness(), maxf(param_float("tail_fin_size", 0.46), 0.001), _death_fin_lateral_bow())
 	_settle_soft_fin_mesh(pectoral_l as MeshInstance3D, pectoral_base_points, _effective_fin_softness("pectoral"), _fin_x_span(pectoral_base_points))
 	_settle_soft_fin_mesh(pectoral_r as MeshInstance3D, pectoral_base_points, _effective_fin_softness("pectoral"), _fin_x_span(pectoral_base_points))
 	_settle_soft_fin_mesh(pelvic_l, pelvic_base_points, _effective_fin_softness("pelvic"), _fin_x_span(pelvic_base_points))
@@ -1360,24 +1360,37 @@ func _settle_death_pose_fins() -> void:
 		_settle_soft_median_fin(dorsal_2_fin, "dorsal", String(parameters.get("dorsal_2_shape", "single")), param_float("dorsal_2_length", 0.34), param_float("dorsal_2_height", 0.18), param_float("dorsal_2_attach_t", 0.68), 0.028)
 	_settle_soft_median_fin(anal_fin, "ventral", String(parameters.get("anal_shape", "long")), param_float("anal_length", 0.36), param_float("anal_height", param_float("anal_fin_size", 0.2)), param_float("anal_attach_t", 0.64), 0.03)
 
-func _settle_soft_fin_mesh(fin_node: MeshInstance3D, base_points: PackedVector3Array, softness: float, size_ref: float) -> void:
-	if fin_node == null or base_points.is_empty() or softness <= 0.001:
+func _settle_soft_fin_mesh(fin_node: MeshInstance3D, base_points: PackedVector3Array, softness: float, size_ref: float, lateral_bow: float = 0.0) -> void:
+	if fin_node == null or base_points.is_empty():
+		return
+	# A bow keeps an edge-on fin visible even when it is perfectly stiff, so it must
+	# still rebuild the mesh when there is no droop to apply.
+	if softness <= 0.001 and lateral_bow <= 0.0:
 		return
 	var down_local := fin_node.global_transform.basis.inverse() * Vector3.DOWN
 	var settled_softness := minf(softness * DEATH_FIN_DROOP_MULTIPLIER, DEATH_FIN_DROOP_MULTIPLIER)
 	var res := _membrane_deformed_points(base_points, settled_softness, 0.0, 0.0, 0.0, maxf(size_ref, 0.001), down_local)
-	fin_node.mesh = PF.build_polygon_fin_mesh(res.deformed, res.reference)
+	var deformed: PackedVector3Array = res.deformed
+	if lateral_bow > 0.0:
+		deformed = _bowed_median_fin_points(deformed, lateral_bow)
+	fin_node.mesh = PF.build_polygon_fin_mesh(deformed, res.reference)
 
 func _settle_soft_median_fin(fin_node: MeshInstance3D, side: String, shape: String, length: float, height: float, attach_t: float, margin: float) -> void:
 	if fin_node == null:
 		return
 	var softness := _effective_fin_softness(_fin_name_to_slot(fin_node.name))
-	if softness <= 0.001:
+	var bow := _death_fin_lateral_bow()
+	# Even a perfectly stiff fin gets the lateral bow so it stays visible edge-on; only
+	# skip entirely when there is neither droop nor bow to apply.
+	if softness <= 0.001 and bow <= 0.0:
 		return
 	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
 	var points := _curved_fin_points(side, attach_t, margin, _get_fin_points(fin_node.name, shape, length, height), follow)
-	var down_local := fin_node.global_transform.basis.inverse() * Vector3.DOWN
-	fin_node.mesh = PF.build_polygon_fin_mesh(_drooped_median_fin_points(points, minf(softness * DEATH_FIN_DROOP_MULTIPLIER, DEATH_FIN_DROOP_MULTIPLIER), down_local))
+	if softness > 0.001:
+		var down_local := fin_node.global_transform.basis.inverse() * Vector3.DOWN
+		points = _drooped_median_fin_points(points, minf(softness * DEATH_FIN_DROOP_MULTIPLIER, DEATH_FIN_DROOP_MULTIPLIER), down_local)
+	points = _bowed_median_fin_points(points, bow)
+	fin_node.mesh = PF.build_polygon_fin_mesh(points)
 
 func _drooped_median_fin_points(points: PackedVector3Array, softness: float, down_local: Vector3) -> PackedVector3Array:
 	var max_height := 0.001
@@ -1389,6 +1402,25 @@ func _drooped_median_fin_points(points: PackedVector3Array, softness: float, dow
 		var sag := FIN_SOFT_DROOP * softness * pow(edge_norm, 1.1) * max_height
 		drooped.append(point + Vector3(0.0, down_local.y, down_local.z) * sag)
 	return drooped
+
+func _death_fin_lateral_bow() -> float:
+	return clampf(param_float("death_fin_lateral_bow", DEATH_MEDIAN_FIN_LATERAL_BOW), 0.0, 1.0)
+
+# Bows the free margin of a flat median/caudal fin out of plane along local +z, growing
+# with the point's normalized height so the attached edge (y~0) stays put. Gives an
+# edge-on fin a visible silhouette from the N/S export views without skewing it.
+func _bowed_median_fin_points(points: PackedVector3Array, bow: float) -> PackedVector3Array:
+	if bow <= 0.0 or points.is_empty():
+		return points
+	var max_height := 0.001
+	for point in points:
+		max_height = maxf(max_height, absf(point.y))
+	var bowed := PackedVector3Array()
+	for point in points:
+		var edge_norm := clampf(absf(point.y) / max_height, 0.0, 1.0)
+		var z_off := bow * max_height * pow(edge_norm, 1.2)
+		bowed.append(point + Vector3(0.0, 0.0, z_off))
+	return bowed
 
 func _fin_x_span(points: PackedVector3Array) -> float:
 	if points.is_empty():
@@ -1408,6 +1440,14 @@ const FIN_SOFT_AMPLITUDE := 0.58
 # soft fin also hangs/droops a little, more as softness rises.
 const FIN_SOFT_DROOP := 0.65
 const DEATH_FIN_DROOP_MULTIPLIER := 2.0
+
+# Median fins (dorsal, anal, caudal) are flat sheets in the sagittal plane, thin along
+# local z. In the settled death pose -- body rolled belly-up and static, with no swim
+# wave to swing them out of plane -- they sit perfectly edge-on to the head-on N/S
+# export views and vanish. A slight lateral bow of the free margin (toward local z)
+# gives them a visible silhouette from every direction while reading as a gentle curl
+# from the side. Fraction of the fin's height; tunable via death_fin_lateral_bow.
+const DEATH_MEDIAN_FIN_LATERAL_BOW := 0.15
 
 # Net strength of the swimming motion the fins should flow with. Near 0 when the fish
 # is holding still (so fins settle), rising as it sways/swims harder. A small floor
