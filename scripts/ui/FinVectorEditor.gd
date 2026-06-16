@@ -158,12 +158,8 @@ func _emit_preview_marker(active: bool, norm_position: Vector2, ghost: bool) -> 
 	_preview_marker_ghost = ghost
 	preview_marker_changed.emit(active, norm_position, ghost)
 
-func _is_root_locked(idx: int) -> bool:
-	# Operculum is a free closed silhouette with no attachment anchor to pin.
-	if slot == "operculum":
-		return false
-	# Root points (first and last vertex) are locked to maintain attachment anchor
-	return idx == 0 or idx == (points.size() / 2 - 1)
+func _is_root_locked(_idx: int) -> bool:
+	return false
 
 func _to_pixel(norm: Vector2) -> Vector2:
 	var w := size.x - PADDING * 2

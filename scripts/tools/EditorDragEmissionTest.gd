@@ -70,6 +70,7 @@ class StubHeadHandleFish extends FishRig:
 func _ready() -> void:
 	await _test_head_slider_emits_during_drag()
 	_test_vector_editor_emits_during_drag()
+	_test_vector_editor_allows_root_handle_drag()
 	await _test_vector_editor_recovers_preview_marker_after_missed_release()
 	_test_vector_editor_emits_single_preview_marker()
 	await _test_head_handle_ignores_motion_inside_click_threshold()
@@ -119,6 +120,33 @@ func _test_vector_editor_emits_during_drag() -> void:
 	var motion := InputEventMouseMotion.new()
 	editor.call("_gui_input", motion)
 	_require(seen[0] == 1, "vector editor should emit during drag for realtime preview; seen=%d dragged=%d" % [seen[0], int(editor.get("dragged_index"))])
+	editor.queue_free()
+
+func _test_vector_editor_allows_root_handle_drag() -> void:
+	var editor := FinVectorEditorScript.new()
+	add_child(editor)
+	editor.slot = "dorsal_1"
+	editor.size = Vector2(240, 180)
+	editor.points = [-0.5, 0.0, 0.0, 0.7, 0.5, 0.0]
+
+	editor.call("_update_mouse_over_states_at", Vector2(24.0, 156.0))
+	var press_first := InputEventMouseButton.new()
+	press_first.button_index = MOUSE_BUTTON_LEFT
+	press_first.pressed = true
+	editor.call("_gui_input", press_first)
+	_require(int(editor.get("dragged_index")) == 0, "first root handle should start dragging")
+
+	var release_first := InputEventMouseButton.new()
+	release_first.button_index = MOUSE_BUTTON_LEFT
+	release_first.pressed = false
+	editor.call("_gui_input", release_first)
+
+	editor.call("_update_mouse_over_states_at", Vector2(216.0, 156.0))
+	var press_last := InputEventMouseButton.new()
+	press_last.button_index = MOUSE_BUTTON_LEFT
+	press_last.pressed = true
+	editor.call("_gui_input", press_last)
+	_require(int(editor.get("dragged_index")) == 2, "last root handle should start dragging")
 	editor.queue_free()
 
 func _test_vector_editor_recovers_preview_marker_after_missed_release() -> void:
