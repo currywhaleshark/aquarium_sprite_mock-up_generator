@@ -89,6 +89,10 @@ func _ready() -> void:
 		"head_size": 0.42,
 		"head_offset": -0.78,
 		"snout_length": 0.22,
+		"snout_base": 0.34,
+		"snout_thickness": 0.72,
+		"snout_taper": 0.46,
+		"snout_curve": -0.28,
 		"forehead_slope": 0.2,
 		"head_bump_height": 0.4,
 		"head_bump_pos": -0.1,
@@ -123,6 +127,10 @@ func _ready() -> void:
 	assert(_find_slider_for_key(shark_panel, "head_size") != null)
 	assert(_find_slider_for_key(shark_panel, "head_offset") != null)
 	assert(_find_slider_for_key(shark_panel, "snout_length") != null)
+	assert(_find_slider_for_key(shark_panel, "snout_base") != null)
+	assert(_find_slider_for_key(shark_panel, "snout_thickness") != null)
+	assert(_find_slider_for_key(shark_panel, "snout_taper") != null)
+	assert(_find_slider_for_key(shark_panel, "snout_curve") != null)
 	assert(_find_slider_for_key(shark_panel, "forehead_slope") != null)
 	assert(_find_slider_for_key(shark_panel, "head_bump_height") == null)
 	assert(_find_slider_for_key(shark_panel, "head_bump_pos") == null)

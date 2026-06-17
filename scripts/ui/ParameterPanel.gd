@@ -688,11 +688,7 @@ func _is_shark_hidden_head_key(key: String) -> bool:
 		or key == "head_top_flatness" \
 		or key == "head_bottom_flatness" \
 		or key == "head_left_flatness" \
-		or key == "head_right_flatness" \
-		or key == "snout_base" \
-		or key == "snout_thickness" \
-		or key == "snout_taper" \
-		or key == "snout_curve"
+		or key == "head_right_flatness"
 
 func _is_color_value(value: Variant) -> bool:
 	if value is Color:

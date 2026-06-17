@@ -137,6 +137,14 @@ func _ready() -> void:
 		"operculum_size": 1.0,
 		"mouth_type": "terminal",
 		"mouth_size": 0.08,
+		"snout_length": 0.22,
+		"snout_base": 0.36,
+		"snout_thickness": 0.72,
+		"snout_taper": 0.44,
+		"snout_curve": -0.18,
+		"dorsal_1_custom_points": [-0.5, 0.0, -0.1, 0.72, 0.42, 0.08],
+		"pectoral_custom_points": [-0.5, 0.18, 0.0, 0.56, 0.5, -0.02, 0.0, -0.46],
+		"caudal_custom_points": [0.0, 0.48, 0.92, 1.0, 1.0, 0.0, 0.88, -0.86, 0.0, -0.42],
 		"fin_ray_count": 12.0,
 		"adipose_fin_enabled": true,
 		"finlet_enabled": true
@@ -149,11 +157,23 @@ func _ready() -> void:
 	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("fin_ray_count"))
 	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("adipose_fin_enabled"))
 	assert(not (shark_split.get("fin_profile", {}) as Dictionary).has("finlet_enabled"))
+	assert(abs(float((shark_split.get("fin_profile", {}) as Dictionary).get("snout_base", 0.0)) - 0.36) < 0.001)
+	assert(abs(float((shark_split.get("fin_profile", {}) as Dictionary).get("snout_thickness", 0.0)) - 0.72) < 0.001)
+	assert(abs(float((shark_split.get("fin_profile", {}) as Dictionary).get("snout_taper", 0.0)) - 0.44) < 0.001)
+	assert(abs(float((shark_split.get("fin_profile", {}) as Dictionary).get("snout_curve", 0.0)) + 0.18) < 0.001)
+	assert(((shark_split.get("fin_profile", {}) as Dictionary).get("dorsal_1_custom_points", []) as Array).size() == 6)
+	assert(abs(float(((shark_split.get("fin_profile", {}) as Dictionary).get("pectoral_custom_points", []) as Array)[3]) - 0.56) < 0.001)
+	assert(abs(float(((shark_split.get("fin_profile", {}) as Dictionary).get("caudal_custom_points", []) as Array)[7]) + 0.86) < 0.001)
 	assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_gill_slit_count", 0.0)) == 5.0)
 	assert(String((shark_split.get("parameters", {}) as Dictionary).get("shark_mouth_profile", "")) == "predatory_u")
 	assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_mouth_width", 0.0)) == 0.18)
 	assert(bool((shark_split.get("parameters", {}) as Dictionary).get("shark_lower_teeth_visible", false)))
 	assert(float((shark_split.get("parameters", {}) as Dictionary).get("shark_tooth_size", 0.0)) == 0.018)
+	assert(abs(float((shark_split.get("parameters", {}) as Dictionary).get("snout_base", 0.0)) - 0.36) < 0.001)
+	assert(((shark_split.get("parameters", {}) as Dictionary).get("dorsal_1_custom_points", []) as Array).size() == 6)
+	var rebuilt_shark := BodyProfileScript.make_parameters_from_structured_preset(shark_split)
+	assert(abs(float(rebuilt_shark.get("snout_curve", 0.0)) + 0.18) < 0.001)
+	assert(((rebuilt_shark.get("caudal_custom_points", []) as Array).size()) == 10)
 	assert(not (shark_split.get("parameters", {}) as Dictionary).has("mouth_type"))
 	assert(not (shark_split.get("parameters", {}) as Dictionary).has("mouth_size"))
 

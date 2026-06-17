@@ -75,6 +75,13 @@ const FISH_MOUTH_KEYS := {
 	"lip_darken": true
 }
 
+const SNOUT_SCULPT_KEYS := {
+	"snout_base": true,
+	"snout_thickness": true,
+	"snout_taper": true,
+	"snout_curve": true
+}
+
 const FISH_ONLY_KEYS := {
 	"barbel_style": true,
 	"adipose_fin_shape": true,
@@ -207,6 +214,17 @@ const FISH_FIN_KEYS := {
 	"caudal_height_scale": true
 }
 
+const FIN_CUSTOM_POINT_SLOTS := {
+	"dorsal_1_custom_points": "dorsal_1",
+	"dorsal_2_custom_points": "dorsal_2",
+	"pectoral_custom_points": "pectoral",
+	"pelvic_custom_points": "pelvic",
+	"anal_custom_points": "anal",
+	"caudal_custom_points": "caudal",
+	"adipose_fin_custom_points": "adipose_fin",
+	"finlet_custom_points": "finlet"
+}
+
 const SHARK_CAUDAL_VALUES := {
 	"shark_heterocercal": true,
 	"thresher": true,
@@ -220,6 +238,8 @@ static func is_parameter_visible(mode: String, key: String) -> bool:
 	var normalized_mode := CreatureModeScript.normalize(mode)
 	if COMMON_KEYS.has(key):
 		return bool(COMMON_KEYS[key])
+	if SNOUT_SCULPT_KEYS.has(key):
+		return normalized_mode != CreatureModeScript.RAY
 	if SHARK_GILL_KEYS.has(key):
 		return normalized_mode == CreatureModeScript.SHARK
 	if SHARK_MOUTH_KEYS.has(key):
@@ -232,6 +252,8 @@ static func is_parameter_visible(mode: String, key: String) -> bool:
 		return normalized_mode == CreatureModeScript.RAY
 	if _is_teleost_fin_key(key):
 		return normalized_mode == CreatureModeScript.FISH
+	if FIN_CUSTOM_POINT_SLOTS.has(key):
+		return allowed_fin_slots(normalized_mode).has(String(FIN_CUSTOM_POINT_SLOTS[key]))
 	if FISH_ONLY_KEYS.has(key):
 		return normalized_mode == CreatureModeScript.FISH
 	if FISH_MOTION_KEYS.has(key) or _has_any_prefix(key, FISH_MOTION_PREFIXES):

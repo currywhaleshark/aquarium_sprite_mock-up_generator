@@ -710,6 +710,8 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 	if creature_type == CreatureModeScript.SHARK:
 		if key in ["head_size", "head_length", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
 			return true
+		if _is_snout_sculpt_numeric_key(key):
+			return float(parameters.get("snout_length", 0.0)) > 0.001
 		if key.begins_with("shark_gill_"):
 			return true
 		if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":
@@ -729,7 +731,7 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 			return false
 		var appendage := String(parameters.get("snout_appendage", "none"))
 		return appendage != "" and appendage != "none"
-	if key == "snout_base" or key == "snout_thickness" or key == "snout_taper" or key == "snout_curve":
+	if _is_snout_sculpt_numeric_key(key):
 		return float(parameters.get("snout_length", 0.0)) > 0.001
 	if key == "head_top_peak":
 		return absf(float(parameters.get("head_top_curve", 0.0))) > 0.001
@@ -741,6 +743,9 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 
 func _is_fish_mouth_numeric_key(key: String) -> bool:
 	return key == "jaw_offset" or key == "mouth_size" or key == "mouth_open" or key == "lower_jaw_length" or key == "lower_jaw_angle" or key == "lower_jaw_thickness" or key == "lower_jaw_tip" or key == "jaw_hinge_x" or key == "jaw_hinge_y" or key == "jaw_protrusion" or key == "lower_upper_ratio"
+
+func _is_snout_sculpt_numeric_key(key: String) -> bool:
+	return key == "snout_base" or key == "snout_thickness" or key == "snout_taper" or key == "snout_curve"
 
 func _section_title_for_key(key: String) -> String:
 	for section in FISH_SECTIONS:

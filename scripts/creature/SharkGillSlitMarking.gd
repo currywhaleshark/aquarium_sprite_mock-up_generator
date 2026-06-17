@@ -1,6 +1,10 @@
 class_name SharkGillSlitMarking
 extends RefCounted
 
+const MIN_SLIT_LENGTH := 0.01
+const MAX_PARAMETER_SLIT_LENGTH := 0.18
+const MAX_VISUAL_SLIT_LENGTH := 0.12
+
 static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 	var root := parent.get_node_or_null("SharkGillSlits") as Node3D
 	if root == null:
@@ -14,7 +18,7 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 		return root
 
 	var count := clampi(int(round(float(parameters.get("shark_gill_slit_count", 5)))), 1, 7)
-	var length := maxf(float(parameters.get("shark_gill_slit_length", 0.09)), 0.01)
+	var length := clampf(float(parameters.get("shark_gill_slit_length", 0.09)), MIN_SLIT_LENGTH, MAX_PARAMETER_SLIT_LENGTH)
 	var spacing := maxf(float(parameters.get("shark_gill_slit_spacing", 0.045)), 0.0)
 	var angle := float(parameters.get("shark_gill_slit_angle", -8.0))
 	var depth := clampf(float(parameters.get("shark_gill_slit_depth", 0.65)), 0.0, 1.0)
@@ -30,8 +34,8 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 	for index in range(count):
 		var slit_x := position_x + (float(index) - center_offset) * spacing
 		var bounds := _shell_y_bounds_at_x(parent, slit_x)
-		var max_length := maxf((bounds.y - bounds.x) * 0.24, 0.035)
-		var visual_length := clampf(length, 0.01, max_length)
+		var max_length := clampf((bounds.y - bounds.x) * 0.24, 0.035, MAX_VISUAL_SLIT_LENGTH)
+		var visual_length := clampf(length, MIN_SLIT_LENGTH, max_length)
 		var slit_y := clampf(position_y, bounds.x + visual_length * 0.55, bounds.y - visual_length * 0.55)
 		var surface_z := _positive_shell_surface_z(parent, slit_x, slit_y)
 		var slit := MeshInstance3D.new()
