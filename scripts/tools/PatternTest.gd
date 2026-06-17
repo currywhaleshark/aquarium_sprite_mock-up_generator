@@ -130,14 +130,17 @@ func _test_shader_compiles_and_uniforms() -> void:
 
 	var whale := ToonMaterialFactoryScript.make_body_material({"pattern_type": "whale_grid"})
 	assert(int(whale.get_shader_parameter("pattern_type")) == 7)
+	var speckles := ToonMaterialFactoryScript.make_body_material({"pattern_type": "speckles"})
+	assert(int(speckles.get_shader_parameter("pattern_type")) == 8)
 
 	# pattern_type names map to stable indices for the shader.
 	assert(BodyProfileScript.pattern_type_index("none") == 0)
 	assert(BodyProfileScript.pattern_type_index("marbled") == 5)
 	assert(BodyProfileScript.pattern_type_index("reticulated") == 6)
 	assert(BodyProfileScript.pattern_type_index("whale_grid") == 7)
+	assert(BodyProfileScript.pattern_type_index("speckles") == 8)
 	assert(BodyProfileScript.pattern_type_index("not_a_pattern") == 0)
-	assert(BodyProfileScript.pattern_type_names().size() == 8)
+	assert(BodyProfileScript.pattern_type_names().size() == 9)
 
 	assert(BodyProfileScript.scale_type_index("cycloid") == 0)
 	assert(BodyProfileScript.scale_type_index("ctenoid") == 1)

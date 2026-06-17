@@ -193,6 +193,7 @@ const FISH_FIN_KEYS := {
 	"pelvic_shape": true,
 	"pelvic_length": true,
 	"pelvic_height": true,
+	"pelvic_fin_yaw": true,
 	"anal_attach_t": true,
 	"anal_shape": true,
 	"anal_length": true,

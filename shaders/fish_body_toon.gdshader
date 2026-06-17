@@ -180,6 +180,26 @@ float pvoronoi_edge(vec2 p, float per) {
 	return sqrt(f2) - sqrt(f1);
 }
 
+float pspeckle_dot(vec2 p, float per) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	float nearest = 8.0;
+	for (int yy = -1; yy <= 1; yy++) {
+		for (int xx = -1; xx <= 1; xx++) {
+			vec2 g = vec2(float(xx), float(yy));
+			vec2 cell = i + g;
+			float wrapped_y = mod(cell.y, per);
+			float jitter_x = hash21(vec2(cell.x, wrapped_y) + vec2(19.1, 3.7));
+			float jitter_y = hash21(vec2(cell.x, wrapped_y) + vec2(41.3, 17.1));
+			float present = step(0.22, hash21(vec2(cell.x, wrapped_y) + vec2(7.9, 29.4)));
+			vec2 center = vec2(0.2 + jitter_x * 0.6, 0.2 + jitter_y * 0.6);
+			vec2 r = g + center - f;
+			nearest = min(nearest, mix(8.0, dot(r, r), present));
+		}
+	}
+	return 1.0 - smoothstep(0.035, 0.075, sqrt(nearest));
+}
+
 float pattern_mask(int kind, float u, float v) {
 	float sx = max(pattern_scale_x, 0.0001);
 	float per = max(1.0, floor(pattern_scale_y + 0.5));
@@ -228,6 +248,12 @@ float pattern_mask(int kind, float u, float v) {
 		float dot_mask = 1.0 - smoothstep(0.10, 0.22, length(local));
 		float jitter = smoothstep(0.35, 0.75, pnoise(floor(cell) + vec2(seed * 13.0, seed * 7.0), per));
 		return clamp(grid * 0.72 + dot_mask * jitter, 0.0, 1.0);
+	}
+	if (kind == 8) {
+		// Speckles: smaller, rounder dots than the broad noise-based spots.
+		float dot_sx = sx * 2.5;
+		float dot_per = max(1.0, floor(pattern_scale_y * 2.5 + 0.5));
+		return pspeckle_dot(vec2(su * dot_sx, v * dot_per), dot_per);
 	}
 	return 0.0;
 }

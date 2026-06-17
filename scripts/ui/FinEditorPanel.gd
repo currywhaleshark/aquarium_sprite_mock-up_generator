@@ -69,6 +69,7 @@ const NUMERIC_KEYS := {
 	"pelvic": {
 		"pelvic_length": {"min": 0.04, "max": 0.7, "step": 0.005, "fallback": 0.22},
 		"pelvic_height": {"min": 0.03, "max": 0.5, "step": 0.005, "fallback": 0.14},
+		"pelvic_fin_yaw": {"min": -180.0, "max": 180.0, "step": 1.0, "fallback": 12.0},
 		"pelvic_softness": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_softness", "fallback": 0.0},
 		"pelvic_rigidity": {"min": 0.0, "max": 1.0, "step": 0.01, "fallback_key": "fin_rigidity", "fallback": 0.0}
 	},
@@ -356,6 +357,8 @@ func _rebuild_numeric_controls() -> void:
 		return
 		
 	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {}).duplicate()
+	if creature_type == CreatureModeScript.RAY:
+		slot_keys.erase("pelvic_fin_yaw")
 	var current_shape := String(parameters.get(_shape_key(selected_slot), ""))
 	if current_shape == "bezier":
 		var prefix := selected_slot + "_bezier_"
@@ -457,6 +460,8 @@ func _row_matches_filter(widgets: Dictionary) -> bool:
 	return name_label != null and name_label.text.contains(query)
 
 func _numeric_config_for_key(key: String) -> Dictionary:
+	if creature_type == CreatureModeScript.RAY and key == "pelvic_fin_yaw":
+		return {}
 	var slot_keys: Dictionary = NUMERIC_KEYS.get(selected_slot, {})
 	if slot_keys.has(key):
 		return slot_keys[key]

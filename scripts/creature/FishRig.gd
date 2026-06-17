@@ -279,8 +279,9 @@ func rebuild() -> void:
 		pelvic_l.position = pelvic_l_base_position
 		pelvic_r.position = pelvic_r_base_position
 		var pelvic_surface_angle := _surface_tangent_angle_degrees("ventral", pelvic_attach_t)
-		pelvic_l.rotation_degrees = Vector3(0.0, 12.0, pelvic_surface_angle)
-		pelvic_r.rotation_degrees = Vector3(0.0, -12.0, pelvic_surface_angle)
+		var pelvic_spread_yaw := param_float("pelvic_fin_yaw", 12.0)
+		pelvic_l.rotation_degrees = Vector3(0.0, pelvic_spread_yaw, pelvic_surface_angle)
+		pelvic_r.rotation_degrees = Vector3(0.0, -pelvic_spread_yaw, pelvic_surface_angle)
 		body_pivot.add_child(pelvic_l)
 		body_pivot.add_child(pelvic_r)
 
@@ -1230,12 +1231,13 @@ func _apply_animated_fins(loop_phase: float, centers: PackedVector3Array, yaws: 
 	if pelvic_l and pelvic_r:
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_z := _surface_radius_z_for_vertical_half(pelvic_attach_t, -1.0) * 0.32
-		var pelvic_yaw := _fin_follow_yaw(pelvic_attach_t, yaws)
+		var pelvic_follow_yaw := _fin_follow_yaw(pelvic_attach_t, yaws)
+		var pelvic_spread_yaw := param_float("pelvic_fin_yaw", 12.0)
 		var pelvic_surface_angle := _surface_tangent_angle_degrees("ventral", pelvic_attach_t)
 		pelvic_l.position = _animated_surface_position("ventral", pelvic_attach_t, 0.02, -pelvic_z, 0.0, centers, yaws)
 		pelvic_r.position = _animated_surface_position("ventral", pelvic_attach_t, 0.02, pelvic_z, 0.0, centers, yaws)
-		pelvic_l.rotation_degrees = Vector3(0.0, pelvic_yaw + 12.0, pelvic_surface_angle)
-		pelvic_r.rotation_degrees = Vector3(0.0, pelvic_yaw - 12.0, pelvic_surface_angle)
+		pelvic_l.rotation_degrees = Vector3(0.0, pelvic_follow_yaw + pelvic_spread_yaw, pelvic_surface_angle)
+		pelvic_r.rotation_degrees = Vector3(0.0, pelvic_follow_yaw - pelvic_spread_yaw, pelvic_surface_angle)
 		_animate_blade_fin(pelvic_l, pelvic_base_points, loop_phase, 0.0)
 		_animate_blade_fin(pelvic_r, pelvic_base_points, loop_phase, PI)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
@@ -1928,8 +1930,9 @@ func _apply_fin_offsets() -> void:
 		pelvic_l.position = pelvic_l_base_position
 		pelvic_r.position = pelvic_r_base_position
 		var pelvic_surface_angle := _surface_tangent_angle_degrees("ventral", pelvic_attach_t)
-		pelvic_l.rotation_degrees = Vector3(0.0, 12.0, pelvic_surface_angle)
-		pelvic_r.rotation_degrees = Vector3(0.0, -12.0, pelvic_surface_angle)
+		var pelvic_spread_yaw := param_float("pelvic_fin_yaw", 12.0)
+		pelvic_l.rotation_degrees = Vector3(0.0, pelvic_spread_yaw, pelvic_surface_angle)
+		pelvic_r.rotation_degrees = Vector3(0.0, -pelvic_spread_yaw, pelvic_surface_angle)
 	var pectoral_offset := float(parameters.get("pectoral_fin_offset_x", 0.0))
 	var pectoral_offset_y := param_float("pectoral_offset_y", 0.0)
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)

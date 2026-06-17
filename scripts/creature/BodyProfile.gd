@@ -181,7 +181,7 @@ const PRESERVED_PARAMETER_KEYS := {
 	"marking_layers": true
 }
 
-const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated", "whale_grid"]
+const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated", "whale_grid", "speckles"]
 const SCALE_TYPE_NAMES := ["cycloid", "ctenoid", "ganoid", "placoid", "pearlscale"]
 const PALETTE_SCHEME_NAMES := ["manual", "countershade", "complementary", "analogous", "muted"]
 const FIN_RAY_STYLE_NAMES := ["none", "soft", "spiny", "mixed", "fan", "threaded"]
@@ -603,7 +603,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"dorsal_1_attach_t", "dorsal_1_shape", "dorsal_1_length", "dorsal_1_height",
 		"dorsal_2_enabled", "dorsal_2_attach_t", "dorsal_2_shape", "dorsal_2_length", "dorsal_2_height",
 		"pectoral_attach_t", "pectoral_shape", "pelvic_enabled", "pelvic_attach_t", "pelvic_shape",
-		"pelvic_length", "pelvic_height", "anal_attach_t", "anal_shape", "anal_length", "anal_height",
+		"pelvic_length", "pelvic_height", "pelvic_fin_yaw", "anal_attach_t", "anal_shape", "anal_length", "anal_height",
 		"head_shape", "mouth_type", "snout_length",
 		"snout_base", "snout_thickness", "snout_taper", "snout_curve",
 		"head_top_curve", "head_top_peak", "head_belly_curve",

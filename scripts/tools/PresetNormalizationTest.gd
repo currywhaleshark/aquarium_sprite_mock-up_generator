@@ -106,6 +106,7 @@ func _ready() -> void:
 		"creature_type": "fish",
 		"body_length": 1.4,
 		"pectoral_fin_spacing": 0.86,
+		"pelvic_fin_yaw": 31.0,
 		"ray_disc_shape": "manta",
 		"ray_tail_style": "whip",
 		"shark_gill_slit_count": 5,
@@ -115,7 +116,9 @@ func _ready() -> void:
 	assert(not (fish_split.get("fin_profile", {}) as Dictionary).has("ray_disc_shape"))
 	assert(not (fish_split.get("tail_profile", {}) as Dictionary).has("ray_tail_style"))
 	assert(abs(float((fish_split.get("fin_profile", {}) as Dictionary).get("pectoral_fin_spacing", 0.0)) - 0.86) < 0.001)
+	assert(abs(float((fish_split.get("fin_profile", {}) as Dictionary).get("pelvic_fin_yaw", 0.0)) - 31.0) < 0.001)
 	assert(abs(float((fish_split.get("parameters", {}) as Dictionary).get("pectoral_fin_spacing", 0.0)) - 0.86) < 0.001)
+	assert(abs(float((fish_split.get("parameters", {}) as Dictionary).get("pelvic_fin_yaw", 0.0)) - 31.0) < 0.001)
 	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_gill_slit_count"))
 	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_mouth_width"))
 	assert(not (fish_split.get("parameters", {}) as Dictionary).has("shark_lower_teeth_visible"))
