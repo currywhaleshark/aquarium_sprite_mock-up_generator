@@ -19,6 +19,9 @@ func _ready() -> void:
 	await _test_lower_jaw_drop_is_not_noop(base)
 	if _failed:
 		return
+	await _test_snout_sculpt_controls_affect_shark_head_geometry(base)
+	if _failed:
+		return
 	await _test_rostrum_and_neck_are_closed(base)
 	if _failed:
 		return
@@ -142,6 +145,35 @@ func _test_lower_jaw_drop_is_not_noop(parameters: Dictionary) -> void:
 	low.queue_free()
 	high.queue_free()
 
+func _test_snout_sculpt_controls_affect_shark_head_geometry(parameters: Dictionary) -> void:
+	var neutral_params := parameters.duplicate(true)
+	neutral_params["snout_length"] = 0.42
+	neutral_params["snout_base"] = 0.50
+	neutral_params["snout_thickness"] = 1.0
+	neutral_params["snout_taper"] = 0.0
+	neutral_params["snout_curve"] = 0.0
+	var neutral := await _build_shark(neutral_params)
+	var neutral_head := _head(neutral)
+	var neutral_vertices := _vertices(neutral_head)
+	for scenario in [
+		{"key": "snout_base", "value": 0.18},
+		{"key": "snout_thickness", "value": 0.35},
+		{"key": "snout_taper", "value": 0.92},
+		{"key": "snout_curve", "value": 0.75}
+	]:
+		var sculpted_params := neutral_params.duplicate(true)
+		sculpted_params[String(scenario["key"])] = float(scenario["value"])
+		var sculpted := await _build_shark(sculpted_params)
+		var sculpted_head := _head(sculpted)
+		var sculpted_vertices := _vertices(sculpted_head)
+		if not _require(neutral_vertices.size() == sculpted_vertices.size(), "%s changes must keep stable vertex order" % String(scenario["key"])):
+			return
+		var delta := _max_rostrum_window_delta(neutral_vertices, sculpted_vertices, neutral_params)
+		if not _require(delta > 0.010, "%s must visibly affect the shark rostrum mesh" % String(scenario["key"])):
+			return
+		sculpted.queue_free()
+	neutral.queue_free()
+
 func _test_rostrum_and_neck_are_closed(parameters: Dictionary) -> void:
 	var shark := await _build_shark(parameters)
 	var head := _head(shark)
@@ -252,6 +284,15 @@ func _max_non_mouth_delta(closed_vertices: PackedVector3Array, open_vertices: Pa
 	for i in range(mini(closed_vertices.size(), open_vertices.size())):
 		if not _is_mouth_vertex(closed_vertices[i], parameters):
 			max_delta = maxf(max_delta, closed_vertices[i].distance_to(open_vertices[i]))
+	return max_delta
+
+func _max_rostrum_window_delta(a_vertices: PackedVector3Array, b_vertices: PackedVector3Array, parameters: Dictionary) -> float:
+	var max_delta := 0.0
+	for i in range(mini(a_vertices.size(), b_vertices.size())):
+		var vertex := a_vertices[i]
+		var u := _u_for_x_with_snout(vertex.x, parameters)
+		if u > 0.025 and u < 0.34 and Vector2(vertex.y, vertex.z).length() > 0.012:
+			max_delta = maxf(max_delta, vertex.distance_to(b_vertices[i]))
 	return max_delta
 
 func _lower_mouth_average_y_delta(closed_vertices: PackedVector3Array, open_vertices: PackedVector3Array, parameters: Dictionary, mouth_u: float) -> float:

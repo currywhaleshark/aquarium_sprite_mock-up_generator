@@ -708,10 +708,16 @@ func _is_boolean_key_visible(key: String) -> bool:
 
 func _should_show_fish_numeric_key(key: String) -> bool:
 	if creature_type == CreatureModeScript.SHARK:
-		if key in ["head_size", "head_length", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
+		# The shark head mesh now honors the same continuous head-shape controls as the
+		# fish head (dorsal/ventral profile, crown bump, flatness), so expose them here.
+		if key in ["head_size", "head_length", "head_offset", "head_flattening", "snout_length", "forehead_slope", "head_top_curve", "head_belly_curve", "head_bump_height", "head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
 			return true
 		if _is_snout_sculpt_numeric_key(key):
 			return float(parameters.get("snout_length", 0.0)) > 0.001
+		if key == "head_top_peak":
+			return absf(float(parameters.get("head_top_curve", 0.0))) > 0.001
+		if key == "head_bump_pos" or key == "head_bump_width" or key == "head_bump_angle" or key == "head_bump_round":
+			return float(parameters.get("head_bump_height", 0.0)) > 0.001
 		if key.begins_with("shark_gill_"):
 			return true
 		if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":

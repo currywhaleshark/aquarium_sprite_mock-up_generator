@@ -1,7 +1,14 @@
 class_name SharkHeadProfile
 extends RefCounted
 
+const HeadProfile := preload("res://scripts/creature/HeadProfile.gd")
+
 const HEAD_U_SPAN := 0.25
+# The shark head spans a longer x range than the fish's unit-sphere head, so the same
+# head_top_curve/head_belly_curve/head_bump value spreads over more length and reads as a
+# shallower slope. Scale the profile offsets up so the controls feel as strong as the fish
+# editor's (the user's reference) rather than a gentle nudge.
+const HEAD_PROFILE_GAIN := 1.5
 const ROSTRUM_FRONT_X := -0.72
 const NECK_X := 0.50
 const DEFAULT_THETA_SEGMENTS := 32
@@ -80,10 +87,12 @@ static func point_at(parameters: Dictionary, u: float, theta: float, snout_lengt
 	return point
 
 static func surface_z_at(parameters: Dictionary, u: float, y: float, side: float = 1.0) -> float:
-	var radii := _base_radii(parameters, u, float(parameters.get("snout_length", 0.0)), float(parameters.get("forehead_slope", 0.35)), {})
+	var snout_length := float(parameters.get("snout_length", 0.0))
+	var radii := _base_radii(parameters, u, snout_length, float(parameters.get("forehead_slope", 0.35)), {})
 	var radius_y := maxf(radii.x, 0.001)
 	var radius_z := maxf(radii.y, 0.001)
-	var normalized_y := clampf(y / radius_y, -0.98, 0.98)
+	var center_y := _snout_curve_y_shift(parameters, u, snout_length, {})
+	var normalized_y := clampf((y - center_y) / radius_y, -0.98, 0.98)
 	var z := radius_z * sqrt(maxf(1.0 - normalized_y * normalized_y, 0.0)) * signf(side)
 	var mouth := mouth_weight(parameters, u, y, z)
 	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
@@ -98,7 +107,7 @@ static func mouth_weight(parameters: Dictionary, u: float, y: float, z: float) -
 	# Angular wrap around the lower cross-section (bottom = -PI/2). position_y
 	# translates the band vertically so the slider keeps affecting geometry.
 	var radii := _base_radii(parameters, u, float(parameters.get("snout_length", 0.0)), float(parameters.get("forehead_slope", 0.35)), {})
-	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y
+	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y + _snout_curve_y_shift(parameters, u, float(parameters.get("snout_length", 0.0)), {})
 	var theta := atan2((y - y_shift) / maxf(radii.x, 0.001), z / maxf(radii.y, 0.001))
 	var ang_w := 1.0 - clampf(absf(theta + PI * 0.5) / _mouth_half_ang(parameters), 0.0, 1.0)
 	return clampf(smoothstep(0.0, 1.0, u_w) * smoothstep(0.0, 1.0, ang_w), 0.0, 1.0)
@@ -123,17 +132,18 @@ static func _mouth_seam_point(parameters: Dictionary, s: float) -> Vector3:
 	var snout := float(parameters.get("snout_length", 0.0))
 	var u := _mouth_seam_u(parameters, s)
 	var theta := _mouth_seam_theta(parameters, s)
-	var radii := _base_radii(parameters, u, snout, float(parameters.get("forehead_slope", 0.35)), {})
+	var forehead_slope := float(parameters.get("forehead_slope", 0.35))
+	# Ride the same deformed surface the head mesh uses (dorsal/ventral profile, bump,
+	# snout curve) so the mouth seam stays flush on the head no matter how it is sculpted.
+	var surface := _shaped_point(parameters, u, theta, snout, forehead_slope, {})
 	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y
-	var y := radii.x * sin(theta) + y_shift
-	if y < 0.0:
-		y -= _ventral_bias(u)
+	var y := surface.y + y_shift
 	var ang_w := 1.0 - clampf(absf(theta + PI * 0.5) / _mouth_half_ang(parameters), 0.0, 1.0)
 	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
 	var groove := ang_w * (0.07 + 0.10 * gape)
-	var z := radii.y * cos(theta) * (1.0 - groove)
+	var z := surface.z * (1.0 - groove)
 	y *= 1.0 - groove * 0.30
-	return Vector3(_x_at_u(u, snout), y, z)
+	return Vector3(surface.x, y, z)
 
 static func _mouth_seam_theta(parameters: Dictionary, s: float) -> float:
 	var half_ang := _mouth_half_ang(parameters)
@@ -213,25 +223,91 @@ static func _add_vertex(st: SurfaceTool, uv: Vector2, point: Vector3) -> void:
 	st.add_vertex(point)
 
 static func _base_point(parameters: Dictionary, u: float, theta: float, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Vector3:
-	var x := _x_at_u(u, snout_length)
+	var p := _shaped_point(parameters, u, theta, snout_length, forehead_slope, sculpt)
+	# Flat-cap the silhouette (flat top/belly/cheeks) exactly like the fish head editor:
+	# pull each axis toward the cross-section's own extreme at this u. Mirrors
+	# PrimitiveFactory's flatness block so the shark gains the same controls.
+	var top_flat := _snout_sculpt_value(parameters, sculpt, "head_top_flatness", 0.0)
+	var bottom_flat := _snout_sculpt_value(parameters, sculpt, "head_bottom_flatness", 0.0)
+	var left_flat := _snout_sculpt_value(parameters, sculpt, "head_left_flatness", 0.0)
+	var right_flat := _snout_sculpt_value(parameters, sculpt, "head_right_flatness", 0.0)
+	if top_flat == 0.0 and bottom_flat == 0.0 and left_flat == 0.0 and right_flat == 0.0:
+		return p
+	var top_target := _shaped_point(parameters, u, PI * 0.5, snout_length, forehead_slope, sculpt).y
+	var bottom_target := _shaped_point(parameters, u, PI * 1.5, snout_length, forehead_slope, sculpt).y
+	var left_target := _shaped_point(parameters, u, PI, snout_length, forehead_slope, sculpt).z
+	var right_target := _shaped_point(parameters, u, 0.0, snout_length, forehead_slope, sculpt).z
+	p.y = HeadProfile.flat_cap_value(p.y, top_target, 1.0, top_flat)
+	p.y = HeadProfile.flat_cap_value(p.y, bottom_target, -1.0, bottom_flat)
+	p.z = HeadProfile.flat_cap_value(p.z, left_target, -1.0, left_flat)
+	p.z = HeadProfile.flat_cap_value(p.z, right_target, 1.0, right_flat)
+	return p
+
+# The full deformed head surface point at (u, theta), minus flatness. Honors the same
+# continuous head-shape controls as the fish head (PrimitiveFactory.deformed_head_mesh):
+# dorsal/ventral profile curves and a localized crown bump, so editing a shark head feels
+# like editing a fish head. Shared by the mesh, the mouth seam and the flatness targets.
+static func _shaped_point(parameters: Dictionary, u: float, theta: float, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Vector3:
+	var x := _x_at_u(u, snout_length, parameters, sculpt)
 	var radii := _base_radii(parameters, u, snout_length, forehead_slope, sculpt)
 	var y := radii.x * sin(theta)
 	var z := radii.y * cos(theta)
+	y += _snout_curve_y_shift(parameters, u, snout_length, sculpt)
+	# Girth fade (1 at mid-head, 0 at the rostrum tip and neck), the analogue of the fish
+	# head's sin(phi), so profile offsets vanish toward the ends just as they do for fish.
+	var sin_phi := 2.0 * sqrt(clampf(u * (1.0 - u), 0.0, 0.25))
+	var theta_w := absf(sin(theta))
+	var top_curve := _snout_sculpt_value(parameters, sculpt, "head_top_curve", 0.0)
+	var top_peak := _snout_sculpt_value(parameters, sculpt, "head_top_peak", 0.35)
+	var belly_curve := _snout_sculpt_value(parameters, sculpt, "head_belly_curve", 0.0)
 	if y > 0.0:
 		y += _dorsal_bias(u, forehead_slope)
+		y += HeadProfile.dorsal_offset(u, sin_phi, top_curve, top_peak) * theta_w * HEAD_PROFILE_GAIN
 	elif y < 0.0:
 		y -= _ventral_bias(u)
+		y -= HeadProfile.ventral_offset(u, sin_phi, belly_curve, 0.45) * theta_w * HEAD_PROFILE_GAIN
+	var bump_height := _snout_sculpt_value(parameters, sculpt, "head_bump_height", 0.0)
+	if bump_height != 0.0:
+		var bump_pos := _snout_sculpt_value(parameters, sculpt, "head_bump_pos", -0.2)
+		var bump_width := _snout_sculpt_value(parameters, sculpt, "head_bump_width", 0.18)
+		var bump_round := _snout_sculpt_value(parameters, sculpt, "head_bump_round", 0.6)
+		var bump_angle := deg_to_rad(_snout_sculpt_value(parameters, sculpt, "head_bump_angle", 35.0))
+		var bump_amt := bump_height * HeadProfile.head_bump_falloff(x, theta, bump_pos, bump_width, bump_round) * HEAD_PROFILE_GAIN
+		y += bump_amt * cos(bump_angle)
+		x -= bump_amt * sin(bump_angle)
 	return Vector3(x, y, z)
 
-static func _base_radii(parameters: Dictionary, u: float, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Vector2:
-	var rostrum := smoothstep(0.0, 0.22, u)
+static func _base_radii(parameters: Dictionary, u: float, _snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Vector2:
+	var snout_base := _snout_base(parameters, sculpt)
+	var snout_thickness := clampf(_snout_sculpt_value(parameters, sculpt, "snout_thickness", 1.0), 0.15, 1.0)
+	var snout_taper := clampf(_snout_sculpt_value(parameters, sculpt, "snout_taper", 0.0), 0.0, 1.0)
+	# Girth "shoulder": the u where the head has swollen to full body girth. Driven by
+	# snout_base and mapped well PAST the snout itself, because a real shark keeps widening
+	# back toward the gill region (a great white peaks at u~0.65-0.8) - the head is not a
+	# short cone that flares to full width instantly. Decoupled from snout_length, which now
+	# only governs how far the rostrum tip projects forward (see _front_x), so a SHORT blunt
+	# snout can still sit on a head that fills out gradually.
+	var shoulder := lerpf(0.30, 0.62, clampf((snout_base - 0.12) / 0.38, 0.0, 1.0))
+	var ramp_t := clampf(u / shoulder, 0.0, 1.0)
+	# Taper bows the ramp: < 0.5 = blunt, bulbous nose that fills FAST (convex, exponent
+	# below 1 - the real great-white rostrum); 0.5 = even cone; > 0.5 = sharp needle
+	# (goblin/mako). The old range only spanned linear..sharp, so a blunt nose was
+	# unreachable and every shark looked like a ballpoint pen.
+	var ramp_exp := lerpf(0.5, 3.0, snout_taper)
+	var ramp := smoothstep(0.0, 1.0, pow(ramp_t, ramp_exp))
+	# Girth floor at the very tip: a thick snout keeps a blunt, rounded nose; a thin one
+	# tapers toward a point. (u <= 0.001 is still forced to a closed point below.)
+	var tip_floor := lerpf(0.02, 0.18, snout_thickness)
 	var neck_fill := smoothstep(0.42, 1.0, u)
-	var base := clampf(lerpf(0.08, 0.50, rostrum) * lerpf(0.86, 1.0, neck_fill), 0.0, 0.52)
+	var base := clampf(lerpf(tip_floor, 0.50, ramp) * lerpf(0.86, 1.0, neck_fill), 0.0, 0.52)
 	if u <= 0.001:
 		base = 0.0
-	var snout_narrow := 1.0 - clampf(snout_length, 0.0, 0.6) * 0.16 * (1.0 - u)
-	var radius_y := base * snout_narrow
-	var radius_z := base * lerpf(0.56, 0.86, smoothstep(0.18, 1.0, u)) * snout_narrow
+	var radius_y := base
+	# Cross-section width: a shark head is nearly as wide as tall at the gills, only
+	# narrowing toward the snout. A fuller front floor (0.72 vs the old 0.56) lets the
+	# rostrum read as a broad blunt cone instead of a thin blade, rounding to ~0.97 by the
+	# gill region so the head-on view is a thick ellipse, not a knife.
+	var radius_z := base * lerpf(0.72, 0.98, smoothstep(0.12, 0.62, u))
 	radius_y *= 1.0 + clampf(forehead_slope - 0.35, -0.35, 0.65) * 0.08 * (1.0 - u)
 	return Vector2(radius_y, radius_z)
 
@@ -274,8 +350,15 @@ static func _mouth_shadow_mesh(parameters: Dictionary) -> ArrayMesh:
 static func _front_x(snout_length: float) -> float:
 	return ROSTRUM_FRONT_X - clampf(snout_length, 0.0, 0.6) * 0.35
 
-static func _x_at_u(u: float, snout_length: float) -> float:
-	return lerpf(_front_x(snout_length), NECK_X, clampf(u, 0.0, 1.0))
+static func _x_at_u(u: float, snout_length: float, parameters: Dictionary = {}, sculpt: Dictionary = {}) -> float:
+	var clamped_u := clampf(u, 0.0, 1.0)
+	var x := lerpf(_front_x(snout_length), NECK_X, clamped_u)
+	var snout_base := _snout_base(parameters, sculpt)
+	var base_delta := snout_base - HeadProfile.SNOUT_BLEND_HALF
+	if snout_length > 0.0 and absf(base_delta) > 0.001 and clamped_u < snout_base:
+		var t := 1.0 - clamped_u / maxf(snout_base, 0.001)
+		x += base_delta * snout_length * 0.42 * t * (1.0 - t)
+	return x
 
 static func _mouth_u(parameters: Dictionary) -> float:
 	var raw := clampf(float(parameters.get("shark_mouth_position_x", -0.96)), -1.5, 0.2)
@@ -284,6 +367,25 @@ static func _mouth_u(parameters: Dictionary) -> float:
 static func _mouth_center_y(parameters: Dictionary) -> float:
 	return clampf(float(parameters.get("shark_mouth_position_y", -0.13)), -0.42, 0.24)
 
+static func _snout_base(parameters: Dictionary, sculpt: Dictionary) -> float:
+	return clampf(_snout_sculpt_value(parameters, sculpt, "snout_base", HeadProfile.SNOUT_BLEND_HALF), 0.12, 0.5)
+
+static func _snout_curve_y_shift(parameters: Dictionary, u: float, snout_length: float, sculpt: Dictionary) -> float:
+	var snout_base := _snout_base(parameters, sculpt)
+	if snout_length <= 0.0 or u >= snout_base:
+		return 0.0
+	var tip_lock := smoothstep(0.025, 0.18, clampf(u, 0.0, 1.0))
+	var curve := clampf(_snout_sculpt_value(parameters, sculpt, "snout_curve", 0.0), -1.0, 1.0)
+	return HeadProfile.snout_y_shift(0.0, u, snout_base, curve) * 0.35 * tip_lock
+
+static func _snout_sculpt_value(parameters: Dictionary, sculpt: Dictionary, key: String, default_value: float) -> float:
+	if sculpt.has(key):
+		return float(sculpt.get(key, default_value))
+	return float(parameters.get(key, default_value))
+
+# Small legacy forehead/keel nudge from forehead_slope. The primary dorsal/ventral
+# shaping now comes from the continuous head_top_curve/head_belly_curve controls (same
+# as the fish head editor); this just preserves the original mild shark default.
 static func _dorsal_bias(u: float, forehead_slope: float) -> float:
 	return smoothstep(0.08, 0.48, u) * (1.0 - smoothstep(0.65, 1.0, u)) * lerpf(0.008, 0.042, clampf(forehead_slope, 0.0, 1.0))
 

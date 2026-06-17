@@ -82,6 +82,26 @@ const SNOUT_SCULPT_KEYS := {
 	"snout_curve": true
 }
 
+# Continuous head-shape sculpt controls (dorsal/ventral profile, crown bump, flatness).
+# Shared by the fish AND shark head meshes, so they must survive save/load for both modes
+# (ray uses its own ray_head_shape). Without these here, sanitize_parameters_for_mode
+# strips them for sharks and every head edit reverts on save.
+const HEAD_SCULPT_KEYS := {
+	"head_flattening": true,
+	"head_top_curve": true,
+	"head_top_peak": true,
+	"head_belly_curve": true,
+	"head_bump_height": true,
+	"head_bump_pos": true,
+	"head_bump_width": true,
+	"head_bump_angle": true,
+	"head_bump_round": true,
+	"head_top_flatness": true,
+	"head_bottom_flatness": true,
+	"head_left_flatness": true,
+	"head_right_flatness": true
+}
+
 const FISH_ONLY_KEYS := {
 	"barbel_style": true,
 	"adipose_fin_shape": true,
@@ -239,6 +259,8 @@ static func is_parameter_visible(mode: String, key: String) -> bool:
 	if COMMON_KEYS.has(key):
 		return bool(COMMON_KEYS[key])
 	if SNOUT_SCULPT_KEYS.has(key):
+		return normalized_mode != CreatureModeScript.RAY
+	if HEAD_SCULPT_KEYS.has(key):
 		return normalized_mode != CreatureModeScript.RAY
 	if SHARK_GILL_KEYS.has(key):
 		return normalized_mode == CreatureModeScript.SHARK

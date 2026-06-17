@@ -678,17 +678,11 @@ func _should_show_specialized_key(key: String) -> bool:
 	return false
 
 func _is_shark_hidden_head_key(key: String) -> bool:
-	return key == "head_shape" \
-		or key == "head_flattening" \
-		or key == "head_bump_height" \
-		or key == "head_bump_pos" \
-		or key == "head_bump_width" \
-		or key == "head_bump_angle" \
-		or key == "head_bump_round" \
-		or key == "head_top_flatness" \
-		or key == "head_bottom_flatness" \
-		or key == "head_left_flatness" \
-		or key == "head_right_flatness"
+	# Sharks have no discrete head_shape picker (the base is a fixed "pointed" rostrum).
+	# The continuous head-sculpt controls (profile curves, crown bump, flatness) are now
+	# honored by the shark head mesh, so they are edited just like fish — not hidden here.
+	# (head_flattening stays head-editor-only via SPECIALIZED_EDITOR_KEYS, same as fish.)
+	return key == "head_shape"
 
 func _is_color_value(value: Variant) -> bool:
 	if value is Color:

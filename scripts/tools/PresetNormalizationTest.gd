@@ -294,6 +294,24 @@ func _ready() -> void:
 	assert(abs(float(rebuilt_rings[0].get("bottom_width", 0.0)) - 0.21) < 0.001)
 	assert(abs(float(rebuilt_rings[0].get("top_flatness", 0.0)) - 0.5) < 0.001)
 
+	# Sharks honor the same continuous head-shape controls as fish, so a save/load round
+	# trip must preserve them (regression: they used to be stripped by the schema filter,
+	# so every shark head edit silently reverted on save).
+	var shark_sculpt := BodyProfileScript.sanitize_parameters_for_mode({
+		"creature_type": "shark",
+		"head_top_curve": 0.8,
+		"head_top_peak": 0.42,
+		"head_belly_curve": 0.6,
+		"head_bump_height": 0.35,
+		"head_top_flatness": 0.5,
+		"head_flattening": 0.2
+	}, "shark")
+	assert(abs(float(shark_sculpt.get("head_top_curve", 0.0)) - 0.8) < 0.001)
+	assert(abs(float(shark_sculpt.get("head_belly_curve", 0.0)) - 0.6) < 0.001)
+	assert(abs(float(shark_sculpt.get("head_bump_height", 0.0)) - 0.35) < 0.001)
+	assert(abs(float(shark_sculpt.get("head_top_flatness", 0.0)) - 0.5) < 0.001)
+	assert(abs(float(shark_sculpt.get("head_flattening", 0.0)) - 0.2) < 0.001)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/preset_normalization.ok", FileAccess.WRITE)
 	file.store_string("legacy motion parameters normalized")

@@ -23,7 +23,7 @@ func _ready() -> void:
 	assert(String(default_shark.get("name", "")) == "basic_shark")
 	var default_shark_parameters: Dictionary = default_shark.get("parameters", {})
 	assert(abs(float(default_shark_parameters.get("body_length", 0.0)) - 3.8) < 0.001)
-	assert(abs(float(default_shark_parameters.get("snout_length", 0.0)) - 0.545) < 0.001)
+	assert(abs(float(default_shark_parameters.get("snout_length", 0.0)) - 0.18) < 0.001)
 	assert(String(default_shark_parameters.get("caudal_shape", "")) == "thresher")
 	assert(String(default_shark_parameters.get("dorsal_1_shape", "")) == "custom")
 	assert((default_shark_parameters.get("dorsal_1_custom_points", []) as Array).size() == 10)

@@ -132,10 +132,12 @@ func _ready() -> void:
 	assert(_find_slider_for_key(shark_panel, "snout_taper") != null)
 	assert(_find_slider_for_key(shark_panel, "snout_curve") != null)
 	assert(_find_slider_for_key(shark_panel, "forehead_slope") != null)
-	assert(_find_slider_for_key(shark_panel, "head_bump_height") == null)
-	assert(_find_slider_for_key(shark_panel, "head_bump_pos") == null)
-	assert(_find_slider_for_key(shark_panel, "head_top_flatness") == null)
-	assert(_find_slider_for_key(shark_panel, "head_left_flatness") == null)
+	# Sharks now share the fish head-shape controls (the shark head mesh honors them), so
+	# head_bump_* / flatness are visible; head_bump_pos shows because head_bump_height > 0.
+	assert(_find_slider_for_key(shark_panel, "head_bump_height") != null)
+	assert(_find_slider_for_key(shark_panel, "head_bump_pos") != null)
+	assert(_find_slider_for_key(shark_panel, "head_top_flatness") != null)
+	assert(_find_slider_for_key(shark_panel, "head_left_flatness") != null)
 	assert(_find_option_for_key(shark_panel, "ray_disc_shape") == null)
 	assert(_find_option_for_key(shark_panel, "caudal_shape") != null)
 	assert(_find_option_for_key(shark_panel, "mouth_type") == null)

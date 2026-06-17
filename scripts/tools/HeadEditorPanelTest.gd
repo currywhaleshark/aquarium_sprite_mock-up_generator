@@ -240,7 +240,13 @@ func _ready() -> void:
 	assert(shark_panel.get("head_shape_grid") == null)
 	assert(shark_panel.get("mouth_type_grid") == null)
 	assert(shark_panel.get("mouth_detail_option") == null)
-	for hidden_key in ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round", "head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness"]:
+	# Sharks now expose the same continuous head-shape controls as fish (the shark head
+	# mesh honors them). Sub-controls stay conditionally hidden until their parent is
+	# engaged, exactly like the fish editor: head_top_peak needs head_top_curve != 0, and
+	# the bump shape sliders need head_bump_height > 0 (both 0 in these params).
+	for shown_key in ["head_top_curve", "head_belly_curve", "head_bump_height", "head_flattening", "head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness"]:
+		assert(_has_numeric_slider(shark_panel, shown_key))
+	for hidden_key in ["head_top_peak", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]:
 		assert(not _has_numeric_slider(shark_panel, hidden_key))
 	assert(_has_numeric_slider(shark_panel, "head_size"))
 	assert(_has_numeric_slider(shark_panel, "head_length"))
