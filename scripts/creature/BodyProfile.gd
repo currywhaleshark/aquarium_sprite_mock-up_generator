@@ -20,10 +20,10 @@ const RING_KEY_RANGES := {
 	"width": {"min": 0.02, "max": 1.2, "step": 0.005},
 	"top_width": {"min": 0.02, "max": 1.2, "step": 0.005},
 	"bottom_width": {"min": 0.02, "max": 1.2, "step": 0.005},
-	"top_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
-	"bottom_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
-	"left_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
-	"right_flatness": {"min": 0.0, "max": 1.0, "step": 0.005},
+	"top_flatness": {"min": -1.0, "max": 1.0, "step": 0.005},
+	"bottom_flatness": {"min": -1.0, "max": 1.0, "step": 0.005},
+	"left_flatness": {"min": -1.0, "max": 1.0, "step": 0.005},
+	"right_flatness": {"min": -1.0, "max": 1.0, "step": 0.005},
 	"roundness": {"min": 0.0, "max": 1.0, "step": 0.005},
 	"sway_weight": {"min": 0.0, "max": 1.5, "step": 0.005}
 }
@@ -193,6 +193,8 @@ const VISUAL_PATTERN_DEFAULTS := {
 	"pattern_intensity": 0.7,
 	"pattern_invert": 0.0,
 	"pattern_seed": 0.0,
+	"pattern_dot_size": 0.35,
+	"pattern_dot_density": 0.35,
 	"pattern_size_lock": 0.0,
 	"palette_scheme": "manual",
 	"belly_height": 0.5,
@@ -524,10 +526,10 @@ static func normalize_ring(raw_ring: Dictionary, index: int) -> Dictionary:
 	ring["top_width"] = maxf(float(ring["top_width"]), 0.01)
 	ring["bottom_width"] = maxf(float(ring["bottom_width"]), 0.01)
 	ring["width"] = (float(ring["top_width"]) + float(ring["bottom_width"])) * 0.5
-	ring["top_flatness"] = clampf(float(ring["top_flatness"]), 0.0, 1.0)
-	ring["bottom_flatness"] = clampf(float(ring["bottom_flatness"]), 0.0, 1.0)
-	ring["left_flatness"] = clampf(float(ring["left_flatness"]), 0.0, 1.0)
-	ring["right_flatness"] = clampf(float(ring["right_flatness"]), 0.0, 1.0)
+	ring["top_flatness"] = clampf(float(ring["top_flatness"]), -1.0, 1.0)
+	ring["bottom_flatness"] = clampf(float(ring["bottom_flatness"]), -1.0, 1.0)
+	ring["left_flatness"] = clampf(float(ring["left_flatness"]), -1.0, 1.0)
+	ring["right_flatness"] = clampf(float(ring["right_flatness"]), -1.0, 1.0)
 	ring["roundness"] = clampf(float(ring["roundness"]), 0.0, 1.0)
 	ring["sway_weight"] = clampf(float(ring["sway_weight"]), 0.0, 1.5)
 	return ring
@@ -655,7 +657,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"lower_jaw_color",
 		"highlight_strength", "shadow_strength",
 		"pattern_type", "pattern_color", "pattern_scale_x", "pattern_scale_y",
-		"pattern_intensity", "pattern_invert", "pattern_seed", "pattern_size_lock",
+		"pattern_intensity", "pattern_invert", "pattern_seed", "pattern_dot_size", "pattern_dot_density", "pattern_size_lock",
 		"palette_scheme", "belly_height", "belly_slope",
 		"iridescence_strength", "iridescence_color", "iridescence_frequency",
 		"wetness", "scale_type", "scale_strength", "scale_size", "lateral_line_strength",

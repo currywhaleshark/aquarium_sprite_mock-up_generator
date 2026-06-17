@@ -77,6 +77,8 @@ func _test_shader_compiles_and_uniforms() -> void:
 		"pattern_intensity": 0.5,
 		"pattern_invert": 1.0,
 		"pattern_seed": 3.0,
+		"pattern_dot_size": 0.64,
+		"pattern_dot_density": 0.82,
 		"pattern_size_lock": 1.0,
 		"belly_height": 0.3,
 		"belly_slope": 0.4,
@@ -102,6 +104,8 @@ func _test_shader_compiles_and_uniforms() -> void:
 	assert(abs(float(material.get_shader_parameter("pattern_intensity")) - 0.5) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("pattern_invert")) - 1.0) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("pattern_seed")) - 3.0) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("pattern_dot_size")) - 0.64) < 0.0001)
+	assert(abs(float(material.get_shader_parameter("pattern_dot_density")) - 0.82) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("belly_height")) - 0.3) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("belly_slope")) - 0.4) < 0.0001)
 	assert(abs(float(material.get_shader_parameter("iridescence_strength")) - 0.6) < 0.0001)
@@ -202,6 +206,8 @@ func _test_preset_round_trip() -> void:
 		"pattern_intensity": 0.42,
 		"pattern_invert": 1.0,
 		"pattern_seed": 12.0,
+		"pattern_dot_size": 0.58,
+		"pattern_dot_density": 0.77,
 		"pattern_size_lock": 1.0,
 		"palette_scheme": "analogous",
 		"belly_height": 0.35,
@@ -231,6 +237,8 @@ func _test_preset_round_trip() -> void:
 	assert(abs(float(visual.get("pattern_intensity", 0.0)) - 0.42) < 0.0001)
 	assert(abs(float(visual.get("pattern_invert", 0.0)) - 1.0) < 0.0001)
 	assert(abs(float(visual.get("pattern_seed", 0.0)) - 12.0) < 0.0001)
+	assert(abs(float(visual.get("pattern_dot_size", 0.0)) - 0.58) < 0.0001)
+	assert(abs(float(visual.get("pattern_dot_density", 0.0)) - 0.77) < 0.0001)
 	assert(abs(float(visual.get("pattern_size_lock", 0.0)) - 1.0) < 0.0001)
 	assert(String(visual.get("palette_scheme", "")) == "analogous")
 	assert(abs(float(visual.get("belly_height", 0.0)) - 0.35) < 0.0001)
@@ -257,6 +265,8 @@ func _test_preset_round_trip() -> void:
 	assert(abs(float(rebuilt.get("pattern_scale_x", 0.0)) - 9.0) < 0.0001)
 	assert(abs(float(rebuilt.get("pattern_invert", 0.0)) - 1.0) < 0.0001)
 	assert(abs(float(rebuilt.get("pattern_seed", 0.0)) - 12.0) < 0.0001)
+	assert(abs(float(rebuilt.get("pattern_dot_size", 0.0)) - 0.58) < 0.0001)
+	assert(abs(float(rebuilt.get("pattern_dot_density", 0.0)) - 0.77) < 0.0001)
 	assert(abs(float(rebuilt.get("pattern_size_lock", 0.0)) - 1.0) < 0.0001)
 	assert(String(rebuilt.get("palette_scheme", "")) == "analogous")
 	assert(abs(float(rebuilt.get("belly_height", 0.0)) - 0.35) < 0.0001)
@@ -287,6 +297,8 @@ func _test_visual_defaults_injected() -> void:
 	assert(legacy.has("pattern_intensity"))
 	assert(legacy.has("pattern_invert"))
 	assert(legacy.has("pattern_seed"))
+	assert(legacy.has("pattern_dot_size"))
+	assert(legacy.has("pattern_dot_density"))
 	assert(legacy.has("pattern_size_lock"))
 	assert(legacy.has("palette_scheme"))
 	assert(legacy.has("belly_height"))

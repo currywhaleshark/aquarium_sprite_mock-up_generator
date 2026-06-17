@@ -28,6 +28,8 @@ static func make_body_material(parameters: Dictionary) -> ShaderMaterial:
 	material.set_shader_parameter("pattern_intensity", clampf(float(parameters.get("pattern_intensity", 0.7)), 0.0, 1.0))
 	material.set_shader_parameter("pattern_invert", clampf(float(parameters.get("pattern_invert", 0.0)), 0.0, 1.0))
 	material.set_shader_parameter("pattern_seed", float(parameters.get("pattern_seed", 0.0)))
+	material.set_shader_parameter("pattern_dot_size", clampf(float(parameters.get("pattern_dot_size", 0.35)), 0.05, 1.0))
+	material.set_shader_parameter("pattern_dot_density", clampf(float(parameters.get("pattern_dot_density", 0.35)), 0.0, 1.0))
 	material.set_shader_parameter("iridescence_strength", clampf(float(parameters.get("iridescence_strength", 0.0)), 0.0, 1.0))
 	material.set_shader_parameter("iridescence_color", _as_color(parameters.get("iridescence_color", "#bfe9ff")))
 	material.set_shader_parameter("iridescence_frequency", clampf(float(parameters.get("iridescence_frequency", 2.0)), 0.1, 10.0))

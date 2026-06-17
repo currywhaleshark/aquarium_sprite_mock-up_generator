@@ -422,6 +422,8 @@ const PARAMETER_LABELS := {
 	"pattern_intensity": "무늬 진하기",
 	"pattern_invert": "무늬 반전",
 	"pattern_seed": "무늬 씨앗",
+	"pattern_dot_size": "점무늬 점 크기",
+	"pattern_dot_density": "점무늬 밀도",
 	"pattern_size_lock": "몸 크기 기준 무늬 밀도",
 	"marking_layers": "부위별 무늬 레이어",
 	"marking_layer_type": "레이어 종류",

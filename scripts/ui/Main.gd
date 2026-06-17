@@ -56,6 +56,7 @@ var apply_archetype_button: Button
 var new_variant_button: Button
 var archetype_section_container: VBoxContainer
 var side_tabs: TabContainer
+var export_tab_index := -1
 var preset_name_edit: LineEdit
 var save_preset_button: Button
 var creature_type_label: Label
@@ -92,6 +93,8 @@ var turn_preview_target_index := 0
 var turn_preview_step := 0
 var _pending_editor_parameters: Dictionary = {}
 var _editor_parameter_apply_pending := false
+var _stylize_preview_capture_running := false
+var _stylize_preview_capture_pending := false
 
 # A side-panel section that can detach into its own movable, resizable window and
 # re-dock when the window closes. The panel is the same node wherever it is parented,
@@ -323,6 +326,7 @@ func _build_ui() -> void:
 	var motion_tab := _make_tab_page("움직임")
 	var view_tab := _make_tab_page("표시·카메라")
 	var export_tab := _make_tab_page("출력")
+	export_tab_index = export_tab.get_index()
 
 	# --- 표시·카메라 탭 ---
 	playback_toggle = CheckButton.new()
@@ -530,7 +534,12 @@ func _build_ui() -> void:
 	# --- 출력 탭 ---
 	export_panel = ExportPanelScript.new()
 	export_panel.export_requested.connect(_export_current)
+	export_panel.stylize_preview_refresh_requested.connect(_request_stylize_preview_capture)
 	export_tab.add_child(export_panel)
+	side_tabs.tab_changed.connect(func(tab: int) -> void:
+		if tab == export_tab_index:
+			_request_stylize_preview_capture()
+	)
 
 	var help_title := Button.new()
 	help_title.text = "> 조작 도움말"
@@ -947,7 +956,10 @@ func _load_preset(index: int) -> void:
 			export_panel.call("set_include_turn_clips", bool(export_settings.get("include_turn_clips", false)))
 		if export_panel.has_method("set_stylize_enabled"):
 			var stylize_settings: Dictionary = export_settings.get("stylize", {}) if export_settings.get("stylize") is Dictionary else {}
-			export_panel.call("set_stylize_enabled", bool(stylize_settings.get("enabled", true)))
+			if export_panel.has_method("set_stylize_options"):
+				export_panel.call("set_stylize_options", stylize_settings)
+			else:
+				export_panel.call("set_stylize_enabled", bool(stylize_settings.get("enabled", true)))
 	_apply_camera()
 	_update_display_preview_label()
 	_update_creature_type_label()
@@ -1396,13 +1408,41 @@ func _export_current() -> void:
 		export_settings["include_turn_clips"] = bool(export_panel.call("get_include_turn_clips"))
 	if export_panel and export_panel.has_method("get_stylize_enabled"):
 		var stylize_settings: Dictionary = (export_settings.get("stylize", {}) as Dictionary).duplicate(true) if export_settings.get("stylize") is Dictionary else {}
-		stylize_settings["enabled"] = bool(export_panel.call("get_stylize_enabled"))
+		if export_panel.has_method("get_stylize_options"):
+			stylize_settings = export_panel.call("get_stylize_options")
+		else:
+			stylize_settings["enabled"] = bool(export_panel.call("get_stylize_enabled"))
 		export_settings["stylize"] = stylize_settings
 	current_preset["export_settings"] = export_settings
 	export_panel.set_status("출력 중...")
 	_is_exporting = true
 	await exporter.export_preset(current_preset, current_rig, viewport)
 	_is_exporting = false
+
+func _request_stylize_preview_capture() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	if export_panel == null or viewport == null or not export_panel.has_method("set_stylize_preview_source"):
+		return
+	if _stylize_preview_capture_running:
+		_stylize_preview_capture_pending = true
+		return
+	_stylize_preview_capture_running = true
+	call_deferred("_capture_stylize_preview_source")
+
+func _capture_stylize_preview_source() -> void:
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	if export_panel != null and viewport != null and export_panel.has_method("set_stylize_preview_source"):
+		var texture := viewport.get_texture()
+		if texture != null:
+			var image := texture.get_image()
+			if image != null and not image.is_empty():
+				export_panel.call("set_stylize_preview_source", image)
+	_stylize_preview_capture_running = false
+	if _stylize_preview_capture_pending:
+		_stylize_preview_capture_pending = false
+		_request_stylize_preview_capture()
 
 func _set_fin_edit_enabled(enabled: bool) -> void:
 	if fin_editor_panel:

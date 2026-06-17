@@ -525,6 +525,8 @@ func _min_for_key(key: String, value: float) -> float:
 		return 0.0
 	if key == "scale_size":
 		return 4.0
+	if key == "pattern_dot_size":
+		return 0.05
 	if key == "wave_ripples":
 		return 0.5
 	if key == "adipose_fin_position":
@@ -588,7 +590,7 @@ func _max_for_key(key: String, value: float) -> float:
 		return 1.0
 	if key.begins_with("fin_ray_") or key.begins_with("adipose_fin_") or key.begins_with("finlet_") or key == "fin_spine_strength":
 		return 1.0
-	if key == "pattern_intensity" or key == "pattern_invert" or key == "pattern_size_lock" or key == "belly_height" or key == "belly_slope" or key == "wetness" or key == "shell_roundness":
+	if key == "pattern_intensity" or key == "pattern_invert" or key == "pattern_size_lock" or key == "pattern_dot_size" or key == "pattern_dot_density" or key == "belly_height" or key == "belly_slope" or key == "wetness" or key == "shell_roundness":
 		return 1.0
 	if key == "pattern_seed":
 		return maxf(999.0, value * 2.0)

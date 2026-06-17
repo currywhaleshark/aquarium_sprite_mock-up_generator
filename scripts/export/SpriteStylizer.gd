@@ -19,6 +19,11 @@ extends RefCounted
 # frame size so higher-resolution exports get a proportionally thicker line.
 
 const DEFAULT_OUTLINE_COLOR := "#11181d"
+const DEFAULT_POSTERIZE_LEVELS := 5
+const DEFAULT_OUTLINE_SCALE := 0.011
+const DEFAULT_COLOR_STRENGTH := 1.0
+const DEFAULT_OUTLINE_STRENGTH := 1.0
+const MAX_STRENGTH := 2.0
 
 # Merged stylise options: caller-supplied export_settings["stylize"] layered over
 # the defaults. "enabled" defaults OFF so programmatic exports (smoke tests, QA
@@ -26,21 +31,52 @@ const DEFAULT_OUTLINE_COLOR := "#11181d"
 static func resolve_options(export_settings: Dictionary) -> Dictionary:
 	var options := default_options()
 	var overrides: Variant = export_settings.get("stylize", {})
+	var has_control_strengths := false
 	if overrides is Dictionary:
 		for key in (overrides as Dictionary).keys():
 			options[key] = (overrides as Dictionary)[key]
+		has_control_strengths = (overrides as Dictionary).has("color_strength") or (overrides as Dictionary).has("outline_strength")
+	if has_control_strengths:
+		_apply_control_strengths(options, float(options.get("color_strength", DEFAULT_COLOR_STRENGTH)), float(options.get("outline_strength", DEFAULT_OUTLINE_STRENGTH)))
 	return options
 
 static func default_options() -> Dictionary:
 	return {
 		"enabled": false,
-		"posterize_levels": 5, # value bands; < 2 disables cel banding
+		"color_strength": DEFAULT_COLOR_STRENGTH,
+		"outline_strength": DEFAULT_OUTLINE_STRENGTH,
+		"posterize_levels": DEFAULT_POSTERIZE_LEVELS, # value bands; < 2 disables cel banding
+		"posterize_blend": 1.0,
 		"outline_width": 0, # px; 0 = auto from frame size via outline_scale
-		"outline_scale": 0.011, # fraction of min(w, h) used when outline_width == 0
+		"outline_scale": DEFAULT_OUTLINE_SCALE, # fraction of min(w, h) used when outline_width == 0
 		"outline_color": DEFAULT_OUTLINE_COLOR,
 		"crisp_alpha": true, # snap the AA fringe to a hard silhouette
 		"alpha_threshold": 0.5, # silhouette cutoff for crisping + outline
 	}
+
+static func options_for_controls(enabled: bool, color_strength: float, outline_strength: float) -> Dictionary:
+	var options := default_options()
+	options["enabled"] = enabled
+	_apply_control_strengths(options, color_strength, outline_strength)
+	return options
+
+static func _apply_control_strengths(options: Dictionary, color_strength: float, outline_strength: float) -> void:
+	var color := clampf(color_strength, 0.0, MAX_STRENGTH)
+	var outline := clampf(outline_strength, 0.0, MAX_STRENGTH)
+	options["color_strength"] = color
+	options["outline_strength"] = outline
+	options["posterize_levels"] = _posterize_levels_for_strength(color)
+	options["posterize_blend"] = clampf(color, 0.0, 1.0)
+	options["outline_width"] = 0
+	options["outline_scale"] = DEFAULT_OUTLINE_SCALE * outline
+
+static func _posterize_levels_for_strength(strength: float) -> int:
+	var color := clampf(strength, 0.0, MAX_STRENGTH)
+	if color <= 0.0:
+		return 0
+	if color <= 1.0:
+		return int(round(lerpf(9.0, float(DEFAULT_POSTERIZE_LEVELS), color)))
+	return int(round(lerpf(float(DEFAULT_POSTERIZE_LEVELS), 3.0, color - 1.0)))
 
 # Applies the stylise pass in place. Order matters: cel-band the interior first so
 # the flat outline colour is never itself posterised, then crisp + draw the outline.
@@ -50,8 +86,9 @@ static func stylize(image: Image, options: Dictionary) -> void:
 	if image.get_format() != Image.FORMAT_RGBA8:
 		image.convert(Image.FORMAT_RGBA8)
 	var levels := int(options.get("posterize_levels", 0))
-	if levels >= 2:
-		_posterize_value(image, levels)
+	var posterize_blend := clampf(float(options.get("posterize_blend", 1.0)), 0.0, 1.0)
+	if levels >= 2 and posterize_blend > 0.0:
+		_posterize_value(image, levels, posterize_blend)
 	var width := _effective_outline_width(image, options)
 	if width > 0:
 		var threshold := clampf(float(options.get("alpha_threshold", 0.5)), 0.0, 1.0)
@@ -71,8 +108,9 @@ static func _effective_outline_width(image: Image, options: Dictionary) -> int:
 
 # Quantise brightness into `levels` flat steps while keeping hue + saturation, so a
 # smooth gradient collapses into a few cel bands. Transparent pixels are skipped.
-static func _posterize_value(image: Image, levels: int) -> void:
+static func _posterize_value(image: Image, levels: int, blend: float = 1.0) -> void:
 	var steps := float(maxi(levels, 2) - 1)
+	var amount := clampf(blend, 0.0, 1.0)
 	var w := image.get_width()
 	var h := image.get_height()
 	for y in h:
@@ -81,7 +119,7 @@ static func _posterize_value(image: Image, levels: int) -> void:
 			if c.a <= 0.0:
 				continue
 			var quantised_v: float = round(c.v * steps) / steps
-			image.set_pixel(x, y, Color.from_hsv(c.h, c.s, quantised_v, c.a))
+			image.set_pixel(x, y, Color.from_hsv(c.h, c.s, lerpf(c.v, quantised_v, amount), c.a))
 
 # Snap the anti-aliased edge to a hard silhouette: pixels at/above the threshold go
 # fully opaque, the rest fully transparent. RGB is preserved so colours don't shift.

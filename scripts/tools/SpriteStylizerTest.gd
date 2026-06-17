@@ -4,6 +4,7 @@ const SpriteStylizerScript := preload("res://scripts/export/SpriteStylizer.gd")
 
 func _ready() -> void:
 	_test_resolve_options_defaults_off_and_merges()
+	_test_separate_color_and_outline_strengths_map_to_options()
 	_test_posterize_collapses_value_gradient()
 	_test_outline_wraps_silhouette_and_spares_background()
 	_test_crisp_alpha_hardens_fringe()
@@ -27,6 +28,34 @@ func _test_resolve_options_defaults_off_and_merges() -> void:
 	# Untouched keys keep their default.
 	if not merged.has("outline_color"):
 		_fail("merged options should retain default keys")
+
+func _test_separate_color_and_outline_strengths_map_to_options() -> void:
+	var outline_only: Dictionary = SpriteStylizerScript.options_for_controls(true, 0.0, 1.0)
+	if bool(outline_only.get("enabled", false)) != true or int(outline_only.get("posterize_levels", -1)) != 0:
+		_fail("color strength 0 should disable cel colour banding")
+		return
+	if absf(float(outline_only.get("outline_scale", 0.0)) - 0.011) > 0.0001:
+		_fail("outline strength 1 should preserve the existing default outline")
+		return
+	var color_only: Dictionary = SpriteStylizerScript.options_for_controls(true, 1.0, 0.0)
+	if int(color_only.get("posterize_levels", 0)) != 5:
+		_fail("color strength 1 should preserve the existing default cel bands")
+		return
+	if float(color_only.get("outline_scale", -1.0)) != 0.0:
+		_fail("outline strength 0 should disable outline")
+		return
+	var strong_color: Dictionary = SpriteStylizerScript.options_for_controls(true, 2.0, 1.0)
+	if int(strong_color.get("posterize_levels", 9)) >= int(color_only.get("posterize_levels", 0)):
+		_fail("stronger color stylize should use fewer cel bands")
+		return
+	var strong_outline: Dictionary = SpriteStylizerScript.options_for_controls(true, 1.0, 2.0)
+	if float(strong_outline.get("outline_scale", 0.0)) <= float(outline_only.get("outline_scale", 0.0)):
+		_fail("stronger outline stylize should use a thicker outline scale")
+		return
+	var merged := SpriteStylizerScript.resolve_options({"stylize": {"enabled": true, "color_strength": 1.5, "outline_strength": 0.25}})
+	if absf(float(merged.get("color_strength", 0.0)) - 1.5) > 0.0001 or absf(float(merged.get("outline_strength", 0.0)) - 0.25) > 0.0001:
+		_fail("resolve_options should preserve separate stylize strengths")
+		return
 
 func _test_posterize_collapses_value_gradient() -> void:
 	var size := 24

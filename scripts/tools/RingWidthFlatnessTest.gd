@@ -110,6 +110,16 @@ func _ready() -> void:
 
 	fish.set_parameters(params)
 	await get_tree().process_frame
+	_mutate_ring(fish, {"top_flatness": -1.0})
+	await get_tree().process_frame
+	var pointed_top := _shape_span(fish)
+	assert(absf(pointed_top["top"] - neutral["top"]) < 0.0005)
+	assert(pointed_top["upper_right"].y < neutral["upper_right"].y - 0.015)
+	assert(pointed_top["upper_left"].y < neutral["upper_left"].y - 0.015)
+	assert(absf(pointed_top["bottom"] - neutral["bottom"]) < 0.0005)
+
+	fish.set_parameters(params)
+	await get_tree().process_frame
 	var neutral_fins := _pelvic_positions(fish)
 	var rings: Array = fish.parameters["body_profile"]["rings"]
 	for i in rings.size():

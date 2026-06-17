@@ -132,6 +132,8 @@ const COMMON_KEYS := {
 	"pattern_type": true,
 	"pattern_color": true,
 	"pattern_intensity": true,
+	"pattern_dot_size": true,
+	"pattern_dot_density": true,
 	"pattern_scale_x": true,
 	"pattern_scale_y": true,
 	"marking_layers": true,

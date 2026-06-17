@@ -33,6 +33,8 @@ uniform float pattern_scale_y = 4.0;
 uniform float pattern_intensity : hint_range(0.0, 1.0) = 0.7;
 uniform float pattern_invert : hint_range(0.0, 1.0) = 0.0;
 uniform float pattern_seed = 0.0;
+uniform float pattern_dot_size : hint_range(0.05, 1.0) = 0.35;
+uniform float pattern_dot_density : hint_range(0.0, 1.0) = 0.35;
 
 // Iridescence (iridophores): a view-angle driven oil-slick sheen. Defaults off.
 uniform float iridescence_strength : hint_range(0.0, 1.0) = 0.0;
@@ -180,10 +182,11 @@ float pvoronoi_edge(vec2 p, float per) {
 	return sqrt(f2) - sqrt(f1);
 }
 
-float pspeckle_dot(vec2 p, float per) {
+float pspeckle_dot(vec2 p, float per, float dot_size, float dot_density) {
 	vec2 i = floor(p);
 	vec2 f = fract(p);
 	float nearest = 8.0;
+	float present_threshold = 1.0 - clamp(dot_density, 0.0, 1.0);
 	for (int yy = -1; yy <= 1; yy++) {
 		for (int xx = -1; xx <= 1; xx++) {
 			vec2 g = vec2(float(xx), float(yy));
@@ -191,13 +194,15 @@ float pspeckle_dot(vec2 p, float per) {
 			float wrapped_y = mod(cell.y, per);
 			float jitter_x = hash21(vec2(cell.x, wrapped_y) + vec2(19.1, 3.7));
 			float jitter_y = hash21(vec2(cell.x, wrapped_y) + vec2(41.3, 17.1));
-			float present = step(0.22, hash21(vec2(cell.x, wrapped_y) + vec2(7.9, 29.4)));
+			float present = step(present_threshold, hash21(vec2(cell.x, wrapped_y) + vec2(7.9, 29.4)));
 			vec2 center = vec2(0.2 + jitter_x * 0.6, 0.2 + jitter_y * 0.6);
 			vec2 r = g + center - f;
 			nearest = min(nearest, mix(8.0, dot(r, r), present));
 		}
 	}
-	return 1.0 - smoothstep(0.035, 0.075, sqrt(nearest));
+	float radius = mix(0.025, 0.145, clamp(dot_size, 0.05, 1.0));
+	float softness = mix(0.02, 0.06, clamp(dot_size, 0.05, 1.0));
+	return 1.0 - smoothstep(radius, radius + softness, sqrt(nearest));
 }
 
 float pattern_mask(int kind, float u, float v) {
@@ -253,7 +258,7 @@ float pattern_mask(int kind, float u, float v) {
 		// Speckles: smaller, rounder dots than the broad noise-based spots.
 		float dot_sx = sx * 2.5;
 		float dot_per = max(1.0, floor(pattern_scale_y * 2.5 + 0.5));
-		return pspeckle_dot(vec2(su * dot_sx, v * dot_per), dot_per);
+		return pspeckle_dot(vec2(su * dot_sx, v * dot_per), dot_per, pattern_dot_size, pattern_dot_density);
 	}
 	return 0.0;
 }

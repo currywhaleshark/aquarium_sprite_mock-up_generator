@@ -151,6 +151,15 @@ func _ready() -> void:
 	assert(absf(_mesh_max_y(top_flat_head) - neutral_top) < 0.01)
 	assert(_mesh_upper_quadrant_average_y(top_flat_head) > neutral_upper_avg + 0.01)
 
+	var top_pointed: Dictionary = neutral_flatness.duplicate(true)
+	top_pointed["head_top_flatness"] = -1.0
+	fish.set_parameters(top_pointed)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var top_pointed_head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	assert(absf(_mesh_max_y(top_pointed_head) - neutral_top) < 0.01)
+	assert(_mesh_upper_quadrant_average_y(top_pointed_head) < neutral_upper_avg - 0.01)
+
 	# Forehead bump: a forward-leaning crown bump must push geometry both up and
 	# forward (-x), i.e. it juts out in front rather than only bulging upward.
 	var no_bump: Dictionary = flat_top.duplicate(true)

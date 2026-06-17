@@ -26,7 +26,9 @@ func _ready() -> void:
 		"adipose_fin_position": 0.82,
 		"finlet_enabled": true,
 		"finlet_pitch": 0.25,
-		"finlet_dorsal_count": 9.0
+		"finlet_dorsal_count": 9.0,
+		"pattern_dot_size": 0.35,
+		"pattern_dot_density": 0.35
 	})
 	ray_panel.set_creature_type("ray")
 	ray_panel.set_parameters({
@@ -44,6 +46,8 @@ func _ready() -> void:
 	var adipose_position_slider := _find_slider_for_label(panel, UiText.parameter("adipose_fin_position"))
 	var finlet_enabled_check := _find_checkbox_for_label(panel, UiText.parameter("finlet_enabled"))
 	var finlet_pitch_slider := _find_slider_for_label(panel, UiText.parameter("finlet_pitch"))
+	var dot_size_slider := _find_slider_for_label(panel, UiText.parameter("pattern_dot_size"))
+	var dot_density_slider := _find_slider_for_label(panel, UiText.parameter("pattern_dot_density"))
 	assert(offset_slider != null)
 	assert(body_slider != null)
 	assert(disc_thickness_slider != null)
@@ -70,6 +74,12 @@ func _ready() -> void:
 	assert(finlet_pitch_slider != null)
 	assert(finlet_pitch_slider.min_value <= -1.0)
 	assert(finlet_pitch_slider.max_value >= 1.0)
+	assert(dot_size_slider != null)
+	assert(absf(dot_size_slider.min_value - 0.05) < 0.0001)
+	assert(absf(dot_size_slider.max_value - 1.0) < 0.0001)
+	assert(dot_density_slider != null)
+	assert(absf(dot_density_slider.min_value - 0.0) < 0.0001)
+	assert(absf(dot_density_slider.max_value - 1.0) < 0.0001)
 	assert(UiText.parameter("fin_ray_style") == "기조 스타일")
 	assert(UiText.option("threaded") == "실지느러미형")
 

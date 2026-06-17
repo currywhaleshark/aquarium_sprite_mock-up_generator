@@ -15,6 +15,8 @@ func _ready() -> void:
 	_assert_equal(UiText.parameter("wing_length"), "날개 길이", "ray wing length label should be Korean")
 	_assert_equal(UiText.parameter("fin_ray_count"), "기조 수", "fin ray count label should be Korean")
 	_assert_equal(UiText.parameter("fin_opacity"), "지느러미 투명도", "fin opacity label should be Korean")
+	_assert_equal(UiText.parameter("pattern_dot_size"), "점무늬 점 크기", "speckle dot size label should be Korean")
+	_assert_equal(UiText.parameter("pattern_dot_density"), "점무늬 밀도", "speckle density label should be Korean")
 
 	var layer_editor := MarkingLayerEditorScript.new()
 	add_child(layer_editor)
