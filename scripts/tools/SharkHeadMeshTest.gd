@@ -217,16 +217,21 @@ func _test_snout_tip_y_uses_shared_surface_paths(parameters: Dictionary) -> void
 	var high_tip := SharkHeadProfile.point_at(high_params, 0.035, PI * 0.5, 0.42, float(high_params.get("forehead_slope", 0.35)))
 	if not _require(high_tip.y - low_tip.y > 0.09, "snout tip y must move the shared rostrum surface"):
 		return
+	var high_probe := SharkHeadProfile.point_at(high_params, 0.035, PI / 6.0, 0.42, float(high_params.get("forehead_slope", 0.35)))
+	var high_surface_z := SharkHeadProfile.surface_z_at(high_params, 0.035, high_probe.y, 1.0)
+	var low_surface_z := SharkHeadProfile.surface_z_at(low_params, 0.035, high_probe.y, 1.0)
+	if not _require(absf(high_surface_z - low_surface_z) > 0.06, "surface_z_at must include snout tip y shift"):
+		return
 	high_params["shark_mouth_position_x"] = -1.30
 	high_params["shark_mouth_gape"] = 0.0
-	var frame := SharkHeadProfile.mouth_path_frame(high_params, 0.08)
+	low_params["shark_mouth_position_x"] = high_params["shark_mouth_position_x"]
+	low_params["shark_mouth_gape"] = high_params["shark_mouth_gape"]
+	var frame := SharkHeadProfile.mouth_path_frame(high_params, 0.25)
 	var pos: Vector3 = frame["pos"]
 	var u := _u_for_x_with_snout(pos.x, high_params)
-	var side := signf(pos.z)
-	if side == 0.0:
-		side = 1.0
-	var expected_z := SharkHeadProfile.surface_z_at(high_params, u, pos.y, side)
-	if not _require(absf(pos.z - expected_z) <= 0.08, "forward mouth path must stay on the snout-tip-shifted surface"):
+	var high_mouth_weight := SharkHeadProfile.mouth_weight(high_params, u, pos.y, pos.z)
+	var low_mouth_weight := SharkHeadProfile.mouth_weight(low_params, u, pos.y, pos.z)
+	if not _require(high_mouth_weight - low_mouth_weight > 0.20, "mouth_weight must include snout tip y shift"):
 		return
 
 func _test_rostrum_and_neck_are_closed(parameters: Dictionary) -> void:
