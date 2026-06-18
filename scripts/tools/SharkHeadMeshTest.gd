@@ -31,6 +31,9 @@ func _ready() -> void:
 	await _test_rostrum_and_neck_are_closed(base)
 	if _failed:
 		return
+	await _test_new_controls_default_to_neutral_noop(base)
+	if _failed:
+		return
 	await _test_shark_eyes_follow_head_surface(base)
 	if _failed:
 		return
@@ -250,6 +253,37 @@ func _test_rostrum_and_neck_are_closed(parameters: Dictionary) -> void:
 		return
 	shark.queue_free()
 
+func _test_new_controls_default_to_neutral_noop(parameters: Dictionary) -> void:
+	var absent_params := parameters.duplicate(true)
+	for key in [
+		"shark_head_rear_height",
+		"shark_head_rear_width",
+		"shark_snout_tip_y",
+		"shark_mouth_angle",
+		"shark_mouth_arc"
+	]:
+		absent_params.erase(key)
+	var neutral_params := absent_params.duplicate(true)
+	for key in [
+		"shark_head_rear_height",
+		"shark_head_rear_width",
+		"shark_snout_tip_y",
+		"shark_mouth_angle",
+		"shark_mouth_arc"
+	]:
+		neutral_params[key] = 0.0
+	var absent := await _build_shark(absent_params)
+	var neutral := await _build_shark(neutral_params)
+	var absent_vertices := _vertices(_head(absent))
+	var neutral_vertices := _vertices(_head(neutral))
+	if not _require(absent_vertices.size() == neutral_vertices.size(), "new neutral controls must keep stable vertex count"):
+		return
+	var max_delta := _max_all_vertex_delta(absent_vertices, neutral_vertices)
+	if not _require(max_delta <= 0.0005, "absent and explicit-zero new controls must match within tolerance"):
+		return
+	absent.queue_free()
+	neutral.queue_free()
+
 func _test_mouth_line_has_crease_rings(parameters: Dictionary) -> void:
 	var shark := await _build_shark(parameters)
 	var head := _head(shark)
@@ -376,6 +410,12 @@ func _max_non_mouth_delta(closed_vertices: PackedVector3Array, open_vertices: Pa
 	for i in range(mini(closed_vertices.size(), open_vertices.size())):
 		if not _is_mouth_vertex(closed_vertices[i], parameters):
 			max_delta = maxf(max_delta, closed_vertices[i].distance_to(open_vertices[i]))
+	return max_delta
+
+func _max_all_vertex_delta(a_vertices: PackedVector3Array, b_vertices: PackedVector3Array) -> float:
+	var max_delta := 0.0
+	for i in range(mini(a_vertices.size(), b_vertices.size())):
+		max_delta = maxf(max_delta, a_vertices[i].distance_to(b_vertices[i]))
 	return max_delta
 
 func _max_rostrum_window_delta(a_vertices: PackedVector3Array, b_vertices: PackedVector3Array, parameters: Dictionary) -> float:
