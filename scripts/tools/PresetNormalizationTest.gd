@@ -311,6 +311,30 @@ func _ready() -> void:
 	assert(abs(float(shark_sculpt.get("head_bump_height", 0.0)) - 0.35) < 0.001)
 	assert(abs(float(shark_sculpt.get("head_top_flatness", 0.0)) - 0.5) < 0.001)
 	assert(abs(float(shark_sculpt.get("head_flattening", 0.0)) - 0.2) < 0.001)
+	var shark_morph := BodyProfileScript.sanitize_parameters_for_mode({
+		"creature_type": "shark",
+		"shark_head_rear_height": 0.33,
+		"shark_head_rear_width": 0.44,
+		"shark_snout_tip_y": -0.12,
+		"shark_mouth_angle": 18.0,
+		"shark_mouth_arc": -0.35
+	}, "shark")
+	assert(abs(float(shark_morph.get("shark_head_rear_height", 0.0)) - 0.33) < 0.001)
+	assert(abs(float(shark_morph.get("shark_head_rear_width", 0.0)) - 0.44) < 0.001)
+	assert(abs(float(shark_morph.get("shark_snout_tip_y", 0.0)) + 0.12) < 0.001)
+	assert(abs(float(shark_morph.get("shark_mouth_angle", 0.0)) - 18.0) < 0.001)
+	assert(abs(float(shark_morph.get("shark_mouth_arc", 0.0)) + 0.35) < 0.001)
+	var ray_morph := BodyProfileScript.sanitize_parameters_for_mode({
+		"creature_type": "ray",
+		"ray_disc_shape": "manta",
+		"shark_head_rear_height": 0.33,
+		"shark_head_rear_width": 0.44,
+		"shark_snout_tip_y": -0.12,
+		"shark_mouth_angle": 18.0,
+		"shark_mouth_arc": -0.35
+	}, "ray")
+	for shark_morph_key in ["shark_head_rear_height", "shark_head_rear_width", "shark_snout_tip_y", "shark_mouth_angle", "shark_mouth_arc"]:
+		assert(not ray_morph.has(shark_morph_key))
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/preset_normalization.ok", FileAccess.WRITE)

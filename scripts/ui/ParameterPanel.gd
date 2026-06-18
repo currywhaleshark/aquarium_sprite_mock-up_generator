@@ -60,6 +60,11 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"head_length": true,
 	"head_offset": true,
 	"snout_length": true,
+	"shark_head_rear_height": true,
+	"shark_head_rear_width": true,
+	"shark_snout_tip_y": true,
+	"shark_mouth_angle": true,
+	"shark_mouth_arc": true,
 	"forehead_slope": true,
 	"jaw_offset": true,
 	"mouth_size": true,
@@ -511,10 +516,18 @@ func _min_for_key(key: String, value: float) -> float:
 		return -1.0
 	if key == "shark_gill_slit_position_y":
 		return -0.3
+	if key == "shark_head_rear_height" or key == "shark_head_rear_width":
+		return -0.4
+	if key == "shark_snout_tip_y":
+		return -0.35
 	if key == "shark_mouth_position_x":
 		return -1.5
 	if key == "shark_mouth_position_y":
 		return -0.5
+	if key == "shark_mouth_angle":
+		return -45.0
+	if key == "shark_mouth_arc":
+		return -1.0
 	if key == "shark_tooth_angle":
 		return -45.0
 	if key == "shark_tooth_visible_count":
@@ -554,12 +567,22 @@ func _max_for_key(key: String, value: float) -> float:
 		return 0.3
 	if key == "shark_gill_slit_position_y":
 		return 0.3
+	if key == "shark_head_rear_height":
+		return 0.8
+	if key == "shark_head_rear_width":
+		return 1.0
+	if key == "shark_snout_tip_y":
+		return 0.35
 	if key == "shark_mouth_position_x":
 		return 0.2
 	if key == "shark_mouth_position_y":
 		return 0.3
 	if key == "shark_mouth_width":
 		return 0.5
+	if key == "shark_mouth_angle":
+		return 45.0
+	if key == "shark_mouth_arc":
+		return 1.0
 	if key == "shark_mouth_curve" or key == "shark_mouth_gape":
 		return 1.0
 	if key == "shark_jaw_projection" or key == "shark_lower_jaw_drop":
@@ -615,6 +638,12 @@ func _step_for_key(key: String, max_value: float) -> float:
 		return 1.0
 	if key == "shark_gill_slit_angle":
 		return 1.0
+	if key == "shark_head_rear_height" or key == "shark_head_rear_width" or key == "shark_snout_tip_y":
+		return 0.005
+	if key == "shark_mouth_angle":
+		return 1.0
+	if key == "shark_mouth_arc":
+		return 0.005
 	if key == "shark_tooth_visible_count" or key == "shark_tooth_angle":
 		return 1.0
 	if key == "shark_tooth_size":
@@ -631,6 +660,8 @@ func _category_for_key(key: String) -> String:
 		return "Pattern Settings"
 	if key.begins_with("shark_gill_"):
 		return "Shark Gills"
+	if key.begins_with("shark_head_") or key == "shark_snout_tip_y":
+		return "Head"
 	if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_teeth_visible" or key == "shark_labial_furrow_length":
 		return "Shark Mouth"
 	if key.contains("scale") or key == "lateral_line_strength":
@@ -671,7 +702,7 @@ func _should_show_specialized_key(key: String) -> bool:
 		return true
 	if creature_type == CreatureModeScript.RAY and key == "ray_disc_shape":
 		return true
-	if creature_type == CreatureModeScript.SHARK and key in ["head_size", "head_length", "head_offset", "snout_length", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
+	if creature_type == CreatureModeScript.SHARK and key in ["head_size", "head_length", "head_offset", "snout_length", "shark_head_rear_height", "shark_head_rear_width", "shark_snout_tip_y", "shark_mouth_angle", "shark_mouth_arc", "forehead_slope", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
 		return true
 	if creature_type == CreatureModeScript.SHARK and key == "caudal_shape":
 		return true

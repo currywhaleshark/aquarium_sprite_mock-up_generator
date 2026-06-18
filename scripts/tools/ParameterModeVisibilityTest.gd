@@ -23,6 +23,11 @@ func _ready() -> void:
 		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
 		"shark_mouth_profile": "predatory_u",
+		"shark_head_rear_height": 0.0,
+		"shark_head_rear_width": 0.0,
+		"shark_snout_tip_y": 0.0,
+		"shark_mouth_angle": 0.0,
+		"shark_mouth_arc": 0.0,
 		"shark_mouth_width": 0.18,
 		"shark_lower_teeth_visible": true,
 		"fin_ray_count": 12.0,
@@ -40,6 +45,11 @@ func _ready() -> void:
 	assert(_find_checkbox_for_key(fish_panel, "shark_gill_slit_enabled") == null)
 	assert(_find_slider_for_key(fish_panel, "shark_gill_slit_count") == null)
 	assert(_find_option_for_key(fish_panel, "shark_mouth_profile") == null)
+	assert(_find_slider_for_key(fish_panel, "shark_head_rear_height") == null)
+	assert(_find_slider_for_key(fish_panel, "shark_head_rear_width") == null)
+	assert(_find_slider_for_key(fish_panel, "shark_snout_tip_y") == null)
+	assert(_find_slider_for_key(fish_panel, "shark_mouth_angle") == null)
+	assert(_find_slider_for_key(fish_panel, "shark_mouth_arc") == null)
 	assert(_find_slider_for_key(fish_panel, "shark_mouth_width") == null)
 	assert(_find_checkbox_for_key(fish_panel, "shark_lower_teeth_visible") == null)
 	assert(_find_slider_for_key(fish_panel, "fin_ray_count") != null)
@@ -59,6 +69,11 @@ func _ready() -> void:
 		"shark_gill_slit_enabled": true,
 		"shark_gill_slit_count": 5,
 		"shark_mouth_profile": "predatory_u",
+		"shark_head_rear_height": 0.0,
+		"shark_head_rear_width": 0.0,
+		"shark_snout_tip_y": 0.0,
+		"shark_mouth_angle": 0.0,
+		"shark_mouth_arc": 0.0,
 		"shark_mouth_width": 0.18,
 		"shark_lower_teeth_visible": true,
 		"fin_ray_count": 12.0,
@@ -76,6 +91,11 @@ func _ready() -> void:
 	assert(_find_checkbox_for_key(ray_panel, "shark_gill_slit_enabled") == null)
 	assert(_find_slider_for_key(ray_panel, "shark_gill_slit_count") == null)
 	assert(_find_option_for_key(ray_panel, "shark_mouth_profile") == null)
+	assert(_find_slider_for_key(ray_panel, "shark_head_rear_height") == null)
+	assert(_find_slider_for_key(ray_panel, "shark_head_rear_width") == null)
+	assert(_find_slider_for_key(ray_panel, "shark_snout_tip_y") == null)
+	assert(_find_slider_for_key(ray_panel, "shark_mouth_angle") == null)
+	assert(_find_slider_for_key(ray_panel, "shark_mouth_arc") == null)
 	assert(_find_slider_for_key(ray_panel, "shark_mouth_width") == null)
 	assert(_find_checkbox_for_key(ray_panel, "shark_lower_teeth_visible") == null)
 	assert(_find_slider_for_key(ray_panel, "fin_ray_count") == null)
@@ -114,6 +134,11 @@ func _ready() -> void:
 		"shark_gill_slit_position_x": -0.28,
 		"shark_gill_slit_position_y": 0.08,
 		"shark_mouth_profile": "predatory_u",
+		"shark_head_rear_height": 0.0,
+		"shark_head_rear_width": 0.0,
+		"shark_snout_tip_y": 0.0,
+		"shark_mouth_angle": 0.0,
+		"shark_mouth_arc": 0.0,
 		"shark_mouth_width": 0.18,
 		"shark_jaw_projection": 0.08,
 		"shark_tooth_size": 0.018,
@@ -154,6 +179,11 @@ func _ready() -> void:
 	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_position_x") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_gill_slit_position_y") != null)
 	assert(_find_option_for_key(shark_panel, "shark_mouth_profile") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_head_rear_height") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_head_rear_width") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_snout_tip_y") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_mouth_angle") != null)
+	assert(_find_slider_for_key(shark_panel, "shark_mouth_arc") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_mouth_width") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_jaw_projection") != null)
 	assert(_find_slider_for_key(shark_panel, "shark_tooth_size") != null)

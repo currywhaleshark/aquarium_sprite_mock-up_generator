@@ -14,6 +14,12 @@ const SHARK_GILL_KEYS := {
 	"shark_gill_slit_position_y": true
 }
 
+const SHARK_HEAD_KEYS := {
+	"shark_head_rear_height": true,
+	"shark_head_rear_width": true,
+	"shark_snout_tip_y": true
+}
+
 const SHARK_MOUTH_KEYS := {
 	"shark_mouth_profile": true,
 	"shark_mouth_position_x": true,
@@ -21,6 +27,8 @@ const SHARK_MOUTH_KEYS := {
 	"shark_mouth_width": true,
 	"shark_mouth_curve": true,
 	"shark_mouth_gape": true,
+	"shark_mouth_angle": true,
+	"shark_mouth_arc": true,
 	"shark_jaw_projection": true,
 	"shark_lower_jaw_drop": true,
 	"shark_lower_teeth_visible": true,
@@ -263,6 +271,8 @@ static func is_parameter_visible(mode: String, key: String) -> bool:
 	if HEAD_SCULPT_KEYS.has(key):
 		return normalized_mode != CreatureModeScript.RAY
 	if SHARK_GILL_KEYS.has(key):
+		return normalized_mode == CreatureModeScript.SHARK
+	if SHARK_HEAD_KEYS.has(key):
 		return normalized_mode == CreatureModeScript.SHARK
 	if SHARK_MOUTH_KEYS.has(key):
 		return normalized_mode == CreatureModeScript.SHARK

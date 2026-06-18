@@ -88,12 +88,20 @@ const SHARK_GILL_NUMERIC_KEYS := {
 	"shark_gill_slit_position_y": {"min": -0.3, "max": 0.3, "step": 0.005}
 }
 
+const SHARK_HEAD_NUMERIC_KEYS := {
+	"shark_head_rear_height": {"min": -0.4, "max": 0.8, "step": 0.005},
+	"shark_head_rear_width": {"min": -0.4, "max": 1.0, "step": 0.005},
+	"shark_snout_tip_y": {"min": -0.35, "max": 0.35, "step": 0.005}
+}
+
 const SHARK_MOUTH_NUMERIC_KEYS := {
 	"shark_mouth_position_x": {"min": -1.5, "max": 0.2, "step": 0.005},
 	"shark_mouth_position_y": {"min": -0.5, "max": 0.3, "step": 0.005},
 	"shark_mouth_width": {"min": 0.02, "max": 0.5, "step": 0.005},
 	"shark_mouth_curve": {"min": 0.0, "max": 1.0, "step": 0.01},
 	"shark_mouth_gape": {"min": 0.0, "max": 1.0, "step": 0.01},
+	"shark_mouth_angle": {"min": -45.0, "max": 45.0, "step": 1.0},
+	"shark_mouth_arc": {"min": -1.0, "max": 1.0, "step": 0.005},
 	"shark_jaw_projection": {"min": 0.0, "max": 0.4, "step": 0.005},
 	"shark_lower_jaw_drop": {"min": 0.0, "max": 0.4, "step": 0.005},
 	"shark_tooth_visible_count": {"min": 0.0, "max": 24.0, "step": 1.0},
@@ -132,12 +140,12 @@ var _updating := false
 # Collapsible groupings for the (many) fish head sliders. Keys not listed in any
 # section fall through to a trailing "기타" group so nothing is ever dropped.
 const FISH_SECTIONS := [
-	{"title": "머리 본체", "keys": ["head_size", "head_length", "head_offset", "head_flattening"]},
+	{"title": "머리 본체", "keys": ["head_size", "head_length", "head_offset", "head_flattening", "shark_head_rear_height", "shark_head_rear_width"]},
 	{"title": "평면화", "keys": ["head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness"]},
-	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length"]},
+	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length", "shark_snout_tip_y"]},
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
 	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},
-	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio", "lip_darken", "shark_mouth_position_x", "shark_mouth_position_y", "shark_mouth_width", "shark_mouth_curve", "shark_mouth_gape", "shark_jaw_projection", "shark_lower_jaw_drop", "shark_tooth_visible_count", "shark_tooth_size", "shark_tooth_angle", "shark_labial_furrow_length"]},
+	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio", "lip_darken", "shark_mouth_position_x", "shark_mouth_position_y", "shark_mouth_width", "shark_mouth_curve", "shark_mouth_gape", "shark_mouth_angle", "shark_mouth_arc", "shark_jaw_projection", "shark_lower_jaw_drop", "shark_tooth_visible_count", "shark_tooth_size", "shark_tooth_angle", "shark_labial_furrow_length"]},
 	{"title": "아가미", "keys": ["operculum_position_x", "operculum_position_y", "operculum_size", "operculum_height", "operculum_open", "operculum_ridge", "shark_gill_slit_count", "shark_gill_slit_length", "shark_gill_slit_spacing", "shark_gill_slit_angle", "shark_gill_slit_depth", "shark_gill_slit_position_x", "shark_gill_slit_position_y"]},
 	{"title": "눈", "keys": ["eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]},
 ]
@@ -699,6 +707,8 @@ func _numeric_source_for_mode() -> Dictionary:
 	if creature_type == CreatureModeScript.SHARK:
 		for key in SHARK_GILL_NUMERIC_KEYS.keys():
 			source[key] = SHARK_GILL_NUMERIC_KEYS[key]
+		for key in SHARK_HEAD_NUMERIC_KEYS.keys():
+			source[key] = SHARK_HEAD_NUMERIC_KEYS[key]
 		for key in SHARK_MOUTH_NUMERIC_KEYS.keys():
 			source[key] = SHARK_MOUTH_NUMERIC_KEYS[key]
 	return source
@@ -720,10 +730,14 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 			return float(parameters.get("head_bump_height", 0.0)) > 0.001
 		if key.begins_with("shark_gill_"):
 			return true
+		if key.begins_with("shark_head_") or key == "shark_snout_tip_y":
+			return true
 		if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":
 			return true
 		return false
 	if key.begins_with("shark_gill_"):
+		return creature_type == CreatureModeScript.SHARK
+	if key.begins_with("shark_head_") or key == "shark_snout_tip_y":
 		return creature_type == CreatureModeScript.SHARK
 	if key.begins_with("shark_mouth_") or key.begins_with("shark_jaw_") or key.begins_with("shark_tooth_") or key == "shark_lower_jaw_drop" or key == "shark_labial_furrow_length":
 		return creature_type == CreatureModeScript.SHARK
@@ -817,6 +831,12 @@ func _default_numeric(key: String) -> float:
 			return -0.28
 		"shark_gill_slit_position_y":
 			return 0.08
+		"shark_head_rear_height":
+			return 0.0
+		"shark_head_rear_width":
+			return 0.0
+		"shark_snout_tip_y":
+			return 0.0
 		"shark_mouth_position_x":
 			return -0.96
 		"shark_mouth_position_y":
@@ -827,6 +847,10 @@ func _default_numeric(key: String) -> float:
 			return 0.58
 		"shark_mouth_gape":
 			return 0.16
+		"shark_mouth_angle":
+			return 0.0
+		"shark_mouth_arc":
+			return 0.0
 		"shark_jaw_projection":
 			return 0.08
 		"shark_lower_jaw_drop":
