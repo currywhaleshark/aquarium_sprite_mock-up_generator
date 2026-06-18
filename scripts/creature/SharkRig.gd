@@ -37,6 +37,24 @@ func _create_head_node(name: String, shape: String, head_scale: Vector3, snout_l
 func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float, snout_base: float = HeadProfile.SNOUT_BLEND_HALF, snout_thickness: float = 1.0, snout_taper: float = 0.0) -> Vector2:
 	return SharkHeadProfile.contour_radius_at_x(parameters, x_local_unscaled, snout_length, forehead_slope, _head_sculpt_params())
 
+# A shark head is a SHORT, DEEP, robust wedge - roughly as deep as it is long - not the
+# long thin cone the fish "pointed" profile produces (the old "ballpoint pen" head). The
+# fish branch multiplied x by ~1.5 and squashed y/z, giving a ~4.5:1 length:depth dolphin
+# snout. We ignore head_shape here and build a shark-tuned scale from the same size inputs
+# so the integrated head mesh AND the body shell (both call this) stay in lock-step.
+func _head_scale_for_shape(shape: String, head_size: float, head_length: float, body_height: float, body_width: float) -> Vector3:
+	var flatten := clampf(param_float("head_flattening", 0.0), 0.0, 0.65)
+	var size_scale := maxf(head_size, 0.001) / DEFAULT_HEAD_SIZE
+	var head_scale := Vector3(head_length, body_height * 0.82 * size_scale, body_width * 0.92 * size_scale)
+	# snout_length only gently lengthens the head now; depth/width stay near body girth so
+	# the head reads stocky from every angle.
+	head_scale.x *= 0.86 + clampf(param_float("snout_length", 0.0), 0.0, 0.6) * 0.45
+	head_scale.y *= 1.06
+	head_scale.z *= 1.0
+	head_scale.y *= 1.0 - flatten
+	head_scale.z *= 1.0 + flatten * 0.35
+	return head_scale
+
 func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	var root := Node3D.new()
 	root.name = "SharkMouth"

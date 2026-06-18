@@ -11,6 +11,8 @@ const HEAD_U_SPAN := 0.25
 const HEAD_PROFILE_GAIN := 1.5
 const ROSTRUM_FRONT_X := -0.72
 const NECK_X := 0.50
+# Fraction of the head (in u) over which the leading rostrum rounds off into a blunt cap.
+const NOSE_CAP_U := 0.09
 const DEFAULT_THETA_SEGMENTS := 32
 const BASE_U_RINGS := 24
 const MOUTH_EDGE_HALF_WIDTH_U := 0.055
@@ -317,6 +319,11 @@ static func _base_radii(parameters: Dictionary, u: float, _snout_length: float, 
 	var tip_floor := lerpf(0.02, 0.18, snout_thickness)
 	var neck_fill := smoothstep(0.42, 1.0, u)
 	var base := clampf(lerpf(tip_floor, 0.50, ramp) * lerpf(0.86, 1.0, neck_fill), 0.0, 0.52)
+	# Rounded blunt nose: over the leading NOSE_CAP_U the radius eases up a quarter-ellipse
+	# (vertical tangent at the very tip) so the rostrum closes as a rounded great-white cap
+	# instead of a sharp needle that snaps to zero. Past the cap the ramp is untouched.
+	var nose_t := clampf(u / NOSE_CAP_U, 0.0, 1.0)
+	base *= sqrt(clampf(1.0 - (1.0 - nose_t) * (1.0 - nose_t), 0.0, 1.0))
 	if u <= 0.001:
 		base = 0.0
 	var radius_y := base
