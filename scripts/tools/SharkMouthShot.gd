@@ -6,6 +6,7 @@ extends Node
 #   godot --path . scenes/SharkMouthShot.tscn
 
 const SharkRigScript := preload("res://scripts/creature/SharkRig.gd")
+const HeadEditorPanelScript := preload("res://scripts/ui/HeadEditorPanel.gd")
 
 func _merged(base: Dictionary, overrides: Dictionary) -> Dictionary:
 	var result := base.duplicate(true)
@@ -94,6 +95,8 @@ func _ready() -> void:
 	var sets := [
 		{"tag": "default", "params": default_params},
 		{"tag": "open", "params": wide_open},
+		{"tag": "white_shark_conical", "params": _merged(default_params, HeadEditorPanelScript.SHARK_HEAD_RECIPES["white_shark_conical"])},
+		{"tag": "whale_shark_blunt", "params": _merged(default_params, HeadEditorPanelScript.SHARK_HEAD_RECIPES["whale_shark_blunt"])},
 	]
 	# yaw: 0 = side profile (looking down +Z at the flank), 35 = three-quarter,
 	# 90 = head-on front, -90 = rear-ish. pitch via camera elevation offset.

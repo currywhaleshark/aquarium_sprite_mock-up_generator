@@ -1,6 +1,7 @@
 extends Node
 
 const HeadEditorPanelScript := preload("res://scripts/ui/HeadEditorPanel.gd")
+const UiText := preload("res://scripts/ui/UiText.gd")
 
 func _ready() -> void:
 	var panel := HeadEditorPanelScript.new()
@@ -34,6 +35,12 @@ func _ready() -> void:
 	assert(head_shape_grid != null)
 	assert(mouth_type_grid != null)
 	assert(eye_style_grid != null)
+	var fish_recipe_buttons_variant = panel.get("shark_head_recipe_buttons")
+	assert(fish_recipe_buttons_variant is Dictionary)
+	var fish_recipe_buttons: Dictionary = fish_recipe_buttons_variant
+	assert(fish_recipe_buttons.is_empty())
+	panel.apply_shark_head_recipe("white_shark_conical")
+	assert(abs(float(panel.get("parameters").get("head_offset", 0.0)) + 0.58) < 0.001)
 	head_shape_grid.value_selected.emit("pointed")
 	assert(String(seen[0].get("head_shape", "")) == "pointed")
 	mouth_type_grid.value_selected.emit("superior")
@@ -208,6 +215,11 @@ func _ready() -> void:
 		"mouth_size": 0.08,
 		"lower_jaw_length": 1.0,
 		"eye_style": "bead",
+		"body_length": 6.4,
+		"base_color": "#123456",
+		"fin_color": "#abcdef",
+		"swim_speed": 1.75,
+		"caudal_shape": "lunate",
 		"gill_mark": "operculum",
 		"operculum_size": 1.0,
 		"shark_gill_slit_enabled": true,
@@ -274,6 +286,17 @@ func _ready() -> void:
 	assert(_has_numeric_slider(shark_panel, "shark_mouth_width"))
 	assert(_has_numeric_slider(shark_panel, "shark_jaw_projection"))
 	assert(_has_numeric_slider(shark_panel, "shark_tooth_size"))
+	assert(UiText.parameter("shark_head_recipe") == "상어 머리 레시피")
+	assert(UiText.option("white_shark_conical") == "백상아리형")
+	assert(UiText.option("whale_shark_blunt") == "고래상어형")
+	var shark_recipe_buttons_variant = shark_panel.get("shark_head_recipe_buttons")
+	assert(shark_recipe_buttons_variant is Dictionary)
+	var shark_recipe_buttons: Dictionary = shark_recipe_buttons_variant
+	assert(shark_recipe_buttons.size() == 2)
+	assert(shark_recipe_buttons.has("white_shark_conical"))
+	assert(shark_recipe_buttons.has("whale_shark_blunt"))
+	assert(shark_recipe_buttons["white_shark_conical"] is Button)
+	assert(shark_recipe_buttons["whale_shark_blunt"] is Button)
 	for shark_morph_key in ["shark_head_rear_height", "shark_head_rear_width", "shark_snout_tip_y", "shark_mouth_angle", "shark_mouth_arc"]:
 		assert(_has_numeric_slider(shark_panel, shark_morph_key))
 		assert(absf(_slider_for_key(shark_panel, shark_morph_key).value) < 0.001)
@@ -337,6 +360,26 @@ func _ready() -> void:
 	assert(abs(float(shark_seen[0].get("shark_mouth_angle", 0.0)) - 45.0) < 0.001)
 	shark_panel.set_numeric_parameter("shark_mouth_arc", -2.0)
 	assert(abs(float(shark_seen[0].get("shark_mouth_arc", 0.0)) + 1.0) < 0.001)
+	shark_panel.apply_shark_head_recipe("not_a_recipe")
+	assert(abs(float(shark_seen[0].get("snout_taper", 0.0)) - 0.46) < 0.001)
+	shark_panel.apply_shark_head_recipe("white_shark_conical")
+	assert(abs(float(shark_seen[0].get("snout_taper", 0.0)) - 0.18) < 0.001)
+	assert(abs(float(shark_seen[0].get("shark_head_rear_height", 0.0)) - 0.62) < 0.001)
+	assert(abs(float(shark_seen[0].get("body_length", 0.0)) - 6.4) < 0.001)
+	assert(String(shark_seen[0].get("base_color", "")) == "#123456")
+	assert(String(shark_seen[0].get("fin_color", "")) == "#abcdef")
+	assert(abs(float(shark_seen[0].get("swim_speed", 0.0)) - 1.75) < 0.001)
+	assert(String(shark_seen[0].get("caudal_shape", "")) == "lunate")
+	assert(abs(float(shark_seen[0].get("shark_gill_slit_count", 0.0)) - 7.0) < 0.001)
+	shark_panel.apply_shark_head_recipe("whale_shark_blunt")
+	assert(abs(float(shark_seen[0].get("snout_taper", -1.0))) < 0.001)
+	assert(abs(float(shark_seen[0].get("shark_mouth_arc", 0.0)) - 0.35) < 0.001)
+	assert(abs(float(shark_seen[0].get("body_length", 0.0)) - 6.4) < 0.001)
+	assert(String(shark_seen[0].get("base_color", "")) == "#123456")
+	assert(String(shark_seen[0].get("fin_color", "")) == "#abcdef")
+	assert(abs(float(shark_seen[0].get("swim_speed", 0.0)) - 1.75) < 0.001)
+	assert(String(shark_seen[0].get("caudal_shape", "")) == "lunate")
+	assert(abs(float(shark_seen[0].get("shark_gill_slit_count", 0.0)) - 7.0) < 0.001)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/head_editor_panel.ok", FileAccess.WRITE)

@@ -110,6 +110,134 @@ const SHARK_MOUTH_NUMERIC_KEYS := {
 	"shark_labial_furrow_length": {"min": 0.0, "max": 0.2, "step": 0.005}
 }
 
+const SHARK_HEAD_RECIPE_KEYS := {
+	"head_size": true,
+	"head_length": true,
+	"head_offset": true,
+	"head_flattening": true,
+	"shark_head_rear_height": true,
+	"shark_head_rear_width": true,
+	"snout_length": true,
+	"snout_base": true,
+	"snout_thickness": true,
+	"snout_taper": true,
+	"snout_curve": true,
+	"shark_snout_tip_y": true,
+	"forehead_slope": true,
+	"head_top_curve": true,
+	"head_top_peak": true,
+	"head_belly_curve": true,
+	"head_bump_height": true,
+	"head_bump_pos": true,
+	"head_bump_width": true,
+	"head_bump_angle": true,
+	"head_bump_round": true,
+	"head_top_flatness": true,
+	"head_bottom_flatness": true,
+	"head_left_flatness": true,
+	"head_right_flatness": true,
+	"eye_size": true,
+	"eye_position_x": true,
+	"eye_position_y": true,
+	"eye_bulge": true,
+	"eye_pupil_scale": true,
+	"shark_mouth_profile": true,
+	"shark_mouth_position_x": true,
+	"shark_mouth_position_y": true,
+	"shark_mouth_width": true,
+	"shark_mouth_curve": true,
+	"shark_mouth_angle": true,
+	"shark_mouth_arc": true,
+	"shark_mouth_gape": true,
+	"shark_jaw_projection": true,
+	"shark_lower_jaw_drop": true,
+	"shark_tooth_visible_count": true,
+	"shark_tooth_size": true,
+	"shark_tooth_angle": true,
+	"shark_labial_furrow_length": true
+}
+
+const SHARK_HEAD_RECIPES := {
+	"white_shark_conical": {
+		"head_size": 0.46,
+		"head_length": 0.50,
+		"head_offset": -0.78,
+		"head_flattening": 0.08,
+		"shark_head_rear_height": 0.62,
+		"shark_head_rear_width": 0.48,
+		"snout_length": 0.20,
+		"snout_base": 0.40,
+		"snout_thickness": 0.82,
+		"snout_taper": 0.18,
+		"snout_curve": -0.18,
+		"shark_snout_tip_y": 0.02,
+		"forehead_slope": 0.18,
+		"head_top_curve": 0.24,
+		"head_top_peak": 0.58,
+		"head_belly_curve": 0.18,
+		"eye_size": 0.052,
+		"eye_position_x": -0.86,
+		"eye_position_y": 0.10,
+		"eye_bulge": 0.25,
+		"eye_pupil_scale": 0.60,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_position_x": -1.06,
+		"shark_mouth_position_y": -0.16,
+		"shark_mouth_width": 0.20,
+		"shark_mouth_curve": 0.62,
+		"shark_mouth_angle": -8.0,
+		"shark_mouth_arc": 0.25,
+		"shark_mouth_gape": 0.18,
+		"shark_jaw_projection": 0.10,
+		"shark_lower_jaw_drop": 0.12,
+		"shark_tooth_visible_count": 13.0,
+		"shark_tooth_size": 0.020,
+		"shark_tooth_angle": -8.0,
+		"shark_labial_furrow_length": 0.05
+	},
+	"whale_shark_blunt": {
+		"head_size": 0.56,
+		"head_length": 0.52,
+		"head_offset": -0.74,
+		"head_flattening": 0.22,
+		"shark_head_rear_height": 0.38,
+		"shark_head_rear_width": 0.95,
+		"snout_length": 0.10,
+		"snout_base": 0.50,
+		"snout_thickness": 1.00,
+		"snout_taper": 0.0,
+		"snout_curve": -0.06,
+		"shark_snout_tip_y": -0.03,
+		"forehead_slope": 0.08,
+		"head_top_curve": 0.08,
+		"head_top_peak": 0.62,
+		"head_belly_curve": 0.10,
+		"head_top_flatness": 0.18,
+		"head_bottom_flatness": 0.08,
+		"head_left_flatness": 0.28,
+		"head_right_flatness": 0.28,
+		"eye_size": 0.040,
+		"eye_position_x": -0.72,
+		"eye_position_y": 0.06,
+		"eye_bulge": 0.16,
+		"eye_pupil_scale": 0.55,
+		"shark_mouth_profile": "predatory_u",
+		"shark_mouth_position_x": -1.16,
+		"shark_mouth_position_y": -0.10,
+		"shark_mouth_width": 0.42,
+		"shark_mouth_curve": 0.72,
+		"shark_mouth_angle": 0.0,
+		"shark_mouth_arc": 0.35,
+		"shark_mouth_gape": 0.08,
+		"shark_jaw_projection": 0.04,
+		"shark_lower_jaw_drop": 0.06,
+		"shark_tooth_visible_count": 0.0,
+		"shark_tooth_size": 0.010,
+		"shark_tooth_angle": 0.0,
+		"shark_labial_furrow_length": 0.10
+	}
+}
+
 var parameters: Dictionary = {}
 var creature_type := CreatureModeScript.FISH
 var options_container: VBoxContainer
@@ -126,6 +254,7 @@ var ray_head_shape_option: OptionButton
 var head_shape_grid
 var mouth_type_grid
 var eye_style_grid
+var shark_head_recipe_buttons := {}
 
 var numeric_sliders := {}
 var boolean_controls := {}
@@ -277,6 +406,18 @@ func set_boolean_parameter(key: String, value: bool) -> void:
 	parameters[key] = value
 	_emit_and_refresh()
 
+func apply_shark_head_recipe(recipe_id: String) -> void:
+	if creature_type != CreatureModeScript.SHARK:
+		return
+	if not SHARK_HEAD_RECIPES.has(recipe_id):
+		return
+	var recipe: Dictionary = SHARK_HEAD_RECIPES[recipe_id]
+	for key in recipe.keys():
+		var key_text := String(key)
+		if SHARK_HEAD_RECIPE_KEYS.has(key_text):
+			parameters[key_text] = recipe[key]
+	_emit_and_refresh()
+
 func _rebuild_controls_for_mode(is_ray: bool) -> void:
 	for child in options_container.get_children():
 		child.queue_free()
@@ -284,6 +425,7 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 		child.queue_free()
 	numeric_sliders.clear()
 	boolean_controls.clear()
+	shark_head_recipe_buttons.clear()
 	current_numeric_keys.clear()
 	snout_appendage_option = null
 	head_ornament_option = null
@@ -334,6 +476,9 @@ func _rebuild_controls_for_mode(is_ray: bool) -> void:
 					set_option_parameter("barbel_style", String(barbel_style_option.get_item_metadata(index)))
 			)
 
+		if creature_type == CreatureModeScript.SHARK:
+			_add_shark_head_recipe_row(options_container)
+
 		eye_style_grid = _add_thumbnail_option_grid(options_container, UiText.parameter("eye_style"), "eye_style", EYE_STYLES)
 		eye_style_grid.value_selected.connect(func(value: String) -> void:
 			if not _updating:
@@ -378,6 +523,23 @@ func _add_thumbnail_option_grid(parent: VBoxContainer, label_text: String, key: 
 	row.add_child(grid)
 	parent.add_child(row)
 	return grid
+
+func _add_shark_head_recipe_row(parent: VBoxContainer) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var label := Label.new()
+	label.text = UiText.parameter("shark_head_recipe")
+	label.custom_minimum_size = Vector2(96, 0)
+	label.clip_text = true
+	row.add_child(label)
+	for recipe_id in ["white_shark_conical", "whale_shark_blunt"]:
+		var button := Button.new()
+		button.text = UiText.option(recipe_id)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.pressed.connect(Callable(self, "apply_shark_head_recipe").bind(recipe_id))
+		row.add_child(button)
+		shark_head_recipe_buttons[recipe_id] = button
+	parent.add_child(row)
 
 func _add_numeric_row(parent: VBoxContainer, key: String, config: Dictionary) -> void:
 	var slider_config := {

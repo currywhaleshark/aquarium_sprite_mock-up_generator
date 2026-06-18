@@ -225,7 +225,9 @@ const OPTION_LABELS := {
 	"ganoid": "굳비늘 (Ganoid)",
 	"placoid": "방패비늘 (Placoid)",
 	"pearlscale": "진주비늘 (Pearlscale)",
-	"predatory_u": "포식자형 U자 입"
+	"predatory_u": "포식자형 U자 입",
+	"white_shark_conical": "백상아리형",
+	"whale_shark_blunt": "고래상어형"
 }
 
 const PARAMETER_LABELS := {
@@ -272,6 +274,7 @@ const PARAMETER_LABELS := {
 	"shark_gill_slit_depth": "상어 아가미틈 진하기",
 	"shark_gill_slit_position_x": "상어 아가미틈 X 위치",
 	"shark_gill_slit_position_y": "상어 아가미틈 Y 위치",
+	"shark_head_recipe": "상어 머리 레시피",
 	"shark_mouth_profile": "상어 입 형태",
 	"shark_head_rear_height": "상어 머리 뒤쪽 높이",
 	"shark_head_rear_width": "상어 머리 뒤쪽 폭",
