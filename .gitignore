@@ -1,4 +1,5 @@
 .godot/
 exports/
 tmp/
+.superpowers/
 *.uidren
