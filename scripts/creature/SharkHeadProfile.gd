@@ -91,7 +91,7 @@ static func surface_z_at(parameters: Dictionary, u: float, y: float, side: float
 	var radii := _base_radii(parameters, u, snout_length, float(parameters.get("forehead_slope", 0.35)), {})
 	var radius_y := maxf(radii.x, 0.001)
 	var radius_z := maxf(radii.y, 0.001)
-	var center_y := _snout_curve_y_shift(parameters, u, snout_length, {})
+	var center_y := _snout_y_shift(parameters, u, snout_length, {})
 	var normalized_y := clampf((y - center_y) / radius_y, -0.98, 0.98)
 	var z := radius_z * sqrt(maxf(1.0 - normalized_y * normalized_y, 0.0)) * signf(side)
 	var mouth := mouth_weight(parameters, u, y, z)
@@ -106,8 +106,9 @@ static func mouth_weight(parameters: Dictionary, u: float, y: float, z: float) -
 		return 0.0
 	# Angular wrap around the lower cross-section (bottom = -PI/2). position_y
 	# translates the band vertically so the slider keeps affecting geometry.
-	var radii := _base_radii(parameters, u, float(parameters.get("snout_length", 0.0)), float(parameters.get("forehead_slope", 0.35)), {})
-	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y + _snout_curve_y_shift(parameters, u, float(parameters.get("snout_length", 0.0)), {})
+	var snout_length := float(parameters.get("snout_length", 0.0))
+	var radii := _base_radii(parameters, u, snout_length, float(parameters.get("forehead_slope", 0.35)), {})
+	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y + _snout_y_shift(parameters, u, snout_length, {})
 	var theta := atan2((y - y_shift) / maxf(radii.x, 0.001), z / maxf(radii.y, 0.001))
 	var ang_w := 1.0 - clampf(absf(theta + PI * 0.5) / _mouth_half_ang(parameters), 0.0, 1.0)
 	return clampf(smoothstep(0.0, 1.0, u_w) * smoothstep(0.0, 1.0, ang_w), 0.0, 1.0)
@@ -252,7 +253,7 @@ static func _shaped_point(parameters: Dictionary, u: float, theta: float, snout_
 	var radii := _base_radii(parameters, u, snout_length, forehead_slope, sculpt)
 	var y := radii.x * sin(theta)
 	var z := radii.y * cos(theta)
-	y += _snout_curve_y_shift(parameters, u, snout_length, sculpt)
+	y += _snout_y_shift(parameters, u, snout_length, sculpt)
 	# Girth fade (1 at mid-head, 0 at the rostrum tip and neck), the analogue of the fish
 	# head's sin(phi), so profile offsets vanish toward the ends just as they do for fish.
 	var sin_phi := 2.0 * sqrt(clampf(u * (1.0 - u), 0.0, 0.25))
@@ -309,6 +310,12 @@ static func _base_radii(parameters: Dictionary, u: float, _snout_length: float, 
 	# gill region so the head-on view is a thick ellipse, not a knife.
 	var radius_z := base * lerpf(0.72, 0.98, smoothstep(0.12, 0.62, u))
 	radius_y *= 1.0 + clampf(forehead_slope - 0.35, -0.35, 0.65) * 0.08 * (1.0 - u)
+	var rear_w := _rear_volume_weight(u)
+	if rear_w > 0.0:
+		var rear_height := clampf(float(parameters.get("shark_head_rear_height", 0.0)), -0.4, 0.8)
+		var rear_width := clampf(float(parameters.get("shark_head_rear_width", 0.0)), -0.4, 1.0)
+		radius_y *= maxf(0.35, 1.0 + rear_height * 0.22 * rear_w)
+		radius_z *= maxf(0.35, 1.0 + rear_width * 0.26 * rear_w)
 	return Vector2(radius_y, radius_z)
 
 static func _mouth_shadow_mesh(parameters: Dictionary) -> ArrayMesh:
@@ -370,6 +377,17 @@ static func _mouth_center_y(parameters: Dictionary) -> float:
 static func _snout_base(parameters: Dictionary, sculpt: Dictionary) -> float:
 	return clampf(_snout_sculpt_value(parameters, sculpt, "snout_base", HeadProfile.SNOUT_BLEND_HALF), 0.12, 0.5)
 
+static func _snout_y_shift(parameters: Dictionary, u: float, snout_length: float, sculpt: Dictionary) -> float:
+	return _snout_curve_y_shift(parameters, u, snout_length, sculpt) + _snout_tip_y_shift(parameters, u, snout_length, sculpt)
+
+static func _snout_tip_y_shift(parameters: Dictionary, u: float, snout_length: float, sculpt: Dictionary) -> float:
+	var snout_base := _snout_base(parameters, sculpt)
+	if snout_length <= 0.0 or u >= snout_base:
+		return 0.0
+	var tip_y := clampf(_snout_sculpt_value(parameters, sculpt, "shark_snout_tip_y", 0.0), -0.35, 0.35)
+	var t := 1.0 - clampf(u / maxf(snout_base, 0.001), 0.0, 1.0)
+	return tip_y * 0.30 * smoothstep(0.0, 1.0, t)
+
 static func _snout_curve_y_shift(parameters: Dictionary, u: float, snout_length: float, sculpt: Dictionary) -> float:
 	var snout_base := _snout_base(parameters, sculpt)
 	if snout_length <= 0.0 or u >= snout_base:
@@ -377,6 +395,9 @@ static func _snout_curve_y_shift(parameters: Dictionary, u: float, snout_length:
 	var tip_lock := smoothstep(0.025, 0.18, clampf(u, 0.0, 1.0))
 	var curve := clampf(_snout_sculpt_value(parameters, sculpt, "snout_curve", 0.0), -1.0, 1.0)
 	return HeadProfile.snout_y_shift(0.0, u, snout_base, curve) * 0.35 * tip_lock
+
+static func _rear_volume_weight(u: float) -> float:
+	return smoothstep(0.46, 0.66, u) * (1.0 - smoothstep(0.86, 1.0, u))
 
 static func _snout_sculpt_value(parameters: Dictionary, sculpt: Dictionary, key: String, default_value: float) -> float:
 	if sculpt.has(key):

@@ -22,6 +22,12 @@ func _ready() -> void:
 	await _test_snout_sculpt_controls_affect_shark_head_geometry(base)
 	if _failed:
 		return
+	await _test_rear_volume_controls_affect_midrear_without_opening_neck(base)
+	if _failed:
+		return
+	await _test_snout_tip_y_uses_shared_surface_paths(base)
+	if _failed:
+		return
 	await _test_rostrum_and_neck_are_closed(base)
 	if _failed:
 		return
@@ -174,6 +180,55 @@ func _test_snout_sculpt_controls_affect_shark_head_geometry(parameters: Dictiona
 		sculpted.queue_free()
 	neutral.queue_free()
 
+func _test_rear_volume_controls_affect_midrear_without_opening_neck(parameters: Dictionary) -> void:
+	var neutral_params := parameters.duplicate(true)
+	neutral_params["shark_head_rear_height"] = 0.0
+	neutral_params["shark_head_rear_width"] = 0.0
+	var high_params := neutral_params.duplicate(true)
+	high_params["shark_head_rear_height"] = 0.8
+	high_params["shark_head_rear_width"] = 1.0
+	var neutral := await _build_shark(neutral_params)
+	var high := await _build_shark(high_params)
+	var neutral_head := _head(neutral)
+	var high_head := _head(high)
+	var neutral_vertices := _vertices(neutral_head)
+	var high_vertices := _vertices(high_head)
+	if not _require(neutral_vertices.size() == high_vertices.size(), "rear volume changes must keep stable vertex order"):
+		return
+	var rear_delta := _max_u_window_delta(neutral_vertices, high_vertices, neutral_params, 0.48, 0.86)
+	var rostrum_delta := _max_u_window_delta(neutral_vertices, high_vertices, neutral_params, 0.0, 0.16)
+	if not _require(rear_delta > 0.018, "rear volume controls must visibly affect the midrear head"):
+		return
+	if not _require(rostrum_delta < rear_delta * 0.45, "rear volume controls must not dominate the rostrum tip"):
+		return
+	if not _require(_extreme_ring_radius(high_vertices, false) <= 0.006, "rear volume controls must leave the neck cap closed"):
+		return
+	neutral.queue_free()
+	high.queue_free()
+
+func _test_snout_tip_y_uses_shared_surface_paths(parameters: Dictionary) -> void:
+	var low_params := parameters.duplicate(true)
+	low_params["snout_length"] = 0.42
+	low_params["snout_base"] = 0.46
+	low_params["shark_snout_tip_y"] = -0.35
+	var high_params := low_params.duplicate(true)
+	high_params["shark_snout_tip_y"] = 0.35
+	var low_tip := SharkHeadProfile.point_at(low_params, 0.035, PI * 0.5, 0.42, float(low_params.get("forehead_slope", 0.35)))
+	var high_tip := SharkHeadProfile.point_at(high_params, 0.035, PI * 0.5, 0.42, float(high_params.get("forehead_slope", 0.35)))
+	if not _require(high_tip.y - low_tip.y > 0.09, "snout tip y must move the shared rostrum surface"):
+		return
+	high_params["shark_mouth_position_x"] = -1.30
+	high_params["shark_mouth_gape"] = 0.0
+	var frame := SharkHeadProfile.mouth_path_frame(high_params, 0.08)
+	var pos: Vector3 = frame["pos"]
+	var u := _u_for_x_with_snout(pos.x, high_params)
+	var side := signf(pos.z)
+	if side == 0.0:
+		side = 1.0
+	var expected_z := SharkHeadProfile.surface_z_at(high_params, u, pos.y, side)
+	if not _require(absf(pos.z - expected_z) <= 0.08, "forward mouth path must stay on the snout-tip-shifted surface"):
+		return
+
 func _test_rostrum_and_neck_are_closed(parameters: Dictionary) -> void:
 	var shark := await _build_shark(parameters)
 	var head := _head(shark)
@@ -292,6 +347,15 @@ func _max_rostrum_window_delta(a_vertices: PackedVector3Array, b_vertices: Packe
 		var vertex := a_vertices[i]
 		var u := _u_for_x_with_snout(vertex.x, parameters)
 		if u > 0.025 and u < 0.34 and Vector2(vertex.y, vertex.z).length() > 0.012:
+			max_delta = maxf(max_delta, vertex.distance_to(b_vertices[i]))
+	return max_delta
+
+func _max_u_window_delta(a_vertices: PackedVector3Array, b_vertices: PackedVector3Array, parameters: Dictionary, min_u: float, max_u: float) -> float:
+	var max_delta := 0.0
+	for i in range(mini(a_vertices.size(), b_vertices.size())):
+		var vertex := a_vertices[i]
+		var u := _u_for_x_with_snout(vertex.x, parameters)
+		if u >= min_u and u <= max_u:
 			max_delta = maxf(max_delta, vertex.distance_to(b_vertices[i]))
 	return max_delta
 
