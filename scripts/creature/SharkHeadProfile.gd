@@ -108,7 +108,7 @@ static func mouth_weight(parameters: Dictionary, u: float, y: float, z: float) -
 	# translates the band vertically so the slider keeps affecting geometry.
 	var snout_length := float(parameters.get("snout_length", 0.0))
 	var radii := _base_radii(parameters, u, snout_length, float(parameters.get("forehead_slope", 0.35)), {})
-	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y + _snout_y_shift(parameters, u, snout_length, {})
+	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y + _snout_y_shift(parameters, u, snout_length, {}) + _mouth_angle_y_shift(parameters, u)
 	var theta := atan2((y - y_shift) / maxf(radii.x, 0.001), z / maxf(radii.y, 0.001))
 	var ang_w := 1.0 - clampf(absf(theta + PI * 0.5) / _mouth_half_ang(parameters), 0.0, 1.0)
 	return clampf(smoothstep(0.0, 1.0, u_w) * smoothstep(0.0, 1.0, ang_w), 0.0, 1.0)
@@ -135,9 +135,9 @@ static func _mouth_seam_point(parameters: Dictionary, s: float) -> Vector3:
 	var theta := _mouth_seam_theta(parameters, s)
 	var forehead_slope := float(parameters.get("forehead_slope", 0.35))
 	# Ride the same deformed surface the head mesh uses (dorsal/ventral profile, bump,
-	# snout curve) so the mouth seam stays flush on the head no matter how it is sculpted.
-	var surface := _shaped_point(parameters, u, theta, snout, forehead_slope, {})
-	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y
+	# snout curve, flat caps) so the mouth seam stays flush no matter how it is sculpted.
+	var surface := _base_point(parameters, u, theta, snout, forehead_slope, {})
+	var y_shift := _mouth_center_y(parameters) - MOUTH_DEFAULT_Y + _mouth_path_y_shift(parameters, u, s)
 	var y := surface.y + y_shift
 	var ang_w := 1.0 - clampf(absf(theta + PI * 0.5) / _mouth_half_ang(parameters), 0.0, 1.0)
 	var gape := clampf(float(parameters.get("shark_mouth_gape", 0.16)), 0.0, 1.0)
@@ -162,6 +162,22 @@ static func _mouth_half_ang(parameters: Dictionary) -> float:
 	var width := clampf(float(parameters.get("shark_mouth_width", 0.18)), 0.02, 0.5)
 	var curve := clampf(float(parameters.get("shark_mouth_curve", 0.58)), 0.0, 1.0)
 	return lerpf(0.85, 1.45, clampf(width / 0.4, 0.0, 1.0)) * lerpf(0.92, 1.10, curve)
+
+static func _mouth_path_y_shift(parameters: Dictionary, u: float, s: float) -> float:
+	return _mouth_angle_y_shift(parameters, u) + _mouth_arc_y_shift(parameters, s)
+
+static func _mouth_angle_y_shift(parameters: Dictionary, u: float) -> float:
+	var angle := clampf(float(parameters.get("shark_mouth_angle", 0.0)), -45.0, 45.0)
+	if absf(angle) < 0.001:
+		return 0.0
+	var signed_u := clampf((u - _mouth_u(parameters)) / maxf(_mouth_half_u(parameters), 0.001), -1.0, 1.0)
+	return -signed_u * tan(deg_to_rad(angle)) * 0.045
+
+static func _mouth_arc_y_shift(parameters: Dictionary, s: float) -> float:
+	var arc := clampf(float(parameters.get("shark_mouth_arc", 0.0)), -1.0, 1.0)
+	if absf(arc) < 0.001:
+		return 0.0
+	return -arc * sin(clampf(s, 0.0, 1.0) * PI) * 0.040
 
 static func build_mouth_interior_shadow(parameters: Dictionary, material: Material = null) -> MeshInstance3D:
 	var node := MeshInstance3D.new()

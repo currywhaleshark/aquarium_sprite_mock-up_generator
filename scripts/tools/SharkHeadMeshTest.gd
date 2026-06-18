@@ -37,6 +37,9 @@ func _ready() -> void:
 	await _test_mouth_line_has_crease_rings(base)
 	if _failed:
 		return
+	await _test_mouth_angle_and_arc_shape_the_path(base)
+	if _failed:
+		return
 	print("SHARK_HEAD_MESH_TEST_OK")
 	get_tree().quit(0)
 
@@ -273,6 +276,35 @@ func _test_mouth_line_has_crease_rings(parameters: Dictionary) -> void:
 	if not _require(near_spacing < ordinary_spacing * 0.75, "mouth rings must be denser than ordinary head rings"):
 		return
 	shark.queue_free()
+
+func _test_mouth_angle_and_arc_shape_the_path(parameters: Dictionary) -> void:
+	var low_angle := parameters.duplicate(true)
+	low_angle["shark_mouth_angle"] = -35.0
+	low_angle["shark_mouth_arc"] = 0.0
+	var high_angle := low_angle.duplicate(true)
+	high_angle["shark_mouth_angle"] = 35.0
+	var low_mid: Vector3 = SharkHeadProfile.mouth_path_frame(low_angle, 0.5)["pos"]
+	var high_mid: Vector3 = SharkHeadProfile.mouth_path_frame(high_angle, 0.5)["pos"]
+	if not _require(absf(high_mid.y - low_mid.y) > 0.015, "mouth angle must tilt the side-view mouth path"):
+		return
+
+	for mouth_curve in [0.1, 0.95]:
+		var flat_arc := parameters.duplicate(true)
+		flat_arc["shark_mouth_angle"] = 0.0
+		flat_arc["shark_mouth_arc"] = -1.0
+		flat_arc["shark_mouth_curve"] = mouth_curve
+		var strong_arc := flat_arc.duplicate(true)
+		strong_arc["shark_mouth_arc"] = 1.0
+		var flat_bow := _mouth_path_bow_y(flat_arc)
+		var strong_bow := _mouth_path_bow_y(strong_arc)
+		if not _require(strong_bow - flat_bow > 0.04, "positive mouth arc must make a stronger U-shaped mouth bow"):
+			return
+
+func _mouth_path_bow_y(parameters: Dictionary) -> float:
+	var left: Vector3 = SharkHeadProfile.mouth_path_frame(parameters, 0.0)["pos"]
+	var center: Vector3 = SharkHeadProfile.mouth_path_frame(parameters, 0.5)["pos"]
+	var right: Vector3 = SharkHeadProfile.mouth_path_frame(parameters, 1.0)["pos"]
+	return ((left.y + right.y) * 0.5) - center.y
 
 func _test_shark_eyes_follow_head_surface(parameters: Dictionary) -> void:
 	var shark := await _build_shark(parameters)

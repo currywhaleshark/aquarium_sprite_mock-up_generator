@@ -32,6 +32,23 @@ func _ready() -> void:
 	if _failed:
 		return
 
+	parameters["snout_length"] = 0.42
+	parameters["snout_base"] = 0.46
+	parameters["shark_snout_tip_y"] = 0.35
+	parameters["shark_mouth_angle"] = 32.0
+	parameters["shark_mouth_arc"] = 1.0
+	parameters["head_top_flatness"] = 0.55
+	parameters["head_bottom_flatness"] = 0.45
+	shark.set_parameters(parameters)
+	shark.rebuild()
+	await get_tree().process_frame
+	_assert_shark_mouth_attachment_contract(shark)
+	if _failed:
+		return
+	_assert_attachments_near_head_mesh(shark)
+	if _failed:
+		return
+
 	parameters["mouth_open"] = 0.0
 	parameters["shark_mouth_gape"] = 0.0
 	parameters["shark_jaw_projection"] = 0.0
