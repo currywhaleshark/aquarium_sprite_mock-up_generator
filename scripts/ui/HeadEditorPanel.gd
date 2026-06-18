@@ -157,6 +157,53 @@ const SHARK_HEAD_RECIPE_KEYS := {
 	"shark_labial_furrow_length": true
 }
 
+const SHARK_HEAD_RECIPE_DEFAULTS := {
+	"head_size": 0.44,
+	"head_length": 0.44,
+	"head_offset": -0.58,
+	"head_flattening": 0.0,
+	"shark_head_rear_height": 0.0,
+	"shark_head_rear_width": 0.0,
+	"snout_length": 0.3,
+	"snout_base": 0.5,
+	"snout_thickness": 1.0,
+	"snout_taper": 0.0,
+	"snout_curve": 0.0,
+	"shark_snout_tip_y": 0.0,
+	"forehead_slope": 0.0,
+	"head_top_curve": 0.0,
+	"head_top_peak": 0.35,
+	"head_belly_curve": 0.0,
+	"head_bump_height": 0.0,
+	"head_bump_pos": -0.2,
+	"head_bump_width": 0.18,
+	"head_bump_angle": 35.0,
+	"head_bump_round": 0.6,
+	"head_top_flatness": 0.0,
+	"head_bottom_flatness": 0.0,
+	"head_left_flatness": 0.0,
+	"head_right_flatness": 0.0,
+	"eye_size": 0.055,
+	"eye_position_x": -0.78,
+	"eye_position_y": 0.12,
+	"eye_bulge": 0.0,
+	"eye_pupil_scale": 0.6,
+	"shark_mouth_profile": "predatory_u",
+	"shark_mouth_position_x": -0.96,
+	"shark_mouth_position_y": -0.13,
+	"shark_mouth_width": 0.18,
+	"shark_mouth_curve": 0.58,
+	"shark_mouth_angle": 0.0,
+	"shark_mouth_arc": 0.0,
+	"shark_mouth_gape": 0.16,
+	"shark_jaw_projection": 0.08,
+	"shark_lower_jaw_drop": 0.10,
+	"shark_tooth_visible_count": 11.0,
+	"shark_tooth_size": 0.018,
+	"shark_tooth_angle": -8.0,
+	"shark_labial_furrow_length": 0.04
+}
+
 const SHARK_HEAD_RECIPES := {
 	"white_shark_conical": {
 		"head_size": 0.46,
@@ -411,6 +458,10 @@ func apply_shark_head_recipe(recipe_id: String) -> void:
 		return
 	if not SHARK_HEAD_RECIPES.has(recipe_id):
 		return
+	for key in SHARK_HEAD_RECIPE_KEYS.keys():
+		var key_text := String(key)
+		if SHARK_HEAD_RECIPE_DEFAULTS.has(key_text):
+			parameters[key_text] = SHARK_HEAD_RECIPE_DEFAULTS[key_text]
 	var recipe: Dictionary = SHARK_HEAD_RECIPES[recipe_id]
 	for key in recipe.keys():
 		var key_text := String(key)
