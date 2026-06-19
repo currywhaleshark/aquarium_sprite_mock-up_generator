@@ -12,6 +12,9 @@ func _ready() -> void:
 	await _test_unified_surface_reframes_head_ring_handles()
 	if _failed:
 		return
+	await _test_unified_surface_omits_closed_head_rear_cap_from_weld()
+	if _failed:
+		return
 	await _test_unified_surface_replaces_visible_head_mesh_with_outer_shell_geometry()
 	if _failed:
 		return
@@ -79,6 +82,40 @@ func _test_unified_surface_reframes_head_ring_handles() -> void:
 	var moved_snout_handle: Dictionary = moved_handles["snout"]
 	var moved_snout_center: Vector3 = fish.body_pivot.to_local(moved_snout_handle["center"])
 	_require(moved_snout_center.x > before_snout_x + 0.005, "unified fish snout center drag must move the sampled head handle")
+	fish.queue_free()
+
+func _test_unified_surface_omits_closed_head_rear_cap_from_weld() -> void:
+	var fish: FishRig = FishRigScript.new()
+	add_child(fish)
+	fish.auto_animate = false
+	fish.set_parameters({
+		"shell_enabled": 1.0,
+		"unified_surface_enabled": 1.0,
+		"head_shape": "rounded",
+		"head_size": 0.48,
+		"head_length": 0.52,
+		"body_height": 0.58,
+		"body_width": 0.34,
+		"shell_expand": 0.08,
+	})
+	await get_tree().process_frame
+	var boundary_index := fish._unified_surface_body_start_index("rounded", fish.eye_head_scale)
+	var boundary_x := fish.shell_profile[boundary_index].x
+	var head_grid := fish._head_grid_for_unified_surface(
+		"rounded",
+		fish.eye_head_scale,
+		float(fish.parameters.get("snout_length", 0.0)),
+		float(fish.parameters.get("forehead_slope", 0.35)),
+		fish._head_sculpt_params(),
+		boundary_x,
+		boundary_index
+	)
+	_require(head_grid.size() >= 3, "unified fish head grid must include head rings before the boundary")
+	if _failed:
+		return
+	var last_head_ring: PackedVector3Array = head_grid[head_grid.size() - 2]
+	var radius := _ring_yz_radius(last_head_ring)
+	_require(radius > 0.015, "unified fish weld must not include the closed rear head cap before the body boundary: radius=%.6f" % radius)
 	fish.queue_free()
 
 func _test_unified_surface_replaces_visible_head_mesh_with_outer_shell_geometry() -> void:
@@ -241,6 +278,23 @@ func _assert_unified_surface_geometry(fish: FishRig, label: String, require_fron
 	_require(min_x < shell_front_x - 0.05, "%s unified outer shell must include head vertices ahead of the old shell front" % label)
 	if require_front_boundary:
 		_require(boundary_count == fish.shell_segments + 1, "%s unified outer shell must share the generated boundary ring exactly once" % label)
+
+func _ring_yz_radius(ring: PackedVector3Array) -> float:
+	if ring.is_empty():
+		return 0.0
+	var center_y := 0.0
+	var center_z := 0.0
+	for point in ring:
+		center_y += point.y
+		center_z += point.z
+	center_y /= float(ring.size())
+	center_z /= float(ring.size())
+	var radius := 0.0
+	for point in ring:
+		var dy := point.y - center_y
+		var dz := point.z - center_z
+		radius = maxf(radius, sqrt(dy * dy + dz * dz))
+	return radius
 
 func _max_abs(values: Array) -> float:
 	var result := 0.0

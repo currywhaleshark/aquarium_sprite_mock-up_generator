@@ -33,7 +33,6 @@ const OPERCULUM_POSITION_X_LIMIT := 0.12
 const OPERCULUM_POSITION_Y_LIMIT := 0.35
 const DEFAULT_HEAD_SIZE := 0.44
 const HEAD_SHELL_ATTACH_EPSILON := 0.003
-const UNIFIED_HEAD_HANDLE_RING_COUNT := 18
 const UNIFIED_HEAD_HANDLE_IDS := ["snout", "head"]
 
 var body_pivot: Node3D
@@ -526,8 +525,11 @@ func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, _
 	var grid := []
 	for local_ring in local_grid:
 		var world_ring := _head_local_ring_to_body_space(local_ring)
-		if _ring_average_x(world_ring) < boundary_x - 0.0005:
-			grid.append(world_ring)
+		if _ring_average_x(world_ring) >= boundary_x - 0.0005:
+			continue
+		if _is_unified_rear_head_cap_ring(world_ring):
+			continue
+		grid.append(world_ring)
 	grid.append(_unified_body_boundary_ring(boundary_index))
 	return grid
 
@@ -559,6 +561,29 @@ func _ring_average_x(ring: PackedVector3Array) -> float:
 	for point in ring:
 		total += point.x
 	return total / float(ring.size())
+
+func _is_unified_rear_head_cap_ring(ring: PackedVector3Array) -> bool:
+	if head_node == null or ring.is_empty():
+		return false
+	return _ring_average_x(ring) > head_node.position.x and _ring_yz_radius(ring) <= 0.001
+
+func _ring_yz_radius(ring: PackedVector3Array) -> float:
+	if ring.is_empty():
+		return 0.0
+	var center_y := 0.0
+	var center_z := 0.0
+	for point in ring:
+		center_y += point.y
+		center_z += point.z
+	center_y /= float(ring.size())
+	center_z /= float(ring.size())
+	var radius := 0.0
+	for point in ring:
+		var dy := point.y - center_y
+		var dz := point.z - center_z
+		radius = maxf(radius, sqrt(dy * dy + dz * dz))
+	return radius
+
 func _build_shell_profile_from_rings(rings: Array, body_length: float, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, head_length: float, tail_length: float, shell_expand: float) -> void:
 	shell_profile = []
 	shell_center_y_offsets = []
@@ -1003,18 +1028,14 @@ func _unified_head_ring_handle_local_positions(ring_id: String) -> Dictionary:
 	var sample_t := _unified_head_ring_sample_t(ring_id)
 	if sample_t < 0.0:
 		return {}
-	var local_grid := PF.deformed_head_grid(
+	var local_ring := PF.deformed_head_ring(
 		String(parameters.get("head_shape", "rounded")),
 		param_float("snout_length", 0.0),
 		param_float("forehead_slope", 0.35),
-		UNIFIED_HEAD_HANDLE_RING_COUNT,
+		sample_t,
 		shell_segments,
 		_head_sculpt_params()
 	)
-	if local_grid.is_empty():
-		return {}
-	var index := clampi(int(round(sample_t * float(local_grid.size() - 1))), 0, local_grid.size() - 1)
-	var local_ring: PackedVector3Array = local_grid[index]
 	return _ring_handle_positions_from_points(_head_local_ring_to_body_space(local_ring))
 
 func _unified_head_ring_sample_t(ring_id: String) -> float:

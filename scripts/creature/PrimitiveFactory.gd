@@ -327,13 +327,23 @@ static func deformed_head_grid(shape: String, snout_length: float, forehead_slop
 	var grid := []
 	for i in range(rings + 1):
 		var phi := PI * float(i) / float(rings)
-		var ring := PackedVector3Array()
-		for j in range(segments + 1):
-			var theta := TAU * float(j) / float(segments)
-			var sample := _head_final_point(shape, phi, theta, snout_length, forehead_slope, sculpt, precomputed)
-			ring.append(sample["point"] as Vector3)
+		var ring := _deformed_head_ring_for_phi(shape, phi, snout_length, forehead_slope, segments, sculpt, precomputed)
 		grid.append(ring)
 	return grid
+
+static func deformed_head_ring(shape: String, snout_length: float, forehead_slope: float, ring_t: float, segments: int = 24, sculpt: Dictionary = {}) -> PackedVector3Array:
+	var precomputed := _head_mesh_precompute(shape, snout_length, forehead_slope, sculpt)
+	var phi := PI * clampf(ring_t, 0.0, 1.0)
+	return _deformed_head_ring_for_phi(shape, phi, snout_length, forehead_slope, segments, sculpt, precomputed)
+
+static func _deformed_head_ring_for_phi(shape: String, phi: float, snout_length: float, forehead_slope: float, segments: int, sculpt: Dictionary, precomputed: Dictionary) -> PackedVector3Array:
+	var ring := PackedVector3Array()
+	for j in range(segments + 1):
+		var theta := TAU * float(j) / float(segments)
+		var sample := _head_final_point(shape, phi, theta, snout_length, forehead_slope, sculpt, precomputed)
+		ring.append(sample["point"] as Vector3)
+	return ring
+
 static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}, head_offset: float = 0.0, head_scale_x: float = 1.0, long_map_x: PackedFloat32Array = PackedFloat32Array(), long_map_u: PackedFloat32Array = PackedFloat32Array()) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
