@@ -83,9 +83,35 @@ func _ready() -> void:
 	var eye_jaw_down := (fish.get_node_or_null("BodyPivot/EyeR") as MeshInstance3D).position.y
 	assert(eye_jaw_down < eye_jaw0 - 0.05)
 
+	await _assert_unified_eyes_follow_head_pose(base)
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/eye_attachment.ok", FileAccess.WRITE)
 	file.store_string("eye attachment and bulge applied")
 	file.close()
 	print("EYE_ATTACHMENT_TEST_OK")
 	get_tree().quit(0)
+
+func _assert_unified_eyes_follow_head_pose(base: Dictionary) -> void:
+	var fish: FishRig = FishRigScript.new()
+	add_child(fish)
+	fish.auto_animate = false
+	var parameters := base.duplicate(true)
+	parameters["unified_surface_enabled"] = 1.0
+	parameters["turn_amount"] = 1.0
+	parameters["turn_phase"] = 0.48
+	parameters["turn_direction"] = 1.0
+	parameters["turn_curve_bias"] = 1.0
+	fish.set_parameters(parameters)
+	await get_tree().process_frame
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var eye_r := fish.get_node_or_null("BodyPivot/EyeR") as MeshInstance3D
+	assert(head != null)
+	assert(eye_r != null)
+	assert(head.mesh == null or head.mesh.get_surface_count() == 0)
+	var rest_head_local := head.to_local(eye_r.global_position)
+	fish.apply_pose(0.33)
+	await get_tree().process_frame
+	var posed_head_local := head.to_local(eye_r.global_position)
+	assert(rest_head_local.distance_to(posed_head_local) < 0.006)
+	fish.queue_free()

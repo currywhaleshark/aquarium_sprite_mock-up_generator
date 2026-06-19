@@ -68,6 +68,10 @@ func _ready() -> void:
 	if _failed:
 		return
 
+	await _assert_unified_mouth_follows_head_pose()
+	if _failed:
+		return
+
 	print("SHARK_MOUTH_RENDERING_TEST_OK")
 	get_tree().quit(0)
 
@@ -193,3 +197,32 @@ func _require(condition: bool, message: String) -> bool:
 	push_error(message)
 	get_tree().quit(1)
 	return false
+
+func _assert_unified_mouth_follows_head_pose() -> void:
+	var shark := SharkRigScript.new()
+	add_child(shark)
+	shark.auto_animate = false
+	var parameters := _base_parameters()
+	parameters["unified_surface_enabled"] = 1.0
+	parameters["turn_amount"] = 1.0
+	parameters["turn_phase"] = 0.48
+	parameters["turn_direction"] = 1.0
+	parameters["turn_curve_bias"] = 1.0
+	shark.set_parameters(parameters)
+	await get_tree().process_frame
+	_assert_shark_mouth_attachment_contract(shark)
+	if _failed:
+		return
+	var head := shark.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	var socket := shark.get_node_or_null("BodyPivot/Head/SharkMouth/AttachmentSocket") as Node3D
+	if not _require(head != null and socket != null, "unified shark mouth socket must exist"):
+		return
+	if not _require(head.mesh == null or head.mesh.get_surface_count() == 0, "unified shark head anchor must not render duplicate mouth head mesh"):
+		return
+	var rest_head_local := head.to_local(socket.global_position)
+	shark.apply_pose(0.33)
+	await get_tree().process_frame
+	var posed_head_local := head.to_local(socket.global_position)
+	if not _require(rest_head_local.distance_to(posed_head_local) < 0.006, "unified shark mouth socket must stay anchored to the head pose"):
+		return
+	shark.queue_free()

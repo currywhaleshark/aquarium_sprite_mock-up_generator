@@ -69,6 +69,51 @@ func _assert_enclosed(value: float, label: String) -> bool:
 	push_error("SHARK_HEAD_SHELL_SEAM_ESCAPE %s %.3f" % [label, value])
 	return false
 
+
+func _assert_unified_surface_continuity(fish: SharkRig, label: String) -> bool:
+	var outer := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
+	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
+	if outer == null or head == null:
+		push_error("SHARK_UNIFIED_SEAM_MISSING_NODES %s" % label)
+		return false
+	if head.mesh != null and head.mesh.get_surface_count() > 0:
+		push_error("SHARK_UNIFIED_SEAM_DUPLICATE_HEAD_MESH %s" % label)
+		return false
+	if outer.mesh == null or outer.mesh.get_surface_count() != 1:
+		push_error("SHARK_UNIFIED_SEAM_MISSING_OUTER_MESH %s" % label)
+		return false
+	var arrays := outer.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	if normals.size() != vertices.size():
+		push_error("SHARK_UNIFIED_SEAM_NORMAL_COUNT %s normals=%d vertices=%d" % [label, normals.size(), vertices.size()])
+		return false
+	var boundary_x: float = fish.shell_profile[0].x
+	var expected_ring: PackedVector3Array = fish._unified_body_boundary_ring(0)
+	var boundary_count := 0
+	var min_x := INF
+	var max_boundary_distance := 0.0
+	for vertex in vertices:
+		min_x = minf(min_x, vertex.x)
+		if absf(vertex.x - boundary_x) <= 0.0005:
+			boundary_count += 1
+	for expected in expected_ring:
+		var best := INF
+		for vertex in vertices:
+			if absf(vertex.x - boundary_x) <= 0.0005:
+				best = minf(best, vertex.distance_to(expected))
+		max_boundary_distance = maxf(max_boundary_distance, best)
+	if min_x >= boundary_x - 0.05:
+		push_error("SHARK_UNIFIED_SEAM_MISSING_HEAD_GEOMETRY %s min_x=%.4f boundary_x=%.4f" % [label, min_x, boundary_x])
+		return false
+	if boundary_count != fish.shell_segments + 1:
+		push_error("SHARK_UNIFIED_SEAM_BOUNDARY_DUPLICATE %s count=%d expected=%d" % [label, boundary_count, fish.shell_segments + 1])
+		return false
+	if max_boundary_distance > 0.0005:
+		push_error("SHARK_UNIFIED_SEAM_BOUNDARY_DRIFT %s distance=%.6f" % [label, max_boundary_distance])
+		return false
+	return true
+
 func _ready() -> void:
 	var preset := PresetStoreScript.load_preset("res://presets/basic_shark.json")
 	assert(not preset.is_empty())
@@ -97,6 +142,24 @@ func _ready() -> void:
 	shark.set_parameters(wide_small)
 	await get_tree().process_frame
 	ok = _assert_enclosed(_max_escape(shark, "wide-body-small-head"), "wide-body-small-head") and ok
+
+	var unified_base := base.duplicate(true)
+	unified_base["unified_surface_enabled"] = 1.0
+	shark.set_parameters(unified_base)
+	await get_tree().process_frame
+	ok = _assert_unified_surface_continuity(shark, "unified-basic-shark") and ok
+
+	var unified_high_rear := high_rear.duplicate(true)
+	unified_high_rear["unified_surface_enabled"] = 1.0
+	shark.set_parameters(unified_high_rear)
+	await get_tree().process_frame
+	ok = _assert_unified_surface_continuity(shark, "unified-high-rear-volume") and ok
+
+	var unified_wide_small := wide_small.duplicate(true)
+	unified_wide_small["unified_surface_enabled"] = 1.0
+	shark.set_parameters(unified_wide_small)
+	await get_tree().process_frame
+	ok = _assert_unified_surface_continuity(shark, "unified-wide-body-small-head") and ok
 
 	if not ok:
 		get_tree().quit(1)

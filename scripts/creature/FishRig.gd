@@ -438,17 +438,19 @@ func _unified_surface_enabled() -> bool:
 func _apply_static_unified_surface(head_shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, head_long_map: Dictionary, body_centers: PackedVector3Array = PackedVector3Array(), body_yaws: PackedFloat32Array = PackedFloat32Array()) -> void:
 	if outer_shell == null or head_node == null or shell_profile.is_empty():
 		return
-	var head_grid := _head_grid_for_unified_surface(head_shape, head_scale, snout_length, forehead_slope, _head_sculpt_params(), shell_profile[0].x)
+	var body_start_index := _unified_surface_body_start_index(head_shape, head_scale)
+	var boundary_x := shell_profile[body_start_index].x
+	var head_grid := _head_grid_for_unified_surface(head_shape, head_scale, snout_length, forehead_slope, _head_sculpt_params(), boundary_x, body_start_index)
 	if head_grid.size() < 2:
 		return
 	if not body_centers.is_empty() and not head_grid.is_empty():
-		head_grid[head_grid.size() - 1] = _unified_body_boundary_ring(0, body_centers, body_yaws)
+		head_grid[head_grid.size() - 1] = _unified_body_boundary_ring(body_start_index, body_centers, body_yaws)
 	var head_u_values := PackedFloat32Array()
 	var map_x: PackedFloat32Array = head_long_map.get("x", PackedFloat32Array())
 	var map_u: PackedFloat32Array = head_long_map.get("u", PackedFloat32Array())
 	for ring in head_grid:
 		var ring_points: PackedVector3Array = ring
-		var ring_x := ring_points[0].x if not ring_points.is_empty() else shell_profile[0].x
+		var ring_x := ring_points[0].x if not ring_points.is_empty() else boundary_x
 		head_u_values.append(PF.long_u_for_world_x(ring_x, map_x, map_u))
 	var body_u_values: PackedFloat32Array = head_long_map.get("u", PackedFloat32Array())
 	outer_shell.mesh = PF.build_unified_creature_mesh(
@@ -462,10 +464,22 @@ func _apply_static_unified_surface(head_shape: String, head_scale: Vector3, snou
 		head_u_values,
 		body_u_values,
 		body_centers,
-		body_yaws
+		body_yaws,
+		body_start_index
 	)
 	head_node.mesh = ArrayMesh.new()
 	head_node.set_meta("unified_surface_anchor", true)
+
+
+func _unified_surface_body_start_index(head_shape: String, head_scale: Vector3) -> int:
+	if head_shape != "cephalofoil" or head_node == null or shell_profile.size() <= 2:
+		return 0
+	var neck_x := head_node.position.x + head_scale.x * 0.5
+	var max_start := maxi(shell_profile.size() - 2, 0)
+	for index in shell_profile.size():
+		if shell_profile[index].x >= neck_x:
+			return clampi(index, 0, max_start)
+	return max_start
 
 func _apply_animated_unified_surface(centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	var body_profile := BodyProfileScript.ensure_body_profile(parameters)
@@ -484,14 +498,14 @@ func _apply_animated_unified_surface(centers: PackedVector3Array, yaws: PackedFl
 	var head_scale := _head_scale_for_shape(head_shape, head_size, head_length, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
 	_apply_static_unified_surface(head_shape, head_scale, param_float("snout_length", 0.0), param_float("forehead_slope", 0.35), _shell_longitudinal_uv_map(), centers, yaws)
 
-func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, _snout_length: float, _forehead_slope: float, _sculpt: Dictionary, boundary_x: float) -> Array:
+func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, _snout_length: float, _forehead_slope: float, _sculpt: Dictionary, boundary_x: float, boundary_index: int = 0) -> Array:
 	var local_grid := PF.deformed_head_grid(_head_shape, _snout_length, _forehead_slope, 18, shell_segments, _sculpt)
 	var grid := []
 	for local_ring in local_grid:
 		var world_ring := _head_local_ring_to_body_space(local_ring)
 		if _ring_average_x(world_ring) < boundary_x - 0.0005:
 			grid.append(world_ring)
-	grid.append(_unified_body_boundary_ring(0))
+	grid.append(_unified_body_boundary_ring(boundary_index))
 	return grid
 
 func _head_local_ring_to_body_space(local_ring: PackedVector3Array) -> PackedVector3Array:

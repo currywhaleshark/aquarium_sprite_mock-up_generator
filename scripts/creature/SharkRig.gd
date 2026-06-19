@@ -15,6 +15,20 @@ func rebuild() -> void:
 	SharkGillSlitMarkingScript.rebuild(body_pivot, parameters)
 	SharkMouthMarkingScript.rebuild(body_pivot, parameters)
 
+func _apply_animated_attachments(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
+	super._apply_animated_attachments(loop_phase, centers, yaws)
+	_apply_animated_shark_gill_slits()
+
+func _apply_animated_shark_gill_slits() -> void:
+	if body_pivot == null:
+		return
+	var head := body_pivot.get_node_or_null("Head") as Node3D
+	var root := body_pivot.get_node_or_null("SharkGillSlits") as Node3D
+	if head == null or root == null:
+		return
+	var rest_head_transform: Transform3D = root.get_meta("rest_head_transform", head.transform)
+	root.transform = head.transform * rest_head_transform.affine_inverse()
+
 func _shark_parameters(source: Dictionary) -> Dictionary:
 	var shark_parameters := source.duplicate(true)
 	shark_parameters["creature_type"] = "shark"
@@ -51,7 +65,7 @@ func _head_shell_profile_offsets(x_local_unscaled: float, head_scale: Vector3, m
 		"bottom": maxf(head_scale.y * (bottom_y - contour.x), 0.0),
 	}
 
-func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, snout_length: float, forehead_slope: float, sculpt: Dictionary, boundary_x: float) -> Array:
+func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, snout_length: float, forehead_slope: float, sculpt: Dictionary, boundary_x: float, boundary_index: int = 0) -> Array:
 	var grid := []
 	var front_x := SharkHeadProfile.ROSTRUM_FRONT_X - clampf(snout_length, 0.0, 0.6) * 0.35
 	var boundary_local_x := (boundary_x - param_float("head_offset", -0.58)) / maxf(absf(_head_scale.x), 0.001)
@@ -61,7 +75,7 @@ func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, s
 		var u := float(sample)
 		if u < boundary_u - 0.0005:
 			grid.append(_shark_head_ring_to_body_space(u, snout_length, forehead_slope, sculpt))
-	grid.append(_unified_body_boundary_ring(0))
+	grid.append(_unified_body_boundary_ring(boundary_index))
 	return grid
 
 func _shark_head_ring_to_body_space(u: float, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> PackedVector3Array:

@@ -1075,14 +1075,16 @@ static func build_unified_creature_mesh(
 	head_u_values: PackedFloat32Array = PackedFloat32Array(),
 	body_u_values: PackedFloat32Array = PackedFloat32Array(),
 	body_centers: PackedVector3Array = PackedVector3Array(),
-	body_yaw_degrees: PackedFloat32Array = PackedFloat32Array()
+	body_yaw_degrees: PackedFloat32Array = PackedFloat32Array(),
+	body_start_index: int = 0
 ) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var uvs2 := PackedVector2Array()
 	var indices := PackedInt32Array()
 	var verts_per_ring := segments + 1
-	var body_start_u := body_u_values[0] if body_u_values.size() > 0 else 0.0
+	var body_start := clampi(body_start_index, 0, maxi(body_profile.size() - 1, 0))
+	var body_start_u := body_u_values[body_start] if body_start < body_u_values.size() else 0.0
 	for head_index in head_grid.size():
 		var ring := _resample_unified_ring(head_grid[head_index], segments)
 		if ring.size() != verts_per_ring:
@@ -1091,8 +1093,8 @@ static func build_unified_creature_mesh(
 		var u := head_u_values[head_index] if head_index < head_u_values.size() else lerpf(body_start_u - HEAD_U_SPAN, body_start_u, t)
 		_append_unified_ring(vertices, uvs, uvs2, ring, u)
 
-	var body_start_index := 1 if not head_grid.is_empty() else 0
-	for body_index in range(body_start_index, body_profile.size()):
+	var body_loop_start := body_start + 1 if not head_grid.is_empty() else body_start
+	for body_index in range(body_loop_start, body_profile.size()):
 		var ring := _body_profile_ring_for_unified(body_profile, body_index, segments, center_y_offsets, radius_half_diffs, radius_z_half_diffs, flatness_profiles)
 		ring = bend_unified_body_ring(ring, body_profile, body_index, body_centers, body_yaw_degrees, center_y_offsets)
 		var u := body_u_values[body_index] if body_index < body_u_values.size() else float(body_index) / maxf(float(body_profile.size() - 1), 1.0)

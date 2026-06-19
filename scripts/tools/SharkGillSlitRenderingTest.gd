@@ -50,6 +50,8 @@ func _ready() -> void:
 	assert(abs((slits[slits.size() / 2] as Node3D).position.x - -0.18) < 0.001)
 	_assert_slits_hug_shell_surface(shark, root)
 
+	await _assert_unified_slits_follow_head_pose(parameters)
+
 	parameters["shark_gill_slit_enabled"] = false
 	shark.set_parameters(parameters)
 	await get_tree().process_frame
@@ -88,6 +90,34 @@ func _assert_slits_hug_shell_surface(shark: Node, root: Node) -> void:
 			return
 		if not _require(_mesh_y_span(slit) <= 0.12, "slit visual length is too tall for the shark body"):
 			return
+
+func _assert_unified_slits_follow_head_pose(parameters: Dictionary) -> void:
+	var shark := SharkRigScript.new()
+	add_child(shark)
+	shark.auto_animate = false
+	var pose_parameters := parameters.duplicate(true)
+	pose_parameters["unified_surface_enabled"] = 1.0
+	pose_parameters["turn_amount"] = 1.0
+	pose_parameters["turn_phase"] = 0.48
+	pose_parameters["turn_direction"] = 1.0
+	pose_parameters["turn_curve_bias"] = 1.0
+	shark.set_parameters(pose_parameters)
+	await get_tree().process_frame
+	var root := shark.get_node_or_null("BodyPivot/SharkGillSlits")
+	var head := shark.get_node_or_null("BodyPivot/Head") as Node3D
+	var slits := _slit_nodes(root)
+	if not _require(head != null, "unified shark head anchor must exist"):
+		return
+	if not _require(slits.size() > 0, "unified shark gill slits must exist"):
+		return
+	var center_slit := slits[slits.size() / 2] as Node3D
+	var rest_head_local := head.to_local(center_slit.global_position)
+	shark.apply_pose(0.33)
+	await get_tree().process_frame
+	var posed_head_local := head.to_local(center_slit.global_position)
+	if not _require(rest_head_local.distance_to(posed_head_local) < 0.006, "unified shark gill slits must stay anchored to the head pose"):
+		return
+	shark.queue_free()
 
 func _positive_shell_surface_z(shell: MeshInstance3D, local_x: float, local_y: float) -> float:
 	var arrays := shell.mesh.surface_get_arrays(0)

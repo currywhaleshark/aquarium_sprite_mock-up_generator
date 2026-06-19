@@ -13,6 +13,10 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 		parent.add_child(root)
 	for child in root.get_children():
 		child.free()
+	root.transform = Transform3D.IDENTITY
+	var head := parent.get_node_or_null("Head") as Node3D
+	if head != null:
+		root.set_meta("rest_head_transform", head.transform)
 	root.visible = bool(parameters.get("shark_gill_slit_enabled", true))
 	if not root.visible:
 		return root
