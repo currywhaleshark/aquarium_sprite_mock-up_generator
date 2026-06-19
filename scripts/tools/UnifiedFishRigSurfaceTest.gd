@@ -11,6 +11,9 @@ func _ready() -> void:
 	await _test_unified_surface_preserves_cephalofoil_head_width()
 	if _failed:
 		return
+	await _test_unified_surface_skips_legacy_neck_crutches()
+	if _failed:
+		return
 	print("UNIFIED_FISH_RIG_SURFACE_TEST_OK")
 	get_tree().quit(0)
 
@@ -72,6 +75,39 @@ func _test_unified_surface_preserves_cephalofoil_head_width() -> void:
 		return
 	_assert_cephalofoil_boundary_ring_in_unified_mesh(fish, "cephalofoil animated pose", true)
 	fish.queue_free()
+
+func _test_unified_surface_skips_legacy_neck_crutches() -> void:
+	var parameters := {
+		"shell_enabled": 1.0,
+		"head_shape": "rounded",
+		"head_size": 0.48,
+		"head_length": 0.52,
+		"body_height": 0.58,
+		"body_width": 0.34,
+		"shell_expand": 0.08,
+		"head_top_curve": 0.22,
+		"head_belly_curve": -0.12,
+	}
+	var legacy: FishRig = FishRigScript.new()
+	add_child(legacy)
+	legacy.auto_animate = false
+	legacy.set_parameters(parameters.duplicate(true))
+	await get_tree().process_frame
+	var legacy_floor := maxf(_max_abs(legacy.shell_head_floor_y), _max_abs(legacy.shell_head_floor_z))
+	legacy.queue_free()
+	_require(legacy_floor > 0.0001, "non-unified shell must retain legacy neck floor coverage for comparison")
+	if _failed:
+		return
+	var unified_parameters := parameters.duplicate(true)
+	unified_parameters["unified_surface_enabled"] = 1.0
+	var unified: FishRig = FishRigScript.new()
+	add_child(unified)
+	unified.auto_animate = false
+	unified.set_parameters(unified_parameters)
+	await get_tree().process_frame
+	var unified_floor := maxf(_max_abs(unified.shell_head_floor_y), _max_abs(unified.shell_head_floor_z))
+	unified.queue_free()
+	_require(unified_floor <= 0.0001, "unified surface must bypass legacy neck floor crutches: floor=%.6f" % unified_floor)
 
 func _assert_cephalofoil_width_in_unified_mesh(fish: FishRig, label: String) -> void:
 	var outer := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
@@ -136,6 +172,12 @@ func _assert_unified_surface_geometry(fish: FishRig, label: String, require_fron
 	_require(min_x < shell_front_x - 0.05, "%s unified outer shell must include head vertices ahead of the old shell front" % label)
 	if require_front_boundary:
 		_require(boundary_count == fish.shell_segments + 1, "%s unified outer shell must share the shell-front boundary ring exactly once" % label)
+
+func _max_abs(values: Array) -> float:
+	var result := 0.0
+	for value in values:
+		result = maxf(result, absf(float(value)))
+	return result
 
 func _require(condition: bool, message: String) -> void:
 	if condition or _failed:

@@ -548,6 +548,7 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 	if rings.is_empty():
 		rings = BodyProfileScript.default_fish_rings()
 	var head_shell := _head_shell_metrics(rings, body_height, body_width, body_z_scale, head_offset, head_size, head_length, shell_expand)
+	var use_head_shell_crutches := not _unified_surface_enabled()
 	var profile_rings := _shell_profile_rings_with_head_support(rings)
 	var start_x := float(head_shell["start_x"])
 	var end_x := body_length * 0.48
@@ -567,15 +568,21 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 		var radius_z := body_width * body_z_scale * average_width * width_scale + shell_z_expand
 		var radius_z_top := body_width * body_z_scale * top_width * width_scale + shell_z_expand
 		var radius_z_bottom := body_width * body_z_scale * bottom_width * width_scale + shell_z_expand
-		var adjusted := _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell, center_y)
-		radius_y = float(adjusted["radius_y"])
-		var adjusted_top := _apply_head_shell_metrics(ring, radius_y, radius_z_top, head_shell, center_y)
-		var adjusted_bottom := _apply_head_shell_metrics(ring, radius_y, radius_z_bottom, head_shell, center_y)
-		var adjusted_top_z := float(adjusted_top["radius_z"])
-		var adjusted_bottom_z := float(adjusted_bottom["radius_z"])
-		radius_z = (adjusted_top_z + adjusted_bottom_z) * 0.5
+		var adjusted := {"floor_y": 0.0, "floor_z": 0.0}
+		var adjusted_top_z := radius_z_top
+		var adjusted_bottom_z := radius_z_bottom
+		if use_head_shell_crutches:
+			adjusted = _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell, center_y)
+			radius_y = float(adjusted["radius_y"])
+			var adjusted_top := _apply_head_shell_metrics(ring, radius_y, radius_z_top, head_shell, center_y)
+			var adjusted_bottom := _apply_head_shell_metrics(ring, radius_y, radius_z_bottom, head_shell, center_y)
+			adjusted_top_z = float(adjusted_top["radius_z"])
+			adjusted_bottom_z = float(adjusted_bottom["radius_z"])
+			radius_z = (adjusted_top_z + adjusted_bottom_z) * 0.5
+			center_y += float(adjusted.get("center_y_delta", 0.0))
+		else:
+			radius_z = (adjusted_top_z + adjusted_bottom_z) * 0.5
 		var radius_z_half := (adjusted_top_z - adjusted_bottom_z) * 0.5
-		center_y += float(adjusted.get("center_y_delta", 0.0))
 		shell_profile.append(Vector3(lerpf(start_x, end_x, float(ring["x"])), radius_y, radius_z))
 		shell_center_y_offsets.append(center_y)
 		# Asymmetry magnitude for the egg cross-section. center_y already carries the same
@@ -591,7 +598,8 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 		shell_ring_ids.append(String(ring.get("id", "ring_%d" % i)))
 		shell_head_floor_y.append(float(adjusted.get("floor_y", 0.0)))
 		shell_head_floor_z.append(float(adjusted.get("floor_z", 0.0)))
-	_smooth_neck_shell_profile()
+	if use_head_shell_crutches:
+		_smooth_neck_shell_profile()
 	shell_tail_pivot_1_x = _ring_x_by_id("rear_body", body_length * 0.48)
 	shell_tail_pivot_2_x = _ring_x_by_id("tail_stem", shell_tail_pivot_1_x + tail_length * 0.5)
 

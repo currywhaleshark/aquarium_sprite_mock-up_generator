@@ -1,11 +1,15 @@
 extends Node
 
 const SharkRigScript := preload("res://scripts/creature/SharkRig.gd")
+const SharkHeadProfile := preload("res://scripts/creature/SharkHeadProfile.gd")
 
 var _failed := false
 
 func _ready() -> void:
 	await _test_unified_surface_uses_shark_head_sampler_without_duplicate_head_mesh()
+	if _failed:
+		return
+	_test_unified_shark_sampler_skips_legacy_neck_tuck()
 	if _failed:
 		return
 	print("UNIFIED_SHARK_RIG_SURFACE_TEST_OK")
@@ -40,6 +44,22 @@ func _test_unified_surface_uses_shark_head_sampler_without_duplicate_head_mesh()
 		return
 	_assert_unified_boundary_ring(shark, "animated pose", true)
 	shark.queue_free()
+
+func _test_unified_shark_sampler_skips_legacy_neck_tuck() -> void:
+	var legacy := {
+		"unified_surface_enabled": 0.0,
+		"snout_length": 0.32,
+		"forehead_slope": 0.34,
+		"snout_thickness": 1.0,
+		"snout_taper": 0.0,
+	}
+	var unified := legacy.duplicate(true)
+	unified["unified_surface_enabled"] = 1.0
+	var u := 0.95
+	var theta := PI * 0.5
+	var legacy_y := SharkHeadProfile.point_at(legacy, u, theta, 0.32, 0.34, {}).y
+	var unified_y := SharkHeadProfile.point_at(unified, u, theta, 0.32, 0.34, {}).y
+	_require(unified_y > legacy_y * 1.25, "unified shark sampler must bypass legacy neck tuck: legacy=%.5f unified=%.5f" % [legacy_y, unified_y])
 
 func _assert_unified_surface_geometry(shark: SharkRig, label: String) -> void:
 	var outer := shark.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
