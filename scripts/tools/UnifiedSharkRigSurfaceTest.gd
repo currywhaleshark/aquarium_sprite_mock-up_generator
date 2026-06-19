@@ -10,6 +10,9 @@ func _ready() -> void:
 	await _test_shark_presets_default_to_unified_surface()
 	if _failed:
 		return
+	await _test_unified_shark_reframes_head_ring_handles()
+	if _failed:
+		return
 	await _test_unified_surface_uses_shark_head_sampler_without_duplicate_head_mesh()
 	if _failed:
 		return
@@ -26,6 +29,57 @@ func _test_shark_presets_default_to_unified_surface() -> void:
 		return
 	var parameters: Dictionary = preset.get("parameters", {})
 	_require(float(parameters.get("unified_surface_enabled", 0.0)) > 0.5, "default shark preset must enable unified surface")
+
+func _test_unified_shark_reframes_head_ring_handles() -> void:
+	var shark: SharkRig = SharkRigScript.new()
+	add_child(shark)
+	shark.auto_animate = false
+	shark.set_parameters({
+		"shell_enabled": 1.0,
+		"unified_surface_enabled": 1.0,
+		"head_size": 0.46,
+		"head_length": 0.55,
+		"snout_length": 0.32,
+		"forehead_slope": 0.34,
+		"body_height": 0.52,
+		"body_width": 0.32,
+		"shell_expand": 0.07,
+	})
+	await get_tree().process_frame
+	var boundary_index := shark._unified_surface_body_start_index(String(shark.parameters.get("head_shape", "rounded")), shark.eye_head_scale)
+	_require(boundary_index > 0, "unified shark weld boundary must not reuse the logical snout shell ring")
+	if _failed:
+		return
+	var boundary_id := String(shark.shell_ring_ids[boundary_index])
+	_require(boundary_id != "snout" and boundary_id != "head", "unified shark weld boundary must be generated/internal or body-owned, got %s" % boundary_id)
+	if _failed:
+		return
+	var boundary_x := shark.shell_profile[boundary_index].x
+	var handles := shark.get_body_ring_handles()
+	_require(handles.has("snout") and handles.has("head") and handles.has("front_body"), "unified shark handles must expose snout, head, and front_body")
+	if _failed:
+		return
+	var snout_handle: Dictionary = handles["snout"]
+	var head_handle: Dictionary = handles["head"]
+	var front_body_handle: Dictionary = handles["front_body"]
+	var snout_center: Vector3 = shark.body_pivot.to_local(snout_handle["center"])
+	var head_center: Vector3 = shark.body_pivot.to_local(head_handle["center"])
+	var front_body_center: Vector3 = shark.body_pivot.to_local(front_body_handle["center"])
+	_require(snout_center.x < head_center.x - 0.02, "unified shark snout handle must sit ahead of the head handle")
+	_require(head_center.x < boundary_x - 0.005, "unified shark head handle must sit ahead of the generated weld boundary")
+	_require(front_body_center.x > boundary_x + 0.005, "unified shark front_body handle must remain behind the generated weld boundary")
+	_require(absf(snout_center.x - shark.shell_profile[0].x) > 0.03, "unified shark snout handle must not stay on the old shell-front support ring")
+	if _failed:
+		return
+	var before_head_x := head_center.x
+	shark.drag_ring_handle("head", "center", Vector3(0.08, 0.0, 0.0))
+	await get_tree().process_frame
+	var moved_handles := shark.get_body_ring_handles()
+	var moved_head_handle: Dictionary = moved_handles["head"]
+	var moved_head_center: Vector3 = shark.body_pivot.to_local(moved_head_handle["center"])
+	_require(moved_head_center.x > before_head_x + 0.005, "unified shark head center drag must move the sampled head handle")
+	shark.queue_free()
+
 func _test_unified_surface_uses_shark_head_sampler_without_duplicate_head_mesh() -> void:
 	var shark: SharkRig = SharkRigScript.new()
 	add_child(shark)
@@ -88,20 +142,23 @@ func _assert_unified_surface_geometry(shark: SharkRig, label: String) -> void:
 	var min_x := INF
 	var boundary_count := 0
 	var shell_front_x := shark.shell_profile[0].x
+	var boundary_index := shark._unified_surface_body_start_index(String(shark.parameters.get("head_shape", "rounded")), shark.eye_head_scale)
+	var boundary_x := shark.shell_profile[boundary_index].x
 	for vertex in vertices:
 		min_x = minf(min_x, vertex.x)
-		if absf(vertex.x - shell_front_x) <= 0.0005:
+		if absf(vertex.x - boundary_x) <= 0.0005:
 			boundary_count += 1
 	_require(min_x < shell_front_x - 0.05, "%s unified shark mesh must include rostrum vertices ahead of the old shell front" % label)
 	if label == "rest pose":
-		_require(boundary_count == shark.shell_segments + 1, "%s unified shark mesh must share the shell-front boundary ring exactly once" % label)
+		_require(boundary_count == shark.shell_segments + 1, "%s unified shark mesh must share the generated boundary ring exactly once" % label)
 
 func _assert_unified_boundary_ring(shark: SharkRig, label: String, animated: bool = false) -> void:
 	var outer := shark.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
 	_require(outer != null and outer.mesh != null, "%s unified shark mesh must exist" % label)
 	if _failed:
 		return
-	var expected_ring: PackedVector3Array = shark._unified_body_boundary_ring(0, shark.animated_shell_centers, shark.animated_shell_yaws) if animated else shark._unified_body_boundary_ring(0)
+	var boundary_index := shark._unified_surface_body_start_index(String(shark.parameters.get("head_shape", "rounded")), shark.eye_head_scale)
+	var expected_ring: PackedVector3Array = shark._unified_body_boundary_ring(boundary_index, shark.animated_shell_centers, shark.animated_shell_yaws) if animated else shark._unified_body_boundary_ring(boundary_index)
 	var vertices: PackedVector3Array = outer.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var matching_vertices := 0
 	var max_boundary_distance := 0.0

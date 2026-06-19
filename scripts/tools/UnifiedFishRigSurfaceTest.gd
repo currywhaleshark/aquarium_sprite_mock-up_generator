@@ -9,6 +9,9 @@ func _ready() -> void:
 	await _test_fish_presets_default_to_unified_surface()
 	if _failed:
 		return
+	await _test_unified_surface_reframes_head_ring_handles()
+	if _failed:
+		return
 	await _test_unified_surface_replaces_visible_head_mesh_with_outer_shell_geometry()
 	if _failed:
 		return
@@ -28,6 +31,56 @@ func _test_fish_presets_default_to_unified_surface() -> void:
 		return
 	var parameters: Dictionary = preset.get("parameters", {})
 	_require(float(parameters.get("unified_surface_enabled", 0.0)) > 0.5, "default fish preset must enable unified surface")
+
+func _test_unified_surface_reframes_head_ring_handles() -> void:
+	var fish: FishRig = FishRigScript.new()
+	add_child(fish)
+	fish.auto_animate = false
+	fish.set_parameters({
+		"shell_enabled": 1.0,
+		"unified_surface_enabled": 1.0,
+		"head_shape": "rounded",
+		"head_size": 0.48,
+		"head_length": 0.52,
+		"body_height": 0.58,
+		"body_width": 0.34,
+		"shell_expand": 0.08,
+	})
+	await get_tree().process_frame
+	var boundary_index := fish._unified_surface_body_start_index("rounded", fish.eye_head_scale)
+	_require(boundary_index > 0, "unified fish weld boundary must not reuse the logical snout shell ring")
+	if _failed:
+		return
+	var boundary_id := String(fish.shell_ring_ids[boundary_index])
+	_require(boundary_id != "snout" and boundary_id != "head", "unified fish weld boundary must be generated/internal or body-owned, got %s" % boundary_id)
+	if _failed:
+		return
+	var boundary_x := fish.shell_profile[boundary_index].x
+	var handles := fish.get_body_ring_handles()
+	_require(handles.has("snout") and handles.has("head") and handles.has("front_body"), "unified fish handles must expose snout, head, and front_body")
+	if _failed:
+		return
+	var snout_handle: Dictionary = handles["snout"]
+	var head_handle: Dictionary = handles["head"]
+	var front_body_handle: Dictionary = handles["front_body"]
+	var snout_center: Vector3 = fish.body_pivot.to_local(snout_handle["center"])
+	var head_center: Vector3 = fish.body_pivot.to_local(head_handle["center"])
+	var front_body_center: Vector3 = fish.body_pivot.to_local(front_body_handle["center"])
+	_require(snout_center.x < head_center.x - 0.02, "unified fish snout handle must sit ahead of the head handle")
+	_require(head_center.x < boundary_x - 0.005, "unified fish head handle must sit ahead of the generated weld boundary")
+	_require(front_body_center.x > boundary_x + 0.005, "unified fish front_body handle must remain behind the generated weld boundary")
+	_require(absf(snout_center.x - fish.shell_profile[0].x) > 0.03, "unified fish snout handle must not stay on the old shell-front support ring")
+	if _failed:
+		return
+	var before_snout_x := snout_center.x
+	fish.drag_ring_handle("snout", "center", Vector3(0.08, 0.0, 0.0))
+	await get_tree().process_frame
+	var moved_handles := fish.get_body_ring_handles()
+	var moved_snout_handle: Dictionary = moved_handles["snout"]
+	var moved_snout_center: Vector3 = fish.body_pivot.to_local(moved_snout_handle["center"])
+	_require(moved_snout_center.x > before_snout_x + 0.005, "unified fish snout center drag must move the sampled head handle")
+	fish.queue_free()
+
 func _test_unified_surface_replaces_visible_head_mesh_with_outer_shell_geometry() -> void:
 	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
@@ -176,13 +229,18 @@ func _assert_unified_surface_geometry(fish: FishRig, label: String, require_fron
 	var min_x := INF
 	var boundary_count := 0
 	var shell_front_x := fish.shell_profile[0].x
+	var head_shape := String(fish.parameters.get("head_shape", "rounded"))
+	var boundary_index := fish._unified_surface_body_start_index(head_shape, fish.eye_head_scale)
+	var expected_boundary: PackedVector3Array = fish._unified_body_boundary_ring(boundary_index, fish.animated_shell_centers, fish.animated_shell_yaws) if not fish.animated_shell_centers.is_empty() else fish._unified_body_boundary_ring(boundary_index)
 	for vertex in vertices:
 		min_x = minf(min_x, vertex.x)
-		if absf(vertex.x - shell_front_x) <= 0.0005:
-			boundary_count += 1
+		for expected in expected_boundary:
+			if vertex.distance_to(expected) <= 0.0005:
+				boundary_count += 1
+				break
 	_require(min_x < shell_front_x - 0.05, "%s unified outer shell must include head vertices ahead of the old shell front" % label)
 	if require_front_boundary:
-		_require(boundary_count == fish.shell_segments + 1, "%s unified outer shell must share the shell-front boundary ring exactly once" % label)
+		_require(boundary_count == fish.shell_segments + 1, "%s unified outer shell must share the generated boundary ring exactly once" % label)
 
 func _max_abs(values: Array) -> float:
 	var result := 0.0

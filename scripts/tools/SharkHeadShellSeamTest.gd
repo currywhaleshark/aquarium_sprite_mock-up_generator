@@ -88,20 +88,22 @@ func _assert_unified_surface_continuity(fish: SharkRig, label: String) -> bool:
 	if normals.size() != vertices.size():
 		push_error("SHARK_UNIFIED_SEAM_NORMAL_COUNT %s normals=%d vertices=%d" % [label, normals.size(), vertices.size()])
 		return false
-	var boundary_x: float = fish.shell_profile[0].x
-	var expected_ring: PackedVector3Array = fish._unified_body_boundary_ring(0)
+	var boundary_index := fish._unified_surface_body_start_index(String(fish.parameters.get("head_shape", "rounded")), fish.eye_head_scale)
+	var boundary_x: float = fish.shell_profile[boundary_index].x
+	var expected_ring: PackedVector3Array = fish._unified_body_boundary_ring(boundary_index)
 	var boundary_count := 0
 	var min_x := INF
 	var max_boundary_distance := 0.0
 	for vertex in vertices:
 		min_x = minf(min_x, vertex.x)
-		if absf(vertex.x - boundary_x) <= 0.0005:
-			boundary_count += 1
+		for expected in expected_ring:
+			if vertex.distance_to(expected) <= 0.0005:
+				boundary_count += 1
+				break
 	for expected in expected_ring:
 		var best := INF
 		for vertex in vertices:
-			if absf(vertex.x - boundary_x) <= 0.0005:
-				best = minf(best, vertex.distance_to(expected))
+			best = minf(best, vertex.distance_to(expected))
 		max_boundary_distance = maxf(max_boundary_distance, best)
 	if min_x >= boundary_x - 0.05:
 		push_error("SHARK_UNIFIED_SEAM_MISSING_HEAD_GEOMETRY %s min_x=%.4f boundary_x=%.4f" % [label, min_x, boundary_x])

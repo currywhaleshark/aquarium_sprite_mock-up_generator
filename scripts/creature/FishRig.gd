@@ -33,6 +33,8 @@ const OPERCULUM_POSITION_X_LIMIT := 0.12
 const OPERCULUM_POSITION_Y_LIMIT := 0.35
 const DEFAULT_HEAD_SIZE := 0.44
 const HEAD_SHELL_ATTACH_EPSILON := 0.003
+const UNIFIED_HEAD_HANDLE_RING_COUNT := 18
+const UNIFIED_HEAD_HANDLE_IDS := ["snout", "head"]
 
 var body_pivot: Node3D
 var tail_pivot_1: Node3D
@@ -383,19 +385,31 @@ func get_body_ring_handles() -> Dictionary:
 	var handles := {}
 	if body_pivot == null:
 		return handles
+	if _unified_surface_enabled():
+		for head_ring_id in UNIFIED_HEAD_HANDLE_IDS:
+			var ring_id := String(head_ring_id)
+			var local_positions := _unified_head_ring_handle_local_positions(ring_id)
+			if local_positions.is_empty():
+				continue
+			handles[ring_id] = _body_ring_handle_global_positions(local_positions)
 	for i in shell_profile.size():
 		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else "ring_%d" % i
-		if _is_generated_shell_ring_id(ring_id):
+		if _is_generated_shell_ring_id(ring_id) or _uses_unified_head_ring_handle(ring_id):
 			continue
 		var local_positions := _body_ring_handle_local_positions(i)
 		if local_positions.is_empty():
 			continue
-		handles[ring_id] = {
-			"center": body_pivot.to_global(local_positions["center"]),
-			"top": body_pivot.to_global(local_positions["top"]),
-			"bottom": body_pivot.to_global(local_positions["bottom"])
-		}
+		handles[ring_id] = _body_ring_handle_global_positions(local_positions)
 	return handles
+
+func _body_ring_handle_global_positions(local_positions: Dictionary) -> Dictionary:
+	if body_pivot == null or local_positions.is_empty():
+		return {}
+	return {
+		"center": body_pivot.to_global(local_positions["center"]),
+		"top": body_pivot.to_global(local_positions["top"]),
+		"bottom": body_pivot.to_global(local_positions["bottom"])
+	}
 
 func get_body_ring_drag_plane(ring_id: String, part: String) -> Dictionary:
 	var normal := Vector3.BACK
@@ -471,15 +485,24 @@ func _apply_static_unified_surface(head_shape: String, head_scale: Vector3, snou
 	head_node.set_meta("unified_surface_anchor", true)
 
 
-func _unified_surface_body_start_index(head_shape: String, head_scale: Vector3) -> int:
-	if head_shape != "cephalofoil" or head_node == null or shell_profile.size() <= 2:
+func _unified_surface_body_start_index(_head_shape: String, head_scale: Vector3) -> int:
+	if head_node == null or shell_profile.size() <= 2:
 		return 0
 	var neck_x := head_node.position.x + head_scale.x * 0.5
 	var max_start := maxi(shell_profile.size() - 2, 0)
 	for index in shell_profile.size():
 		if shell_profile[index].x >= neck_x:
-			return clampi(index, 0, max_start)
+			return _clamp_unified_boundary_index(index, max_start)
 	return max_start
+
+func _clamp_unified_boundary_index(index: int, max_start: int) -> int:
+	var result := clampi(index, 0, max_start)
+	while result < max_start:
+		var ring_id := String(shell_ring_ids[result]) if result < shell_ring_ids.size() else ""
+		if not _is_unified_head_ring_id(ring_id):
+			break
+		result += 1
+	return result
 
 func _apply_animated_unified_surface(centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	var body_profile := BodyProfileScript.ensure_body_profile(parameters)
@@ -694,6 +717,12 @@ func _interpolate_shell_ring(first: Dictionary, second: Dictionary, weight: floa
 
 func _is_generated_shell_ring_id(ring_id: String) -> bool:
 	return ring_id.begins_with("__")
+
+func _is_unified_head_ring_id(ring_id: String) -> bool:
+	return ring_id == "snout" or ring_id == "head"
+
+func _uses_unified_head_ring_handle(ring_id: String) -> bool:
+	return _unified_surface_enabled() and _is_unified_head_ring_id(ring_id)
 
 func _logical_shell_ring_indices() -> Array[int]:
 	var indices: Array[int] = []
@@ -924,29 +953,37 @@ func _add_ring_guides() -> void:
 	var guide_mat := TMF.make_surface(Color.html("#f6d365"), 0.2, 0.65)
 	var selected_mat := TMF.make_surface(Color.html("#ff4d6d"), 0.18, 0.75)
 	var endpoint_mat := TMF.make_surface(Color.html("#f8f9fa"), 0.12, 0.55)
+	if _unified_surface_enabled():
+		for head_ring_id in UNIFIED_HEAD_HANDLE_IDS:
+			var ring_id := String(head_ring_id)
+			_add_ring_guide_nodes(guide_root, ring_id, _unified_head_ring_handle_local_positions(ring_id), guide_mat, selected_mat, endpoint_mat)
 	for i in shell_profile.size():
 		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else ""
-		if _is_generated_shell_ring_id(ring_id):
+		if _is_generated_shell_ring_id(ring_id) or _uses_unified_head_ring_handle(ring_id):
 			continue
-		var selected := ring_id == selected_body_ring_id
-		var positions := _body_ring_handle_local_positions(i)
-		var center := PF.ellipsoid("RingCenter_%s" % ring_id, Vector3(0.035, 0.035, 0.035), selected_mat if selected else guide_mat)
-		center.position = positions["center"]
-		guide_root.add_child(center)
-		var top := PF.ellipsoid("RingTop_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
-		top.position = positions["top"]
-		guide_root.add_child(top)
-		var bottom := PF.ellipsoid("RingBottom_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
-		bottom.position = positions["bottom"]
-		guide_root.add_child(bottom)
-		var label := Label3D.new()
-		label.name = "RingLabel_%s" % ring_id
-		label.text = _ring_label_by_id(ring_id, "Ring")
-		label.font_size = 18
-		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		var top_position: Vector3 = positions["top"]
-		label.position = top_position + Vector3(0.0, 0.08, -0.01)
-		guide_root.add_child(label)
+		_add_ring_guide_nodes(guide_root, ring_id, _body_ring_handle_local_positions(i), guide_mat, selected_mat, endpoint_mat)
+
+func _add_ring_guide_nodes(guide_root: Node3D, ring_id: String, positions: Dictionary, guide_mat: Material, selected_mat: Material, endpoint_mat: Material) -> void:
+	if positions.is_empty():
+		return
+	var selected := ring_id == selected_body_ring_id
+	var center := PF.ellipsoid("RingCenter_%s" % ring_id, Vector3(0.035, 0.035, 0.035), selected_mat if selected else guide_mat)
+	center.position = positions["center"]
+	guide_root.add_child(center)
+	var top := PF.ellipsoid("RingTop_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
+	top.position = positions["top"]
+	guide_root.add_child(top)
+	var bottom := PF.ellipsoid("RingBottom_%s" % ring_id, Vector3(0.02, 0.02, 0.02), selected_mat if selected else endpoint_mat)
+	bottom.position = positions["bottom"]
+	guide_root.add_child(bottom)
+	var label := Label3D.new()
+	label.name = "RingLabel_%s" % ring_id
+	label.text = _ring_label_by_id(ring_id, "Ring")
+	label.font_size = 18
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	var top_position: Vector3 = positions["top"]
+	label.position = top_position + Vector3(0.0, 0.08, -0.01)
+	guide_root.add_child(label)
 
 func _body_ring_handle_local_positions(index: int) -> Dictionary:
 	if index < 0 or index >= shell_profile.size():
@@ -960,13 +997,77 @@ func _body_ring_handle_local_positions(index: int) -> Dictionary:
 		"bottom": Vector3(point.x, center_y - point.y, z)
 	}
 
+func _unified_head_ring_handle_local_positions(ring_id: String) -> Dictionary:
+	if not _uses_unified_head_ring_handle(ring_id) or head_node == null:
+		return {}
+	var sample_t := _unified_head_ring_sample_t(ring_id)
+	if sample_t < 0.0:
+		return {}
+	var local_grid := PF.deformed_head_grid(
+		String(parameters.get("head_shape", "rounded")),
+		param_float("snout_length", 0.0),
+		param_float("forehead_slope", 0.35),
+		UNIFIED_HEAD_HANDLE_RING_COUNT,
+		shell_segments,
+		_head_sculpt_params()
+	)
+	if local_grid.is_empty():
+		return {}
+	var index := clampi(int(round(sample_t * float(local_grid.size() - 1))), 0, local_grid.size() - 1)
+	var local_ring: PackedVector3Array = local_grid[index]
+	return _ring_handle_positions_from_points(_head_local_ring_to_body_space(local_ring))
+
+func _unified_head_ring_sample_t(ring_id: String) -> float:
+	var profile := BodyProfileScript.ensure_body_profile(parameters)
+	var rings: Array = profile.get("rings", [])
+	var front_body := _ring_by_id(rings, "front_body", 2)
+	var front_body_x := maxf(float(front_body.get("x", 0.36)), 0.001)
+	var fallback_index := 0 if ring_id == "snout" else 1
+	var ring := _ring_by_id(rings, ring_id, fallback_index)
+	var ring_t := clampf(float(ring.get("x", 0.0)) / front_body_x, 0.0, 1.0)
+	match ring_id:
+		"snout":
+			return lerpf(0.06, 0.24, ring_t)
+		"head":
+			return lerpf(0.32, 0.76, ring_t)
+	return -1.0
+
+func _ring_handle_positions_from_points(points: PackedVector3Array) -> Dictionary:
+	if points.is_empty():
+		return {}
+	var center_x := 0.0
+	var top_y := -INF
+	var bottom_y := INF
+	var side_z := INF
+	for point in points:
+		center_x += point.x
+		top_y = maxf(top_y, point.y)
+		bottom_y = minf(bottom_y, point.y)
+		side_z = minf(side_z, point.z)
+	center_x /= float(points.size())
+	var center_y := (top_y + bottom_y) * 0.5
+	var z := side_z - 0.03
+	return {
+		"center": Vector3(center_x, center_y, z),
+		"top": Vector3(center_x, top_y, z),
+		"bottom": Vector3(center_x, bottom_y, z)
+	}
+
 func _update_body_ring_world_points() -> void:
 	body_ring_world_points.clear()
 	if body_pivot == null:
 		return
+	if _unified_surface_enabled():
+		for head_ring_id in UNIFIED_HEAD_HANDLE_IDS:
+			var ring_id := String(head_ring_id)
+			var local_positions := _unified_head_ring_handle_local_positions(ring_id)
+			if local_positions.is_empty():
+				continue
+			var center: Vector3 = local_positions["center"]
+			body_ring_world_points[ring_id] = body_pivot.to_global(Vector3(center.x, center.y, 0.0))
 	for i in shell_profile.size():
 		var ring_id := shell_ring_ids[i] if i < shell_ring_ids.size() else "ring_%d" % i
-		if _is_generated_shell_ring_id(ring_id):
+		if _is_generated_shell_ring_id(ring_id) or _uses_unified_head_ring_handle(ring_id):
 			continue
 		var center_y := shell_center_y_offsets[i] if i < shell_center_y_offsets.size() else 0.0
 		body_ring_world_points[ring_id] = body_pivot.to_global(Vector3(shell_profile[i].x, center_y, 0.0))
@@ -1000,6 +1101,11 @@ func _ring_x_by_id(ring_id: String, fallback: float) -> float:
 
 func _body_ring_handle_world(ring_id: String, part: String) -> Vector3:
 	if body_pivot == null:
+		return Vector3.INF
+	if _uses_unified_head_ring_handle(ring_id):
+		var local_positions := _unified_head_ring_handle_local_positions(ring_id)
+		if local_positions.has(part):
+			return body_pivot.to_global(local_positions[part])
 		return Vector3.INF
 	for i in shell_ring_ids.size():
 		if String(shell_ring_ids[i]) != ring_id:
@@ -2020,6 +2126,11 @@ func _is_body_ring_indicator_key(key: String) -> bool:
 
 func _body_ring_indicator_world(part: String) -> Vector3:
 	if body_pivot == null or selected_body_ring_id == "":
+		return Vector3.INF
+	if _uses_unified_head_ring_handle(selected_body_ring_id):
+		var local_positions := _unified_head_ring_handle_local_positions(selected_body_ring_id)
+		if local_positions.has(part):
+			return body_pivot.to_global(local_positions[part])
 		return Vector3.INF
 	for i in shell_ring_ids.size():
 		if String(shell_ring_ids[i]) != selected_body_ring_id:

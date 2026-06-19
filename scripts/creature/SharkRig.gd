@@ -87,6 +87,20 @@ func _shark_head_ring_to_body_space(u: float, snout_length: float, forehead_slop
 		var theta := TAU * float(segment) / float(shell_segments)
 		ring.append(xf * SharkHeadProfile.point_at(parameters, u, theta, snout_length, forehead_slope, sculpt))
 	return ring
+
+func _unified_head_ring_handle_local_positions(ring_id: String) -> Dictionary:
+	if not _uses_unified_head_ring_handle(ring_id) or head_node == null:
+		return {}
+	var sample_t := _unified_head_ring_sample_t(ring_id)
+	if sample_t < 0.0:
+		return {}
+	var ring := _shark_head_ring_to_body_space(
+		sample_t,
+		param_float("snout_length", 0.0),
+		param_float("forehead_slope", 0.35),
+		_head_sculpt_params()
+	)
+	return _ring_handle_positions_from_points(ring)
 # A shark head is a SHORT, DEEP, robust wedge - roughly as deep as it is long - not the
 # long thin cone the fish "pointed" profile produces (the old "ballpoint pen" head). The
 # fish branch multiplied x by ~1.5 and squashed y/z, giving a ~4.5:1 length:depth dolphin
