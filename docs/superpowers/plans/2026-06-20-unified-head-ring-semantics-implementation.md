@@ -26,6 +26,7 @@ Saved `BodyProfile` data remains unchanged. `FishRig` adds a unified-only interp
 - [x] Covered unified `snout`/`head` center drags so profile x edits move the sampled head handle.
 - [x] Updated unified mesh/seam tests to match the generated boundary ring by vertex distance instead of assuming `shell_profile[0]`.
 - [x] Removed the closed rear fish-head cap from the unified weld path so the generated boundary connects to an open head ring.
+- [x] Skipped rear-half fish head rings that are too pinched relative to the generated body boundary, preventing a visually separated neck/body join.
 - [x] Replaced repeated full fish head-grid generation for handles with single-ring sampling.
 
 ## Verification Run

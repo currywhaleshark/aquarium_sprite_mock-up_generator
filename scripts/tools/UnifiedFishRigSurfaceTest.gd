@@ -114,8 +114,11 @@ func _test_unified_surface_omits_closed_head_rear_cap_from_weld() -> void:
 	if _failed:
 		return
 	var last_head_ring: PackedVector3Array = head_grid[head_grid.size() - 2]
+	var boundary_ring: PackedVector3Array = head_grid[head_grid.size() - 1]
 	var radius := _ring_yz_radius(last_head_ring)
+	var boundary_radius := _ring_yz_radius(boundary_ring)
 	_require(radius > 0.015, "unified fish weld must not include the closed rear head cap before the body boundary: radius=%.6f" % radius)
+	_require(radius >= boundary_radius * 0.38, "unified fish weld must not pinch the head ring away from the body boundary: head_radius=%.6f boundary_radius=%.6f" % [radius, boundary_radius])
 	fish.queue_free()
 
 func _test_unified_surface_replaces_visible_head_mesh_with_outer_shell_geometry() -> void:

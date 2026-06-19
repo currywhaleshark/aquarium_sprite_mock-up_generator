@@ -522,15 +522,17 @@ func _apply_animated_unified_surface(centers: PackedVector3Array, yaws: PackedFl
 
 func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, _snout_length: float, _forehead_slope: float, _sculpt: Dictionary, boundary_x: float, boundary_index: int = 0) -> Array:
 	var local_grid := PF.deformed_head_grid(_head_shape, _snout_length, _forehead_slope, 18, shell_segments, _sculpt)
+	var boundary_ring := _unified_body_boundary_ring(boundary_index)
+	var boundary_radius := _ring_yz_radius(boundary_ring)
 	var grid := []
 	for local_ring in local_grid:
 		var world_ring := _head_local_ring_to_body_space(local_ring)
 		if _ring_average_x(world_ring) >= boundary_x - 0.0005:
 			continue
-		if _is_unified_rear_head_cap_ring(world_ring):
+		if _is_unified_rear_head_weld_pinch_ring(world_ring, boundary_radius):
 			continue
 		grid.append(world_ring)
-	grid.append(_unified_body_boundary_ring(boundary_index))
+	grid.append(boundary_ring)
 	return grid
 
 func _head_local_ring_to_body_space(local_ring: PackedVector3Array) -> PackedVector3Array:
@@ -562,10 +564,12 @@ func _ring_average_x(ring: PackedVector3Array) -> float:
 		total += point.x
 	return total / float(ring.size())
 
-func _is_unified_rear_head_cap_ring(ring: PackedVector3Array) -> bool:
-	if head_node == null or ring.is_empty():
+func _is_unified_rear_head_weld_pinch_ring(ring: PackedVector3Array, boundary_radius: float) -> bool:
+	if head_node == null or ring.is_empty() or boundary_radius <= 0.0:
 		return false
-	return _ring_average_x(ring) > head_node.position.x and _ring_yz_radius(ring) <= 0.001
+	if _ring_average_x(ring) <= head_node.position.x:
+		return false
+	return _ring_yz_radius(ring) < boundary_radius * 0.38
 
 func _ring_yz_radius(ring: PackedVector3Array) -> float:
 	if ring.is_empty():
