@@ -55,7 +55,7 @@ func _test_unified_surface_reframes_head_ring_handles() -> void:
 	if _failed:
 		return
 	var boundary_id := String(fish.shell_ring_ids[boundary_index])
-	_require(boundary_id != "snout" and boundary_id != "head", "unified fish weld boundary must be generated/internal or body-owned, got %s" % boundary_id)
+	_require(boundary_id == "front_body", "unified fish weld boundary must use the editable front_body ring, not hidden support ring %s" % boundary_id)
 	if _failed:
 		return
 	var boundary_x := fish.shell_profile[boundary_index].x
@@ -71,7 +71,7 @@ func _test_unified_surface_reframes_head_ring_handles() -> void:
 	var front_body_center: Vector3 = fish.body_pivot.to_local(front_body_handle["center"])
 	_require(snout_center.x < head_center.x - 0.02, "unified fish snout handle must sit ahead of the head handle")
 	_require(head_center.x < boundary_x - 0.005, "unified fish head handle must sit ahead of the generated weld boundary")
-	_require(front_body_center.x > boundary_x + 0.005, "unified fish front_body handle must remain behind the generated weld boundary")
+	_require(absf(front_body_center.x - boundary_x) <= 0.005, "unified fish front_body handle must sit on the editable weld boundary")
 	_require(absf(snout_center.x - fish.shell_profile[0].x) > 0.03, "unified fish snout handle must not stay on the old shell-front support ring")
 	if _failed:
 		return
@@ -280,7 +280,7 @@ func _assert_unified_surface_geometry(fish: FishRig, label: String, require_fron
 				break
 	_require(min_x < shell_front_x - 0.05, "%s unified outer shell must include head vertices ahead of the old shell front" % label)
 	if require_front_boundary:
-		_require(boundary_count == fish.shell_segments + 1, "%s unified outer shell must share the generated boundary ring exactly once" % label)
+		_require(boundary_count == fish.shell_segments + 1, "%s unified outer shell must share the editable boundary ring exactly once" % label)
 
 func _ring_yz_radius(ring: PackedVector3Array) -> float:
 	if ring.is_empty():

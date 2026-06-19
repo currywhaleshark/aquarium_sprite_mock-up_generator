@@ -4,29 +4,29 @@ Date: 2026-06-20
 
 ## Goal
 
-Make unified-mode `snout` and `head` ring handles represent actual head/snout surface locations while keeping the neck/body weld as an internal generated boundary.
+Make unified-mode `snout` and `head` ring handles represent actual head/snout surface locations while keeping the visible body weld on the editable `front_body` boundary.
 
 ## Architecture
 
 Saved `BodyProfile` data remains unchanged. `FishRig` adds a unified-only interpretation layer:
 
 - `snout` and `head` handles are sampled from the current head surface.
-- The unified mesh weld starts at the first shell/profile ring at or behind the head neck x, clamped away from logical `snout` and `head`.
-- Existing generated `__neck_fill_*` support rings remain hidden from the editor.
+- The unified mesh weld starts at the editable `front_body` ring so hidden `__neck_fill_*` support rings cannot create visible hollows.
+- Existing generated `__neck_fill_*` support rings remain hidden from the editor and are not used as unified weld owners.
 - Legacy non-unified shell behavior keeps its previous ring interpretation.
 
 `SharkRig` overrides the head-ring sampler with `SharkHeadProfile.point_at()` so shark handles follow the shark-specific rostrum/head shape.
 
 ## Completed Tasks
 
-- [x] Added fish regression coverage proving unified `snout`/`head` handles sit before the generated weld boundary and `front_body` remains behind it.
+- [x] Added fish regression coverage proving unified `snout`/`head` handles sit before the editable `front_body` weld boundary.
 - [x] Added shark regression coverage with the same semantic assertions.
-- [x] Reworked unified body-start selection so the weld boundary is internal/generated instead of logical `snout`.
+- [x] Reworked unified body-start selection so the weld boundary is editable `front_body`, not logical `snout` or hidden generated support.
 - [x] Reused the new handle positions for ring guides, drag planes, world points, and slider indicators.
 - [x] Covered unified `snout`/`head` center drags so profile x edits move the sampled head handle.
-- [x] Updated unified mesh/seam tests to match the generated boundary ring by vertex distance instead of assuming `shell_profile[0]`.
-- [x] Removed the closed rear fish-head cap from the unified weld path so the generated boundary connects to an open head ring.
-- [x] Skipped rear-half fish head rings that are too pinched relative to the generated body boundary, preventing a visually separated neck/body join.
+- [x] Updated unified mesh/seam tests to match the selected boundary ring by vertex distance instead of assuming `shell_profile[0]`.
+- [x] Removed the closed rear fish-head cap from the unified weld path so the `front_body` boundary connects to an open head ring.
+- [x] Skipped rear-half fish head rings that are too pinched relative to the body boundary, preventing a visually separated neck/body join.
 - [x] Replaced repeated full fish head-grid generation for handles with single-ring sampling.
 
 ## Verification Run

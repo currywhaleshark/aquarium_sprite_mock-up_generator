@@ -51,7 +51,7 @@ func _test_unified_shark_reframes_head_ring_handles() -> void:
 	if _failed:
 		return
 	var boundary_id := String(shark.shell_ring_ids[boundary_index])
-	_require(boundary_id != "snout" and boundary_id != "head", "unified shark weld boundary must be generated/internal or body-owned, got %s" % boundary_id)
+	_require(boundary_id == "front_body", "unified shark weld boundary must use the editable front_body ring, not hidden support ring %s" % boundary_id)
 	if _failed:
 		return
 	var boundary_x := shark.shell_profile[boundary_index].x
@@ -67,7 +67,7 @@ func _test_unified_shark_reframes_head_ring_handles() -> void:
 	var front_body_center: Vector3 = shark.body_pivot.to_local(front_body_handle["center"])
 	_require(snout_center.x < head_center.x - 0.02, "unified shark snout handle must sit ahead of the head handle")
 	_require(head_center.x < boundary_x - 0.005, "unified shark head handle must sit ahead of the generated weld boundary")
-	_require(front_body_center.x > boundary_x + 0.005, "unified shark front_body handle must remain behind the generated weld boundary")
+	_require(absf(front_body_center.x - boundary_x) <= 0.005, "unified shark front_body handle must sit on the editable weld boundary")
 	_require(absf(snout_center.x - shark.shell_profile[0].x) > 0.03, "unified shark snout handle must not stay on the old shell-front support ring")
 	if _failed:
 		return
@@ -150,7 +150,7 @@ func _assert_unified_surface_geometry(shark: SharkRig, label: String) -> void:
 			boundary_count += 1
 	_require(min_x < shell_front_x - 0.05, "%s unified shark mesh must include rostrum vertices ahead of the old shell front" % label)
 	if label == "rest pose":
-		_require(boundary_count == shark.shell_segments + 1, "%s unified shark mesh must share the generated boundary ring exactly once" % label)
+		_require(boundary_count == shark.shell_segments + 1, "%s unified shark mesh must share the editable boundary ring exactly once" % label)
 
 func _assert_unified_boundary_ring(shark: SharkRig, label: String, animated: bool = false) -> void:
 	var outer := shark.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D

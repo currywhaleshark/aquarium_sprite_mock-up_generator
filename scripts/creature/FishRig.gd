@@ -484,24 +484,13 @@ func _apply_static_unified_surface(head_shape: String, head_scale: Vector3, snou
 	head_node.set_meta("unified_surface_anchor", true)
 
 
-func _unified_surface_body_start_index(_head_shape: String, head_scale: Vector3) -> int:
-	if head_node == null or shell_profile.size() <= 2:
+func _unified_surface_body_start_index(_head_shape: String, _head_scale: Vector3) -> int:
+	if shell_profile.size() <= 2:
 		return 0
-	var neck_x := head_node.position.x + head_scale.x * 0.5
-	var max_start := maxi(shell_profile.size() - 2, 0)
-	for index in shell_profile.size():
-		if shell_profile[index].x >= neck_x:
-			return _clamp_unified_boundary_index(index, max_start)
-	return max_start
-
-func _clamp_unified_boundary_index(index: int, max_start: int) -> int:
-	var result := clampi(index, 0, max_start)
-	while result < max_start:
-		var ring_id := String(shell_ring_ids[result]) if result < shell_ring_ids.size() else ""
-		if not _is_unified_head_ring_id(ring_id):
-			break
-		result += 1
-	return result
+	var front_body_index := _shell_index_by_id("front_body")
+	if front_body_index >= 0:
+		return clampi(front_body_index, 0, maxi(shell_profile.size() - 2, 0))
+	return 0
 
 func _apply_animated_unified_surface(centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	var body_profile := BodyProfileScript.ensure_body_profile(parameters)
