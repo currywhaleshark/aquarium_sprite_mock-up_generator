@@ -125,6 +125,8 @@ static func normalize_preset(preset: Dictionary) -> Dictionary:
 		parameters["creature_type"] = mode
 		if mode == CreatureModeScript.FISH or mode == CreatureModeScript.SHARK:
 			parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
+			if not parameters.has("unified_surface_enabled"):
+				parameters["unified_surface_enabled"] = 1.0
 			BodyProfileScript.normalize_motion_parameters(parameters)
 		BodyProfileScript.ensure_visual_parameters(parameters)
 		parameters = BodyProfileScript.sanitize_parameters_for_mode(parameters, mode)
@@ -135,6 +137,8 @@ static func normalize_preset(preset: Dictionary) -> Dictionary:
 	parameters["creature_type"] = mode
 	if mode == CreatureModeScript.FISH or mode == CreatureModeScript.SHARK:
 		parameters["body_profile"] = BodyProfileScript.ensure_body_profile(parameters)
+		if not parameters.has("unified_surface_enabled"):
+			parameters["unified_surface_enabled"] = 1.0
 	normalized["parameters"] = parameters
 	_sanitize_profile_dictionaries(normalized, mode)
 	return normalized

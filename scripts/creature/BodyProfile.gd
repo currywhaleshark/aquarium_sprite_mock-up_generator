@@ -178,7 +178,8 @@ const PRESERVED_PARAMETER_KEYS := {
 	"archetype_id": true,
 	"archetype_strength": true,
 	"variant_seed": true,
-	"marking_layers": true
+	"marking_layers": true,
+	"unified_surface_enabled": true
 }
 
 const PATTERN_TYPE_NAMES := ["none", "stripes", "horizontal_stripes", "spots", "zebra", "marbled", "reticulated", "whale_grid", "speckles"]
@@ -590,7 +591,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 	updated["global"] = _pick(normalized_parameters, [
 		"body_length", "body_height", "body_width", "projection_hint",
 		"show_ring_guides", "shell_enabled", "shell_expand",
-		"shell_color_mix", "shell_opacity", "shell_roundness", "head_size", "head_length", "head_offset",
+		"shell_color_mix", "shell_opacity", "shell_roundness", "unified_surface_enabled", "head_size", "head_length", "head_offset",
 		"eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_spacing"
 	])
 	updated["body_profile"] = normalized_parameters.get("body_profile", {})

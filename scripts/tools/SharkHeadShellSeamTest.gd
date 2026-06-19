@@ -119,6 +119,7 @@ func _ready() -> void:
 	assert(not preset.is_empty())
 	var base: Dictionary = preset.get("parameters", {}).duplicate(true)
 	assert(not base.is_empty())
+	base["unified_surface_enabled"] = 0.0
 
 	var shark: SharkRig = SharkRigScript.new()
 	add_child(shark)

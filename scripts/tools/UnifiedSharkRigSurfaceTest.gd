@@ -2,10 +2,14 @@ extends Node
 
 const SharkRigScript := preload("res://scripts/creature/SharkRig.gd")
 const SharkHeadProfile := preload("res://scripts/creature/SharkHeadProfile.gd")
+const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 
 var _failed := false
 
 func _ready() -> void:
+	await _test_shark_presets_default_to_unified_surface()
+	if _failed:
+		return
 	await _test_unified_surface_uses_shark_head_sampler_without_duplicate_head_mesh()
 	if _failed:
 		return
@@ -15,6 +19,13 @@ func _ready() -> void:
 	print("UNIFIED_SHARK_RIG_SURFACE_TEST_OK")
 	get_tree().quit(0)
 
+func _test_shark_presets_default_to_unified_surface() -> void:
+	var preset := PresetStoreScript.find_default_for_mode("shark")
+	_require(not preset.is_empty(), "default shark preset must load")
+	if _failed:
+		return
+	var parameters: Dictionary = preset.get("parameters", {})
+	_require(float(parameters.get("unified_surface_enabled", 0.0)) > 0.5, "default shark preset must enable unified surface")
 func _test_unified_surface_uses_shark_head_sampler_without_duplicate_head_mesh() -> void:
 	var shark: SharkRig = SharkRigScript.new()
 	add_child(shark)

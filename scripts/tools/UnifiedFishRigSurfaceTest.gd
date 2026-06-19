@@ -1,10 +1,14 @@
 extends Node
 
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
+const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 
 var _failed := false
 
 func _ready() -> void:
+	await _test_fish_presets_default_to_unified_surface()
+	if _failed:
+		return
 	await _test_unified_surface_replaces_visible_head_mesh_with_outer_shell_geometry()
 	if _failed:
 		return
@@ -17,6 +21,13 @@ func _ready() -> void:
 	print("UNIFIED_FISH_RIG_SURFACE_TEST_OK")
 	get_tree().quit(0)
 
+func _test_fish_presets_default_to_unified_surface() -> void:
+	var preset := PresetStoreScript.find_default_for_mode("fish")
+	_require(not preset.is_empty(), "default fish preset must load")
+	if _failed:
+		return
+	var parameters: Dictionary = preset.get("parameters", {})
+	_require(float(parameters.get("unified_surface_enabled", 0.0)) > 0.5, "default fish preset must enable unified surface")
 func _test_unified_surface_replaces_visible_head_mesh_with_outer_shell_geometry() -> void:
 	var fish: FishRig = FishRigScript.new()
 	add_child(fish)
