@@ -339,6 +339,17 @@ static func _base_radii(parameters: Dictionary, u: float, _snout_length: float, 
 		var rear_width := clampf(float(parameters.get("shark_head_rear_width", 0.0)), -0.4, 1.0)
 		radius_y *= maxf(0.35, 1.0 + rear_height * 0.22 * rear_w)
 		radius_z *= maxf(0.35, 1.0 + rear_width * 0.26 * rear_w)
+	# Neck tuck: the rear of the head must duck UNDER the body shell so the two meshes read as
+	# one continuous surface, instead of the blunt full-girth head rim showing through the
+	# shell as a step/crease at the neck. The body shell (which shares _base_radii via
+	# contour_radius_at_x) carries the silhouette from here, so easing the cross-section inward
+	# toward the hidden rear cap simply hides the join. The tuck begins where the shell starts
+	# to wrap the head (u ~0.74, the rear quarter) so the whole covered span ducks inside;
+	# everything forward of that - the visible snout, face and gill bulge (rear-volume peaks at
+	# u~0.66) - is untouched.
+	var neck_tuck := 1.0 - 0.42 * smoothstep(0.74, 1.0, u)
+	radius_y *= neck_tuck
+	radius_z *= neck_tuck
 	return Vector2(radius_y, radius_z)
 
 static func _mouth_shadow_mesh(parameters: Dictionary) -> ArrayMesh:
@@ -405,7 +416,7 @@ static func _snout_y_shift(parameters: Dictionary, u: float, snout_length: float
 
 static func _snout_tip_y_shift(parameters: Dictionary, u: float, snout_length: float, sculpt: Dictionary) -> float:
 	var snout_base := _snout_base(parameters, sculpt)
-	if snout_length <= 0.0 or u >= snout_base:
+	if u >= snout_base:
 		return 0.0
 	var tip_y := clampf(_snout_sculpt_value(parameters, sculpt, "shark_snout_tip_y", 0.0), -0.35, 0.35)
 	var t := 1.0 - clampf(u / maxf(snout_base, 0.001), 0.0, 1.0)

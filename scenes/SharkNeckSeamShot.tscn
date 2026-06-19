@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/SharkNeckSeamShot.gd" id="1_shark_neck_seam_shot"]
+
+[node name="SharkNeckSeamShot" type="Node"]
+script = ExtResource("1_shark_neck_seam_shot")

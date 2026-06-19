@@ -54,6 +54,12 @@ var shell_radius_half_diff: Array[float] = []
 var shell_radius_z_half_diff: Array[float] = []
 var shell_flatness_profiles: Array[Vector4] = []
 var shell_ring_ids: Array[String] = []
+# Per-ring minimum shell radius that still encloses the rigid head (head contour + attach
+# epsilon), 0 where no head constrains the ring. The neck smoothing pass relaxes the profile
+# toward a clean shoulder ramp but never below this, so de-facheting the neck can never let
+# the head poke out.
+var shell_head_floor_y: Array[float] = []
+var shell_head_floor_z: Array[float] = []
 var animated_shell_centers := PackedVector3Array()
 var animated_shell_yaws := PackedFloat32Array()
 var body_ring_world_points: Dictionary = {}
@@ -191,6 +197,8 @@ func rebuild() -> void:
 	head_node.position = Vector3(head_offset, _sample_shell_center_y_at_x(head_offset), 0.0)
 	body_pivot.add_child(head_node)
 	_add_head_features(head_node, secondary_mat)
+	if _unified_surface_enabled():
+		_apply_static_unified_surface(head_shape, head_scale, snout_len, forehead_slope, head_long_map)
 
 	dorsal_fin = _build_median_fin(
 		"DorsalFin1",
@@ -424,6 +432,96 @@ func drag_ring_handle(ring_id: String, part: String, world_delta: Vector3) -> vo
 	parameters["body_profile"] = profile
 	rebuild()
 
+func _unified_surface_enabled() -> bool:
+	return param_float("unified_surface_enabled", 0.0) > 0.5
+
+func _apply_static_unified_surface(head_shape: String, head_scale: Vector3, snout_length: float, forehead_slope: float, head_long_map: Dictionary, body_centers: PackedVector3Array = PackedVector3Array(), body_yaws: PackedFloat32Array = PackedFloat32Array()) -> void:
+	if outer_shell == null or head_node == null or shell_profile.is_empty():
+		return
+	var head_grid := _head_grid_for_unified_surface(head_shape, head_scale, snout_length, forehead_slope, _head_sculpt_params(), shell_profile[0].x)
+	if head_grid.size() < 2:
+		return
+	if not body_centers.is_empty() and not head_grid.is_empty():
+		head_grid[head_grid.size() - 1] = _unified_body_boundary_ring(0, body_centers, body_yaws)
+	var head_u_values := PackedFloat32Array()
+	var map_x: PackedFloat32Array = head_long_map.get("x", PackedFloat32Array())
+	var map_u: PackedFloat32Array = head_long_map.get("u", PackedFloat32Array())
+	for ring in head_grid:
+		var ring_points: PackedVector3Array = ring
+		var ring_x := ring_points[0].x if not ring_points.is_empty() else shell_profile[0].x
+		head_u_values.append(PF.long_u_for_world_x(ring_x, map_x, map_u))
+	var body_u_values: PackedFloat32Array = head_long_map.get("u", PackedFloat32Array())
+	outer_shell.mesh = PF.build_unified_creature_mesh(
+		head_grid,
+		shell_profile,
+		shell_segments,
+		PackedFloat32Array(shell_center_y_offsets),
+		PackedFloat32Array(shell_radius_half_diff),
+		PackedFloat32Array(shell_radius_z_half_diff),
+		shell_flatness_profiles,
+		head_u_values,
+		body_u_values,
+		body_centers,
+		body_yaws
+	)
+	head_node.mesh = ArrayMesh.new()
+	head_node.set_meta("unified_surface_anchor", true)
+
+func _apply_animated_unified_surface(centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
+	var body_profile := BodyProfileScript.ensure_body_profile(parameters)
+	var rings: Array = body_profile.get("rings", [])
+	var mid_ring := _ring_by_id(rings, "mid_body", 3)
+	var head_ring := _ring_by_id(rings, "head", 1)
+	var body_height := param_float("body_height", 0.58)
+	var body_width := param_float("body_width", 0.34)
+	var midbody_depth_scale := maxf((float(mid_ring.get("upper_height", 0.46)) + float(mid_ring.get("lower_height", 0.42))) * 0.5 / 0.46, 0.1)
+	var head_depth_scale := maxf((float(head_ring.get("upper_height", 0.42)) + float(head_ring.get("lower_height", 0.36))) * 0.5 / 0.42, 0.1)
+	var body_z_scale := _symmetric_width_scale(mid_ring, 0.38)
+	var head_width_boost := maxf(_symmetric_width_scale(head_ring, 0.34), 0.35)
+	var head_size := param_float("head_size", DEFAULT_HEAD_SIZE)
+	var head_length := param_float("head_length", head_size)
+	var head_shape := String(parameters.get("head_shape", "rounded"))
+	var head_scale := _head_scale_for_shape(head_shape, head_size, head_length, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
+	_apply_static_unified_surface(head_shape, head_scale, param_float("snout_length", 0.0), param_float("forehead_slope", 0.35), _shell_longitudinal_uv_map(), centers, yaws)
+
+func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, _snout_length: float, _forehead_slope: float, _sculpt: Dictionary, boundary_x: float) -> Array:
+	var local_grid := PF.deformed_head_grid(_head_shape, _snout_length, _forehead_slope, 18, shell_segments, _sculpt)
+	var grid := []
+	for local_ring in local_grid:
+		var world_ring := _head_local_ring_to_body_space(local_ring)
+		if _ring_average_x(world_ring) < boundary_x - 0.0005:
+			grid.append(world_ring)
+	grid.append(_unified_body_boundary_ring(0))
+	return grid
+
+func _head_local_ring_to_body_space(local_ring: PackedVector3Array) -> PackedVector3Array:
+	var world_ring := PackedVector3Array()
+	if head_node == null:
+		return world_ring
+	var xf := head_node.transform
+	for point in local_ring:
+		world_ring.append(xf * point)
+	return world_ring
+
+func _unified_body_boundary_ring(index: int, centers: PackedVector3Array = PackedVector3Array(), yaws: PackedFloat32Array = PackedFloat32Array()) -> PackedVector3Array:
+	var ring := PF.unified_body_profile_ring(
+		shell_profile,
+		index,
+		shell_segments,
+		PackedFloat32Array(shell_center_y_offsets),
+		PackedFloat32Array(shell_radius_half_diff),
+		PackedFloat32Array(shell_radius_z_half_diff),
+		shell_flatness_profiles
+	)
+	return PF.bend_unified_body_ring(ring, shell_profile, index, centers, yaws, PackedFloat32Array(shell_center_y_offsets))
+
+func _ring_average_x(ring: PackedVector3Array) -> float:
+	if ring.is_empty():
+		return INF
+	var total := 0.0
+	for point in ring:
+		total += point.x
+	return total / float(ring.size())
 func _build_shell_profile_from_rings(rings: Array, body_length: float, body_height: float, body_width: float, body_z_scale: float, head_offset: float, head_size: float, head_length: float, tail_length: float, shell_expand: float) -> void:
 	shell_profile = []
 	shell_center_y_offsets = []
@@ -431,6 +529,8 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 	shell_radius_z_half_diff = []
 	shell_flatness_profiles = []
 	shell_ring_ids = []
+	shell_head_floor_y = []
+	shell_head_floor_z = []
 	if rings.is_empty():
 		rings = BodyProfileScript.default_fish_rings()
 	var head_shell := _head_shell_metrics(rings, body_height, body_width, body_z_scale, head_offset, head_size, head_length, shell_expand)
@@ -453,10 +553,10 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 		var radius_z := body_width * body_z_scale * average_width * width_scale + shell_z_expand
 		var radius_z_top := body_width * body_z_scale * top_width * width_scale + shell_z_expand
 		var radius_z_bottom := body_width * body_z_scale * bottom_width * width_scale + shell_z_expand
-		var adjusted := _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell)
+		var adjusted := _apply_head_shell_metrics(ring, radius_y, radius_z, head_shell, center_y)
 		radius_y = float(adjusted["radius_y"])
-		var adjusted_top := _apply_head_shell_metrics(ring, radius_y, radius_z_top, head_shell)
-		var adjusted_bottom := _apply_head_shell_metrics(ring, radius_y, radius_z_bottom, head_shell)
+		var adjusted_top := _apply_head_shell_metrics(ring, radius_y, radius_z_top, head_shell, center_y)
+		var adjusted_bottom := _apply_head_shell_metrics(ring, radius_y, radius_z_bottom, head_shell, center_y)
 		var adjusted_top_z := float(adjusted_top["radius_z"])
 		var adjusted_bottom_z := float(adjusted_bottom["radius_z"])
 		radius_z = (adjusted_top_z + adjusted_bottom_z) * 0.5
@@ -475,6 +575,8 @@ func _build_shell_profile_from_rings(rings: Array, body_length: float, body_heig
 			float(ring.get("right_flatness", 0.0))
 		))
 		shell_ring_ids.append(String(ring.get("id", "ring_%d" % i)))
+		shell_head_floor_y.append(float(adjusted.get("floor_y", 0.0)))
+		shell_head_floor_z.append(float(adjusted.get("floor_z", 0.0)))
 	_smooth_neck_shell_profile()
 	shell_tail_pivot_1_x = _ring_x_by_id("rear_body", body_length * 0.48)
 	shell_tail_pivot_2_x = _ring_x_by_id("tail_stem", shell_tail_pivot_1_x + tail_length * 0.5)
@@ -503,16 +605,28 @@ func _smooth_neck_shell_profile() -> void:
 	var x1 := shell_profile[shoulder_i].x
 	if x1 <= x0:
 		return
+	# Relax the whole neck (snout -> shoulder) onto a smooth ramp between the two anchor
+	# rings in EVERY axis - vertical radius, width and centreline - then clamp each ring back
+	# up to the head enclosure floor it must respect. This is what makes the junction robust
+	# to proportion edits: whatever the head/body sizes, the shell interpolates cleanly from
+	# the head-front cross-section to the body shoulder, only bulging where the rigid head
+	# genuinely needs it (the floor, itself a smooth function of x). The old pass only RAISED
+	# the vertical radius toward the ramp, so a wide body + small head (or a re-tuned head)
+	# left faceted width steps and proud spikes the moment the tuned numbers drifted.
 	var ry0 := shell_profile[snout_i].y
 	var ry1 := shell_profile[shoulder_i].y
+	var rz0 := shell_profile[snout_i].z
+	var rz1 := shell_profile[shoulder_i].z
 	var cy0 := float(shell_center_y_offsets[snout_i])
 	var cy1 := float(shell_center_y_offsets[shoulder_i])
 	for i in range(snout_i + 1, shoulder_i):
 		var p: Vector3 = shell_profile[i]
 		var t := smoothstep(0.0, 1.0, (p.x - x0) / (x1 - x0))
-		var ramp_y := lerpf(ry0, ry1, t)
-		if ramp_y > p.y:
-			shell_profile[i] = Vector3(p.x, ramp_y, p.z)
+		var floor_y := shell_head_floor_y[i] if i < shell_head_floor_y.size() else 0.0
+		var floor_z := shell_head_floor_z[i] if i < shell_head_floor_z.size() else 0.0
+		var ramp_y := maxf(lerpf(ry0, ry1, t), floor_y)
+		var ramp_z := maxf(lerpf(rz0, rz1, t), floor_z)
+		shell_profile[i] = Vector3(p.x, ramp_y, ramp_z)
 		shell_center_y_offsets[i] = lerpf(cy0, cy1, t)
 
 func _shell_profile_rings_with_head_support(rings: Array) -> Array:
@@ -678,7 +792,23 @@ func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_s
 
 	return Vector2(y_deformed, z_deformed)
 
-func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: float, metrics: Dictionary) -> Dictionary:
+func _head_shell_profile_offsets(x_local_unscaled: float, head_scale: Vector3, metrics: Dictionary, blend_factor: float) -> Dictionary:
+	var snout_length: float = float(metrics.get("snout_length", 0.0))
+	var snout_base: float = float(metrics.get("snout_base", HeadProfile.SNOUT_BLEND_HALF))
+	var sx := clampf(HeadProfile.snout_base_x(snout_length, clampf(x_local_unscaled, -0.499 - snout_length, 0.499), snout_base), -0.499, 0.499)
+	var s_sin := sqrt(maxf(1.0 - 4.0 * sx * sx, 0.0))
+	var s_u := sx + 0.5
+	var top_extra := head_scale.y * HeadProfile.dorsal_offset(s_u, s_sin, float(metrics.get("head_top_curve", 0.0)), float(metrics.get("head_top_peak", 0.35)))
+	var bottom_extra := head_scale.y * HeadProfile.ventral_offset(s_u, s_sin, float(metrics.get("head_belly_curve", 0.0)), 0.45)
+	var bump_v := head_scale.y * float(metrics.get("head_bump_height", 0.0)) * cos(deg_to_rad(float(metrics.get("head_bump_angle", 35.0)))) * HeadProfile.head_bump_falloff(sx, PI * 0.5, float(metrics.get("head_bump_pos", -0.2)), float(metrics.get("head_bump_width", 0.18)), float(metrics.get("head_bump_round", 0.6)))
+	top_extra += maxf(bump_v, 0.0)
+	var head_weight := 1.0 - blend_factor
+	return {
+		"top": top_extra * head_weight,
+		"bottom": bottom_extra * head_weight,
+	}
+
+func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: float, metrics: Dictionary, base_center_y: float = 0.0) -> Dictionary:
 	var shape := String(metrics.get("shape", "rounded"))
 	var head_scale: Vector3 = metrics.get("head_scale", Vector3.ONE)
 	var head_offset: float = float(metrics.get("head_offset", 0.0))
@@ -693,7 +823,7 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 	var x_local_unscaled := (ring_x_world - head_offset) / head_scale.x
 	
 	if x_local_unscaled >= 0.5:
-		return {"radius_y": radius_y, "radius_z": radius_z, "center_y_delta": 0.0}
+		return {"radius_y": radius_y, "radius_z": radius_z, "center_y_delta": 0.0, "floor_y": 0.0, "floor_z": 0.0}
 
 	var snout_base: float = float(metrics.get("snout_base", HeadProfile.SNOUT_BLEND_HALF))
 	var contour := _get_head_contour_radius(x_local_unscaled, shape, forehead_slope, snout_length, snout_base, float(metrics.get("snout_thickness", 1.0)), float(metrics.get("snout_taper", 0.0)))
@@ -721,17 +851,12 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 	# top-only bulge becomes a radius increase plus an upward center shift). Fades
 	# into the body via head_weight so the trunk is untouched.
 	var center_y_delta := 0.0
+	var floor_y := 0.0
+	var floor_z := 0.0
 	if shape != "cephalofoil":
-		var sx := clampf(HeadProfile.snout_base_x(snout_length, clampf(x_local_unscaled, -0.499 - snout_length, 0.499), snout_base), -0.499, 0.499)
-		var s_sin := sqrt(maxf(1.0 - 4.0 * sx * sx, 0.0))
-		var s_u := sx + 0.5
-		var top_extra := head_scale.y * HeadProfile.dorsal_offset(s_u, s_sin, float(metrics.get("head_top_curve", 0.0)), float(metrics.get("head_top_peak", 0.35)))
-		var bottom_extra := head_scale.y * HeadProfile.ventral_offset(s_u, s_sin, float(metrics.get("head_belly_curve", 0.0)), 0.45)
-		var bump_v := head_scale.y * float(metrics.get("head_bump_height", 0.0)) * cos(deg_to_rad(float(metrics.get("head_bump_angle", 35.0)))) * HeadProfile.head_bump_falloff(sx, PI * 0.5, float(metrics.get("head_bump_pos", -0.2)), float(metrics.get("head_bump_width", 0.18)), float(metrics.get("head_bump_round", 0.6)))
-		top_extra += maxf(bump_v, 0.0)
-		var head_weight := 1.0 - blend_factor
-		top_extra *= head_weight
-		bottom_extra *= head_weight
+		var profile_offsets := _head_shell_profile_offsets(x_local_unscaled, head_scale, metrics, blend_factor)
+		var top_extra := float(profile_offsets.get("top", 0.0))
+		var bottom_extra := float(profile_offsets.get("bottom", 0.0))
 		target_y += 0.5 * (top_extra + bottom_extra)
 		center_y_delta = 0.5 * (top_extra - bottom_extra)
 		# A concave profile (e.g. arowana's lowered top) shrinks target_y symmetrically,
@@ -740,17 +865,34 @@ func _apply_head_shell_metrics(ring: Dictionary, radius_y: float, radius_z: floa
 		# shell from shrinking below the un-profiled head contour so it still encloses the
 		# rigid head. This is a floor (never grows past the head's natural size) so it does
 		# NOT fatten the head or create a head/body step; it only cancels the over-shrink.
-		target_y = maxf(target_y, r_head_y + exp_offset_y)
+		#
+		# The floor hugs the head with a fixed attach epsilon, NOT the full clearance
+		# (exp_offset). It is measured from the shell center that this ring will actually
+		# use, so centerline smoothing cannot move the shell off an otherwise-enclosed
+		# shark throat or crown. This keeps the rigid head enclosed without inflating the
+		# shell past what the head actually needs.
+		var ring_id := String(ring.get("id", ""))
+		if ring_id == "snout" and String(parameters.get("creature_type", "fish")) != "shark":
+			floor_y = r_head_y + HEAD_SHELL_ATTACH_EPSILON
+		else:
+			var shell_center_y := base_center_y + center_y_delta
+			var head_top_extent := r_head_y + top_extra
+			var head_bottom_extent := r_head_y + bottom_extra
+			floor_y = maxf(r_head_y, maxf(head_top_extent - shell_center_y, head_bottom_extent + shell_center_y)) + HEAD_SHELL_ATTACH_EPSILON
+		target_y = maxf(target_y, floor_y)
 		# Same enclosure floor for the width: with the leading-edge clearance pulled in
 		# (above), the thin snout body profile could otherwise let the wider head poke
 		# out sideways at the neck. Floor the shell width to the head's own width so it
 		# always encloses the rigid head without re-introducing a proud lip.
-		target_z = maxf(target_z, r_head_z + exp_offset_z)
+		floor_z = r_head_z + HEAD_SHELL_ATTACH_EPSILON
+		target_z = maxf(target_z, floor_z)
 
 	return {
 		"radius_y": maxf(target_y, 0.035),
 		"radius_z": maxf(target_z, 0.03),
-		"center_y_delta": center_y_delta
+		"center_y_delta": center_y_delta,
+		"floor_y": floor_y,
+		"floor_z": floor_z
 	}
 
 func _add_ring_guides() -> void:
@@ -1053,17 +1195,21 @@ func _deform_shell(loop_phase: float) -> void:
 			centers[i].y = raw_y
 			yaws[i] = yaw_head
 
-	PF.update_fish_outer_shell_bent(
-		outer_shell,
-		shell_profile,
-		centers,
-		yaws,
-		shell_segments,
-		PackedFloat32Array(shell_center_y_offsets),
-		PackedFloat32Array(shell_radius_half_diff),
-		PackedFloat32Array(shell_radius_z_half_diff),
-		shell_flatness_profiles
-	)
+	if _unified_surface_enabled():
+		_apply_animated_head(centers, yaws)
+		_apply_animated_unified_surface(centers, yaws)
+	else:
+		PF.update_fish_outer_shell_bent(
+			outer_shell,
+			shell_profile,
+			centers,
+			yaws,
+			shell_segments,
+			PackedFloat32Array(shell_center_y_offsets),
+			PackedFloat32Array(shell_radius_half_diff),
+			PackedFloat32Array(shell_radius_z_half_diff),
+			shell_flatness_profiles
+		)
 	animated_shell_centers = centers
 	animated_shell_yaws = yaws
 	_apply_animated_attachments(loop_phase, centers, yaws)
@@ -1089,7 +1235,7 @@ func _turn_ring_yaw(t: float, turn_amount: float, turn_direction: float, tail_la
 		head_amount = turn_amount * sin(PI * pow(turn_phase, 0.4))
 		tail_amount = turn_amount * sin(PI * pow(turn_phase, 1.4))
 	var curve_bias := clampf(param_float("turn_curve_bias", 0.5), 0.0, 1.0)
-	var head_yaw_limit := 24.0
+	var head_yaw_limit := 28.0
 	var tail_yaw_limit := -38.0
 	var t_clamped := clampf(t, 0.0, 1.0)
 	var head_factor := (1.0 - t_clamped) * (1.0 - t_clamped) * (1.0 + curve_bias)

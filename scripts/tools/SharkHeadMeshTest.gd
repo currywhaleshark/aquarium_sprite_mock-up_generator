@@ -28,6 +28,9 @@ func _ready() -> void:
 	await _test_snout_tip_y_uses_shared_surface_paths(base)
 	if _failed:
 		return
+	await _test_snout_tip_y_affects_zero_length_rostrum(base)
+	if _failed:
+		return
 	await _test_rostrum_and_neck_are_closed(base)
 	if _failed:
 		return
@@ -238,6 +241,18 @@ func _test_snout_tip_y_uses_shared_surface_paths(parameters: Dictionary) -> void
 	var high_mouth_weight := SharkHeadProfile.mouth_weight(high_params, u, pos.y, pos.z)
 	var low_mouth_weight := SharkHeadProfile.mouth_weight(low_params, u, pos.y, pos.z)
 	if not _require(high_mouth_weight - low_mouth_weight > 0.20, "mouth_weight must include snout tip y shift"):
+		return
+
+func _test_snout_tip_y_affects_zero_length_rostrum(parameters: Dictionary) -> void:
+	var low_params := parameters.duplicate(true)
+	low_params["snout_length"] = 0.0
+	low_params["snout_base"] = 0.46
+	low_params["shark_snout_tip_y"] = -0.35
+	var high_params := low_params.duplicate(true)
+	high_params["shark_snout_tip_y"] = 0.35
+	var low_tip := SharkHeadProfile.point_at(low_params, 0.035, PI * 0.5, 0.0, float(low_params.get("forehead_slope", 0.35)))
+	var high_tip := SharkHeadProfile.point_at(high_params, 0.035, PI * 0.5, 0.0, float(high_params.get("forehead_slope", 0.35)))
+	if not _require(high_tip.y - low_tip.y > 0.09, "snout tip y must move the rostrum surface when snout length is zero"):
 		return
 
 func _test_rostrum_and_neck_are_closed(parameters: Dictionary) -> void:

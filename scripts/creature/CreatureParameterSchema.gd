@@ -157,6 +157,7 @@ const COMMON_KEYS := {
 	"eye_size": true,
 	"eye_position_x": true,
 	"eye_position_y": true,
+	"eye_bulge": true,
 	"base_color": true,
 	"secondary_color": true,
 	"belly_color": true,

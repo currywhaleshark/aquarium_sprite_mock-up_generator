@@ -37,6 +37,42 @@ func _create_head_node(name: String, shape: String, head_scale: Vector3, snout_l
 func _get_head_contour_radius(x_local_unscaled: float, shape: String, forehead_slope: float, snout_length: float, snout_base: float = HeadProfile.SNOUT_BLEND_HALF, snout_thickness: float = 1.0, snout_taper: float = 0.0) -> Vector2:
 	return SharkHeadProfile.contour_radius_at_x(parameters, x_local_unscaled, snout_length, forehead_slope, _head_sculpt_params())
 
+func _head_shell_profile_offsets(x_local_unscaled: float, head_scale: Vector3, metrics: Dictionary, _blend_factor: float) -> Dictionary:
+	var snout_length := float(metrics.get("snout_length", param_float("snout_length", 0.0)))
+	var forehead_slope := float(metrics.get("forehead_slope", param_float("forehead_slope", 0.35)))
+	var sculpt := _head_sculpt_params()
+	var front_x := SharkHeadProfile.ROSTRUM_FRONT_X - clampf(snout_length, 0.0, 0.6) * 0.35
+	var u := clampf((x_local_unscaled - front_x) / maxf(SharkHeadProfile.NECK_X - front_x, 0.001), 0.0, 1.0)
+	var contour := SharkHeadProfile.contour_radius_at_x(parameters, x_local_unscaled, snout_length, forehead_slope, sculpt)
+	var top_y := SharkHeadProfile.point_at(parameters, u, PI * 0.5, snout_length, forehead_slope, sculpt).y
+	var bottom_y := -SharkHeadProfile.point_at(parameters, u, PI * 1.5, snout_length, forehead_slope, sculpt).y
+	return {
+		"top": maxf(head_scale.y * (top_y - contour.x), 0.0),
+		"bottom": maxf(head_scale.y * (bottom_y - contour.x), 0.0),
+	}
+
+func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, snout_length: float, forehead_slope: float, sculpt: Dictionary, boundary_x: float) -> Array:
+	var grid := []
+	var front_x := SharkHeadProfile.ROSTRUM_FRONT_X - clampf(snout_length, 0.0, 0.6) * 0.35
+	var boundary_local_x := (boundary_x - param_float("head_offset", -0.58)) / maxf(absf(_head_scale.x), 0.001)
+	var boundary_u := clampf((boundary_local_x - front_x) / maxf(SharkHeadProfile.NECK_X - front_x, 0.001), 0.0, 1.0)
+	var samples := SharkHeadProfile.u_samples(parameters)
+	for sample in samples:
+		var u := float(sample)
+		if u < boundary_u - 0.0005:
+			grid.append(_shark_head_ring_to_body_space(u, snout_length, forehead_slope, sculpt))
+	grid.append(_unified_body_boundary_ring(0))
+	return grid
+
+func _shark_head_ring_to_body_space(u: float, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> PackedVector3Array:
+	var ring := PackedVector3Array()
+	if head_node == null:
+		return ring
+	var xf := head_node.transform
+	for segment in range(shell_segments + 1):
+		var theta := TAU * float(segment) / float(shell_segments)
+		ring.append(xf * SharkHeadProfile.point_at(parameters, u, theta, snout_length, forehead_slope, sculpt))
+	return ring
 # A shark head is a SHORT, DEEP, robust wedge - roughly as deep as it is long - not the
 # long thin cone the fish "pointed" profile produces (the old "ballpoint pen" head). The
 # fish branch multiplied x by ~1.5 and squashed y/z, giving a ~4.5:1 length:depth dolphin

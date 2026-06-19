@@ -373,6 +373,7 @@ func _ready() -> void:
 	shark_panel.set_numeric_parameter("head_bump_round", 0.82)
 	shark_panel.apply_shark_head_recipe("white_shark_conical")
 	assert(abs(float(shark_seen[0].get("snout_taper", 0.0)) - 0.16) < 0.001)
+	assert(bool(shark_seen[0].get("shark_lower_teeth_visible", false)))
 	assert(abs(float(shark_seen[0].get("shark_head_rear_height", 0.0)) - 0.40) < 0.001)
 	assert(abs(float(shark_seen[0].get("head_top_flatness", -1.0))) < 0.001)
 	assert(abs(float(shark_seen[0].get("head_bottom_flatness", -1.0))) < 0.001)

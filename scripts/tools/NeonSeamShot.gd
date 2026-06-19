@@ -4,18 +4,22 @@ extends Node
 # junction at several angles so the neck seam (step / awkward joint) is visible.
 # Run NON-headless (needs GPU):
 #   Godot_..._console.exe --path . scenes/NeonSeamShot.tscn -- preset=네온테트라 tag=before
+#   Godot_..._console.exe --path . scenes/NeonSeamShot.tscn -- preset=네온테트라 tag=unified unified=1
 const FishRigScript := preload("res://scripts/creature/FishRig.gd")
 const PresetStoreScript := preload("res://scripts/presets/PresetStore.gd")
 
 func _ready() -> void:
 	var preset_name := "네온테트라"
 	var tag := "before"
+	var use_unified_surface := false
 	for arg in OS.get_cmdline_user_args():
 		var text := String(arg)
 		if text.begins_with("preset="):
 			preset_name = text.trim_prefix("preset=")
 		elif text.begins_with("tag="):
 			tag = text.trim_prefix("tag=")
+		elif text.begins_with("unified="):
+			use_unified_surface = text.trim_prefix("unified=") in ["1", "true", "yes"]
 
 	var preset := {}
 	for candidate in PresetStoreScript.load_all():
@@ -64,7 +68,10 @@ func _ready() -> void:
 	var fish: FishRig = FishRigScript.new()
 	fish.auto_animate = false
 	vp.add_child(fish)
-	fish.set_parameters(preset.get("parameters", {}))
+	var parameters: Dictionary = preset.get("parameters", {}).duplicate(true)
+	if use_unified_surface:
+		parameters["unified_surface_enabled"] = 1.0
+	fish.set_parameters(parameters)
 	await get_tree().process_frame
 
 	# Head sits around head_offset (-0.66 for neon). Frame the neck region.

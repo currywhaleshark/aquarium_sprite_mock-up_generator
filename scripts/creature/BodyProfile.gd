@@ -591,7 +591,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"body_length", "body_height", "body_width", "projection_hint",
 		"show_ring_guides", "shell_enabled", "shell_expand",
 		"shell_color_mix", "shell_opacity", "shell_roundness", "head_size", "head_length", "head_offset",
-		"eye_size", "eye_position_x", "eye_position_y", "eye_spacing"
+		"eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_spacing"
 	])
 	updated["body_profile"] = normalized_parameters.get("body_profile", {})
 	updated["tail_profile"] = _pick(normalized_parameters, [
@@ -608,6 +608,12 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"pelvic_length", "pelvic_height", "pelvic_fin_yaw", "anal_attach_t", "anal_shape", "anal_length", "anal_height",
 		"head_shape", "mouth_type", "snout_length",
 		"snout_base", "snout_thickness", "snout_taper", "snout_curve",
+		"shark_head_rear_height", "shark_head_rear_width", "shark_snout_tip_y",
+		"shark_mouth_profile", "shark_mouth_position_x", "shark_mouth_position_y",
+		"shark_mouth_width", "shark_mouth_curve", "shark_mouth_angle", "shark_mouth_arc",
+		"shark_mouth_gape", "shark_jaw_projection", "shark_lower_jaw_drop",
+		"shark_lower_teeth_visible", "shark_tooth_visible_count", "shark_tooth_size",
+		"shark_tooth_angle", "shark_labial_furrow_length",
 		"head_top_curve", "head_top_peak", "head_belly_curve",
 		"head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round",
 		"forehead_slope", "jaw_offset", "mouth_size", "lower_jaw_length", "lower_jaw_angle",

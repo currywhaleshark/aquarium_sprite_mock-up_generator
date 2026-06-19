@@ -303,6 +303,9 @@ static func _head_final_point(shape: String, phi: float, theta: float, snout_len
 # (world_x -> u) breakpoints of the body shell. map_x is ascending. Past either end
 # the nearest segment's slope is extrapolated (NOT clamped) so the snout, which sits
 # forward of the shell's first ring, keeps progressing to u < 0 instead of flattening.
+static func long_u_for_world_x(world_x: float, map_x: PackedFloat32Array, map_u: PackedFloat32Array) -> float:
+	return _long_u_for_world_x(world_x, map_x, map_u)
+
 static func _long_u_for_world_x(world_x: float, map_x: PackedFloat32Array, map_u: PackedFloat32Array) -> float:
 	var n := map_x.size()
 	if n == 0:
@@ -319,6 +322,18 @@ static func _long_u_for_world_x(world_x: float, map_x: PackedFloat32Array, map_u
 	var denom_n := maxf(map_x[n - 1] - map_x[n - 2], 0.0001)
 	return map_u[n - 1] + (world_x - map_x[n - 1]) / denom_n * (map_u[n - 1] - map_u[n - 2])
 
+static func deformed_head_grid(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}) -> Array:
+	var precomputed := _head_mesh_precompute(shape, snout_length, forehead_slope, sculpt)
+	var grid := []
+	for i in range(rings + 1):
+		var phi := PI * float(i) / float(rings)
+		var ring := PackedVector3Array()
+		for j in range(segments + 1):
+			var theta := TAU * float(j) / float(segments)
+			var sample := _head_final_point(shape, phi, theta, snout_length, forehead_slope, sculpt, precomputed)
+			ring.append(sample["point"] as Vector3)
+		grid.append(ring)
+	return grid
 static func deformed_head_mesh(shape: String, snout_length: float, forehead_slope: float, rings: int = 18, segments: int = 24, sculpt: Dictionary = {}, head_offset: float = 0.0, head_scale_x: float = 1.0, long_map_x: PackedFloat32Array = PackedFloat32Array(), long_map_u: PackedFloat32Array = PackedFloat32Array()) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -1049,6 +1064,181 @@ static func ray_wing(name: String, side: float, length: float, width: float, cur
 	node.material_override = material
 	return node
 
+static func build_unified_creature_mesh(
+	head_grid: Array = [],
+	body_profile: Array[Vector3] = [],
+	segments: int = 28,
+	center_y_offsets: PackedFloat32Array = PackedFloat32Array(),
+	radius_half_diffs: PackedFloat32Array = PackedFloat32Array(),
+	radius_z_half_diffs: PackedFloat32Array = PackedFloat32Array(),
+	flatness_profiles: Array[Vector4] = [],
+	head_u_values: PackedFloat32Array = PackedFloat32Array(),
+	body_u_values: PackedFloat32Array = PackedFloat32Array(),
+	body_centers: PackedVector3Array = PackedVector3Array(),
+	body_yaw_degrees: PackedFloat32Array = PackedFloat32Array()
+) -> ArrayMesh:
+	var vertices := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var uvs2 := PackedVector2Array()
+	var indices := PackedInt32Array()
+	var verts_per_ring := segments + 1
+	var body_start_u := body_u_values[0] if body_u_values.size() > 0 else 0.0
+	for head_index in head_grid.size():
+		var ring := _resample_unified_ring(head_grid[head_index], segments)
+		if ring.size() != verts_per_ring:
+			continue
+		var t := float(head_index) / maxf(float(head_grid.size() - 1), 1.0)
+		var u := head_u_values[head_index] if head_index < head_u_values.size() else lerpf(body_start_u - HEAD_U_SPAN, body_start_u, t)
+		_append_unified_ring(vertices, uvs, uvs2, ring, u)
+
+	var body_start_index := 1 if not head_grid.is_empty() else 0
+	for body_index in range(body_start_index, body_profile.size()):
+		var ring := _body_profile_ring_for_unified(body_profile, body_index, segments, center_y_offsets, radius_half_diffs, radius_z_half_diffs, flatness_profiles)
+		ring = bend_unified_body_ring(ring, body_profile, body_index, body_centers, body_yaw_degrees, center_y_offsets)
+		var u := body_u_values[body_index] if body_index < body_u_values.size() else float(body_index) / maxf(float(body_profile.size() - 1), 1.0)
+		_append_unified_ring(vertices, uvs, uvs2, ring, u)
+
+	var ring_count := vertices.size() / verts_per_ring
+	for ring_index in range(ring_count - 1):
+		for segment in segments:
+			var a := ring_index * verts_per_ring + segment
+			var b := ring_index * verts_per_ring + segment + 1
+			var c := (ring_index + 1) * verts_per_ring + segment
+			var d := (ring_index + 1) * verts_per_ring + segment + 1
+			indices.append_array(PackedInt32Array([a, c, b, b, c, d]))
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = _unified_mesh_normals(vertices, indices)
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = uvs2
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+static func _append_unified_ring(vertices: PackedVector3Array, uvs: PackedVector2Array, uvs2: PackedVector2Array, ring: PackedVector3Array, u: float) -> void:
+	var circumference := 0.0
+	for i in range(1, ring.size()):
+		circumference += ring[i - 1].distance_to(ring[i])
+	for segment in ring.size():
+		var v := float(segment) / maxf(float(ring.size() - 1), 1.0)
+		vertices.append(ring[segment])
+		uvs.append(Vector2(u, v))
+		uvs2.append(Vector2(ring[segment].x, v * circumference))
+
+static func _resample_unified_ring(source: Variant, segments: int) -> PackedVector3Array:
+	var source_points := PackedVector3Array()
+	if source is PackedVector3Array:
+		source_points = source
+	elif source is Array:
+		for point in source:
+			if point is Vector3:
+				source_points.append(point)
+	if source_points.is_empty():
+		return source_points
+	if source_points.size() == segments + 1:
+		return source_points
+	var result := PackedVector3Array()
+	var source_segments := maxi(source_points.size() - 1, 1)
+	for segment in range(segments + 1):
+		var scaled := float(segment) / maxf(float(segments), 1.0) * float(source_segments)
+		var index := int(floor(scaled))
+		var next_index := mini(index + 1, source_points.size() - 1)
+		var local_t := scaled - float(index)
+		result.append(source_points[index].lerp(source_points[next_index], local_t))
+	return result
+
+static func unified_body_profile_ring(
+	profile: Array[Vector3],
+	ring_index: int,
+	segments: int,
+	center_y_offsets: PackedFloat32Array = PackedFloat32Array(),
+	radius_half_diffs: PackedFloat32Array = PackedFloat32Array(),
+	radius_z_half_diffs: PackedFloat32Array = PackedFloat32Array(),
+	flatness_profiles: Array[Vector4] = []
+) -> PackedVector3Array:
+	return _body_profile_ring_for_unified(profile, ring_index, segments, center_y_offsets, radius_half_diffs, radius_z_half_diffs, flatness_profiles)
+
+static func bend_unified_body_ring(
+	ring: PackedVector3Array,
+	profile: Array[Vector3],
+	ring_index: int,
+	centers: PackedVector3Array = PackedVector3Array(),
+	yaw_degrees: PackedFloat32Array = PackedFloat32Array(),
+	center_y_offsets: PackedFloat32Array = PackedFloat32Array()
+) -> PackedVector3Array:
+	if ring_index >= profile.size() or (centers.is_empty() and yaw_degrees.is_empty()):
+		return ring
+	var point := profile[ring_index]
+	var center_y := center_y_offsets[ring_index] if ring_index < center_y_offsets.size() else 0.0
+	var center := centers[ring_index] if ring_index < centers.size() else Vector3(point.x, 0.0, 0.0)
+	center.y += center_y
+	var ring_yaw := deg_to_rad(yaw_degrees[ring_index] if ring_index < yaw_degrees.size() else 0.0)
+	var basis := Basis(Vector3.UP, ring_yaw)
+	var bent := PackedVector3Array()
+	for point_on_ring in ring:
+		var local_vertex := Vector3(0.0, point_on_ring.y - center_y, point_on_ring.z)
+		bent.append(center + basis * local_vertex)
+	return bent
+static func _body_profile_ring_for_unified(
+	profile: Array[Vector3],
+	ring_index: int,
+	segments: int,
+	center_y_offsets: PackedFloat32Array,
+	radius_half_diffs: PackedFloat32Array,
+	radius_z_half_diffs: PackedFloat32Array,
+	flatness_profiles: Array[Vector4]
+) -> PackedVector3Array:
+	var point := profile[ring_index]
+	var center_y := center_y_offsets[ring_index] if ring_index < center_y_offsets.size() else 0.0
+	var hd := radius_half_diffs[ring_index] if ring_index < radius_half_diffs.size() else 0.0
+	hd = clampf(hd, -point.y * 0.9, point.y * 0.9)
+	var r_up := point.y + hd
+	var r_lo := point.y - hd
+	var center_true_y := center_y - hd
+	var zd := radius_z_half_diffs[ring_index] if ring_index < radius_z_half_diffs.size() else 0.0
+	zd = clampf(zd, -point.z * 0.9, point.z * 0.9)
+	var r_z_top := maxf(point.z + zd, 0.001)
+	var r_z_bottom := maxf(point.z - zd, 0.001)
+	var flat := flatness_profiles[ring_index] if ring_index < flatness_profiles.size() else Vector4.ZERO
+	var ring := PackedVector3Array()
+	for segment in range(segments + 1):
+		var angle := TAU * float(segment) / float(segments)
+		var sin_a := sin(angle)
+		var cos_a := cos(angle)
+		var upper_half := sin_a >= 0.0
+		var r_y := r_up if upper_half else r_lo
+		var z_radius := lerpf(r_z_bottom, r_z_top, HeadProfile.vertical_half_blend(sin_a))
+		var y := (center_true_y - center_y) + sin_a * r_y
+		var z := cos_a * z_radius
+		y = _apply_flat_cap(y, point.y, 1.0, flat.x)
+		y = _apply_flat_cap(y, point.y, -1.0, flat.y)
+		z = _apply_flat_cap(z, z_radius, -1.0, flat.z)
+		z = _apply_flat_cap(z, z_radius, 1.0, flat.w)
+		ring.append(Vector3(point.x, center_y + y, z))
+	return ring
+
+static func _unified_mesh_normals(vertices: PackedVector3Array, indices: PackedInt32Array) -> PackedVector3Array:
+	var normals := PackedVector3Array()
+	normals.resize(vertices.size())
+	for i in range(0, indices.size(), 3):
+		var ia := indices[i]
+		var ib := indices[i + 1]
+		var ic := indices[i + 2]
+		var face := (vertices[ib] - vertices[ia]).cross(vertices[ic] - vertices[ia])
+		if face.length_squared() <= 0.00000001:
+			continue
+		normals[ia] += face
+		normals[ib] += face
+		normals[ic] += face
+	for i in normals.size():
+		if normals[i].length_squared() <= 0.00000001:
+			normals[i] = Vector3.UP
+		else:
+			normals[i] = normals[i].normalized()
+	return normals
 static func fish_outer_shell(name: String, profile: Array[Vector3], material: Material, segments: int = 28, center_y_offsets: PackedFloat32Array = PackedFloat32Array(), radius_half_diffs: PackedFloat32Array = PackedFloat32Array(), radius_z_half_diffs: PackedFloat32Array = PackedFloat32Array(), flatness_profiles: Array[Vector4] = []) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = name

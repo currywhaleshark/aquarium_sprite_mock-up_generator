@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tools/BasicSharkHeadShot.gd" id="1_basic_shark_head_shot"]
+
+[node name="BasicSharkHeadShot" type="Node"]
+script = ExtResource("1_basic_shark_head_shot")
