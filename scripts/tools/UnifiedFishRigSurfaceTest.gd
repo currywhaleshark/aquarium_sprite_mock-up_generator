@@ -59,6 +59,9 @@ func _test_unified_surface_preserves_cephalofoil_head_width() -> void:
 	_assert_cephalofoil_width_in_unified_mesh(fish, "cephalofoil rest pose")
 	if _failed:
 		return
+	_assert_cephalofoil_boundary_ring_in_unified_mesh(fish, "cephalofoil rest pose")
+	if _failed:
+		return
 	fish.apply_pose(0.31)
 	await get_tree().process_frame
 	_assert_unified_surface_geometry(fish, "cephalofoil animated pose", false)
@@ -80,6 +83,32 @@ func _assert_cephalofoil_width_in_unified_mesh(fish: FishRig, label: String) -> 
 	for shell_ring in fish.shell_profile:
 		body_max_z = maxf(body_max_z, absf(shell_ring.z))
 	_require(mesh_max_z > body_max_z * 1.18, "%s unified cephalofoil head must be visibly wider than the body: mesh_z=%.4f body_z=%.4f" % [label, mesh_max_z, body_max_z])
+
+func _assert_cephalofoil_boundary_ring_in_unified_mesh(fish: FishRig, label: String) -> void:
+	var outer := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
+	_require(outer != null and outer.mesh != null, "%s cephalofoil unified mesh must exist" % label)
+	if _failed:
+		return
+	var boundary_index: int = fish._unified_surface_body_start_index("cephalofoil", fish.eye_head_scale)
+	_require(boundary_index > 0, "%s cephalofoil unified surface must use a later body boundary ring" % label)
+	if _failed:
+		return
+	var expected_ring: PackedVector3Array = fish._unified_body_boundary_ring(boundary_index)
+	var vertices: PackedVector3Array = outer.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var matching_vertices := 0
+	var max_boundary_distance := 0.0
+	for vertex in vertices:
+		for expected in expected_ring:
+			if vertex.distance_to(expected) <= 0.0005:
+				matching_vertices += 1
+				break
+	for expected in expected_ring:
+		var best := INF
+		for vertex in vertices:
+			best = minf(best, vertex.distance_to(expected))
+		max_boundary_distance = maxf(max_boundary_distance, best)
+	_require(matching_vertices == fish.shell_segments + 1, "%s cephalofoil boundary ring must appear exactly once: count=%d expected=%d" % [label, matching_vertices, fish.shell_segments + 1])
+	_require(max_boundary_distance <= 0.0005, "%s cephalofoil boundary ring must match the selected body ring: distance=%.6f" % [label, max_boundary_distance])
 
 func _assert_unified_surface_geometry(fish: FishRig, label: String, require_front_boundary: bool = true) -> void:
 	var outer := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
