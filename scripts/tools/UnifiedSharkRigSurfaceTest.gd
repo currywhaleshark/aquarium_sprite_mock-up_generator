@@ -30,9 +30,15 @@ func _test_unified_surface_uses_shark_head_sampler_without_duplicate_head_mesh()
 	_assert_unified_surface_geometry(shark, "rest pose")
 	if _failed:
 		return
+	_assert_unified_boundary_ring(shark, "rest pose")
+	if _failed:
+		return
 	shark.apply_pose(0.31)
 	await get_tree().process_frame
 	_assert_unified_surface_geometry(shark, "animated pose")
+	if _failed:
+		return
+	_assert_unified_boundary_ring(shark, "animated pose", true)
 	shark.queue_free()
 
 func _assert_unified_surface_geometry(shark: SharkRig, label: String) -> void:
@@ -58,6 +64,28 @@ func _assert_unified_surface_geometry(shark: SharkRig, label: String) -> void:
 	_require(min_x < shell_front_x - 0.05, "%s unified shark mesh must include rostrum vertices ahead of the old shell front" % label)
 	if label == "rest pose":
 		_require(boundary_count == shark.shell_segments + 1, "%s unified shark mesh must share the shell-front boundary ring exactly once" % label)
+
+func _assert_unified_boundary_ring(shark: SharkRig, label: String, animated: bool = false) -> void:
+	var outer := shark.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
+	_require(outer != null and outer.mesh != null, "%s unified shark mesh must exist" % label)
+	if _failed:
+		return
+	var expected_ring: PackedVector3Array = shark._unified_body_boundary_ring(0, shark.animated_shell_centers, shark.animated_shell_yaws) if animated else shark._unified_body_boundary_ring(0)
+	var vertices: PackedVector3Array = outer.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var matching_vertices := 0
+	var max_boundary_distance := 0.0
+	for vertex in vertices:
+		for expected in expected_ring:
+			if vertex.distance_to(expected) <= 0.0005:
+				matching_vertices += 1
+				break
+	for expected in expected_ring:
+		var best := INF
+		for vertex in vertices:
+			best = minf(best, vertex.distance_to(expected))
+		max_boundary_distance = maxf(max_boundary_distance, best)
+	_require(matching_vertices == shark.shell_segments + 1, "%s unified shark boundary ring must appear exactly once: count=%d expected=%d" % [label, matching_vertices, shark.shell_segments + 1])
+	_require(max_boundary_distance <= 0.0005, "%s unified shark boundary ring must match the selected body ring: distance=%.6f" % [label, max_boundary_distance])
 
 func _require(condition: bool, message: String) -> void:
 	if condition or _failed:

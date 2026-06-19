@@ -68,6 +68,9 @@ func _test_unified_surface_preserves_cephalofoil_head_width() -> void:
 	if _failed:
 		return
 	_assert_cephalofoil_width_in_unified_mesh(fish, "cephalofoil animated pose")
+	if _failed:
+		return
+	_assert_cephalofoil_boundary_ring_in_unified_mesh(fish, "cephalofoil animated pose", true)
 	fish.queue_free()
 
 func _assert_cephalofoil_width_in_unified_mesh(fish: FishRig, label: String) -> void:
@@ -84,7 +87,7 @@ func _assert_cephalofoil_width_in_unified_mesh(fish: FishRig, label: String) -> 
 		body_max_z = maxf(body_max_z, absf(shell_ring.z))
 	_require(mesh_max_z > body_max_z * 1.18, "%s unified cephalofoil head must be visibly wider than the body: mesh_z=%.4f body_z=%.4f" % [label, mesh_max_z, body_max_z])
 
-func _assert_cephalofoil_boundary_ring_in_unified_mesh(fish: FishRig, label: String) -> void:
+func _assert_cephalofoil_boundary_ring_in_unified_mesh(fish: FishRig, label: String, animated: bool = false) -> void:
 	var outer := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
 	_require(outer != null and outer.mesh != null, "%s cephalofoil unified mesh must exist" % label)
 	if _failed:
@@ -93,7 +96,7 @@ func _assert_cephalofoil_boundary_ring_in_unified_mesh(fish: FishRig, label: Str
 	_require(boundary_index > 0, "%s cephalofoil unified surface must use a later body boundary ring" % label)
 	if _failed:
 		return
-	var expected_ring: PackedVector3Array = fish._unified_body_boundary_ring(boundary_index)
+	var expected_ring: PackedVector3Array = fish._unified_body_boundary_ring(boundary_index, fish.animated_shell_centers, fish.animated_shell_yaws) if animated else fish._unified_body_boundary_ring(boundary_index)
 	var vertices: PackedVector3Array = outer.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var matching_vertices := 0
 	var max_boundary_distance := 0.0
