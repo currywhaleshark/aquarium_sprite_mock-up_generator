@@ -608,7 +608,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"pectoral_attach_t", "pectoral_shape", "pelvic_enabled", "pelvic_attach_t", "pelvic_shape",
 		"pelvic_length", "pelvic_height", "pelvic_fin_yaw", "anal_attach_t", "anal_shape", "anal_length", "anal_height",
 		"head_shape", "mouth_type", "snout_length",
-		"snout_base", "snout_thickness", "snout_taper", "snout_curve",
+		"snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_top_curve", "snout_belly_curve",
 		"shark_head_rear_height", "shark_head_rear_width", "shark_snout_tip_y",
 		"shark_mouth_profile", "shark_mouth_position_x", "shark_mouth_position_y",
 		"shark_mouth_width", "shark_mouth_curve", "shark_mouth_angle", "shark_mouth_arc",

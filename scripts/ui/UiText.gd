@@ -243,6 +243,8 @@ const PARAMETER_LABELS := {
 	"snout_thickness": "주둥이 굵기",
 	"snout_taper": "주둥이 뾰족함",
 	"snout_curve": "주둥이 휨(아래 ↔ 위)",
+	"snout_top_curve": "주둥이 윗면(낮춤 ↔ 높임)",
+	"snout_belly_curve": "주둥이 아랫면(올림 ↔ 내림)",
 	"head_top_curve": "등선 융기(오목 ↔ 볼록)",
 	"head_top_peak": "융기 위치(앞 ↔ 뒤)",
 	"head_belly_curve": "배선(납작 ↔ 둥금)",

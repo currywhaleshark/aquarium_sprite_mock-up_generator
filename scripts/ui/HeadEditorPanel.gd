@@ -32,6 +32,8 @@ const NUMERIC_KEYS := {
 	"snout_thickness": {"min": 0.15, "max": 1.0, "step": 0.01},
 	"snout_taper": {"min": 0.0, "max": 1.0, "step": 0.01},
 	"snout_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
+	"snout_top_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
+	"snout_belly_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
 	"head_top_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
 	"head_top_peak": {"min": -0.5, "max": 1.0, "step": 0.01},
 	"head_belly_curve": {"min": -1.0, "max": 1.0, "step": 0.01},
@@ -122,6 +124,8 @@ const SHARK_HEAD_RECIPE_KEYS := {
 	"snout_thickness": true,
 	"snout_taper": true,
 	"snout_curve": true,
+	"snout_top_curve": true,
+	"snout_belly_curve": true,
 	"shark_snout_tip_y": true,
 	"forehead_slope": true,
 	"head_top_curve": true,
@@ -170,6 +174,8 @@ const SHARK_HEAD_RECIPE_DEFAULTS := {
 	"snout_thickness": 1.0,
 	"snout_taper": 0.0,
 	"snout_curve": 0.0,
+	"snout_top_curve": 0.0,
+	"snout_belly_curve": 0.0,
 	"shark_snout_tip_y": 0.0,
 	"forehead_slope": 0.0,
 	"head_top_curve": 0.0,
@@ -320,7 +326,7 @@ var _updating := false
 const FISH_SECTIONS := [
 	{"title": "머리 본체", "keys": ["head_size", "head_length", "head_offset", "head_flattening", "shark_head_rear_height", "shark_head_rear_width"]},
 	{"title": "평면화", "keys": ["head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness"]},
-	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_appendage_length", "shark_snout_tip_y"]},
+	{"title": "주둥이", "keys": ["snout_length", "snout_base", "snout_thickness", "snout_taper", "snout_curve", "snout_top_curve", "snout_belly_curve", "snout_appendage_length", "shark_snout_tip_y"]},
 	{"title": "등선·배선", "keys": ["head_top_curve", "head_top_peak", "head_belly_curve", "forehead_slope"]},
 	{"title": "혹", "keys": ["head_bump_height", "head_bump_pos", "head_bump_width", "head_bump_angle", "head_bump_round"]},
 	{"title": "입", "keys": ["jaw_offset", "mouth_size", "mouth_open", "lower_jaw_length", "lower_jaw_angle", "lower_jaw_thickness", "lower_jaw_tip", "jaw_hinge_x", "jaw_hinge_y", "jaw_protrusion", "lower_upper_ratio", "lip_darken", "shark_mouth_position_x", "shark_mouth_position_y", "shark_mouth_width", "shark_mouth_curve", "shark_mouth_gape", "shark_mouth_angle", "shark_mouth_arc", "shark_jaw_projection", "shark_lower_jaw_drop", "shark_tooth_visible_count", "shark_tooth_size", "shark_tooth_angle", "shark_labial_furrow_length"]},
@@ -935,7 +941,7 @@ func _should_show_fish_numeric_key(key: String) -> bool:
 	if creature_type == CreatureModeScript.SHARK:
 		# The shark head mesh now honors the same continuous head-shape controls as the
 		# fish head (dorsal/ventral profile, crown bump, flatness), so expose them here.
-		if key in ["head_size", "head_length", "head_offset", "head_flattening", "snout_length", "forehead_slope", "head_top_curve", "head_belly_curve", "head_bump_height", "head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
+		if key in ["head_size", "head_length", "head_offset", "head_flattening", "snout_length", "forehead_slope", "head_top_curve", "head_belly_curve", "snout_top_curve", "snout_belly_curve", "head_bump_height", "head_top_flatness", "head_bottom_flatness", "head_left_flatness", "head_right_flatness", "eye_size", "eye_position_x", "eye_position_y", "eye_bulge", "eye_pupil_scale"]:
 			return true
 		if _is_snout_sculpt_numeric_key(key):
 			return float(parameters.get("snout_length", 0.0)) > 0.001

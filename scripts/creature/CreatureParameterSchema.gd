@@ -99,6 +99,8 @@ const HEAD_SCULPT_KEYS := {
 	"head_top_curve": true,
 	"head_top_peak": true,
 	"head_belly_curve": true,
+	"snout_top_curve": true,
+	"snout_belly_curve": true,
 	"head_bump_height": true,
 	"head_bump_pos": true,
 	"head_bump_width": true,

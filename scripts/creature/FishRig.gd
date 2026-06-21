@@ -35,6 +35,30 @@ const DEFAULT_HEAD_SIZE := 0.44
 const HEAD_SHELL_ATTACH_EPSILON := 0.003
 const UNIFIED_HEAD_HANDLE_IDS := ["snout", "head"]
 
+# Unified head/body weld: the neck loft inserts intermediate rings between the head's widest
+# "collar" cross-section and the editable body boundary ring. RING_SPACING is the target x
+# gap per loft ring (more rings = smoother shading across a long neck); MIN/MAX clamp the
+# count so a tiny head still blends and a very long shark neck stays bounded.
+const NECK_LOFT_RING_SPACING := 0.045
+const NECK_LOFT_MIN_RINGS := 4
+const NECK_LOFT_MAX_RINGS := 18
+
+# Unified snout ring handle: snout_top_curve / snout_belly_curve apply a direct (not
+# girth-faded) vertical offset to the head's snout region, so the snout's top and bottom
+# edges resize INDEPENDENTLY (the thin snout barely responds to the girth-weighted dorsal/
+# ventral curves used for the head). The offset is full at the snout and fades to zero by the
+# head center (head-local x), and its amplitude scales with head depth for ~1:1 handle tracking.
+const SNOUT_CURVE_FADE_FRONT := -0.25
+const SNOUT_CURVE_FADE_BACK := 0.05
+
+# Where the unified snout/head ring handles sample the head (head ring t, front -> rear). These
+# are FIXED so the handles always sit at the same spot on the head mesh - they used to be
+# derived from the (vestigial) body-ring x, so dragging "center" slid the handle off the snout
+# without moving the mesh. Now "center" drag moves the head itself (snout_length / head_offset)
+# and the handle tracks it.
+const UNIFIED_SNOUT_SAMPLE_T := 0.13
+const UNIFIED_HEAD_SAMPLE_T := 0.5
+
 var body_pivot: Node3D
 var tail_pivot_1: Node3D
 var tail_pivot_2: Node3D
@@ -65,6 +89,16 @@ var animated_shell_centers := PackedVector3Array()
 var animated_shell_yaws := PackedFloat32Array()
 var body_ring_world_points: Dictionary = {}
 var shell_segments := 28
+# Cache of the head's cross-section rings in HEAD-LOCAL space (the heavy deformed-head /
+# shark-profile math). The head SHAPE is static between rebuilds; only its pose (head_node
+# transform) changes per animation frame. Cleared on rebuild, recomputed lazily, then just
+# transformed each frame - so apply_pose no longer re-runs the per-vertex head math.
+var _cached_head_local_rings: Array = []
+# Cache of the normalized body-profile rings. BodyProfileScript.ensure_body_profile rebuilds
+# default_fish_rings() ~twice per ring on every call, and the per-frame _ring_sway_weight /
+# head-scale paths called it dozens of times per frame. The profile only changes on rebuild,
+# so normalize it once and reuse. Cleared on rebuild.
+var _cached_body_rings: Array = []
 var shell_tail_pivot_1_x := 0.0
 var shell_tail_pivot_2_x := 0.0
 var dorsal_fin: MeshInstance3D
@@ -107,6 +141,8 @@ var material_parameters: Dictionary = {}
 
 func rebuild() -> void:
 	super.rebuild()
+	_cached_head_local_rings = []
+	_cached_body_rings = []
 	outer_shell = null
 	shell_profile = []
 	shell_center_y_offsets = []
@@ -422,12 +458,19 @@ func get_body_ring_drag_plane(ring_id: String, part: String) -> Dictionary:
 func drag_ring_handle(ring_id: String, part: String, world_delta: Vector3) -> void:
 	if body_pivot == null:
 		return
+	var local_delta: Vector3 = body_pivot.global_transform.basis.inverse() * world_delta
+	# In unified mode the snout/head silhouette is the head MESH, not the body shell rings, so
+	# these handles drive the head itself (top/bottom = sculpt, center = move along the body) -
+	# routing through the vestigial body rings made top/bottom symmetric and made center slide
+	# the handle off the mesh. See _drag_unified_head_ring.
+	if _uses_unified_head_ring_handle(ring_id):
+		_drag_unified_head_ring(ring_id, part, local_delta)
+		return
 	var profile := BodyProfileScript.ensure_body_profile(parameters)
 	var rings: Array = profile.get("rings", [])
 	var index := BodyProfileScript.find_ring_index(rings, ring_id)
 	if index < 0:
 		return
-	var local_delta: Vector3 = body_pivot.global_transform.basis.inverse() * world_delta
 	var body_height := maxf(param_float("body_height", 0.58), 0.001)
 	var ring: Dictionary = rings[index].duplicate(true)
 	match part:
@@ -445,6 +488,52 @@ func drag_ring_handle(ring_id: String, part: String, world_delta: Vector3) -> vo
 	parameters["body_profile"] = profile
 	rebuild()
 
+# Sculpt the head (not the body shell) from a unified head/snout ring handle. The top edge
+# drives the dorsal profile, the bottom edge the ventral profile, so each moves INDEPENDENTLY
+# (dragging the top no longer drags the bottom with it). The snout, which has no separate
+# dorsal/ventral control, drives its girth so pulling its edges actually resizes it instead of
+# only sliding it. gain_y maps a vertical drag to the param delta that moves the sampled handle
+# by ~the same amount (dorsal/ventral use PROFILE_GAIN scaled by the head's depth).
+func _drag_unified_head_ring(ring_id: String, part: String, local_delta: Vector3) -> void:
+	# Center handle = move the head along the body (horizontal only; the head has no free
+	# vertical position param). Head -> head_offset, snout -> snout_length (how far the snout
+	# pokes forward). The handle samples a FIXED spot on the head, so it tracks the moved mesh
+	# instead of sliding off it. Vertical center input is ignored on purpose.
+	if part == "center":
+		if ring_id == "head":
+			parameters["head_offset"] = clampf(param_float("head_offset", -0.58) + local_delta.x, -1.5, 0.4)
+		elif ring_id == "snout":
+			var span := maxf(absf(eye_head_scale.x), 0.001)
+			parameters["snout_length"] = clampf(param_float("snout_length", 0.0) - local_delta.x / span, 0.0, 0.6)
+		rebuild()
+		return
+	# "top" up (+y) raises that edge; "bottom" down (-y) lowers that edge.
+	var edge_delta := local_delta.y if part == "top" else -local_delta.y
+	match ring_id:
+		"head":
+			# Dorsal (top) and ventral (bottom) curves move each edge independently. gain_y
+			# converts the drag into the curve delta that shifts the sampled edge ~1:1
+			# (dorsal/ventral authority is PROFILE_GAIN scaled by the head depth).
+			var gain_y := maxf(eye_head_scale.y * HeadProfile.PROFILE_GAIN, 0.001)
+			if part == "top":
+				parameters["head_top_curve"] = clampf(param_float("head_top_curve", 0.0) + edge_delta / gain_y, -1.0, 1.0)
+			else:
+				parameters["head_belly_curve"] = clampf(param_float("head_belly_curve", 0.0) + edge_delta / gain_y, -1.0, 1.0)
+		"snout":
+			# The snout is thin, so the girth-faded dorsal/ventral curves barely reach it. Its
+			# handle instead drives a dedicated, direct top/bottom offset applied only in the
+			# snout region by _apply_snout_curve_offset, so each edge moves on its own (no
+			# translate, no opposite-edge follow). gain_s is the head depth, matching the
+			# offset's amplitude for ~1:1 tracking.
+			var gain_s := maxf(eye_head_scale.y, 0.001)
+			if part == "top":
+				parameters["snout_top_curve"] = clampf(param_float("snout_top_curve", 0.0) + edge_delta / gain_s, -1.0, 1.0)
+			else:
+				parameters["snout_belly_curve"] = clampf(param_float("snout_belly_curve", 0.0) + edge_delta / gain_s, -1.0, 1.0)
+		_:
+			return
+	rebuild()
+
 func _unified_surface_enabled() -> bool:
 	return param_float("unified_surface_enabled", 0.0) > 0.5
 
@@ -453,7 +542,7 @@ func _apply_static_unified_surface(head_shape: String, head_scale: Vector3, snou
 		return
 	var body_start_index := _unified_surface_body_start_index(head_shape, head_scale)
 	var boundary_x := shell_profile[body_start_index].x
-	var head_grid := _head_grid_for_unified_surface(head_shape, head_scale, snout_length, forehead_slope, _head_sculpt_params(), boundary_x, body_start_index)
+	var head_grid := _head_grid_for_unified_surface(head_shape, head_scale, snout_length, forehead_slope, _head_sculpt_params(), boundary_x, body_start_index, body_centers, body_yaws)
 	if head_grid.size() < 2:
 		return
 	if not body_centers.is_empty() and not head_grid.is_empty():
@@ -493,8 +582,7 @@ func _unified_surface_body_start_index(_head_shape: String, _head_scale: Vector3
 	return 0
 
 func _apply_animated_unified_surface(centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
-	var body_profile := BodyProfileScript.ensure_body_profile(parameters)
-	var rings: Array = body_profile.get("rings", [])
+	var rings: Array = _body_rings()
 	var mid_ring := _ring_by_id(rings, "mid_body", 3)
 	var head_ring := _ring_by_id(rings, "head", 1)
 	var body_height := param_float("body_height", 0.58)
@@ -509,20 +597,110 @@ func _apply_animated_unified_surface(centers: PackedVector3Array, yaws: PackedFl
 	var head_scale := _head_scale_for_shape(head_shape, head_size, head_length, body_height * head_depth_scale, body_width * body_z_scale * head_width_boost)
 	_apply_static_unified_surface(head_shape, head_scale, param_float("snout_length", 0.0), param_float("forehead_slope", 0.35), _shell_longitudinal_uv_map(), centers, yaws)
 
-func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, _snout_length: float, _forehead_slope: float, _sculpt: Dictionary, boundary_x: float, boundary_index: int = 0) -> Array:
-	var local_grid := PF.deformed_head_grid(_head_shape, _snout_length, _forehead_slope, 18, shell_segments, _sculpt)
-	var boundary_ring := _unified_body_boundary_ring(boundary_index)
-	var boundary_radius := _ring_yz_radius(boundary_ring)
+func _head_grid_for_unified_surface(head_shape: String, _head_scale: Vector3, snout_length: float, forehead_slope: float, sculpt: Dictionary, _boundary_x: float, boundary_index: int = 0, body_centers: PackedVector3Array = PackedVector3Array(), body_yaws: PackedFloat32Array = PackedFloat32Array()) -> Array:
+	var head_rings := _unified_head_rings(head_shape, snout_length, forehead_slope, sculpt)
+	return _build_unified_weld_grid(head_rings, boundary_index, body_centers, body_yaws)
+
+# The ordered (front -> rear) head cross-section rings, in body space, that feed the unified
+# weld. The expensive HEAD-LOCAL shape (deformed head / shark profile) is cached per rebuild
+# by _compute_head_local_rings; here we only apply the current head_node transform, so an
+# animation frame skips the per-vertex head math entirely.
+func _unified_head_rings(head_shape: String, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Array:
+	if _cached_head_local_rings.is_empty():
+		_cached_head_local_rings = _compute_head_local_rings(head_shape, snout_length, forehead_slope, sculpt)
+	var xf := head_node.transform if head_node != null else Transform3D.IDENTITY
+	var rings := []
+	for local_ring in _cached_head_local_rings:
+		var world_ring := PackedVector3Array()
+		for p in (local_ring as PackedVector3Array):
+			world_ring.append(xf * p)
+		rings.append(world_ring)
+	return rings
+
+# Head cross-section rings in HEAD-LOCAL space (pre-transform), the heavy part to cache.
+# FishRig uses the deformed head mesh; SharkRig overrides with the shark head profile.
+func _compute_head_local_rings(head_shape: String, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Array:
+	var rings := []
+	for local_ring in PF.deformed_head_grid(head_shape, snout_length, forehead_slope, 18, shell_segments, sculpt):
+		rings.append(local_ring)
+	return rings
+
+# Weld the head rings to the editable body boundary with a smooth neck loft. The head is a
+# closed dome: it grows to a widest "collar" cross-section, then pinches back toward a point.
+# Stitching its shrinking rear straight onto the (larger) body ring is what produced the
+# dorsal step on the fish and the unfilled stretched cone on the shark. Instead we keep the
+# head only up to its collar, then loft from the collar to the body boundary, so the surface
+# is one continuous tube with no radius step regardless of how head/body proportions tune.
+func _build_unified_weld_grid(head_rings: Array, boundary_index: int, body_centers: PackedVector3Array, body_yaws: PackedFloat32Array) -> Array:
+	var boundary_ring := _unified_body_boundary_ring(boundary_index, body_centers, body_yaws)
+	var boundary_x: float = shell_profile[boundary_index].x if boundary_index < shell_profile.size() else INF
+	var collar_index := -1
+	var collar_radius := -1.0
+	for i in head_rings.size():
+		var ring: PackedVector3Array = head_rings[i]
+		if _ring_average_x(ring) >= boundary_x - 0.0005:
+			break
+		var r := _ring_yz_radius(ring)
+		if r >= collar_radius:
+			collar_radius = r
+			collar_index = i
 	var grid := []
-	for local_ring in local_grid:
-		var world_ring := _head_local_ring_to_body_space(local_ring)
-		if _ring_average_x(world_ring) >= boundary_x - 0.0005:
-			continue
-		if _is_unified_rear_head_weld_pinch_ring(world_ring, boundary_radius):
-			continue
-		grid.append(world_ring)
+	if collar_index < 0:
+		grid.append(boundary_ring)
+		return grid
+	for i in range(collar_index + 1):
+		grid.append(_apply_snout_curve_offset(head_rings[i]))
+	_append_neck_loft(grid, grid[grid.size() - 1], boundary_ring)
 	grid.append(boundary_ring)
 	return grid
+
+# Direct vertical top/bottom offset on the head's snout region, driven by snout_top_curve
+# (raises the top edge) and snout_belly_curve (lowers the bottom edge). Unlike the head's
+# dorsal/ventral curves, this is NOT faded by girth, so it actually moves the thin snout; it
+# IS faded by head-local x so it only touches the snout, and weighted by each vertex's height
+# within the ring so the top/bottom move while the sides stay put. Neutral (both 0) = no-op.
+func _apply_snout_curve_offset(ring: PackedVector3Array) -> PackedVector3Array:
+	var top_c := param_float("snout_top_curve", 0.0)
+	var belly_c := param_float("snout_belly_curve", 0.0)
+	if (absf(top_c) < 0.0005 and absf(belly_c) < 0.0005) or head_node == null or ring.is_empty():
+		return ring
+	var x_local := (_ring_average_x(ring) - head_node.position.x) / maxf(absf(eye_head_scale.x), 0.001)
+	var w := clampf((SNOUT_CURVE_FADE_BACK - x_local) / maxf(SNOUT_CURVE_FADE_BACK - SNOUT_CURVE_FADE_FRONT, 0.001), 0.0, 1.0)
+	if w <= 0.0:
+		return ring
+	var radius := _ring_yz_radius(ring)
+	if radius <= 0.0001:
+		return ring
+	var center_y := 0.0
+	for p in ring:
+		center_y += p.y
+	center_y /= float(ring.size())
+	var top_amt := top_c * eye_head_scale.y * w
+	var bot_amt := belly_c * eye_head_scale.y * w
+	var out := PackedVector3Array()
+	for p in ring:
+		var ny := (p.y - center_y) / radius
+		var np := p
+		np.y += (top_amt if ny >= 0.0 else bot_amt) * ny
+		out.append(np)
+	return out
+
+# Append the lofted neck rings between the head collar and the body boundary (exclusive of
+# both endpoints, which the caller adds). The smoothstep weight gives the loft zero slope at
+# the collar and at the boundary, so there is no crease where it meets either side.
+func _append_neck_loft(grid: Array, collar_ring: PackedVector3Array, boundary_ring: PackedVector3Array) -> void:
+	var a := PF._resample_unified_ring(collar_ring, shell_segments)
+	var b := PF._resample_unified_ring(boundary_ring, shell_segments)
+	if a.is_empty() or a.size() != b.size():
+		return
+	var gap_x := absf(_ring_average_x(boundary_ring) - _ring_average_x(collar_ring))
+	var count := clampi(int(round(gap_x / NECK_LOFT_RING_SPACING)), NECK_LOFT_MIN_RINGS, NECK_LOFT_MAX_RINGS)
+	for k in range(1, count + 1):
+		var w := smoothstep(0.0, 1.0, float(k) / float(count + 1))
+		var ring := PackedVector3Array()
+		for j in a.size():
+			ring.append(a[j].lerp(b[j], w))
+		grid.append(ring)
 
 func _head_local_ring_to_body_space(local_ring: PackedVector3Array) -> PackedVector3Array:
 	var world_ring := PackedVector3Array()
@@ -552,13 +730,6 @@ func _ring_average_x(ring: PackedVector3Array) -> float:
 	for point in ring:
 		total += point.x
 	return total / float(ring.size())
-
-func _is_unified_rear_head_weld_pinch_ring(ring: PackedVector3Array, boundary_radius: float) -> bool:
-	if head_node == null or ring.is_empty() or boundary_radius <= 0.0:
-		return false
-	if _ring_average_x(ring) <= head_node.position.x:
-		return false
-	return _ring_yz_radius(ring) < boundary_radius * 0.38
 
 func _ring_yz_radius(ring: PackedVector3Array) -> float:
 	if ring.is_empty():
@@ -1029,21 +1200,14 @@ func _unified_head_ring_handle_local_positions(ring_id: String) -> Dictionary:
 		shell_segments,
 		_head_sculpt_params()
 	)
-	return _ring_handle_positions_from_points(_head_local_ring_to_body_space(local_ring))
+	return _ring_handle_positions_from_points(_apply_snout_curve_offset(_head_local_ring_to_body_space(local_ring)))
 
 func _unified_head_ring_sample_t(ring_id: String) -> float:
-	var profile := BodyProfileScript.ensure_body_profile(parameters)
-	var rings: Array = profile.get("rings", [])
-	var front_body := _ring_by_id(rings, "front_body", 2)
-	var front_body_x := maxf(float(front_body.get("x", 0.36)), 0.001)
-	var fallback_index := 0 if ring_id == "snout" else 1
-	var ring := _ring_by_id(rings, ring_id, fallback_index)
-	var ring_t := clampf(float(ring.get("x", 0.0)) / front_body_x, 0.0, 1.0)
 	match ring_id:
 		"snout":
-			return lerpf(0.06, 0.24, ring_t)
+			return UNIFIED_SNOUT_SAMPLE_T
 		"head":
-			return lerpf(0.32, 0.76, ring_t)
+			return UNIFIED_HEAD_SAMPLE_T
 	return -1.0
 
 func _ring_handle_positions_from_points(points: PackedVector3Array) -> Dictionary:
@@ -1155,8 +1319,14 @@ func _clamp_ring_x(index: int, rings: Array, value: float) -> float:
 		return clampf(value, max_x, min_x)
 	return clampf(value, min_x, max_x)
 
+# Normalized body-profile rings, cached for the rebuild's lifetime (see _cached_body_rings).
+func _body_rings() -> Array:
+	if _cached_body_rings.is_empty():
+		_cached_body_rings = BodyProfileScript.ensure_body_profile(parameters).get("rings", [])
+	return _cached_body_rings
+
 func _ring_sway_weight(ring_id: String, fallback: float) -> float:
-	for ring in BodyProfileScript.ensure_body_profile(parameters).get("rings", []):
+	for ring in _body_rings():
 		if String(ring.get("id", "")) == ring_id:
 			return float(ring.get("sway_weight", fallback))
 	return fallback
@@ -1355,7 +1525,11 @@ func _deform_shell(loop_phase: float) -> void:
 	animated_shell_centers = centers
 	animated_shell_yaws = yaws
 	_apply_animated_attachments(loop_phase, centers, yaws)
-	_update_body_ring_world_points()
+	# Only refresh the ring-handle world points while their guides are actually on screen.
+	# Recomputing them every animation frame (it re-samples the head rings) is pure waste when
+	# nothing is editing; get_body_ring_global_points() still recomputes on demand for callers.
+	if ring_editor_enabled or param_float("show_ring_guides", 0.0) > 0.5:
+		_update_body_ring_world_points()
 
 func _body_wave_distribution(t: float, start: float, falloff: float) -> float:
 	if t <= start:
@@ -2710,9 +2884,7 @@ func _head_sculpt_params() -> Dictionary:
 	}
 
 func _head_lower_jaw_scale() -> float:
-	var profile := BodyProfileScript.ensure_body_profile(parameters)
-	var rings: Array = profile.get("rings", [])
-	var head_ring := _ring_by_id(rings, "head", 1)
+	var head_ring := _ring_by_id(_body_rings(), "head", 1)
 	var ring_scale := float(head_ring.get("lower_height", 0.36)) / 0.36
 	var belly_scale := 1.0 + clampf(param_float("head_belly_curve", 0.0), -1.0, 1.0) * 0.45
 	return clampf(ring_scale * belly_scale, 0.45, 1.8)

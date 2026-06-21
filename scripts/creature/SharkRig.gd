@@ -65,18 +65,19 @@ func _head_shell_profile_offsets(x_local_unscaled: float, head_scale: Vector3, m
 		"bottom": maxf(head_scale.y * (bottom_y - contour.x), 0.0),
 	}
 
-func _head_grid_for_unified_surface(_head_shape: String, _head_scale: Vector3, snout_length: float, forehead_slope: float, sculpt: Dictionary, boundary_x: float, boundary_index: int = 0) -> Array:
-	var grid := []
-	var front_x := SharkHeadProfile.ROSTRUM_FRONT_X - clampf(snout_length, 0.0, 0.6) * 0.35
-	var boundary_local_x := (boundary_x - param_float("head_offset", -0.58)) / maxf(absf(_head_scale.x), 0.001)
-	var boundary_u := clampf((boundary_local_x - front_x) / maxf(SharkHeadProfile.NECK_X - front_x, 0.001), 0.0, 1.0)
-	var samples := SharkHeadProfile.u_samples(parameters)
-	for sample in samples:
+# The shark head is the integrated SharkHeadProfile mesh, sampled front -> rear over u, in
+# HEAD-LOCAL space (the base class caches these and applies the head_node transform + neck
+# loft per frame - see FishRig._unified_head_rings / _build_unified_weld_grid).
+func _compute_head_local_rings(_head_shape: String, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> Array:
+	var rings := []
+	for sample in SharkHeadProfile.u_samples(parameters):
 		var u := float(sample)
-		if u < boundary_u - 0.0005:
-			grid.append(_shark_head_ring_to_body_space(u, snout_length, forehead_slope, sculpt))
-	grid.append(_unified_body_boundary_ring(boundary_index))
-	return grid
+		var ring := PackedVector3Array()
+		for segment in range(shell_segments + 1):
+			var theta := TAU * float(segment) / float(shell_segments)
+			ring.append(SharkHeadProfile.point_at(parameters, u, theta, snout_length, forehead_slope, sculpt))
+		rings.append(ring)
+	return rings
 
 func _shark_head_ring_to_body_space(u: float, snout_length: float, forehead_slope: float, sculpt: Dictionary) -> PackedVector3Array:
 	var ring := PackedVector3Array()
@@ -100,7 +101,7 @@ func _unified_head_ring_handle_local_positions(ring_id: String) -> Dictionary:
 		param_float("forehead_slope", 0.35),
 		_head_sculpt_params()
 	)
-	return _ring_handle_positions_from_points(ring)
+	return _ring_handle_positions_from_points(_apply_snout_curve_offset(ring))
 # A shark head is a SHORT, DEEP, robust wedge - roughly as deep as it is long - not the
 # long thin cone the fish "pointed" profile produces (the old "ballpoint pen" head). The
 # fish branch multiplied x by ~1.5 and squashed y/z, giving a ~4.5:1 length:depth dolphin

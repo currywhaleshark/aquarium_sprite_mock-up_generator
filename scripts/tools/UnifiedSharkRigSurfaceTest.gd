@@ -19,6 +19,9 @@ func _ready() -> void:
 	_test_unified_shark_sampler_skips_legacy_neck_tuck()
 	if _failed:
 		return
+	await _test_unified_shark_neck_has_no_step()
+	if _failed:
+		return
 	print("UNIFIED_SHARK_RIG_SURFACE_TEST_OK")
 	get_tree().quit(0)
 
@@ -125,6 +128,83 @@ func _test_unified_shark_sampler_skips_legacy_neck_tuck() -> void:
 	var legacy_y := SharkHeadProfile.point_at(legacy, u, theta, 0.32, 0.34, {}).y
 	var unified_y := SharkHeadProfile.point_at(unified, u, theta, 0.32, 0.34, {}).y
 	_require(unified_y > legacy_y * 1.25, "unified shark sampler must bypass legacy neck tuck: legacy=%.5f unified=%.5f" % [legacy_y, unified_y])
+
+# Regression for the shark dorsal notch / unfilled-cone seam: before the neck loft the shark
+# head rings welded straight onto front_body across a large x gap with no rings between,
+# leaving a stretched cone with a step. The weld grid must now march forward and grow in
+# radius without a step from the head's widest collar through the neck to the body boundary.
+func _test_unified_shark_neck_has_no_step() -> void:
+	var shark: SharkRig = SharkRigScript.new()
+	add_child(shark)
+	shark.auto_animate = false
+	shark.set_parameters({
+		"shell_enabled": 1.0,
+		"unified_surface_enabled": 1.0,
+		"head_size": 0.46,
+		"head_length": 0.55,
+		"snout_length": 0.32,
+		"forehead_slope": 0.34,
+		"body_height": 0.52,
+		"body_width": 0.32,
+		"shell_expand": 0.07,
+	})
+	await get_tree().process_frame
+	var head_shape := String(shark.parameters.get("head_shape", "rounded"))
+	var boundary_index := shark._unified_surface_body_start_index(head_shape, shark.eye_head_scale)
+	var boundary_x: float = shark.shell_profile[boundary_index].x
+	var grid := shark._head_grid_for_unified_surface(
+		head_shape, shark.eye_head_scale,
+		float(shark.parameters.get("snout_length", 0.0)),
+		float(shark.parameters.get("forehead_slope", 0.34)),
+		shark._head_sculpt_params(), boundary_x, boundary_index)
+	_require(grid.size() >= 6, "unified shark weld must loft neck rings between the head and the body boundary")
+	if _failed:
+		return
+	var collar_index := 0
+	var collar_radius := -1.0
+	for i in grid.size():
+		var r := _ring_yz_radius(grid[i])
+		if r >= collar_radius:
+			collar_radius = r
+			collar_index = i
+	var prev_x := _ring_average_x(grid[0])
+	for i in range(1, grid.size()):
+		var ring: PackedVector3Array = grid[i]
+		var x := _ring_average_x(ring)
+		_require(x > prev_x - 0.0001, "unified shark weld rings must march forward: x=%.5f after %.5f" % [x, prev_x])
+		if i > collar_index:
+			var prev_radius := _ring_yz_radius(grid[i - 1])
+			var radius := _ring_yz_radius(ring)
+			_require(radius >= prev_radius - 0.001, "unified shark neck must not pinch between collar and boundary: radius=%.5f after %.5f" % [radius, prev_radius])
+			var slope := absf(radius - prev_radius) / maxf(absf(x - prev_x), 0.0001)
+			_require(slope < 1.5, "unified shark neck must not step in radius (단차): slope=%.3f at x=%.5f" % [slope, x])
+		prev_x = x
+	shark.queue_free()
+
+func _ring_average_x(ring: PackedVector3Array) -> float:
+	if ring.is_empty():
+		return 0.0
+	var total := 0.0
+	for point in ring:
+		total += point.x
+	return total / float(ring.size())
+
+func _ring_yz_radius(ring: PackedVector3Array) -> float:
+	if ring.is_empty():
+		return 0.0
+	var center_y := 0.0
+	var center_z := 0.0
+	for point in ring:
+		center_y += point.y
+		center_z += point.z
+	center_y /= float(ring.size())
+	center_z /= float(ring.size())
+	var radius := 0.0
+	for point in ring:
+		var dy := point.y - center_y
+		var dz := point.z - center_z
+		radius = maxf(radius, sqrt(dy * dy + dz * dz))
+	return radius
 
 func _assert_unified_surface_geometry(shark: SharkRig, label: String) -> void:
 	var outer := shark.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D

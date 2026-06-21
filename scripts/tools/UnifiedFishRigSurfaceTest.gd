@@ -24,8 +24,76 @@ func _ready() -> void:
 	await _test_unified_surface_skips_legacy_neck_crutches()
 	if _failed:
 		return
+	await _test_unified_head_ring_handles_sculpt_independently()
+	if _failed:
+		return
 	print("UNIFIED_FISH_RIG_SURFACE_TEST_OK")
 	get_tree().quit(0)
+
+# Regression: in unified mode the head ring's top/bottom handles sculpt the head dorsal and
+# ventral INDEPENDENTLY. Before, the drag fed the body-ring upper/lower_height, which only
+# scaled the head's symmetric average depth - so dragging the top dragged the bottom with it
+# (and barely moved). Each edge must now move on its own and stay put when the other is dragged.
+func _test_unified_head_ring_handles_sculpt_independently() -> void:
+	var params := {
+		"shell_enabled": 1.0, "unified_surface_enabled": 1.0, "head_shape": "rounded",
+		"head_size": 0.48, "head_length": 0.52, "body_height": 0.58, "body_width": 0.34,
+	}
+	var fish: FishRig = FishRigScript.new()
+	add_child(fish)
+	fish.auto_animate = false
+	fish.set_parameters(params.duplicate(true))
+	await get_tree().process_frame
+	var before := _head_handle_edges(fish, "head")
+	fish.drag_ring_handle("head", "top", Vector3(0.0, 0.12, 0.0))
+	await get_tree().process_frame
+	var after := _head_handle_edges(fish, "head")
+	_require(after["top"] - before["top"] > 0.03, "head top drag must raise the head top edge (Δ=%.4f)" % (after["top"] - before["top"]))
+	_require(absf(after["bot"] - before["bot"]) < 0.012, "head top drag must leave the head bottom edge ~unchanged (Δ=%.4f)" % (after["bot"] - before["bot"]))
+	if _failed:
+		return
+	fish.set_parameters(params.duplicate(true))
+	await get_tree().process_frame
+	before = _head_handle_edges(fish, "head")
+	fish.drag_ring_handle("head", "bottom", Vector3(0.0, -0.12, 0.0))
+	await get_tree().process_frame
+	after = _head_handle_edges(fish, "head")
+	_require(after["bot"] - before["bot"] < -0.03, "head bottom drag must lower the head bottom edge (Δ=%.4f)" % (after["bot"] - before["bot"]))
+	_require(absf(after["top"] - before["top"]) < 0.012, "head bottom drag must leave the head top edge ~unchanged (Δ=%.4f)" % (after["top"] - before["top"]))
+	if _failed:
+		return
+	# The snout ring handle resizes the snout's top/bottom independently too (thin snout, so it
+	# uses snout_top_curve/snout_belly_curve, a direct offset rather than the girth-faded head
+	# curves). Previously the snout just translated / did nothing.
+	fish.set_parameters(params.duplicate(true))
+	await get_tree().process_frame
+	before = _head_handle_edges(fish, "snout")
+	fish.drag_ring_handle("snout", "top", Vector3(0.0, 0.12, 0.0))
+	await get_tree().process_frame
+	after = _head_handle_edges(fish, "snout")
+	_require(after["top"] - before["top"] > 0.03, "snout top drag must raise the snout top edge (Δ=%.4f)" % (after["top"] - before["top"]))
+	_require(absf(after["bot"] - before["bot"]) < 0.012, "snout top drag must leave the snout bottom edge ~unchanged (Δ=%.4f)" % (after["bot"] - before["bot"]))
+	if _failed:
+		return
+	fish.set_parameters(params.duplicate(true))
+	await get_tree().process_frame
+	before = _head_handle_edges(fish, "snout")
+	fish.drag_ring_handle("snout", "bottom", Vector3(0.0, -0.12, 0.0))
+	await get_tree().process_frame
+	after = _head_handle_edges(fish, "snout")
+	_require(after["bot"] - before["bot"] < -0.03, "snout bottom drag must lower the snout bottom edge (Δ=%.4f)" % (after["bot"] - before["bot"]))
+	_require(absf(after["top"] - before["top"]) < 0.012, "snout bottom drag must leave the snout top edge ~unchanged (Δ=%.4f)" % (after["top"] - before["top"]))
+	fish.queue_free()
+
+func _head_handle_edges(fish: FishRig, ring_id: String) -> Dictionary:
+	var handles := fish.get_body_ring_handles()
+	if not handles.has(ring_id):
+		return {"top": NAN, "bot": NAN}
+	var d: Dictionary = handles[ring_id]
+	return {
+		"top": fish.body_pivot.to_local(d["top"]).y,
+		"bot": fish.body_pivot.to_local(d["bottom"]).y,
+	}
 
 func _test_fish_presets_default_to_unified_surface() -> void:
 	var preset := PresetStoreScript.find_default_for_mode("fish")
@@ -75,13 +143,18 @@ func _test_unified_surface_reframes_head_ring_handles() -> void:
 	_require(absf(snout_center.x - fish.shell_profile[0].x) > 0.03, "unified fish snout handle must not stay on the old shell-front support ring")
 	if _failed:
 		return
+	# Center drag moves the snout along the body via snout_length (it no longer slides the handle
+	# off the mesh by changing the vestigial body-ring x). Dragging forward extends the snout and
+	# the fixed-sample handle tracks the extended tip.
 	var before_snout_x := snout_center.x
-	fish.drag_ring_handle("snout", "center", Vector3(0.08, 0.0, 0.0))
+	var before_snout_length := float(fish.parameters.get("snout_length", 0.0))
+	fish.drag_ring_handle("snout", "center", Vector3(-0.12, 0.0, 0.0))
 	await get_tree().process_frame
 	var moved_handles := fish.get_body_ring_handles()
 	var moved_snout_handle: Dictionary = moved_handles["snout"]
 	var moved_snout_center: Vector3 = fish.body_pivot.to_local(moved_snout_handle["center"])
-	_require(moved_snout_center.x > before_snout_x + 0.005, "unified fish snout center drag must move the sampled head handle")
+	_require(float(fish.parameters.get("snout_length", 0.0)) > before_snout_length + 0.01, "unified fish snout center drag must lengthen the snout, not slide the handle off it")
+	_require(moved_snout_center.x < before_snout_x - 0.005, "unified fish snout center drag must carry the snout handle forward with the extended snout")
 	fish.queue_free()
 
 func _test_unified_surface_omits_closed_head_rear_cap_from_weld() -> void:
@@ -113,12 +186,37 @@ func _test_unified_surface_omits_closed_head_rear_cap_from_weld() -> void:
 	_require(head_grid.size() >= 3, "unified fish head grid must include head rings before the boundary")
 	if _failed:
 		return
+	# The weld must be a single smooth tube: ring centers march strictly forward and, from
+	# the head's widest "collar" cross-section to the body boundary, the radius grows without
+	# a step. This is the regression for the dorsal 단차 - before the neck loft, the last head
+	# ring jumped straight to the (much larger) body ring over a near-zero x gap.
+	var collar_grid_index := 0
+	var collar_grid_radius := -1.0
+	for i in head_grid.size():
+		var r := _ring_yz_radius(head_grid[i])
+		if r >= collar_grid_radius:
+			collar_grid_radius = r
+			collar_grid_index = i
+	var prev_x := _ring_average_x(head_grid[0])
+	for i in range(1, head_grid.size()):
+		var ring: PackedVector3Array = head_grid[i]
+		var x := _ring_average_x(ring)
+		_require(x > prev_x - 0.0001, "unified fish weld rings must march forward (no folded neck): x=%.5f after %.5f" % [x, prev_x])
+		if i > collar_grid_index:
+			var prev_radius := _ring_yz_radius(head_grid[i - 1])
+			var radius := _ring_yz_radius(ring)
+			_require(radius >= prev_radius - 0.001, "unified fish neck must not pinch between collar and boundary: radius=%.5f after %.5f" % [radius, prev_radius])
+			var slope := absf(radius - prev_radius) / maxf(absf(x - prev_x), 0.0001)
+			_require(slope < 1.5, "unified fish neck must not step in radius (단차): slope=%.3f at x=%.5f" % [slope, x])
+		prev_x = x
+	if _failed:
+		return
 	var last_head_ring: PackedVector3Array = head_grid[head_grid.size() - 2]
 	var boundary_ring: PackedVector3Array = head_grid[head_grid.size() - 1]
 	var radius := _ring_yz_radius(last_head_ring)
 	var boundary_radius := _ring_yz_radius(boundary_ring)
 	_require(radius > 0.015, "unified fish weld must not include the closed rear head cap before the body boundary: radius=%.6f" % radius)
-	_require(radius >= boundary_radius * 0.38, "unified fish weld must not pinch the head ring away from the body boundary: head_radius=%.6f boundary_radius=%.6f" % [radius, boundary_radius])
+	_require(radius >= boundary_radius * 0.7, "unified fish neck loft must meet the body boundary smoothly: neck_radius=%.6f boundary_radius=%.6f" % [radius, boundary_radius])
 	fish.queue_free()
 
 func _test_unified_surface_replaces_visible_head_mesh_with_outer_shell_geometry() -> void:
@@ -281,6 +379,14 @@ func _assert_unified_surface_geometry(fish: FishRig, label: String, require_fron
 	_require(min_x < shell_front_x - 0.05, "%s unified outer shell must include head vertices ahead of the old shell front" % label)
 	if require_front_boundary:
 		_require(boundary_count == fish.shell_segments + 1, "%s unified outer shell must share the editable boundary ring exactly once" % label)
+
+func _ring_average_x(ring: PackedVector3Array) -> float:
+	if ring.is_empty():
+		return 0.0
+	var total := 0.0
+	for point in ring:
+		total += point.x
+	return total / float(ring.size())
 
 func _ring_yz_radius(ring: PackedVector3Array) -> float:
 	if ring.is_empty():
