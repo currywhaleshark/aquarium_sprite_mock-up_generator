@@ -42,6 +42,10 @@ const UNIFIED_HEAD_HANDLE_IDS := ["snout", "head"]
 const NECK_LOFT_RING_SPACING := 0.045
 const NECK_LOFT_MIN_RINGS := 4
 const NECK_LOFT_MAX_RINGS := 18
+# The head dorsal/ventral silhouette is rebuilt as a monotone cubic spline through the handle
+# control points (tip, snout, head, collar) so those handles connect smoothly (C1 through each),
+# replacing the chain of little slope breaks left by uneven mouth-sample ring spacing and the
+# piecewise snout/forehead/curve terms. See _smooth_head_grid_silhouette.
 
 # Unified snout ring handle: snout_top_curve / snout_belly_curve apply a direct (not
 # girth-faded) vertical offset to the head's snout region, so the snout's top and bottom
@@ -103,6 +107,12 @@ var _cached_head_local_rings: Array = []
 # head-scale paths called it dozens of times per frame. The profile only changes on rebuild,
 # so normalize it once and reuse. Cleared on rebuild.
 var _cached_body_rings: Array = []
+# Cache of the head dorsal/ventral smoothing anchor ring indices (tip / snout & head handles /
+# collar). The handles are rigid on the head, so the nearest-ring indices are pose-invariant;
+# recomputed only when the head ring count changes (keyed below), avoiding a per-frame head
+# re-sample. Cleared on rebuild.
+var _head_smooth_anchors: Dictionary = {}
+var _head_smooth_anchor_count := -1
 var shell_tail_pivot_1_x := 0.0
 var shell_tail_pivot_2_x := 0.0
 var dorsal_fin: MeshInstance3D
@@ -147,6 +157,8 @@ func rebuild() -> void:
 	super.rebuild()
 	_cached_head_local_rings = []
 	_cached_body_rings = []
+	_head_smooth_anchors = {}
+	_head_smooth_anchor_count = -1
 	outer_shell = null
 	shell_profile = []
 	shell_center_y_offsets = []
@@ -655,6 +667,7 @@ func _build_unified_weld_grid(head_rings: Array, boundary_index: int, body_cente
 		return grid
 	for i in range(collar_index + 1):
 		grid.append(_apply_snout_curve_offset(head_rings[i]))
+	_smooth_head_grid_silhouette(grid, collar_index + 1)
 	# Tangent neighbours for the loft: the head ring just before the collar gives the head's
 	# incoming slope, and the body ring just past the boundary gives the body's outgoing slope.
 	# The loft uses them so the neck is tangent-continuous with BOTH sides (no crease) even when
@@ -738,6 +751,140 @@ func _append_neck_loft(grid: Array, collar_ring: PackedVector3Array, boundary_ri
 		for j in a.size():
 			ring.append(h00 * a[j] + h10 * m0[j] + h01 * b[j] + h11 * m1[j])
 		grid.append(ring)
+
+# Relax the head rings' dorsal (top) and ventral (bottom) edges to a smooth C1 silhouette so the
+# snout/head/front_body handles read as smoothly-connected spline points instead of a chain of
+# little slope breaks (uneven mouth-sample ring spacing + the piecewise snout/forehead/curve
+# terms each leave a kink). Only the top/bottom EDGE y moves - centre, girth (z) and the rest of
+# each ring are untouched - and the tip, the snout & head handle rings and the collar are pinned
+# so the handles stay exactly on the surface and the collar->boundary loft is unchanged.
+func _smooth_head_grid_silhouette(grid: Array, head_count: int) -> void:
+	if head_count < 4 or head_count > grid.size():
+		return
+	var xs := PackedFloat32Array()
+	var cys := PackedFloat32Array()
+	var tops := PackedFloat32Array()
+	var bots := PackedFloat32Array()
+	for i in head_count:
+		var ring: PackedVector3Array = grid[i]
+		var x := 0.0
+		var cy := 0.0
+		var top := -INF
+		var bot := INF
+		for p in ring:
+			x += p.x
+			cy += p.y
+			top = maxf(top, p.y)
+			bot = minf(bot, p.y)
+		var c := float(maxi(ring.size(), 1))
+		xs.append(x / c)
+		cys.append(cy / c)
+		tops.append(top)
+		bots.append(bot)
+	# Pin the endpoints and the rings nearest the snout/head handle x so the surface keeps passing
+	# through the draggable handles (they sample the raw profile, so an un-pinned handle would
+	# float off the smoothed surface). The handles are rigid on the head, so the anchor indices
+	# are pose-invariant - compute them once per ring count, not every animation frame.
+	if _head_smooth_anchor_count != head_count:
+		var anchor_set := {0: true, head_count - 1: true}
+		for handle_id in ["snout", "head"]:
+			var h: Dictionary = _unified_head_ring_handle_local_positions(handle_id)
+			if h.is_empty():
+				continue
+			var hx: float = (h["center"] as Vector3).x
+			var best := 0
+			var best_dx := INF
+			for i in head_count:
+				if absf(xs[i] - hx) < best_dx:
+					best_dx = absf(xs[i] - hx)
+					best = i
+			anchor_set[best] = true
+		_head_smooth_anchors = anchor_set
+		_head_smooth_anchor_count = head_count
+	var anchors := _head_smooth_anchors
+	# Sorted anchor x positions (the spline control points: tip, snout & head handles, collar).
+	var anchor_idx := anchors.keys()
+	anchor_idx.sort()
+	var axs := PackedFloat32Array()
+	var atop := PackedFloat32Array()
+	var abot := PackedFloat32Array()
+	for idx in anchor_idx:
+		axs.append(xs[idx])
+		atop.append(tops[idx])
+		abot.append(bots[idx])
+	var smooth_top := PackedFloat32Array()
+	var smooth_bot := PackedFloat32Array()
+	for i in head_count:
+		smooth_top.append(_eval_monotone_cubic(axs, atop, xs[i]))
+		smooth_bot.append(_eval_monotone_cubic(axs, abot, xs[i]))
+	for i in head_count:
+		var d_top := smooth_top[i] - tops[i]
+		var d_bot := smooth_bot[i] - bots[i]
+		if absf(d_top) < 0.00001 and absf(d_bot) < 0.00001:
+			continue
+		var ring: PackedVector3Array = grid[i]
+		var up_span := maxf(tops[i] - cys[i], 0.0001)
+		var lo_span := maxf(cys[i] - bots[i], 0.0001)
+		var out := PackedVector3Array()
+		for p in ring:
+			var np := p
+			if p.y >= cys[i]:
+				np.y += d_top * (p.y - cys[i]) / up_span
+			else:
+				np.y += d_bot * (cys[i] - p.y) / lo_span
+			out.append(np)
+		grid[i] = out
+
+# Monotone cubic (Fritsch-Carlson) interpolation through the anchor (x, y) control points,
+# evaluated at x. C1 everywhere INCLUDING at the anchors (so the silhouette is smooth THROUGH
+# the handles, not just between them) and overshoot-free, so a rising dorsal never dips.
+func _eval_monotone_cubic(axs: PackedFloat32Array, ays: PackedFloat32Array, x: float) -> float:
+	var n := axs.size()
+	if n == 0:
+		return 0.0
+	if n == 1 or x <= axs[0]:
+		return ays[0]
+	if x >= axs[n - 1]:
+		return ays[n - 1]
+	# secant slopes
+	var d := PackedFloat32Array()
+	for k in range(n - 1):
+		var dx := axs[k + 1] - axs[k]
+		d.append((ays[k + 1] - ays[k]) / dx if dx > 0.000001 else 0.0)
+	# tangents (Fritsch-Carlson)
+	var m := PackedFloat32Array()
+	m.resize(n)
+	m[0] = d[0]
+	m[n - 1] = d[n - 2]
+	for k in range(1, n - 1):
+		m[k] = 0.0 if d[k - 1] * d[k] <= 0.0 else (d[k - 1] + d[k]) * 0.5
+	for k in range(n - 1):
+		if absf(d[k]) <= 0.000001:
+			m[k] = 0.0
+			m[k + 1] = 0.0
+			continue
+		var a := m[k] / d[k]
+		var b := m[k + 1] / d[k]
+		var s := a * a + b * b
+		if s > 9.0:
+			var t := 3.0 / sqrt(s)
+			m[k] = t * a * d[k]
+			m[k + 1] = t * b * d[k]
+	# locate segment and evaluate the Hermite
+	var seg := 0
+	for k in range(n - 1):
+		if x <= axs[k + 1]:
+			seg = k
+			break
+	var h := axs[seg + 1] - axs[seg]
+	var t2 := (x - axs[seg]) / h if h > 0.000001 else 0.0
+	var t3 := t2 * t2
+	var t4 := t3 * t2
+	var h00 := 2.0 * t4 - 3.0 * t3 + 1.0
+	var h10 := t4 - 2.0 * t3 + t2
+	var h01 := -2.0 * t4 + 3.0 * t3
+	var h11 := t4 - t3
+	return h00 * ays[seg] + h10 * h * m[seg] + h01 * ays[seg + 1] + h11 * h * m[seg + 1]
 
 func _head_local_ring_to_body_space(local_ring: PackedVector3Array) -> PackedVector3Array:
 	var world_ring := PackedVector3Array()
