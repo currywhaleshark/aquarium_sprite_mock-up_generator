@@ -45,11 +45,15 @@ const NECK_LOFT_MAX_RINGS := 18
 
 # Unified snout ring handle: snout_top_curve / snout_belly_curve apply a direct (not
 # girth-faded) vertical offset to the head's snout region, so the snout's top and bottom
-# edges resize INDEPENDENTLY (the thin snout barely responds to the girth-weighted dorsal/
-# ventral curves used for the head). The offset is full at the snout and fades to zero by the
-# head center (head-local x), and its amplitude scales with head depth for ~1:1 handle tracking.
-const SNOUT_CURVE_FADE_FRONT := -0.25
-const SNOUT_CURVE_FADE_BACK := 0.05
+# edges resize INDEPENDENTLY of the head's dorsal/ventral curves (the head handle).
+# Snout offset is confined to the front snout (head-local x): full forward of FADE_FRONT, gone
+# by FADE_BACK - which sits well in FRONT of the head centre so the snout handle never reaches
+# the forehead/crown (that is the head handle's job). This keeps the two controls independent.
+const SNOUT_CURVE_FADE_FRONT := -0.45
+const SNOUT_CURVE_FADE_BACK := -0.25
+# Converts the proportional (dy-scaled) snout push back to roughly the old fixed-amount
+# authority at the widest snout ring (~half the head depth), so the handle still tracks ~1:1.
+const SNOUT_CURVE_GAIN := 2.4
 
 # Where the unified snout/head ring handles sample the head (head ring t, front -> rear). These
 # are FIXED so the handles always sit at the same spot on the head mesh - they used to be
@@ -662,10 +666,11 @@ func _build_unified_weld_grid(head_rings: Array, boundary_index: int, body_cente
 	return grid
 
 # Direct vertical top/bottom offset on the head's snout region, driven by snout_top_curve
-# (raises the top edge) and snout_belly_curve (lowers the bottom edge). Unlike the head's
-# dorsal/ventral curves, this is NOT faded by girth, so it actually moves the thin snout; it
-# IS faded by head-local x so it only touches the snout, and weighted by each vertex's height
-# within the ring so the top/bottom move while the sides stay put. Neutral (both 0) = no-op.
+# (raises the top edge) and snout_belly_curve (lowers the bottom edge), the snout's own
+# dorsal/ventral handle. Faded by head-local x so it only touches the snout. The push is
+# PROPORTIONAL to each vertex's height above/below the ring centre (dy), NOT a fixed head-scale
+# amount: a thin rostrum-tip ring gets a proportionally tiny push so it can't spike into a
+# vertical fin, while the widest snout rings move the most. Neutral (both 0) = no-op.
 func _apply_snout_curve_offset(ring: PackedVector3Array) -> PackedVector3Array:
 	var top_c := param_float("snout_top_curve", 0.0)
 	var belly_c := param_float("snout_belly_curve", 0.0)
@@ -675,20 +680,19 @@ func _apply_snout_curve_offset(ring: PackedVector3Array) -> PackedVector3Array:
 	var w := clampf((SNOUT_CURVE_FADE_BACK - x_local) / maxf(SNOUT_CURVE_FADE_BACK - SNOUT_CURVE_FADE_FRONT, 0.001), 0.0, 1.0)
 	if w <= 0.0:
 		return ring
-	var radius := _ring_yz_radius(ring)
-	if radius <= 0.0001:
-		return ring
 	var center_y := 0.0
 	for p in ring:
 		center_y += p.y
 	center_y /= float(ring.size())
-	var top_amt := top_c * eye_head_scale.y * w
-	var bot_amt := belly_c * eye_head_scale.y * w
+	# SNOUT_CURVE_GAIN keeps the proportional push in the same authority range as the old
+	# fixed-amount version at the widest snout ring, so the handle still tracks ~1:1.
+	var top_amt := top_c * w * SNOUT_CURVE_GAIN
+	var bot_amt := belly_c * w * SNOUT_CURVE_GAIN
 	var out := PackedVector3Array()
 	for p in ring:
-		var ny := (p.y - center_y) / radius
+		var dy := p.y - center_y
 		var np := p
-		np.y += (top_amt if ny >= 0.0 else bot_amt) * ny
+		np.y += (top_amt if dy >= 0.0 else bot_amt) * dy
 		out.append(np)
 	return out
 
