@@ -70,7 +70,7 @@ func _assert_enclosed(value: float, label: String) -> bool:
 	return false
 
 
-func _assert_unified_surface_continuity(fish: SharkRig, label: String) -> bool:
+func _assert_unified_surface_continuity(fish: SharkRig, label: String, animated: bool = false) -> bool:
 	var outer := fish.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
 	if outer == null or head == null:
@@ -90,15 +90,19 @@ func _assert_unified_surface_continuity(fish: SharkRig, label: String) -> bool:
 		return false
 	var boundary_index := fish._unified_surface_body_start_index(String(fish.parameters.get("head_shape", "rounded")), fish.eye_head_scale)
 	var boundary_x: float = fish.shell_profile[boundary_index].x
-	var expected_ring: PackedVector3Array = fish._unified_body_boundary_ring(boundary_index)
-	var boundary_count := 0
+	var expected_ring: PackedVector3Array = fish._unified_body_boundary_ring(boundary_index, fish.animated_shell_centers, fish.animated_shell_yaws) if animated else fish._unified_body_boundary_ring(boundary_index)
+	var expected_count := fish.shell_segments + 1
+	var boundary_match_count := 0
+	var boundary_plane_count := 0
 	var min_x := INF
 	var max_boundary_distance := 0.0
 	for vertex in vertices:
 		min_x = minf(min_x, vertex.x)
+		if not animated and absf(vertex.x - boundary_x) <= 0.0005:
+			boundary_plane_count += 1
 		for expected in expected_ring:
 			if vertex.distance_to(expected) <= 0.0005:
-				boundary_count += 1
+				boundary_match_count += 1
 				break
 	for expected in expected_ring:
 		var best := INF
@@ -108,8 +112,11 @@ func _assert_unified_surface_continuity(fish: SharkRig, label: String) -> bool:
 	if min_x >= boundary_x - 0.05:
 		push_error("SHARK_UNIFIED_SEAM_MISSING_HEAD_GEOMETRY %s min_x=%.4f boundary_x=%.4f" % [label, min_x, boundary_x])
 		return false
-	if boundary_count != fish.shell_segments + 1:
-		push_error("SHARK_UNIFIED_SEAM_BOUNDARY_DUPLICATE %s count=%d expected=%d" % [label, boundary_count, fish.shell_segments + 1])
+	if boundary_match_count != expected_count:
+		push_error("SHARK_UNIFIED_SEAM_BOUNDARY_MATCH_COUNT %s count=%d expected=%d" % [label, boundary_match_count, expected_count])
+		return false
+	if not animated and boundary_plane_count != expected_count:
+		push_error("SHARK_UNIFIED_SEAM_BOUNDARY_OFFSET_DUPLICATE %s plane_count=%d expected=%d" % [label, boundary_plane_count, expected_count])
 		return false
 	if max_boundary_distance > 0.0005:
 		push_error("SHARK_UNIFIED_SEAM_BOUNDARY_DRIFT %s distance=%.6f" % [label, max_boundary_distance])
@@ -151,6 +158,9 @@ func _ready() -> void:
 	shark.set_parameters(unified_base)
 	await get_tree().process_frame
 	ok = _assert_unified_surface_continuity(shark, "unified-basic-shark") and ok
+	shark.apply_pose(0.31)
+	await get_tree().process_frame
+	ok = _assert_unified_surface_continuity(shark, "unified-basic-shark-animated", true) and ok
 
 	var unified_high_rear := high_rear.duplicate(true)
 	unified_high_rear["unified_surface_enabled"] = 1.0

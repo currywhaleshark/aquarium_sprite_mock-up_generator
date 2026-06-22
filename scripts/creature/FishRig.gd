@@ -542,11 +542,12 @@ func _apply_static_unified_surface(head_shape: String, head_scale: Vector3, snou
 		return
 	var body_start_index := _unified_surface_body_start_index(head_shape, head_scale)
 	var boundary_x := shell_profile[body_start_index].x
+	# _build_unified_weld_grid already terminates the grid with the shared body boundary ring
+	# (computed from the same body_centers/body_yaws), so the head's last ring IS the body's
+	# first ring - no extra weld step needed here.
 	var head_grid := _head_grid_for_unified_surface(head_shape, head_scale, snout_length, forehead_slope, _head_sculpt_params(), boundary_x, body_start_index, body_centers, body_yaws)
 	if head_grid.size() < 2:
 		return
-	if not body_centers.is_empty() and not head_grid.is_empty():
-		head_grid[head_grid.size() - 1] = _unified_body_boundary_ring(body_start_index, body_centers, body_yaws)
 	var head_u_values := PackedFloat32Array()
 	var map_x: PackedFloat32Array = head_long_map.get("x", PackedFloat32Array())
 	var map_u: PackedFloat32Array = head_long_map.get("u", PackedFloat32Array())
@@ -1489,23 +1490,28 @@ func _deform_shell(loop_phase: float) -> void:
 		centers.append(center)
 		yaws.append(yaw)
 
-	# Align snout and head rings of the body shell to rotate and translate exactly with the head node's kinematic system
-	var head_offset := param_float("head_offset", -0.58)
-	var attach_t := _shell_attach_t_for_x(head_offset)
-	var yaw_head := _sample_animated_shell_yaw(attach_t, yaws)
-	var head_center := _sample_animated_shell_center(attach_t, centers)
-	var basis_head := Basis(Vector3.UP, deg_to_rad(yaw_head))
-	for i in range(2):
-		if i < centers.size():
-			# head_center already includes the interpolated shell_center_y_offset, but the
-			# per-ring offset is re-added downstream (mesh builder + _animated_ring_center).
-			# Preserve each ring's raw y so the vertical offset is applied exactly once;
-			# only the yaw rotation and x/z translation follow the head kinematics.
-			var raw_y := centers[i].y
-			var dx := shell_profile[i].x - head_offset
-			centers[i] = head_center + basis_head * Vector3(dx, 0.0, 0.0)
-			centers[i].y = raw_y
-			yaws[i] = yaw_head
+	# Legacy two-mesh crutch: force the shell's first two rings onto the head node's kinematics
+	# so the separate head mesh and the shell snout track together. The unified surface welds the
+	# head straight into the body boundary ring (front_body), so rings 0-1 are never emitted as
+	# geometry there - the morph band replaces this. Skip it to avoid mutating centers/yaws that
+	# the unified attachment path reads.
+	if not _unified_surface_enabled():
+		var head_offset := param_float("head_offset", -0.58)
+		var attach_t := _shell_attach_t_for_x(head_offset)
+		var yaw_head := _sample_animated_shell_yaw(attach_t, yaws)
+		var head_center := _sample_animated_shell_center(attach_t, centers)
+		var basis_head := Basis(Vector3.UP, deg_to_rad(yaw_head))
+		for i in range(2):
+			if i < centers.size():
+				# head_center already includes the interpolated shell_center_y_offset, but the
+				# per-ring offset is re-added downstream (mesh builder + _animated_ring_center).
+				# Preserve each ring's raw y so the vertical offset is applied exactly once;
+				# only the yaw rotation and x/z translation follow the head kinematics.
+				var raw_y := centers[i].y
+				var dx := shell_profile[i].x - head_offset
+				centers[i] = head_center + basis_head * Vector3(dx, 0.0, 0.0)
+				centers[i].y = raw_y
+				yaws[i] = yaw_head
 
 	if _unified_surface_enabled():
 		_apply_animated_head(centers, yaws)
