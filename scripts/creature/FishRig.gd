@@ -651,7 +651,13 @@ func _build_unified_weld_grid(head_rings: Array, boundary_index: int, body_cente
 		return grid
 	for i in range(collar_index + 1):
 		grid.append(_apply_snout_curve_offset(head_rings[i]))
-	_append_neck_loft(grid, grid[grid.size() - 1], boundary_ring)
+	# Tangent neighbours for the loft: the head ring just before the collar gives the head's
+	# incoming slope, and the body ring just past the boundary gives the body's outgoing slope.
+	# The loft uses them so the neck is tangent-continuous with BOTH sides (no crease) even when
+	# head edits make the head arrive at the collar with a slope the body doesn't share.
+	var pre_collar: PackedVector3Array = grid[grid.size() - 2] if grid.size() >= 2 else PackedVector3Array()
+	var post_boundary := _unified_body_boundary_ring(boundary_index + 1, body_centers, body_yaws) if boundary_index + 1 < shell_profile.size() else PackedVector3Array()
+	_append_neck_loft(grid, grid[grid.size() - 1], boundary_ring, pre_collar, post_boundary)
 	grid.append(boundary_ring)
 	return grid
 
@@ -687,20 +693,46 @@ func _apply_snout_curve_offset(ring: PackedVector3Array) -> PackedVector3Array:
 	return out
 
 # Append the lofted neck rings between the head collar and the body boundary (exclusive of
-# both endpoints, which the caller adds). The smoothstep weight gives the loft zero slope at
-# the collar and at the boundary, so there is no crease where it meets either side.
-func _append_neck_loft(grid: Array, collar_ring: PackedVector3Array, boundary_ring: PackedVector3Array) -> void:
+# both endpoints, which the caller adds). A plain ring lerp would draw a STRAIGHT line in the
+# x/y (and x/z) silhouette - the loft slope would not match the head at the collar nor the body
+# at the boundary, leaving a crease at each join that head edits expose. Instead each vertex
+# follows a cubic Hermite whose endpoint tangents continue the head's slope at the collar and
+# the body's slope at the boundary, so the neck is tangent-continuous (C1) with both sides.
+func _append_neck_loft(grid: Array, collar_ring: PackedVector3Array, boundary_ring: PackedVector3Array, pre_collar_ring: PackedVector3Array = PackedVector3Array(), post_boundary_ring: PackedVector3Array = PackedVector3Array()) -> void:
 	var a := PF._resample_unified_ring(collar_ring, shell_segments)
 	var b := PF._resample_unified_ring(boundary_ring, shell_segments)
 	if a.is_empty() or a.size() != b.size():
 		return
-	var gap_x := absf(_ring_average_x(boundary_ring) - _ring_average_x(collar_ring))
+	var span_x := _ring_average_x(boundary_ring) - _ring_average_x(collar_ring)
+	var gap_x := absf(span_x)
 	var count := clampi(int(round(gap_x / NECK_LOFT_RING_SPACING)), NECK_LOFT_MIN_RINGS, NECK_LOFT_MAX_RINGS)
+	# Per-vertex Hermite tangents (dP/ds), scaled so dP/dx at the collar equals the head's local
+	# slope and dP/dx at the boundary equals the body's local slope. Fall back to a straight lerp
+	# (zero-curvature) for a side whose neighbour ring is missing or mismatched.
+	var pre := PF._resample_unified_ring(pre_collar_ring, shell_segments)
+	var post := PF._resample_unified_ring(post_boundary_ring, shell_segments)
+	var has_head_tangent := pre.size() == a.size()
+	var has_body_tangent := post.size() == b.size()
+	var pre_dx := _ring_average_x(collar_ring) - _ring_average_x(pre_collar_ring)
+	var post_dx := _ring_average_x(post_boundary_ring) - _ring_average_x(boundary_ring)
+	var m0 := PackedVector3Array()
+	var m1 := PackedVector3Array()
+	for j in a.size():
+		var head_slope := (a[j] - pre[j]) / pre_dx if has_head_tangent and absf(pre_dx) > 0.0001 else (b[j] - a[j]) / span_x if absf(span_x) > 0.0001 else Vector3.ZERO
+		var body_slope := (post[j] - b[j]) / post_dx if has_body_tangent and absf(post_dx) > 0.0001 else (b[j] - a[j]) / span_x if absf(span_x) > 0.0001 else Vector3.ZERO
+		m0.append(head_slope * span_x)
+		m1.append(body_slope * span_x)
 	for k in range(1, count + 1):
-		var w := smoothstep(0.0, 1.0, float(k) / float(count + 1))
+		var s := float(k) / float(count + 1)
+		var s2 := s * s
+		var s3 := s2 * s
+		var h00 := 2.0 * s3 - 3.0 * s2 + 1.0
+		var h10 := s3 - 2.0 * s2 + s
+		var h01 := -2.0 * s3 + 3.0 * s2
+		var h11 := s3 - s2
 		var ring := PackedVector3Array()
 		for j in a.size():
-			ring.append(a[j].lerp(b[j], w))
+			ring.append(h00 * a[j] + h10 * m0[j] + h01 * b[j] + h11 * m1[j])
 		grid.append(ring)
 
 func _head_local_ring_to_body_space(local_ring: PackedVector3Array) -> PackedVector3Array:

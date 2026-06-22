@@ -19,6 +19,7 @@ func _ready() -> void:
 	var tag := "before"
 	var preset_name := ""
 	var use_unified_surface := false
+	var overrides := {}
 	for arg in OS.get_cmdline_user_args():
 		var text := String(arg)
 		if text.begins_with("tag="):
@@ -27,6 +28,11 @@ func _ready() -> void:
 			preset_name = text.trim_prefix("preset=")
 		elif text.begins_with("unified="):
 			use_unified_surface = text.trim_prefix("unified=") in ["1", "true", "yes"]
+		elif text.begins_with("set="):
+			# set=key:value (value parsed as float) - lets us reproduce head-editor tweaks
+			var kv := text.trim_prefix("set=").split(":")
+			if kv.size() == 2:
+				overrides[kv[0]] = float(kv[1])
 
 	var preset := {}
 	if preset_name.is_empty():
@@ -43,6 +49,9 @@ func _ready() -> void:
 	var parameters: Dictionary = preset.get("parameters", {}).duplicate(true)
 	if use_unified_surface:
 		parameters["unified_surface_enabled"] = 1.0
+	for key in overrides:
+		parameters[key] = overrides[key]
+	print("SHARK_NECK_SEAM_SHOT_OVERRIDES ", overrides)
 
 	var vp := SubViewport.new()
 	vp.size = Vector2i(900, 720)
