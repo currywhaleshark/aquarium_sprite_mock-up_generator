@@ -14,20 +14,66 @@ func rebuild() -> void:
 		return
 	SharkGillSlitMarkingScript.rebuild(body_pivot, parameters)
 	SharkMouthMarkingScript.rebuild(body_pivot, parameters)
+	_cache_gill_anchor()
 
 func _apply_animated_attachments(loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	super._apply_animated_attachments(loop_phase, centers, yaws)
-	_apply_animated_shark_gill_slits()
+	_apply_animated_shark_gill_slits(centers, yaws)
 
-func _apply_animated_shark_gill_slits() -> void:
+# The gills sit in the neck/loft zone where the surface is a blend of the rigid head and the
+# waving body, so neither the head transform nor the body centreline matches it (anchoring to
+# the head let them peel off during a turn). Instead re-project the cluster onto the LIVE
+# deformed OuterShell each frame: translate the rest anchor to the current surface point at the
+# cluster's (x, y), and rotate by the local body yaw so the slits tilt with the flank.
+# Find and cache the mesh RIB (ring index) under the gill cluster, plus that rib's rest
+# centreline, off the freshly-built rest mesh. Tracking a fixed rib index (not a nearest-vertex
+# search) means we follow the same material point as the surface deforms.
+func _cache_gill_anchor() -> void:
+	var root := body_pivot.get_node_or_null("SharkGillSlits") as Node3D
+	var shell := body_pivot.get_node_or_null("OuterShell") as MeshInstance3D
+	if root == null or shell == null or shell.mesh == null:
+		return
+	var gx := float(root.get_meta("gill_center_x", -0.28))
+	var verts: PackedVector3Array = shell.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var ring_stride := shell_segments + 1
+	var ring_count := verts.size() / ring_stride
+	var best_ring := 0
+	var best_dx := INF
+	for r in range(ring_count):
+		var cx := (verts[r * ring_stride].x + verts[r * ring_stride + shell_segments / 2].x) * 0.5
+		if absf(cx - gx) < best_dx:
+			best_dx = absf(cx - gx)
+			best_ring = r
+	root.set_meta("gill_ring_index", best_ring)
+	root.set_meta("gill_rest_center", _rib_centerline(verts, best_ring))
+
+func _apply_animated_shark_gill_slits(_centers: PackedVector3Array, _yaws: PackedFloat32Array) -> void:
 	if body_pivot == null:
 		return
-	var head := body_pivot.get_node_or_null("Head") as Node3D
 	var root := body_pivot.get_node_or_null("SharkGillSlits") as Node3D
-	if head == null or root == null:
+	var shell := body_pivot.get_node_or_null("OuterShell") as MeshInstance3D
+	if root == null or shell == null or shell.mesh == null or not root.has_meta("gill_ring_index"):
 		return
-	var rest_head_transform: Transform3D = root.get_meta("rest_head_transform", head.transform)
-	root.transform = head.transform * rest_head_transform.affine_inverse()
+	var ring_index := int(root.get_meta("gill_ring_index"))
+	var rest_center: Vector3 = root.get_meta("gill_rest_center")
+	var verts: PackedVector3Array = shell.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var ring_stride := shell_segments + 1
+	if (ring_index + 1) * ring_stride > verts.size():
+		return
+	# Live rib centreline + a rib in front of it, read off the deformed mesh so the loft/neck
+	# blend is captured exactly; the heading between them is the local yaw the slits tilt with.
+	var live_center := _rib_centerline(verts, ring_index)
+	var front_ring := mini(ring_index + 2, verts.size() / ring_stride - 1)
+	var live_front := _rib_centerline(verts, front_ring)
+	var yaw := atan2(live_center.z - live_front.z, live_front.x - live_center.x)
+	var basis := Basis(Vector3.UP, yaw)
+	root.transform = Transform3D(basis, live_center - basis * rest_center)
+
+# Centreline of a mesh rib = midpoint of its +z (segment 0) and -z (opposite segment) verts.
+func _rib_centerline(verts: PackedVector3Array, ring_index: int) -> Vector3:
+	var ring_stride := shell_segments + 1
+	var base := ring_index * ring_stride
+	return (verts[base] + verts[base + shell_segments / 2]) * 0.5
 
 func _shark_parameters(source: Dictionary) -> Dictionary:
 	var shark_parameters := source.duplicate(true)

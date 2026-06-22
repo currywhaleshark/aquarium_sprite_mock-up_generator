@@ -30,7 +30,10 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var root := shark.get_node_or_null("BodyPivot/SharkGillSlits")
 	assert(root != null)
-	assert(_slit_nodes(root).size() == 5)
+	# One slit per gill on EACH flank -> 2x the gill count.
+	assert(_slit_nodes(root).size() == 10)
+	assert(_slit_nodes_side(root, "L").size() == 5)
+	assert(_slit_nodes_side(root, "R").size() == 5)
 	assert(shark.get_node_or_null("BodyPivot/GillMark_operculum") == null)
 	for slit in _slit_nodes(root):
 		assert(slit is MeshInstance3D)
@@ -43,14 +46,15 @@ func _ready() -> void:
 	shark.set_parameters(parameters)
 	await get_tree().process_frame
 	root = shark.get_node_or_null("BodyPivot/SharkGillSlits")
-	var slits := _slit_nodes(root)
-	assert(slits.size() == 7)
-	var first := slits[0] as Node3D
-	assert(abs(first.rotation_degrees.z - -18.0) < 0.01)
-	assert(abs((slits[slits.size() / 2] as Node3D).position.x - -0.18) < 0.001)
+	assert(_slit_nodes(root).size() == 14)
+	var left := _slit_nodes_side(root, "L")
+	assert(left.size() == 7)
+	assert(abs((left[0] as Node3D).rotation_degrees.z - -18.0) < 0.01)
+	# centre gill of the cluster sits at position_x on each flank
+	assert(abs((left[left.size() / 2] as Node3D).position.x - -0.18) < 0.001)
 	_assert_slits_hug_shell_surface(shark, root)
 
-	await _assert_unified_slits_follow_head_pose(parameters)
+	await _assert_unified_slits_follow_body_surface(parameters)
 
 	parameters["shark_gill_slit_enabled"] = false
 	shark.set_parameters(parameters)
@@ -71,27 +75,42 @@ func _slit_nodes(root: Node) -> Array[Node]:
 			result.append(child)
 	return result
 
+func _slit_nodes_side(root: Node, suffix: String) -> Array[Node]:
+	var result: Array[Node] = []
+	for child in _slit_nodes(root):
+		if String(child.name).ends_with(suffix):
+			result.append(child)
+	return result
+
 func _assert_slits_hug_shell_surface(shark: Node, root: Node) -> void:
 	var shell := shark.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
 	assert(shell != null)
-	var slits := _slit_nodes(root)
-	var previous_x := -INF
-	for child in slits:
-		var slit := child as MeshInstance3D
-		if not _require(slit != null, "slit is not a MeshInstance3D"):
-			return
-		if not _require(slit.position.x > previous_x + 0.001, "slits should be separated along x"):
-			return
-		previous_x = slit.position.x
-		var surface_z := _positive_shell_surface_z(shell, slit.position.x, slit.position.y)
-		if not _require(slit.position.z >= surface_z - 0.004, "slit is buried below shell surface"):
-			return
-		if not _require(slit.position.z <= surface_z + 0.025, "slit floats above shell surface"):
-			return
-		if not _require(_mesh_y_span(slit) <= 0.12, "slit visual length is too tall for the shark body"):
-			return
+	# Check each flank independently: x marches forward within a side, and the slit hugs that
+	# flank's surface (|z| ~ surface_z), on whichever side it sits.
+	for suffix in ["L", "R"]:
+		var previous_x := -INF
+		for child in _slit_nodes_side(root, suffix):
+			var slit := child as MeshInstance3D
+			if not _require(slit != null, "slit is not a MeshInstance3D"):
+				return
+			if not _require(slit.position.x > previous_x + 0.001, "slits should be separated along x"):
+				return
+			previous_x = slit.position.x
+			var side_sign := 1.0 if suffix == "L" else -1.0
+			if not _require(side_sign * slit.position.z > 0.0, "slit %s must sit on the %s flank" % [slit.name, suffix]):
+				return
+			var surface_z := _positive_shell_surface_z(shell, slit.position.x, slit.position.y)
+			var z_abs := absf(slit.position.z)
+			if not _require(z_abs >= surface_z - 0.004, "slit is buried below shell surface"):
+				return
+			if not _require(z_abs <= surface_z + 0.025, "slit floats above shell surface"):
+				return
+			if not _require(_mesh_y_span(slit) <= 0.12, "slit visual length is too tall for the shark body"):
+				return
 
-func _assert_unified_slits_follow_head_pose(parameters: Dictionary) -> void:
+# The gills ride the body surface (not the rigid head), so through a turn pose the cluster must
+# stay glued to the shell at its x rather than peeling off as the body bends.
+func _assert_unified_slits_follow_body_surface(parameters: Dictionary) -> void:
 	var shark := SharkRigScript.new()
 	add_child(shark)
 	shark.auto_animate = false
@@ -104,20 +123,30 @@ func _assert_unified_slits_follow_head_pose(parameters: Dictionary) -> void:
 	shark.set_parameters(pose_parameters)
 	await get_tree().process_frame
 	var root := shark.get_node_or_null("BodyPivot/SharkGillSlits")
-	var head := shark.get_node_or_null("BodyPivot/Head") as Node3D
 	var slits := _slit_nodes(root)
-	if not _require(head != null, "unified shark head anchor must exist"):
-		return
 	if not _require(slits.size() > 0, "unified shark gill slits must exist"):
 		return
-	var center_slit := slits[slits.size() / 2] as Node3D
-	var rest_head_local := head.to_local(center_slit.global_position)
+	var center_slit := _slit_nodes_side(root, "L")[2] as Node3D
+	if not _require(_slit_surface_gap(shark, center_slit) < 0.06, "gill slit must hug the body surface in a turn pose"):
+		return
 	shark.apply_pose(0.33)
 	await get_tree().process_frame
-	var posed_head_local := head.to_local(center_slit.global_position)
-	if not _require(rest_head_local.distance_to(posed_head_local) < 0.006, "unified shark gill slits must stay anchored to the head pose"):
+	if not _require(_slit_surface_gap(shark, center_slit) < 0.06, "gill slit must stay on the body surface through the pose (no detachment)"):
 		return
 	shark.queue_free()
+
+# Smallest distance from the slit to any OuterShell vertex (global space) - how far it floats
+# off the body.
+func _slit_surface_gap(shark: Node, slit: Node3D) -> float:
+	var shell := shark.get_node_or_null("BodyPivot/OuterShell") as MeshInstance3D
+	if shell == null or shell.mesh == null:
+		return INF
+	var verts: PackedVector3Array = shell.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var slit_pos := slit.global_position
+	var best := INF
+	for vertex in verts:
+		best = minf(best, slit_pos.distance_to(shell.to_global(vertex)))
+	return best
 
 func _positive_shell_surface_z(shell: MeshInstance3D, local_x: float, local_y: float) -> float:
 	var arrays := shell.mesh.surface_get_arrays(0)

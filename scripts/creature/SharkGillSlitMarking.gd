@@ -14,9 +14,6 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 	for child in root.get_children():
 		child.free()
 	root.transform = Transform3D.IDENTITY
-	var head := parent.get_node_or_null("Head") as Node3D
-	if head != null:
-		root.set_meta("rest_head_transform", head.transform)
 	root.visible = bool(parameters.get("shark_gill_slit_enabled", true))
 	if not root.visible:
 		return root
@@ -34,6 +31,11 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
+	# Gills sit just behind the head, in the neck/loft zone where the surface is a blend of the
+	# rigid head and the waving body - so the animation tracks the mesh rib at this x and rides
+	# the cluster on it each frame (see SharkRig._cache_gill_anchor / _apply_animated_shark_gill_slits).
+	root.set_meta("gill_center_x", position_x)
+	root.set_meta("gill_center_y", position_y)
 	var center_offset := float(count - 1) * 0.5
 	for index in range(count):
 		var slit_x := position_x + (float(index) - center_offset) * spacing
@@ -42,15 +44,17 @@ static func rebuild(parent: Node3D, parameters: Dictionary) -> Node3D:
 		var visual_length := clampf(length, MIN_SLIT_LENGTH, max_length)
 		var slit_y := clampf(position_y, bounds.x + visual_length * 0.55, bounds.y - visual_length * 0.55)
 		var surface_z := _positive_shell_surface_z(parent, slit_x, slit_y)
-		var slit := MeshInstance3D.new()
-		slit.name = "SharkGillSlit%d" % [index + 1]
 		var mesh := BoxMesh.new()
 		mesh.size = Vector3(0.010, visual_length, 0.006)
-		slit.mesh = mesh
-		slit.material_override = mat
-		slit.position = Vector3(slit_x, slit_y, surface_z + 0.006)
-		slit.rotation_degrees.z = angle
-		root.add_child(slit)
+		# Both flanks: the shell is symmetric across z, so place one slit on each side.
+		for side in [1.0, -1.0]:
+			var slit := MeshInstance3D.new()
+			slit.name = "SharkGillSlit%d%s" % [index + 1, "L" if side > 0.0 else "R"]
+			slit.mesh = mesh
+			slit.material_override = mat
+			slit.position = Vector3(slit_x, slit_y, side * (surface_z + 0.006))
+			slit.rotation_degrees.z = angle
+			root.add_child(slit)
 	return root
 
 static func _positive_shell_surface_z(parent: Node3D, local_x: float, local_y: float) -> float:
