@@ -3,15 +3,21 @@ extends Node
 const SpeciesMarkingLayerScript := preload("res://scripts/species/SpeciesMarkingLayer.gd")
 const ToonMaterialFactoryScript := preload("res://scripts/materials/ToonMaterialFactory.gd")
 
+var _failed := false
+
 func _ready() -> void:
 	_test_marking_layer_encoder_limits_and_normalizes()
 	_test_marking_layer_region_and_blend_fields()
 	_test_invalid_region_and_blend_use_safe_defaults()
 	_test_legacy_zone_defaults_preserve_existing_body_behavior()
 	_test_fin_uniform_encoder_filters_by_region()
+	_test_fin_tip_encoder_targets_apex_region()
 	_test_body_material_receives_marking_uniforms()
 	_test_body_encoder_drops_legacy_zone_uniforms()
 	_test_shader_contains_marking_mask_path()
+	if _failed:
+		get_tree().quit(1)
+		return
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://exports/test_results"))
 	var file := FileAccess.open("res://exports/test_results/marking_layer.ok", FileAccess.WRITE)
@@ -128,6 +134,23 @@ func _test_fin_uniform_encoder_filters_by_region() -> void:
 	assert(int(paired_encoded.get("fin_marking_type_0", 0)) == SpeciesMarkingLayerScript.TYPE_FIN_EDGE)
 	assert(int(paired_encoded.get("fin_marking_type_1", 0)) == SpeciesMarkingLayerScript.TYPE_FIN_SPOTS)
 
+func _test_fin_tip_encoder_targets_apex_region() -> void:
+	var raw_layers := [
+		{"type": "fin_tip", "region": "median_fin", "color": "#111111", "x_start": 0.78, "x_end": 1.0, "y": 0.1, "thickness": 0.18, "intensity": 0.9, "softness": 0.04},
+		{"type": "fin_tip", "region": "paired_fin", "color": "#222222", "x_start": 0.7, "x_end": 1.0}
+	]
+	var median_encoded := SpeciesMarkingLayerScript.encode_fin_uniforms(raw_layers, "median_fin")
+	_expect(int(median_encoded.get("fin_marking_count", 0)) == 1, "FIN_TIP_MARKING_NOT_ENCODED")
+	_expect(int(median_encoded.get("fin_marking_type_0", 0)) == 16, "FIN_TIP_MARKING_TYPE_NOT_ENCODED")
+	var rect: Vector4 = median_encoded.get("fin_marking_rect_0")
+	_expect(abs(rect.x - 0.78) < 0.001, "FIN_TIP_X_START_NOT_PRESERVED")
+	_expect(abs(rect.y - 1.0) < 0.001, "FIN_TIP_X_END_NOT_PRESERVED")
+	_expect(abs(rect.z - 0.1) < 0.001, "FIN_TIP_Y_NOT_PRESERVED")
+	_expect(abs(rect.w - 0.18) < 0.001, "FIN_TIP_THICKNESS_NOT_PRESERVED")
+	var params: Vector4 = median_encoded.get("fin_marking_params_0")
+	_expect(abs(params.x - 0.9) < 0.001, "FIN_TIP_INTENSITY_NOT_PRESERVED")
+	_expect(abs(params.y - 0.04) < 0.001, "FIN_TIP_SOFTNESS_NOT_PRESERVED")
+
 func _test_body_material_receives_marking_uniforms() -> void:
 	var material := ToonMaterialFactoryScript.make_body_material({
 		"base_color": "#112233",
@@ -167,3 +190,9 @@ func _test_shader_contains_marking_mask_path() -> void:
 	assert(code.contains("TYPE_REGION_COLOR"))
 	assert(code.contains("apply_marking_layer(col, marking_type_0, marking_region_0, marking_blend_0"))
 	assert(not code.contains("marking_zone_"))
+
+func _expect(condition: bool, message: String) -> void:
+	if condition:
+		return
+	push_error(message)
+	_failed = true

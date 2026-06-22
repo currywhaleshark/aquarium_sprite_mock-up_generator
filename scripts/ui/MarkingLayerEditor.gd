@@ -5,7 +5,7 @@ signal layers_changed(layers: Array)
 
 const UiText := preload("res://scripts/ui/UiText.gd")
 
-const LAYER_TYPES := ["lateral_line", "horizontal_band", "vertical_bar", "caudal_spot", "head_mask", "saddle", "ocellus", "calico_patch", "fin_edge", "fin_spots", "scale_grid", "reticulated_zone", "region_color", "scale_region", "iridescence_region"]
+const LAYER_TYPES := ["lateral_line", "horizontal_band", "vertical_bar", "caudal_spot", "head_mask", "saddle", "ocellus", "calico_patch", "fin_edge", "fin_tip", "fin_spots", "scale_grid", "reticulated_zone", "region_color", "scale_region", "iridescence_region"]
 const REGIONS := ["body", "dorsal", "flank", "ventral", "dorsal_flank", "ventral_flank", "head", "cheek", "operculum", "caudal_peduncle", "median_fin", "paired_fin", "caudal_fin", "special_fin", "fin"]
 const BLEND_MODES := ["normal", "multiply", "screen", "add"]
 
@@ -41,6 +41,7 @@ func _add_layer_row(index: int, layer: Dictionary) -> void:
 	_add_color_picker(row, index, String(layer.get("color", "#ffffff")))
 	_add_number(row, index, "x_start", float(layer.get("x_start", 0.0)), 0.0, 1.0, 0.01)
 	_add_number(row, index, "x_end", float(layer.get("x_end", 1.0)), 0.0, 1.0, 0.01)
+	_add_number(row, index, "y", float(layer.get("y", 0.0)), -1.0, 1.0, 0.01)
 	_add_number(row, index, "thickness", float(layer.get("thickness", 0.08)), 0.001, 1.0, 0.005)
 	var intensity := SpinBox.new()
 	intensity.tooltip_text = UiText.marking_layer_field("intensity")

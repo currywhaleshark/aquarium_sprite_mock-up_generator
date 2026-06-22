@@ -31,6 +31,7 @@ const int FIN_TYPE_HORIZONTAL_BAND = 2;
 const int FIN_TYPE_VERTICAL_BAR = 3;
 const int FIN_TYPE_FIN_EDGE = 9;
 const int FIN_TYPE_FIN_SPOTS = 10;
+const int FIN_TYPE_FIN_TIP = 16;
 const int FIN_BLEND_MULTIPLY = 1;
 const int FIN_BLEND_SCREEN = 2;
 const int FIN_BLEND_ADD = 3;
@@ -106,6 +107,21 @@ float fin_band_range(float value, float start, float end, float softness) {
 	return clamp(enter * exit, 0.0, 1.0);
 }
 
+float fin_tip_apex_mask(vec2 uv, vec4 rect, float softness) {
+	float start_x = min(rect.x, rect.y);
+	float apex_x = max(rect.x, rect.y);
+	float span = max(apex_x - start_x, 0.001);
+	float x_t = clamp((uv.x - start_x) / span, 0.0, 1.0);
+	float apex_center = clamp(rect.z * 0.5 + 0.5, 0.0, 1.0);
+	float taper_width = max(rect.w * (1.0 - x_t), softness * 0.5);
+	float aa = max(softness, fwidth(uv.x));
+	float x_enter = smoothstep(start_x, start_x + aa, uv.x);
+	float x_exit = 1.0 - smoothstep(apex_x, apex_x + aa, uv.x);
+	float x_mask = clamp(x_enter * x_exit, 0.0, 1.0);
+	float y_mask = 1.0 - smoothstep(taper_width, taper_width + softness, abs(uv.y - apex_center));
+	return x_mask * y_mask;
+}
+
 float fin_marking_mask(int marking_type, vec2 uv, vec4 rect, vec4 params) {
 	float intensity = clamp(params.x, 0.0, 1.0);
 	float softness = max(params.y, 0.001);
@@ -118,6 +134,9 @@ float fin_marking_mask(int marking_type, vec2 uv, vec4 rect, vec4 params) {
 		vec2 cell = fract(vec2(uv.x * 8.0, uv.y * 5.0) + params.w * 0.17) - 0.5;
 		float spot = 1.0 - smoothstep(0.18, 0.18 + softness, length(cell));
 		return spot * fin_band_range(uv.x, rect.x, rect.y, softness) * intensity;
+	}
+	if (marking_type == FIN_TYPE_FIN_TIP) {
+		return fin_tip_apex_mask(uv, rect, softness) * intensity;
 	}
 	if (marking_type == FIN_TYPE_HORIZONTAL_BAND) {
 		float center_y = clamp(rect.z * 0.5 + 0.5, 0.0, 1.0);

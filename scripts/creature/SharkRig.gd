@@ -6,9 +6,12 @@ const SharkMouthMarkingScript := preload("res://scripts/creature/SharkMouthMarki
 const SharkHeadProfile := preload("res://scripts/creature/SharkHeadProfile.gd")
 
 # Shark turn = a banked arc: every rib rotates into the turn (same sign), easing off toward the
-# tail, rather than the fish's head-led S-flex. Head/tail per-rib yaw limits (deg at full turn).
-const SHARK_TURN_HEAD_YAW := 20.0
-const SHARK_TURN_TAIL_YAW := 11.0
+# tail, rather than the fish's head-led S-flex. Per-rib C-arc yaw anchors (deg at full turn).
+const SHARK_TURN_HEAD_YAW := 28.0
+const SHARK_TURN_SHOULDER_YAW := 25.0
+const SHARK_TURN_MID_YAW := 20.0
+const SHARK_TURN_REAR_YAW := 16.0
+const SHARK_TURN_TAIL_YAW := 12.0
 
 func set_parameters(new_parameters: Dictionary) -> void:
 	super.set_parameters(_shark_parameters(new_parameters))
@@ -171,10 +174,9 @@ func _head_scale_for_shape(shape: String, head_size: float, head_length: float, 
 	head_scale.z *= 1.0 + flatten * 0.35
 	return head_scale
 
-# A shark turns more rigidly than a fish: the whole body banks into the turn as one arc instead
-# of the fish's head-leads-then-tail-flicks S-curve. So every rib yaws the SAME direction (no
-# opposite tail flick), gently easing from head to tail, and the head and tail engage together
-# from the start (one phase ramp) rather than the head snapping first.
+# A shark turns as a full-body C-arc: every rib yaws into the same turn direction, but the
+# shoulder, mid-body, rear body, and tail follow a smooth profile so the centerline bends like
+# one flexible animal instead of rotating as a stiff plank or fish-style S-flick.
 func _turn_ring_yaw(t: float, turn_amount: float, turn_direction: float, _tail_lag: float) -> float:
 	if turn_amount <= 0.0:
 		return 0.0
@@ -183,7 +185,16 @@ func _turn_ring_yaw(t: float, turn_amount: float, turn_direction: float, _tail_l
 	if turn_amount > 0.001 and turn_phase > 0.001:
 		amount = turn_amount * sin(PI * pow(turn_phase, 0.6))
 	var t_clamped := clampf(t, 0.0, 1.0)
-	return turn_direction * amount * lerpf(SHARK_TURN_HEAD_YAW, SHARK_TURN_TAIL_YAW, t_clamped)
+	return turn_direction * amount * _shark_turn_c_arc_yaw(t_clamped)
+
+func _shark_turn_c_arc_yaw(t: float) -> float:
+	if t <= 0.25:
+		return lerpf(SHARK_TURN_HEAD_YAW, SHARK_TURN_SHOULDER_YAW, smoothstep(0.0, 0.25, t))
+	if t <= 0.5:
+		return lerpf(SHARK_TURN_SHOULDER_YAW, SHARK_TURN_MID_YAW, smoothstep(0.25, 0.5, t))
+	if t <= 0.75:
+		return lerpf(SHARK_TURN_MID_YAW, SHARK_TURN_REAR_YAW, smoothstep(0.5, 0.75, t))
+	return lerpf(SHARK_TURN_REAR_YAW, SHARK_TURN_TAIL_YAW, smoothstep(0.75, 1.0, t))
 
 func _add_head_features(head: MeshInstance3D, material: Material) -> void:
 	var root := Node3D.new()

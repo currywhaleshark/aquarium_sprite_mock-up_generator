@@ -681,31 +681,31 @@ static func caudal_fin_shape(name: String, shape: String, length: float, height:
 static func caudal_fin_points(shape: String, length: float, height: float) -> PackedVector3Array:
 	return _caudal_shape_points(shape, length, height)
 
-static func polygon_fin(name: String, points: PackedVector3Array, material: Material) -> MeshInstance3D:
+static func polygon_fin(name: String, points: PackedVector3Array, material: Material, thickness: float = 0.0) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = name
-	node.mesh = build_polygon_fin_mesh(points)
+	node.mesh = build_polygon_fin_mesh(points, PackedVector3Array(), thickness)
 	node.material_override = material
 	return node
 
-static func build_polygon_fin_mesh(points: PackedVector3Array, uv_reference_points: PackedVector3Array = PackedVector3Array()) -> ArrayMesh:
+static func build_polygon_fin_mesh(points: PackedVector3Array, uv_reference_points: PackedVector3Array = PackedVector3Array(), thickness: float = 0.0) -> ArrayMesh:
 	var center := Vector3.ZERO
 	for point in points:
 		center += point
 	center /= float(points.size())
-	
-	var vertices := PackedVector3Array([center])
-	var normals := PackedVector3Array([Vector3.BACK])
+
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
-	
+
 	# Determine UV bounds using reference points if provided (so UVs remain constant during deformation)
 	var ref_points := uv_reference_points if not uv_reference_points.is_empty() else points
 	var ref_center := Vector3.ZERO
 	for p in ref_points:
 		ref_center += p
 	ref_center /= float(ref_points.size())
-	
+
 	var min_x := INF
 	var max_x := -INF
 	var min_y := INF
@@ -715,18 +715,67 @@ static func build_polygon_fin_mesh(points: PackedVector3Array, uv_reference_poin
 		max_x = maxf(max_x, p.x)
 		min_y = minf(min_y, p.y)
 		max_y = maxf(max_y, p.y)
-		
-	uvs.append(_fin_uv_for_point(ref_center, min_x, max_x, min_y, max_y))
-	for i in points.size():
-		var point := points[i]
-		var ref_point := ref_points[i]
-		vertices.append(point)
+
+	if thickness <= 0.001:
+		vertices.append(center)
 		normals.append(Vector3.BACK)
-		uvs.append(_fin_uv_for_point(ref_point, min_x, max_x, min_y, max_y))
-		
-	for i in points.size():
-		indices.append_array(PackedInt32Array([0, i + 1, (i + 1) % points.size() + 1]))
-		
+		uvs.append(_fin_uv_for_point(ref_center, min_x, max_x, min_y, max_y))
+		for i in points.size():
+			var point := points[i]
+			var ref_point := ref_points[i]
+			vertices.append(point)
+			normals.append(Vector3.BACK)
+			uvs.append(_fin_uv_for_point(ref_point, min_x, max_x, min_y, max_y))
+		for i in points.size():
+			indices.append_array(PackedInt32Array([0, i + 1, (i + 1) % points.size() + 1]))
+	else:
+		var half_thickness := thickness * 0.5
+		var front_offset := Vector3(0.0, 0.0, half_thickness)
+		var back_offset := Vector3(0.0, 0.0, -half_thickness)
+		var front_center_index := 0
+		var front_outline_start := 1
+		var back_center_index := points.size() + 1
+		var back_outline_start := points.size() + 2
+		vertices.append(center + front_offset)
+		normals.append(Vector3.BACK)
+		uvs.append(_fin_uv_for_point(ref_center, min_x, max_x, min_y, max_y))
+		for i in points.size():
+			vertices.append(points[i] + front_offset)
+			normals.append(Vector3.BACK)
+			uvs.append(_fin_uv_for_point(ref_points[i], min_x, max_x, min_y, max_y))
+		vertices.append(center + back_offset)
+		normals.append(Vector3.FORWARD)
+		uvs.append(_fin_uv_for_point(ref_center, min_x, max_x, min_y, max_y))
+		for i in points.size():
+			vertices.append(points[i] + back_offset)
+			normals.append(Vector3.FORWARD)
+			uvs.append(_fin_uv_for_point(ref_points[i], min_x, max_x, min_y, max_y))
+		for i in points.size():
+			var next := (i + 1) % points.size()
+			indices.append_array(PackedInt32Array([front_center_index, front_outline_start + i, front_outline_start + next]))
+			indices.append_array(PackedInt32Array([back_center_index, back_outline_start + next, back_outline_start + i]))
+		for i in points.size():
+			var next := (i + 1) % points.size()
+			var edge := points[next] - points[i]
+			var side_normal := Vector3(edge.y, -edge.x, 0.0)
+			if side_normal.length_squared() <= 0.000001:
+				side_normal = Vector3.RIGHT
+			else:
+				side_normal = side_normal.normalized()
+			var side_start := vertices.size()
+			vertices.append(points[i] + front_offset)
+			vertices.append(points[next] + front_offset)
+			vertices.append(points[next] + back_offset)
+			vertices.append(points[i] + back_offset)
+			for side_i in 4:
+				normals.append(side_normal)
+			uvs.append(_fin_uv_for_point(ref_points[i], min_x, max_x, min_y, max_y))
+			uvs.append(_fin_uv_for_point(ref_points[next], min_x, max_x, min_y, max_y))
+			uvs.append(_fin_uv_for_point(ref_points[next], min_x, max_x, min_y, max_y))
+			uvs.append(_fin_uv_for_point(ref_points[i], min_x, max_x, min_y, max_y))
+			indices.append_array(PackedInt32Array([side_start, side_start + 1, side_start + 2]))
+			indices.append_array(PackedInt32Array([side_start, side_start + 2, side_start + 3]))
+
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -979,7 +1028,13 @@ static func _caudal_shape_points(shape: String, length: float, height: float) ->
 				Vector3(0.0, -height * 0.25, 0.0)
 			])
 
-static func oval_fin(name: String, radius_x: float, radius_y: float, material: Material, segments: int = 18) -> MeshInstance3D:
+static func oval_fin(name: String, radius_x: float, radius_y: float, material: Material, segments: int = 18, thickness: float = 0.0) -> MeshInstance3D:
+	if thickness > 0.001:
+		var thick_node := MeshInstance3D.new()
+		thick_node.name = name
+		thick_node.mesh = build_polygon_fin_mesh(oval_fin_points(radius_x, radius_y, segments), PackedVector3Array(), thickness)
+		thick_node.material_override = material
+		return thick_node
 	var vertices := PackedVector3Array([Vector3(radius_x, 0.0, 0.0)])
 	var uvs := PackedVector2Array([Vector2(0.5, 0.5)])
 	var indices := PackedInt32Array()

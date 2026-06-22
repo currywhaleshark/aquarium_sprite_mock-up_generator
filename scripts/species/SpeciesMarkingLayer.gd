@@ -20,6 +20,7 @@ const TYPE_RETICULATED_ZONE := 12
 const TYPE_REGION_COLOR := 13
 const TYPE_SCALE_REGION := 14
 const TYPE_IRIDESCENCE_REGION := 15
+const TYPE_FIN_TIP := 16
 
 const ZONE_BODY := 0
 const ZONE_HEAD := 1
@@ -57,6 +58,7 @@ const TYPE_BY_NAME := {
 	"calico_patch": TYPE_CALICO_PATCH,
 	"fin_edge": TYPE_FIN_EDGE,
 	"fin_spots": TYPE_FIN_SPOTS,
+	"fin_tip": TYPE_FIN_TIP,
 	"scale_grid": TYPE_SCALE_GRID,
 	"reticulated_zone": TYPE_RETICULATED_ZONE,
 	"region_color": TYPE_REGION_COLOR,
@@ -132,6 +134,7 @@ static func encode_fin_uniforms(raw_layers: Variant, fin_region: String) -> Dict
 	var allowed_type_ids := [
 		TYPE_FIN_EDGE,
 		TYPE_FIN_SPOTS,
+		TYPE_FIN_TIP,
 		TYPE_HORIZONTAL_BAND,
 		TYPE_VERTICAL_BAR,
 		TYPE_REGION_COLOR

@@ -78,6 +78,7 @@ const SPECIALIZED_EDITOR_KEYS := {
 	"dorsal_fin_size": true,
 	"anal_fin_size": true,
 	"pectoral_fin_size": true,
+	"fin_thickness": true,
 	"dorsal_fin_offset_x": true,
 	"anal_fin_offset_x": true,
 	"pectoral_fin_offset_x": true,

@@ -15,6 +15,7 @@ func _ready() -> void:
 	_test_new_fin_fields_round_trip_through_fin_profile()
 	_test_fin_material_exposes_ray_structure_uniforms()
 	_test_fin_material_receives_filtered_marking_uniforms()
+	_test_fin_shader_contains_tip_apex_marking_mask()
 	_test_fish_rig_assigns_slot_specific_ray_axes()
 	_test_rayless_material_overrides_global_rays()
 	_test_legacy_parallel_ray_fallback_contract()
@@ -197,6 +198,14 @@ func _test_fin_material_receives_filtered_marking_uniforms() -> void:
 	assert(int(material.get_shader_parameter("fin_marking_count")) == 1)
 	assert(int(material.get_shader_parameter("fin_marking_type_0")) == SpeciesMarkingLayerScript.TYPE_FIN_SPOTS)
 	assert(material.get_shader_parameter("fin_marking_color_0") is Color)
+
+func _test_fin_shader_contains_tip_apex_marking_mask() -> void:
+	var shader := load(ToonMaterialFactoryScript.FIN_SHADER_PATH)
+	assert(shader is Shader)
+	var code := String(shader.code)
+	assert(code.contains("FIN_TYPE_FIN_TIP"))
+	assert(code.contains("fin_tip_apex_mask"))
+	assert(code.contains("apex_center"))
 
 func _test_fish_rig_assigns_slot_specific_ray_axes() -> void:
 	var fish := FishRigScript.new()

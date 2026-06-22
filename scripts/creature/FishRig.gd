@@ -318,8 +318,8 @@ func rebuild() -> void:
 		var pelvic_height := param_float("pelvic_height", 0.14)
 		if pelvic_shape == "oval":
 			pelvic_base_points = PF.oval_fin_points(pelvic_length, pelvic_height)
-			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, paired_ventral_fin_mat)
-			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"}))
+			pelvic_l = PF.oval_fin("PelvicFinL", pelvic_length, pelvic_height, paired_ventral_fin_mat, 18, _fin_thickness())
+			pelvic_r = PF.oval_fin("PelvicFinR", pelvic_length, pelvic_height, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"}), 18, _fin_thickness())
 		else:
 			var points_l := _get_fin_points("PelvicFinL", pelvic_shape, pelvic_length, pelvic_height)
 			var points_r := _get_fin_points("PelvicFinR", pelvic_shape, pelvic_length, pelvic_height)
@@ -330,8 +330,8 @@ func rebuild() -> void:
 			for p in points_r:
 				inverted_r.append(Vector3(p.x, -p.y, p.z))
 			pelvic_base_points = inverted_l
-			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, paired_ventral_fin_mat)
-			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"}))
+			pelvic_l = PF.polygon_fin("PelvicFinL", inverted_l, paired_ventral_fin_mat, _fin_thickness())
+			pelvic_r = PF.polygon_fin("PelvicFinR", inverted_r, _make_fin_material(FIN_RAY_AXIS_VERTICAL_DOWN, {"fin_region": "paired_fin"}), _fin_thickness())
 		var pelvic_attach_t := param_float("pelvic_attach_t", 0.36)
 		var pelvic_center := _surface_position("ventral", pelvic_attach_t, 0.02)
 		var pelvic_z := _surface_radius_z_for_vertical_half(pelvic_attach_t, -1.0) * 0.32
@@ -350,11 +350,11 @@ func rebuild() -> void:
 	var pectoral_shape := String(parameters.get("pectoral_shape", "oval"))
 	if pectoral_shape == "oval":
 		pectoral_base_points = PF.oval_fin_points(pectoral_size, pectoral_size * 0.5)
-		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, paired_horizontal_fin_mat)
+		pectoral_l = PF.oval_fin("PectoralFinL", pectoral_size, pectoral_size * 0.5, paired_horizontal_fin_mat, 18, _fin_thickness())
 	else:
 		var points_l := _get_fin_points("PectoralFinL", pectoral_shape, pectoral_size, pectoral_size * 0.5)
 		pectoral_base_points = points_l
-		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, paired_horizontal_fin_mat)
+		pectoral_l = PF.polygon_fin("PectoralFinL", points_l, paired_horizontal_fin_mat, _fin_thickness())
 	var pectoral_attach_t := param_float("pectoral_attach_t", 0.32)
 	var pectoral_center := _surface_position("side", pectoral_attach_t, 0.0)
 	var pectoral_z := _surface_radius_z(pectoral_attach_t) * _pectoral_spacing_scale()
@@ -366,10 +366,10 @@ func rebuild() -> void:
 	body_pivot.add_child(pectoral_l)
 
 	if pectoral_shape == "oval":
-		pectoral_r = PF.oval_fin("PectoralFinR", pectoral_size, pectoral_size * 0.5, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"}))
+		pectoral_r = PF.oval_fin("PectoralFinR", pectoral_size, pectoral_size * 0.5, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"}), 18, _fin_thickness())
 	else:
 		var points_r := _get_fin_points("PectoralFinR", pectoral_shape, pectoral_size, pectoral_size * 0.5)
-		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"}))
+		pectoral_r = PF.polygon_fin("PectoralFinR", points_r, _make_fin_material(FIN_RAY_AXIS_HORIZONTAL, {"fin_region": "paired_fin"}), _fin_thickness())
 	pectoral_r_base_position = Vector3(pectoral_center.x, -0.02, pectoral_z)
 	pectoral_r.position = pectoral_r_base_position
 	pectoral_r_base_rotation = Vector3(0.0, -25.0, -28.0 + pectoral_surface_angle)
@@ -413,7 +413,7 @@ func rebuild() -> void:
 		adjusted_points.append(new_p)
 	tail_fin_base_points = adjusted_points
 
-	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, caudal_fin_mat)
+	tail_fin = PF.polygon_fin("TailFin", tail_fin_base_points, caudal_fin_mat, _fin_thickness())
 	tail_fin_pivot.add_child(tail_fin)
 	_update_body_ring_world_points()
 	if ring_editor_enabled or param_float("show_ring_guides", 0.0) > 0.5:
@@ -1980,7 +1980,7 @@ func _animate_caudal_fin(loop_phase: float, _tail_fin_yaw: float) -> void:
 	var drive_phase := loop_phase * TAU - param_float("phase_delay", 0.65) * 2.4
 	var down_local := tail_fin.global_transform.basis.inverse() * Vector3.DOWN
 	var res := _membrane_deformed_points(tail_fin_base_points, softness, drive_phase, _swim_drive_strength(), 0.0, tail_size, down_local)
-	tail_fin.mesh = PF.build_polygon_fin_mesh(res.deformed, res.reference)
+	tail_fin.mesh = PF.build_polygon_fin_mesh(res.deformed, res.reference, _fin_thickness())
 
 # Re-deforms a paired side fin (pectoral/pelvic) into a soft trailing membrane.
 # Skips work entirely when the fin reads as rigid, preserving the original mesh.
@@ -2000,7 +2000,7 @@ func _animate_blade_fin(fin_node: MeshInstance3D, base_points: PackedVector3Arra
 	var drive_phase := loop_phase * TAU * 2.0 + phase_offset
 	var down_local := fin_node.global_transform.basis.inverse() * Vector3.DOWN
 	var res := _membrane_deformed_points(base_points, softness, drive_phase, _swim_drive_strength(), 0.0, size_ref, down_local)
-	fin_node.mesh = PF.build_polygon_fin_mesh(res.deformed, res.reference)
+	fin_node.mesh = PF.build_polygon_fin_mesh(res.deformed, res.reference, _fin_thickness())
 
 func _settle_death_pose_fins() -> void:
 	_settle_soft_fin_mesh(tail_fin, tail_fin_base_points, _effective_caudal_softness(), maxf(param_float("tail_fin_size", 0.46), 0.001), _death_fin_lateral_bow())
@@ -2026,7 +2026,7 @@ func _settle_soft_fin_mesh(fin_node: MeshInstance3D, base_points: PackedVector3A
 	var deformed: PackedVector3Array = res.deformed
 	if lateral_bow > 0.0:
 		deformed = _bowed_median_fin_points(deformed, lateral_bow)
-	fin_node.mesh = PF.build_polygon_fin_mesh(deformed, res.reference)
+	fin_node.mesh = PF.build_polygon_fin_mesh(deformed, res.reference, _fin_thickness())
 
 func _settle_soft_median_fin(fin_node: MeshInstance3D, side: String, shape: String, length: float, height: float, attach_t: float, margin: float) -> void:
 	if fin_node == null:
@@ -2043,7 +2043,7 @@ func _settle_soft_median_fin(fin_node: MeshInstance3D, side: String, shape: Stri
 		var down_local := fin_node.global_transform.basis.inverse() * Vector3.DOWN
 		points = _drooped_median_fin_points(points, minf(softness * DEATH_FIN_DROOP_MULTIPLIER, DEATH_FIN_DROOP_MULTIPLIER), down_local)
 	points = _bowed_median_fin_points(points, bow)
-	fin_node.mesh = PF.build_polygon_fin_mesh(points)
+	fin_node.mesh = PF.build_polygon_fin_mesh(points, PackedVector3Array(), _fin_thickness())
 
 func _drooped_median_fin_points(points: PackedVector3Array, softness: float, down_local: Vector3) -> PackedVector3Array:
 	var max_height := 0.001
@@ -2154,6 +2154,9 @@ func _membrane_deformed_points(base_points: PackedVector3Array, softness: float,
 func _effective_caudal_softness() -> float:
 	return _effective_fin_softness("caudal")
 
+func _fin_thickness() -> float:
+	return clampf(param_float("fin_thickness", 0.0), 0.0, 0.03)
+
 # Per-fin softness, with the global fin_softness/fin_rigidity acting as the default
 # when a slot has no explicit override. Returns the net softness after rigidity damping.
 func _effective_fin_softness(slot: String) -> float:
@@ -2186,7 +2189,7 @@ func _median_fin_wave_tilt_amount() -> float:
 func _animate_median_fin(fin_node: MeshInstance3D, side: String, shape: String, length: float, height: float, attach_t: float, margin: float, loop_phase: float, centers: PackedVector3Array, yaws: PackedFloat32Array) -> void:
 	var points := _get_fin_points(fin_node.name, shape, length, height)
 	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
-	fin_node.mesh = PF.build_polygon_fin_mesh(_animated_curved_fin_points(fin_node, side, attach_t, margin, points, follow, loop_phase, centers, yaws))
+	fin_node.mesh = PF.build_polygon_fin_mesh(_animated_curved_fin_points(fin_node, side, attach_t, margin, points, follow, loop_phase, centers, yaws), PackedVector3Array(), _fin_thickness())
 
 func _median_fin_flap(loop_phase: float, phase_offset: float = 0.0) -> float:
 	var flap_amount := param_float("median_fin_flap_amount", 1.5)
@@ -2721,7 +2724,7 @@ func _contour_outward_normal(side: String, attach_t: float) -> Vector2:
 func _build_median_fin(fin_name: String, side: String, shape: String, length: float, height: float, attach_t: float, margin: float, material: Material) -> MeshInstance3D:
 	var points := _get_fin_points(fin_name, shape, length, height)
 	var follow := clampf(param_float("fin_curve_follow", 1.0), 0.0, 1.0)
-	return PF.polygon_fin(fin_name, _curved_fin_points(side, attach_t, margin, points, follow), material)
+	return PF.polygon_fin(fin_name, _curved_fin_points(side, attach_t, margin, points, follow), material, _fin_thickness())
 
 func _make_fin_material(ray_axis: float, overrides: Dictionary = {}) -> ShaderMaterial:
 	var axis_overrides := overrides.duplicate(true)
@@ -2749,7 +2752,7 @@ func _build_adipose_fin(fin_mat: Material) -> void:
 	var height := maxf(param_float("adipose_fin_height", 0.18), 0.32) * size
 	var length := size * lerpf(0.16, 0.26, param_float("adipose_fin_roundness", 0.75))
 	var points := _get_fin_points("AdiposeFin", String(parameters.get("adipose_fin_shape", "nub")), length, height)
-	adipose_fin = PF.polygon_fin("AdiposeFin", points, fin_mat)
+	adipose_fin = PF.polygon_fin("AdiposeFin", points, fin_mat, _fin_thickness())
 	body_pivot.add_child(adipose_fin)
 	var attach_t := _effective_adipose_attach_t()
 	adipose_fin.position = _surface_position("dorsal", attach_t, 0.02)
@@ -2792,7 +2795,7 @@ func _build_finlet_side(side: String, count: int, finlet_mat: Material) -> void:
 		for point in shaped_points:
 			points.append(Vector3(point.x, point.y * y_sign, point.z))
 		var node_name := "FinletDorsal_%d" % i if side == "dorsal" else "FinletVentral_%d" % i
-		var finlet := PF.polygon_fin(node_name, points, finlet_mat)
+		var finlet := PF.polygon_fin(node_name, points, finlet_mat, _fin_thickness())
 		body_pivot.add_child(finlet)
 		var attach_t := _finlet_attach_t(i, count)
 		var margin := 0.012

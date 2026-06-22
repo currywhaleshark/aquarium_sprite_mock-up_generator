@@ -12,6 +12,7 @@ const VALID_LAYER_TYPES := {
 	"calico_patch": true,
 	"fin_edge": true,
 	"fin_spots": true,
+	"fin_tip": true,
 	"scale_grid": true,
 	"region_color": true,
 	"scale_region": true,

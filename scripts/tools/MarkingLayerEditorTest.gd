@@ -6,6 +6,7 @@ const UiText := preload("res://scripts/ui/UiText.gd")
 func _ready() -> void:
 	await _test_editor_emits_layer_changes()
 	await _test_editor_defaults_fin_zone_to_fin_region()
+	_test_editor_exposes_fin_tip_marking_layer()
 	await _test_editor_adds_safe_editable_layer()
 	await _test_editor_removes_layer()
 
@@ -51,6 +52,10 @@ func _test_editor_defaults_fin_zone_to_fin_region() -> void:
 	assert(String(((seen[0] as Array)[0] as Dictionary).get("region", "")) == "fin")
 	editor.queue_free()
 	await get_tree().process_frame
+
+func _test_editor_exposes_fin_tip_marking_layer() -> void:
+	assert(MarkingLayerEditorScript.LAYER_TYPES.has("fin_tip"))
+	assert(UiText.marking_layer_value("type", "fin_tip") == "지느러미 뾰족한 끝")
 
 func _test_editor_adds_safe_editable_layer() -> void:
 	var editor := MarkingLayerEditorScript.new()

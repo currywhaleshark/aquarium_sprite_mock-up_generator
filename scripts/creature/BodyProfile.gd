@@ -310,6 +310,8 @@ static func ensure_visual_parameters(parameters: Dictionary) -> void:
 		parameters["secondary_color"] = "#d8fbff"
 	if not parameters.has("fin_color"):
 		parameters["fin_color"] = "#7ee1e8"
+	if not parameters.has("fin_thickness"):
+		parameters["fin_thickness"] = 0.0
 	if not parameters.has("lower_jaw_color"):
 		parameters["lower_jaw_color"] = lower_jaw_color_fallback(parameters)
 	if not parameters.has("marking_layers"):
@@ -600,7 +602,7 @@ static func split_parameters_into_profiles(parameters: Dictionary, preset: Dicti
 		"ray_tail_style", "ray_tail_spine_enabled", "ray_dorsal_tail_fins"
 	])
 	updated["fin_profile"] = _pick(normalized_parameters, [
-		"dorsal_fin_size", "anal_fin_size", "pectoral_fin_size",
+		"dorsal_fin_size", "anal_fin_size", "pectoral_fin_size", "fin_thickness",
 		"dorsal_fin_offset_x", "anal_fin_offset_x", "pectoral_fin_offset_x",
 		"pectoral_fin_spacing",
 		"dorsal_1_attach_t", "dorsal_1_shape", "dorsal_1_length", "dorsal_1_height",
