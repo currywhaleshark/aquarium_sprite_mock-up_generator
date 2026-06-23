@@ -31,17 +31,22 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	var profile: Array = fish.shell_profile
-	assert(profile.size() == 6)
-	assert(profile[0].y < profile[2].y)
-	assert(profile[3].y > 0.42)
-	assert(profile[2].z < 0.2)
-	assert(profile[5].y < profile[3].y * 0.45)
-	assert(float(profile[5].x) <= 1.45 * 0.55)
+	var logical_indices: Array = fish._logical_shell_ring_indices()
+	assert(logical_indices.size() == 6, "logical shell ring count=%d ids=%s" % [logical_indices.size(), fish.shell_ring_ids])
+	var snout_i := fish._ring_index_by_id("snout", 0)
+	var front_body_i := fish._ring_index_by_id("front_body", 2)
+	var mid_body_i := fish._ring_index_by_id("mid_body", 3)
+	var tail_stem_i := fish._ring_index_by_id("tail_stem", 5)
+	assert(profile[snout_i].y < profile[front_body_i].y)
+	assert(profile[mid_body_i].y > 0.42)
+	assert(profile[front_body_i].z < 0.2)
+	assert(profile[tail_stem_i].y < profile[mid_body_i].y * 0.45)
+	assert(float(profile[tail_stem_i].x) <= 1.45 * 0.55)
 	var center_y_offsets: Array = fish.shell_center_y_offsets
-	assert(center_y_offsets.size() == 6)
-	assert(float(center_y_offsets[0]) > 0.08)
-	assert(float(center_y_offsets[3]) < -0.03)
-	assert(float(center_y_offsets[5]) < -0.09)
+	assert(center_y_offsets.size() == profile.size())
+	assert(float(center_y_offsets[snout_i]) > 0.08)
+	assert(float(center_y_offsets[mid_body_i]) < -0.03)
+	assert(float(center_y_offsets[tail_stem_i]) < -0.09)
 	var head := fish.get_node_or_null("BodyPivot/Head") as MeshInstance3D
 	var body := fish.get_node_or_null("BodyPivot/Body") as MeshInstance3D
 	var tail_pivot_1 := fish.get_node_or_null("BodyPivot/TailPivot1") as Node3D
@@ -89,9 +94,9 @@ func _ready() -> void:
 	fish.set_parameters(low_body_wave_parameters)
 	await get_tree().process_frame
 	var low_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
-	var low_shell_before := _ring_vertex(low_shell, 3, 0, 28)
+	var low_shell_before := _ring_vertex(low_shell, mid_body_i, 0, 28)
 	fish.apply_pose(0.25)
-	var low_shell_after := _ring_vertex(low_shell, 3, 0, 28)
+	var low_shell_after := _ring_vertex(low_shell, mid_body_i, 0, 28)
 	var low_shell_delta := low_shell_before.distance_to(low_shell_after)
 	assert(absf((fish.get_node("BodyPivot") as Node3D).rotation_degrees.y) < 0.001)
 	var high_body_wave_parameters: Dictionary = fish.parameters.duplicate(true)
@@ -99,9 +104,9 @@ func _ready() -> void:
 	fish.set_parameters(high_body_wave_parameters)
 	await get_tree().process_frame
 	var high_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
-	var high_shell_before := _ring_vertex(high_shell, 3, 0, 28)
+	var high_shell_before := _ring_vertex(high_shell, mid_body_i, 0, 28)
 	fish.apply_pose(0.25)
-	var high_shell_after := _ring_vertex(high_shell, 3, 0, 28)
+	var high_shell_after := _ring_vertex(high_shell, mid_body_i, 0, 28)
 	var high_shell_delta := high_shell_before.distance_to(high_shell_after)
 	assert(absf((fish.get_node("BodyPivot") as Node3D).rotation_degrees.y) < 0.001)
 	assert(high_shell_delta > low_shell_delta * 3.0)
@@ -110,12 +115,12 @@ func _ready() -> void:
 	fish.set_parameters(eel_wave_parameters)
 	await get_tree().process_frame
 	var eel_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
-	var eel_shell_before := _ring_vertex(eel_shell, 3, 0, 28)
+	var eel_shell_before := _ring_vertex(eel_shell, mid_body_i, 0, 28)
 	tail_pivot_1 = fish.get_node_or_null("BodyPivot/TailPivot1") as Node3D
 	tail_pivot_2 = fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2") as Node3D
 	tail_fin_pivot = fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
 	fish.apply_pose(0.25)
-	var eel_shell_after := _ring_vertex(eel_shell, 3, 0, 28)
+	var eel_shell_after := _ring_vertex(eel_shell, mid_body_i, 0, 28)
 	var eel_shell_delta := eel_shell_before.distance_to(eel_shell_after)
 	assert(eel_shell_delta > high_shell_delta * 10.0)
 	assert(absf(tail_pivot_1.rotation_degrees.y) < 75.0)
@@ -139,12 +144,12 @@ func _ready() -> void:
 	fish.set_parameters(extreme_wave_parameters)
 	await get_tree().process_frame
 	var extreme_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
-	var extreme_shell_before := _ring_vertex(extreme_shell, 3, 0, 28)
+	var extreme_shell_before := _ring_vertex(extreme_shell, mid_body_i, 0, 28)
 	tail_pivot_1 = fish.get_node_or_null("BodyPivot/TailPivot1") as Node3D
 	tail_pivot_2 = fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2") as Node3D
 	tail_fin_pivot = fish.get_node_or_null("BodyPivot/TailPivot1/TailPivot2/TailFinPivot") as Node3D
 	fish.apply_pose(0.25)
-	var extreme_shell_after := _ring_vertex(extreme_shell, 3, 0, 28)
+	var extreme_shell_after := _ring_vertex(extreme_shell, mid_body_i, 0, 28)
 	var extreme_shell_delta := extreme_shell_before.distance_to(extreme_shell_after)
 	assert(extreme_shell_delta > eel_shell_delta * 1.8)
 	assert(absf(tail_pivot_1.rotation_degrees.y) < 75.0)
@@ -155,9 +160,9 @@ func _ready() -> void:
 	fish.set_parameters(massive_wave_parameters)
 	await get_tree().process_frame
 	var massive_shell := fish.get_node("BodyPivot/OuterShell") as MeshInstance3D
-	var massive_shell_before := _ring_vertex(massive_shell, 3, 0, 28)
+	var massive_shell_before := _ring_vertex(massive_shell, mid_body_i, 0, 28)
 	fish.apply_pose(0.25)
-	var massive_shell_after := _ring_vertex(massive_shell, 3, 0, 28)
+	var massive_shell_after := _ring_vertex(massive_shell, mid_body_i, 0, 28)
 	var massive_shell_delta := massive_shell_before.distance_to(massive_shell_after)
 	assert(massive_shell_delta > extreme_shell_delta * 1.2)
 

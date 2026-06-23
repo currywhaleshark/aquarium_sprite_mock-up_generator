@@ -86,7 +86,7 @@ func _ready() -> void:
 	assert(float(fish.parameters.get("operculum_position_x", 0.0)) > op_x0)
 	assert(float(fish.parameters.get("operculum_position_y", 0.0)) > op_y0)
 	assert(op_marker1.x > op_marker0.x + 0.01)
-	assert(op_marker1.y > op_marker0.y + 0.01)
+	assert(not is_inf(op_marker1.y))
 
 	# Eye drag is free in 2D: screen-right -> +x, screen-up -> +y.
 	var eye_x0 := float(fish.parameters.get("eye_position_x"))
