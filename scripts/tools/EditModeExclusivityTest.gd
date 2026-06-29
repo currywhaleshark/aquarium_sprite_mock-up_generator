@@ -53,7 +53,11 @@ func _ready() -> void:
 	assert(head_panel.visible)
 	assert(not fin_panel.visible)
 	assert(bool(fin_controller.get("enabled")))
-	assert(not bool(body_controller.get("enabled")))
+	# Head sculpt mode drives the body-ring controller too, but scoped to the head/snout
+	# silhouette handles; the fin controller still owns the eye/jaw/bump point handles.
+	assert(bool(body_controller.get("enabled")))
+	assert((body_controller.get("allowed_ring_ids") as Array) == ["head", "snout"])
+	assert(bool(overlay.get("head_ring_handles")))
 
 	body_toggle.button_pressed = true
 	assert(body_toggle.button_pressed)
@@ -63,6 +67,9 @@ func _ready() -> void:
 	assert(not head_panel.visible)
 	assert(not bool(fin_controller.get("enabled")))
 	assert(bool(body_controller.get("enabled")))
+	# Body mode picks every ring (no head-only scope).
+	assert((body_controller.get("allowed_ring_ids") as Array).is_empty())
+	assert(not bool(overlay.get("head_ring_handles")))
 	assert(bool(overlay.get("draw_body_rings")))
 	assert(not bool(overlay.get("draw_fins")))
 	assert(not bool(overlay.get("draw_head")))

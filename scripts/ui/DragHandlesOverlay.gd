@@ -13,6 +13,11 @@ var body_ring_drag_controller: Node
 var draw_fins := false
 var draw_head := false
 var draw_body_rings := false
+# When head sculpt mode is active, also surface the head/snout silhouette ring handles
+# (dorsal/ventral/center) - the same handles body-ring mode shows, but filtered to the head
+# so the user sculpts the head profile directly without the body rings cluttering the view.
+var head_ring_handles := false
+const UNIFIED_HEAD_RING_IDS := ["head", "snout"]
 # Set by Main while a numeric editor slider is being adjusted. The fish resolves
 # the key to a world-space point and the overlay draws a temporary crosshair there.
 var indicator_key := ""
@@ -38,7 +43,7 @@ func _update_hovered_handle() -> void:
 	hovered_handle = ""
 	if camera == null or fish == null or not (draw_fins or draw_head or draw_body_rings or vector_edit_marker_active):
 		return
-		
+
 	var mouse_pos := get_local_mouse_position()
 	var points := fish.get_drag_handles()
 	var best_distance := PICK_RADIUS_PX
@@ -60,8 +65,8 @@ func _update_hovered_handle() -> void:
 			best_distance = distance
 			hovered_handle = String(handle_id)
 
-	if draw_body_rings and fish.has_method("get_body_ring_handles"):
-		var ring_points: Dictionary = fish.call("get_body_ring_handles")
+	if _should_show_ring_handles():
+		var ring_points := _ring_handles_for_mode()
 		for ring_id in ring_points.keys():
 			var ring_handles: Dictionary = ring_points[ring_id]
 			for part in ["top", "bottom", "center"]:
@@ -73,6 +78,23 @@ func _update_hovered_handle() -> void:
 				if distance < best_distance:
 					best_distance = distance
 					hovered_handle = "%s:%s" % [String(ring_id), String(part)]
+
+# True when the cross-section ring handles should be shown: body-ring mode shows every ring;
+# head sculpt mode shows only the head/snout silhouette handles.
+func _should_show_ring_handles() -> bool:
+	return (draw_body_rings or (draw_head and head_ring_handles)) and fish != null and fish.has_method("get_body_ring_handles")
+
+func _ring_handles_for_mode() -> Dictionary:
+	if fish == null or not fish.has_method("get_body_ring_handles"):
+		return {}
+	var all: Dictionary = fish.call("get_body_ring_handles")
+	if draw_body_rings:
+		return all
+	var filtered := {}
+	for ring_id in UNIFIED_HEAD_RING_IDS:
+		if all.has(ring_id):
+			filtered[ring_id] = all[ring_id]
+	return filtered
 
 func _should_draw_handle(handle_id: String) -> bool:
 	if handle_id.begins_with("eye") or handle_id == "operculum" or handle_id == "jaw_hinge" or handle_id == "head_bump":
@@ -146,10 +168,10 @@ func _draw() -> void:
 			# Draw text
 			draw_string(font, text_pos, label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
-	if draw_body_rings and fish.has_method("get_body_ring_handles"):
+	if _should_show_ring_handles():
 		var selected_ring_id := String(body_ring_drag_controller.get("selected_ring_id") if body_ring_drag_controller else "")
 		var selected_part := String(body_ring_drag_controller.get("selected_part") if body_ring_drag_controller else "")
-		var ring_points: Dictionary = fish.call("get_body_ring_handles")
+		var ring_points := _ring_handles_for_mode()
 		for ring_id in ring_points.keys():
 			var ring_handles: Dictionary = ring_points[ring_id]
 			for part in ["top", "bottom", "center"]:
@@ -178,7 +200,7 @@ func _draw() -> void:
 				draw_circle(screen_pos, 1.8, Color.WHITE)
 				draw_arc(screen_pos, outer_radius, 0.0, TAU, 16, Color(1, 1, 1, 0.5 if is_hovered or is_selected else 0.2), 1.0)
 				if is_hovered or is_selected:
-					var label_text := _body_ring_handle_label(part)
+					var label_text := _body_ring_handle_label(String(ring_id), part)
 					var text_size: Vector2 = font.get_string_size(label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 					var text_pos := screen_pos + Vector2(15, 4)
 					var rect := Rect2(text_pos - Vector2(6, 16), text_size + Vector2(12, 6))
@@ -250,7 +272,25 @@ func _get_handle_label(handle_id: String) -> String:
 			return "등지느러미 2"
 	return handle_id.capitalize()
 
-func _body_ring_handle_label(part: String) -> String:
+func _body_ring_handle_label(ring_id: String, part: String) -> String:
+	# Head/snout silhouette handles read as anatomical edges, not generic ring parts, so the
+	# head sculpt mode is self-explanatory.
+	if ring_id == "head":
+		match part:
+			"top":
+				return "이마·등선"
+			"bottom":
+				return "턱·배선"
+			"center":
+				return "머리 위치"
+	elif ring_id == "snout":
+		match part:
+			"top":
+				return "주둥이 위"
+			"bottom":
+				return "주둥이 아래"
+			"center":
+				return "주둥이 길이"
 	match part:
 		"top":
 			return "링 상단"

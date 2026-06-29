@@ -1469,6 +1469,9 @@ func _set_head_edit_enabled(enabled: bool) -> void:
 		_select_exclusive_edit_toggle(head_edit_toggle)
 	if drag_handles_overlay:
 		drag_handles_overlay.draw_head = enabled
+		# Surface the head/snout silhouette ring handles so the head shape can be sculpted
+		# directly in the preview (dorsal/ventral/snout), not only through the slider panel.
+		drag_handles_overlay.head_ring_handles = enabled
 		if not enabled:
 			drag_handles_overlay.indicator_key = ""
 			if String(drag_handles_overlay.vector_edit_slot) == "operculum":
@@ -1601,11 +1604,16 @@ func _sync_edit_input_state() -> void:
 		camera_controller.set("input_enabled", true)
 	var mode := _current_mode()
 	var body_active := body_edit_toggle != null and body_edit_toggle.button_pressed and CreatureModeScript.supports_body_ring_editor(mode)
+	# Head sculpt mode also drives the body-ring controller, but scoped to the head/snout
+	# silhouette handles (fin_drag_controller still owns the eye/jaw/bump point handles).
+	var head_active := head_edit_toggle != null and head_edit_toggle.button_pressed and CreatureModeScript.supports_body_ring_editor(mode)
 	if fin_drag_controller:
 		fin_drag_controller.call("set_enabled", CreatureModeScript.supports_fish_drag_overlay(mode) and not body_active)
 		fin_drag_controller.set("allowed_handle_filter", _active_fin_drag_handle_filter())
 	if body_ring_drag_controller:
-		body_ring_drag_controller.call("set_enabled", body_active and CreatureModeScript.supports_fish_drag_overlay(mode))
+		var ring_active: bool = (body_active or head_active) and CreatureModeScript.supports_fish_drag_overlay(mode)
+		body_ring_drag_controller.call("set_enabled", ring_active)
+		body_ring_drag_controller.set("allowed_ring_ids", ["head", "snout"] if head_active and not body_active else [])
 
 func _active_fin_drag_handle_filter() -> Callable:
 	if head_edit_toggle != null and head_edit_toggle.button_pressed:

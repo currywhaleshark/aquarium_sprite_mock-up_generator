@@ -14,6 +14,9 @@ var camera: Camera3D
 var camera_controller: Node
 var input_control: Control
 var enabled := true
+# When non-empty, only these ring ids can be picked. Head sculpt mode sets it to the
+# head/snout silhouette rings so the body rings aren't grabbable while editing the head.
+var allowed_ring_ids: Array = []
 var selected_ring_id := ""
 var selected_part := ""
 var hovered_ring_id := ""
@@ -114,6 +117,8 @@ func _pick_handle(mouse_position: Vector2) -> Dictionary:
 	var best := {}
 	var best_score := PICK_RADIUS_PX
 	for ring_id in handles.keys():
+		if not allowed_ring_ids.is_empty() and not allowed_ring_ids.has(String(ring_id)):
+			continue
 		var ring_handles: Dictionary = handles[ring_id]
 		for part in ["top", "bottom", "center"]:
 			if not ring_handles.has(part):
