@@ -3421,7 +3421,11 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 	# The lower jaw drops the full gape so it clears the dark socket (no teal bar across the
 	# mouth); it is built shallower (see _mouth_lower_jaw_mesh) so the dropped jaw still reads
 	# as a chin/lower lip without swinging far past the round silhouette.
-	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip)
+	# Keep the resting (closed) jaw tucked inside the head outline so a deep body (large
+	# lower_jaw_scale) can't push the chin past the silhouette as a protruding lump. The
+	# clamp fades out as the mouth opens (t) so the jaw still swings freely when agape.
+	var jaw_silhouette_clamp := 1.0 - t
+	lower_jaw.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip, 7, 18, -1.0, head_verts, jaw_silhouette_clamp)
 	lower_jaw.material_override = lower_jaw_mat
 	lower_jaw.position = mouth_position
 	head.add_child(lower_jaw)
@@ -3455,7 +3459,7 @@ func _add_mouth(head: MeshInstance3D, mouth_position: Vector3, mouth_type: Strin
 		# too, not just the roof. A shallower dome nested just above the jaw's inner surface.
 		var floor := MeshInstance3D.new()
 		floor.name = "MouthFloor"
-		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip, 7, 18, lower_jaw_scale)
+		floor.mesh = _mouth_lower_jaw_mesh(my, mouth_position, lower_jaw_scale * 0.82, mouth_size, lower_jaw_open_deg, angle, jaw_hinge_x_off, jaw_hinge_y_off, premax_fwd, lower_jaw_length, lower_jaw_thickness, lower_jaw_tip, 7, 18, lower_jaw_scale, head_verts, jaw_silhouette_clamp)
 		var floor_mat := dark_mat.duplicate()
 		if floor_mat is BaseMaterial3D:
 			floor_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -3548,7 +3552,7 @@ func _mouth_band_mesh(center_y: float, origin: Vector3, y_lo: float, y_hi: float
 	st.generate_normals()
 	return st.commit()
 
-func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, thickness_scale: float = 1.0, tip_shape: float = 0.0, ring_count: int = 7, segments: int = 18, hinge_scale: float = -1.0) -> ArrayMesh:
+func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, mouth_size: float, open_deg: float, tilt_deg: float = 0.0, hinge_x_off: float = 0.0, hinge_y_off: float = 0.0, front_extend: float = 0.0, length_scale: float = 1.0, thickness_scale: float = 1.0, tip_shape: float = 0.0, ring_count: int = 7, segments: int = 18, hinge_scale: float = -1.0, head_verts: PackedVector3Array = PackedVector3Array(), silhouette_clamp: float = 0.0) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var scale := clampf(jaw_scale, 0.45, 1.8)
@@ -3603,6 +3607,13 @@ func _mouth_lower_jaw_mesh(center_y: float, origin: Vector3, jaw_scale: float, m
 				p.y = hinge.y + dx * sin(open_r) + dy * cos(open_r)
 			if tilt_r != 0.0:
 				p = _rotate_mouth_point(p, origin, tilt_r)
+			# Tuck the resting jaw inside the head outline: never let a vertex sit below the
+			# head's bottom silhouette at this (x, z). Faded by silhouette_clamp so an opening
+			# mouth (clamp -> 0) lets the jaw swing out normally.
+			if silhouette_clamp > 0.0 and not head_verts.is_empty():
+				var floor_y := _head_local_bottom_y(head_verts, p.x, p.z)
+				if floor_y > -INF and p.y < floor_y:
+					p.y = lerpf(p.y, floor_y, clampf(silhouette_clamp, 0.0, 1.0))
 			row.append(p - origin)
 		grid.append(row)
 	for j in range(segments):
@@ -3647,6 +3658,32 @@ func _head_mesh_front_x(verts: PackedVector3Array, y: float, z: float, outset: f
 	if best_x == INF:
 		return _head_front_surface_x(y, z, outset)
 	return best_x - outset
+
+# Local bottom-silhouette y of the head at (x, z): the lowest (most negative y) head vertex
+# in a small xz neighbourhood. The upper-jaw carve only pushes the front-underside verts UP, so
+# taking the MINIMUM recovers the un-carved chin line - the outline the closed lower jaw should
+# fill up to, never past. Returns -INF when the head has no vertices (clamp then skipped).
+func _head_local_bottom_y(verts: PackedVector3Array, x: float, z: float) -> float:
+	var r2 := 0.12 * 0.12
+	var best_y := INF
+	var near_d := INF
+	var near_y := INF
+	for v in verts:
+		if v.x > 0.25:
+			continue # ignore the back half of the head
+		var dx := v.x - x
+		var dz := v.z - z
+		var d := dx * dx + dz * dz
+		if d < near_d:
+			near_d = d
+			near_y = v.y
+		if d <= r2 and v.y < best_y:
+			best_y = v.y
+	if best_y < INF:
+		return best_y
+	if near_y < INF:
+		return near_y
+	return -INF
 
 func _head_side_surface_z(local_x: float, local_y: float, outset: float = 0.025) -> float:
 	var radius := 0.5
