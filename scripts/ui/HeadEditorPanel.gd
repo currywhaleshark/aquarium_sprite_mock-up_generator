@@ -340,6 +340,9 @@ const RAY_SECTIONS := [
 var section_bodies := {}
 var section_headers := {}
 var section_expanded := {}
+var advanced_header: Button
+var advanced_hint: Label
+var advanced_expanded := false
 
 func _ready() -> void:
 	var title := Label.new()
@@ -363,8 +366,30 @@ func _ready() -> void:
 	)
 	add_child(changed_only_check)
 
+	# Primary workflow is now dragging the head handles in the preview; the numeric sliders
+	# are demoted to a single collapsed "advanced" area so the head tab is uncluttered.
+	advanced_hint = Label.new()
+	advanced_hint.text = "💡 프리뷰의 머리 핸들을 드래그해 형태를 다듬으세요"
+	advanced_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	advanced_hint.add_theme_font_size_override("font_size", 11)
+	advanced_hint.add_theme_color_override("font_color", Color(0.62, 0.78, 0.82))
+	add_child(advanced_hint)
+	# Surface the workflow hint at the very top (just under the title) so it's seen without
+	# scrolling past the option grids.
+	move_child(advanced_hint, 1)
+
+	advanced_header = Button.new()
+	advanced_header.toggle_mode = true
+	advanced_header.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	advanced_header.add_theme_font_size_override("font_size", 12)
+	advanced_header.toggled.connect(func(pressed: bool) -> void:
+		_set_advanced_expanded(pressed)
+	)
+	add_child(advanced_header)
+
 	slider_container = VBoxContainer.new()
 	add_child(slider_container)
+	_set_advanced_expanded(false)
 
 	# Operculum silhouette editor (shown only when gill_mark == "operculum").
 	# Mirrors the fin vector editor: drag/add/delete points -> custom outline.
@@ -403,6 +428,8 @@ func focus_key(key: String) -> Control:
 		return null
 	if not numeric_sliders.has(key) or not _should_show_fish_numeric_key(key):
 		return null
+	if not advanced_expanded:
+		_set_advanced_expanded(true)
 	var title := _section_title_for_key(key)
 	if title != "":
 		var header := section_headers.get(title) as Button
@@ -667,6 +694,9 @@ func _refresh_controls() -> void:
 		return
 	_updating = true
 	var is_ray := creature_type == CreatureModeScript.RAY
+	# The drag-the-handles hint only applies to fish/shark (ray has no unified head handles).
+	if advanced_hint != null:
+		advanced_hint.visible = not is_ray
 	var mode := creature_type
 	if mode != current_editor_mode:
 		current_editor_mode = mode
@@ -864,9 +894,20 @@ func is_row_changed(key: String) -> bool:
 		return _row_changed_from_default(boolean_controls[key])
 	return _row_changed_from_default(numeric_sliders[key])
 
+func _set_advanced_expanded(expanded: bool) -> void:
+	advanced_expanded = expanded
+	if advanced_header != null:
+		advanced_header.button_pressed = expanded
+		advanced_header.text = ("  ▼  " if expanded else "  ▶  ") + "세부 조정 (고급 슬라이더)"
+	_apply_row_filter()
+
 func _apply_row_filter() -> void:
 	var search_active := search_text.strip_edges() != ""
 	var filter_active := show_changed_only or search_active
+	# Searching or "changed only" forces the advanced area open so matches are reachable even
+	# when the user has it collapsed; otherwise it follows the master toggle.
+	if slider_container != null:
+		slider_container.visible = advanced_expanded or filter_active
 	for key in numeric_sliders.keys():
 		var widgets: Dictionary = numeric_sliders[key]
 		var row := widgets.get("row") as Control

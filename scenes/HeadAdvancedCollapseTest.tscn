@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b8headadvcollapse1"]
+
+[ext_resource type="Script" path="res://scripts/tools/HeadAdvancedCollapseTest.gd" id="1_headadvcollapse"]
+
+[node name="HeadAdvancedCollapseTest" type="Node"]
+script = ExtResource("1_headadvcollapse")
