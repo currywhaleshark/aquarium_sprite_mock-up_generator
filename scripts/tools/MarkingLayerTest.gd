@@ -15,6 +15,7 @@ func _ready() -> void:
 	_test_body_material_receives_marking_uniforms()
 	_test_body_encoder_drops_legacy_zone_uniforms()
 	_test_shader_contains_marking_mask_path()
+	_test_shader_caudal_peduncle_region_reaches_tail_stem_girth()
 	if _failed:
 		get_tree().quit(1)
 		return
@@ -190,6 +191,14 @@ func _test_shader_contains_marking_mask_path() -> void:
 	assert(code.contains("TYPE_REGION_COLOR"))
 	assert(code.contains("apply_marking_layer(col, marking_type_0, marking_region_0, marking_blend_0"))
 	assert(not code.contains("marking_zone_"))
+
+func _test_shader_caudal_peduncle_region_reaches_tail_stem_girth() -> void:
+	var shader := load(ToonMaterialFactoryScript.BODY_SHADER_PATH)
+	assert(shader is Shader)
+	var code := String(shader.code)
+	var compact := code.replace(" ", "").replace("\t", "").replace("\n", "").replace("\r", "")
+	_expect(compact.contains("if(region==9){returnsmoothstep(0.68,0.76,u);}"), "CAUDAL_PEDUNCLE_REGION_MUST_REACH_FULL_TAIL_STEM_GIRTH")
+	_expect(not compact.contains("if(region==9){returnband_range(u,0.72,0.94,0.04)*(1.0-smoothstep(0.34,0.82,abs(up)));}"), "CAUDAL_PEDUNCLE_REGION_STILL_FLANK_GATED")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

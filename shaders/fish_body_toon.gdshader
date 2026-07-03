@@ -279,7 +279,7 @@ float region_mask(int region, float u, float up) {
 	if (region == 6) { return 1.0 - smoothstep(0.20, 0.28, u); }
 	if (region == 7) { return (1.0 - smoothstep(0.10, 0.22, u)) * (1.0 - smoothstep(0.55, 0.9, abs(up))); }
 	if (region == 8) { return band_range(u, 0.14, 0.25, 0.025) * (1.0 - smoothstep(0.18, 0.62, abs(up))); }
-	if (region == 9) { return band_range(u, 0.72, 0.94, 0.04) * (1.0 - smoothstep(0.34, 0.82, abs(up))); }
+	if (region == 9) { return smoothstep(0.68, 0.76, u); }
 	return 0.0;
 }
 
